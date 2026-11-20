@@ -1248,18 +1248,15 @@ else:
     checar(False, "Farol Roteirização › Por cliente: aba não montou")
 _tcal = next((t_ for t_ in _rv["tabelas"] if t_["titulo"] == "Calendário"), None)
 _pr_todos = _rv["exportar_protheus"]() if _rv.get("exportar_protheus") else []
-# (20/11, T-0010, R-20261120-104729) fora do .json: a visita do 1o sabado
-# do mes (deposito) e a conta 000040; o interno tem o check dele embaixo
+# (20/11, T-0010, RN-ROT-001, R-20261120-104729 e R-20261120-111303) fora
+# do .json: so o CNPJ interno (nome/fantasia) e a conta 000040; o 1o sabado
+# (deposito) VAI, com o dtfinal curto. O calendario do Farol nao traz
+# inativo (a rota ja o tirou).
 
 
 def _fora_mx(l_):
-    d_ = l_[0]
-    if hasattr(d_, "date"):
-        d_ = d_.date()
-    dep_ = next(date(d_.year, d_.month, n_) for n_ in range(1, 8)
-                if date(d_.year, d_.month, n_).weekday() == 5)
-    return d_ == dep_ or str(l_[4]).split(" - ")[0].strip().zfill(6) \
-        == "000040"
+    return (mn.e_cliente_interno(l_[11], l_[15])
+            or str(l_[4]).split(" - ")[0].strip().zfill(6) == "000040")
 
 
 _cal_mx = [l_ for l_ in (_tcal["linhas"] if _tcal else []) if l_[0]
@@ -1278,14 +1275,15 @@ checar(_tcal and _tcal.get("calendario") and len(_cal_mx) == len(_pr_todos)
        f"Farol Roteirização › Calendário e Exportar Protheus "
        f"({len(_pr_todos)} visitas; layout ERP_MXSROTACLI, sem hash e "
        f"coordenada, periodicidade aceita)")
-# (20/11, T-0010) CNPJ interno (FRW / BAP AUTOPARTS / PMZ DISTRIBUIDORA no
-# nome ou na fantasia) tambem nao vai no .json exportado pelo Farol
-_int_mx = {l_[10].replace("-", "") for l_ in _cal_mx
-           if mn.e_cliente_interno(l_[11], l_[15])}
+# (20/11, T-0010, RN-ROT-001) CNPJ interno (FRW / BAP AUTOPARTS / PMZ
+# DISTRIBUIDORA no nome ou na fantasia) tambem nao vai no .json do Farol:
+# conferido no calendario INTEIRO (o _cal_mx ja os tirou)
+_cal_int = [l_ for l_ in (_tcal["linhas"] if _tcal else []) if l_[0]
+            and mn.e_cliente_interno(l_[11], l_[15])]
+_int_mx = {l_[10].replace("-", "") for l_ in _cal_int}
 checar(not {x_["codcli"][-8:] for x_ in _pr_todos} & {
     c_.split("-")[0].zfill(6) + c_.split("-")[-1].zfill(2)
-    for c_ in (l_[10] for l_ in _cal_mx
-               if mn.e_cliente_interno(l_[11], l_[15]))},
+    for c_ in (l_[10] for l_ in _cal_int)},
        f"Farol Roteirização › Exportar Protheus sem cliente interno "
        f"({len(_int_mx)} visita(s) de interno no calendário)")
 # 07/10: BASE PROTHEUS nos farois e Divergencias clientes Planner x Protheus

@@ -1,11 +1,14 @@
 """T-0010 - o JSON da rota da Maxima (layout ERP_MXSROTACLI).
 
-Regra aprovada pelo Alexandre (R-20261120-104729), RN-ROTA T-0010:
+Regra aprovada pelo Alexandre (R-20261120-104729), RN-ROT-001 (T-0010):
 - dtfinal = dtproxvisita + periodicidade - 1 dia (periodicidade = o valor
   exportado: 7, 14, 30 ou 45); nenhuma linha com 3000-01-01;
-- ficam fora do arquivo: a visita do sabado-deposito (1o sabado do mes),
-  o cliente inativo, o cliente interno (pelo nome/fantasia,
-  meta_nucleo.e_cliente_interno) e a conta 000040 (vendedor de teste).
+- ficam fora do arquivo: o cliente inativo, o cliente interno (pelo
+  nome/fantasia, meta_nucleo.e_cliente_interno) e a conta 000040 (vendedor
+  de teste).
+- (R-20261120-111303) o sabado-deposito (1o sabado do mes) VOLTA ao
+  arquivo, com a data final curta (dtproxvisita + periodicidade - 1):
+  nenhum cliente ativo some da Maxima.
 
 Carteira 100% ficticia: "Cliente NN", vendedores "Vendedor A/B" e a
 "Conta Teste" 000040; sem telefone, e-mail ou CNPJ real.
@@ -19,7 +22,7 @@ import pytest
 import planner_nucleo as pn
 
 D = dt.date
-REGRA = "RN-ROTA T-0010, R-20261120-104729"
+REGRA = "RN-ROT-001 (T-0010), R-20261120-104729, R-20261120-111303"
 
 # a regra, escrita por extenso aqui (nao lida do codigo): curva -> o valor
 # exportado no campo periodicidade (60 dias da D/Z vai como 45, o maior
@@ -169,14 +172,14 @@ def _linha_rota(chave, data, vendedor="000015", curva="C", ordem=1,
 @pytest.mark.parametrize("periodicidade,esperado", [
     (7, "2026-11-29T00:00:00"), (14, "2026-12-06T00:00:00"),
     (30, "2026-12-22T00:00:00"), (45, "2027-01-06T00:00:00")])
-def test_RN_ROTA_T0010_dtfinal_funcao_pura(periodicidade, esperado):
-    """RN-ROTA T-0010, R-20261120-104729: dtfinal = dtproxvisita +
+def test_RN_ROT_001_dtfinal_funcao_pura(periodicidade, esperado):
+    """RN-ROT-001 (T-0010), R-20261120-104729: dtfinal = dtproxvisita +
     periodicidade - 1 dia (visita 23/11/2026)."""
     assert pn.dtfinal_protheus(D(2026, 11, 23), periodicidade) == esperado
 
 
-def test_RN_ROTA_T0010_dtfinal_virada_de_ano_e_bissexto():
-    """RN-ROTA T-0010, R-20261120-104729: a conta e de calendario (vira
+def test_RN_ROT_001_dtfinal_virada_de_ano_e_bissexto():
+    """RN-ROT-001 (T-0010), R-20261120-104729: a conta e de calendario (vira
     mes e ano; 2028 e bissexto)."""
     assert pn.dtfinal_protheus(D(2026, 12, 31), 7) == "2027-01-06T00:00:00"
     assert pn.dtfinal_protheus(D(2028, 2, 20), 14) == "2028-03-04T00:00:00"
@@ -186,8 +189,8 @@ def test_RN_ROTA_T0010_dtfinal_virada_de_ano_e_bissexto():
 @pytest.mark.parametrize("curva,semanal,per", [
     ("S", "", 7), ("A", "", 7), ("B", "", 14), ("C", "", 30),
     ("D", "", 45), ("Z", "", 45), ("C", "SIM", 7), ("Z", "SIM", 7)])
-def test_RN_ROTA_T0010_dtfinal_via_linhas_protheus(curva, semanal, per):
-    """RN-ROTA T-0010, R-20261120-104729: pela linhas_protheus, a curva
+def test_RN_ROT_001_dtfinal_via_linhas_protheus(curva, semanal, per):
+    """RN-ROT-001 (T-0010), R-20261120-104729: pela linhas_protheus, a curva
     S/A=7, B=14, C=30, D/Z=45 (60 levado ao maior aceito) e VISITA_SEMANAL=7;
     dtfinal = dtproxvisita + essa periodicidade - 1."""
     visita = D(2026, 11, 24)                          # terca, dia util
@@ -209,8 +212,8 @@ def test_RN_ROTA_T0010_dtfinal_via_linhas_protheus(curva, semanal, per):
 # --------------------------------------------------------------------------
 # 2. nenhuma linha com 3000-01-01
 # --------------------------------------------------------------------------
-def test_RN_ROTA_T0010_nenhuma_linha_com_3000(rotas):
-    """RN-ROTA T-0010, R-20261120-104729: nenhuma linha sai com dtfinal
+def test_RN_ROT_001_nenhuma_linha_com_3000(rotas):
+    """RN-ROT-001 (T-0010), R-20261120-104729: nenhuma linha sai com dtfinal
     3000-01-01 (a vigencia termina em dtproxvisita + periodicidade - 1)."""
     todas = [x for _c, _k, _r, js in rotas.values() for x in js]
     assert todas
@@ -219,13 +222,14 @@ def test_RN_ROTA_T0010_nenhuma_linha_com_3000(rotas):
 
 
 # --------------------------------------------------------------------------
-# 3. sabado-deposito, interno e 000040 fora
+# 3. sabado-deposito DENTRO (R-20261120-111303); interno e 000040 fora
 # --------------------------------------------------------------------------
-def test_RN_ROTA_T0010_sabado_deposito_fora_com_cfg_vazio():
-    """RN-ROTA T-0010, R-20261120-104729: a visita do 1o sabado do mes
-    (deposito) nao vai; o ultimo sabado e os sabados do meio vao. Com cfg
-    vazio e sem clientes (chamada do Farol de Roteirizacao,
-    relatorios_nucleo: linhas_protheus({}, [], linhas=rota)) nao quebra."""
+def test_RN_ROT_001_sabado_deposito_entra_com_cfg_vazio():
+    """RN-ROT-001 (T-0010), R-20261120-111303: a visita do 1o sabado do mes
+    (deposito) VAI para a Maxima, como o ultimo sabado e os do meio, com o
+    dtfinal curto (dtproxvisita + periodicidade - 1). Com cfg vazio e sem
+    clientes (chamada do Farol de Roteirizacao, relatorios_nucleo:
+    linhas_protheus({}, [], linhas=rota)) nao quebra."""
     rota = [_linha_rota("000001-01", D(2026, 11, 7), ordem=1),     # 1o sab
             _linha_rota("000002-01", D(2026, 11, 14), ordem=1),
             _linha_rota("000003-01", D(2026, 11, 28), ordem=1),    # ultimo
@@ -234,25 +238,76 @@ def test_RN_ROTA_T0010_sabado_deposito_fora_com_cfg_vazio():
     for r in rota:                       # o Farol nao manda nome
         r.pop("NOME_CLIENTE")
         r.pop("NOME_FANTASIA")
-    out = pn.linhas_protheus({}, [], linhas=rota)
-    assert sorted(x["codcli"] for x in out) == ["00000201", "00000301",
-                                                "00000501"]
-    assert pn.motivo_fora_da_maxima({}, rota[0]) == "SABADO_DEPOSITO"
-    assert pn.motivo_fora_da_maxima({}, rota[3]) == "SABADO_DEPOSITO"
-    # DATA como datetime (a linha pode vir assim de fora) tambem sai
+    out = pn.linhas_protheus({}, [], linhas=copy.deepcopy(rota))
+    assert sorted(x["codcli"] for x in out) == [
+        "00000101", "00000201", "00000301", "00000401", "00000501"]
+    assert pn.motivo_fora_da_maxima({}, rota[0]) == ""
+    assert pn.motivo_fora_da_maxima({}, rota[3]) == ""
+    dep = {x["codcli"]: x for x in out}
+    # curva C = 30: 7/11 -> 6/12; 5/12 -> 3/1/2027
+    assert (dep["00000101"]["dtproxvisita"], dep["00000101"]["dtfinal"]) == (
+        "2026-11-07T00:00:00", "2026-12-06T00:00:00")
+    assert (dep["00000401"]["dtproxvisita"], dep["00000401"]["dtfinal"]) == (
+        "2026-12-05T00:00:00", "2027-01-03T00:00:00")
+    # DATA como datetime (a linha pode vir assim de fora) tambem entra
     r_dt = _linha_rota("000006-01", dt.datetime(2026, 12, 5))
-    assert pn.motivo_fora_da_maxima({}, r_dt) == "SABADO_DEPOSITO"
-    assert pn.linhas_protheus({}, [], linhas=[r_dt]) == []
+    assert pn.motivo_fora_da_maxima({}, r_dt) == ""
+    out_dt = pn.linhas_protheus({}, [], linhas=[r_dt])
+    assert [(x["codcli"], x["dtproxvisita"], x["dtfinal"]) for x in out_dt] \
+        == [("00000601", "2026-12-05T00:00:00", "2027-01-03T00:00:00")]
 
 
-def test_RN_ROTA_T0010_sabado_deposito_pelo_mes_do_cfg():
-    """RN-ROTA T-0010, R-20261120-104729: com cfg["mes"], o 1o sabado e o
-    do mes do cfg (5/12 para dez/2026)."""
-    r = _linha_rota("000001-01", D(2026, 12, 5))
-    assert pn.motivo_fora_da_maxima({"mes": "2026-12"}, r) == \
-        "SABADO_DEPOSITO"
+def test_RN_ROT_001_sabado_deposito_entra_pelo_mes_do_cfg():
+    """RN-ROT-001 (T-0010), R-20261120-111303: com cfg["mes"], o 1o sabado do
+    mes do cfg (5/12 para dez/2026) nao e motivo de fora; vai com o
+    dtfinal curto, uma linha so."""
+    r = _linha_rota("000001-01", D(2026, 12, 5), curva="S")
+    cfg = {"mes": "2026-12"}
+    assert pn.motivo_fora_da_maxima(cfg, r) == ""
     assert pn.motivo_fora_da_maxima(
-        {"mes": "2026-12"}, _linha_rota("000001-01", D(2026, 12, 12))) == ""
+        cfg, _linha_rota("000001-01", D(2026, 12, 12))) == ""
+    out = pn.linhas_protheus(cfg, [], linhas=[r])
+    assert [(x["dtproxvisita"], x["periodicidade"], x["dtfinal"])
+            for x in out] == [("2026-12-05T00:00:00", "7",
+                               "2026-12-11T00:00:00")]
+
+
+@pytest.mark.parametrize("curva,per", [("S", 7), ("B", 14), ("C", 30),
+                                       ("Z", 45)])
+def test_RN_ROT_001_sabado_deposito_dtfinal_curto(curva, per):
+    """RN-ROT-001 (T-0010), R-20261120-111303: a linha do sabado-deposito tem
+    dtfinal = dtproxvisita + periodicidade - 1 (nunca 3000-01-01) e a
+    Maxima gera uma so ocorrencia."""
+    cli = {"CHAVE_CLIENTE": "000001-01", "CURVA_RECEITA": curva,
+           "STATUS_PROTHEUS": "ATIVO", "NOME_CLIENTE": "Cliente 01",
+           "NOME_FANTASIA": "Cliente 01"}
+    r = _linha_rota("000001-01", D(2026, 11, 7), curva=curva)
+    out = pn.linhas_protheus({"mes": "2026-11"}, [cli], linhas=[r],
+                             compromisso="20261120080000")
+    assert len(out) == 1
+    x = out[0]
+    assert x["periodicidade"] == str(per)
+    assert x["dtfinal"] == pn.dtfinal_protheus(D(2026, 11, 7), per)
+    assert (_d(x["dtfinal"]) - _d(x["dtproxvisita"])).days == per - 1
+    assert x["diasemana"] == "SABADO"
+
+
+def test_RN_ROT_001_sabado_deposito_nao_duplica():
+    """RN-ROT-001 (T-0010), R-20261120-111303: o sabado-deposito entra uma vez
+    por visita; nenhuma chave codcli+codusur+dtproxvisita repete, nem com
+    o cliente tambem visitado em dia util do mesmo mes."""
+    rota = [_linha_rota("000001-01", D(2026, 11, 7), ordem=1),      # dep
+            _linha_rota("000002-01", D(2026, 11, 7), ordem=2),      # dep
+            _linha_rota("000001-01", D(2026, 11, 24), ordem=1),
+            _linha_rota("000003-01", D(2026, 11, 28), ordem=1)]
+    out = pn.linhas_protheus({"mes": "2026-11"}, [], linhas=rota,
+                             compromisso="20261120080000")
+    chaves = collections.Counter((x["codcli"], x["codusur"],
+                                  x["dtproxvisita"]) for x in out)
+    assert len(out) == len(rota) == len(chaves)
+    assert max(chaves.values()) == 1
+    assert sum(1 for x in out
+               if x["dtproxvisita"] == "2026-11-07T00:00:00") == 2
 
 
 @pytest.mark.parametrize("nome,fantasia", [
@@ -260,8 +315,8 @@ def test_RN_ROTA_T0010_sabado_deposito_pelo_mes_do_cfg():
     ("BAP AUTOPARTS LTDA", ""), ("Cliente 01", "Bap Autoparts Loja 2"),
     ("BAP AUTO PARTS", ""), ("PMZ DISTRIBUIDORA", ""),
     ("Cliente 01", "PMZ Distribuidora")])
-def test_RN_ROTA_T0010_interno_fora(nome, fantasia):
-    """RN-ROTA T-0010, R-20261120-104729: CNPJ interno (FRW, BAP AUTOPARTS,
+def test_RN_ROT_001_interno_fora(nome, fantasia):
+    """RN-ROT-001 (T-0010), R-20261120-104729: CNPJ interno (FRW, BAP AUTOPARTS,
     PMZ DISTRIBUIDORA no nome ou na fantasia) nao vai para a Maxima."""
     r = _linha_rota("000001-01", D(2026, 11, 24), nome=nome,
                     fantasia=fantasia)
@@ -269,8 +324,8 @@ def test_RN_ROTA_T0010_interno_fora(nome, fantasia):
     assert pn.linhas_protheus({"mes": "2026-11"}, [], linhas=[r]) == []
 
 
-def test_RN_ROTA_T0010_interno_pelo_cadastro_do_cliente():
-    """RN-ROTA T-0010, R-20261120-104729: sem nome na linha da rota, vale
+def test_RN_ROT_001_interno_pelo_cadastro_do_cliente():
+    """RN-ROT-001 (T-0010), R-20261120-104729: sem nome na linha da rota, vale
     o nome do cadastro do cliente."""
     r = _linha_rota("000001-01", D(2026, 11, 24), nome="", fantasia="")
     cli = {"CHAVE_CLIENTE": "000001-01", "NOME_CLIENTE": "",
@@ -282,8 +337,8 @@ def test_RN_ROTA_T0010_interno_pelo_cadastro_do_cliente():
 
 
 @pytest.mark.parametrize("vendedor", ["000040", "40", 40])
-def test_RN_ROTA_T0010_conta_000040_fora(vendedor):
-    """RN-ROTA T-0010, R-20261120-104729: a conta 000040 (vendedor de
+def test_RN_ROT_001_conta_000040_fora(vendedor):
+    """RN-ROT-001 (T-0010), R-20261120-104729: a conta 000040 (vendedor de
     teste) nao vai, com ou sem zeros a esquerda."""
     r = _linha_rota("000001-01", D(2026, 11, 24), vendedor=vendedor)
     assert pn.motivo_fora_da_maxima({}, r) == "CONTA_000040"
@@ -293,11 +348,9 @@ def test_RN_ROTA_T0010_conta_000040_fora(vendedor):
                         vendedor="000400")) == ""
 
 
-def test_RN_ROTA_T0010_precedencia_dos_motivos():
-    """RN-ROTA T-0010, R-20261120-104729: precedencia INATIVO, INTERNO,
-    CONTA_000040, SABADO_DEPOSITO."""
-    assert pn.MOTIVOS_FORA_DA_MAXIMA == ("INATIVO", "INTERNO", "CONTA_000040",
-                                         "SABADO_DEPOSITO")
+def test_RN_ROT_001_precedencia_dos_motivos():
+    """RN-ROT-001 (T-0010), R-20261120-104729 e R-20261120-111303: precedencia
+    INATIVO, INTERNO, CONTA_000040; o sabado-deposito nao e motivo."""
     r = _linha_rota("000001-01", D(2026, 11, 7), vendedor="000040",
                     nome="FRW")
     cli = {"CHAVE_CLIENTE": "000001-01", "STATUS_PROTHEUS": "INATIVO"}
@@ -306,14 +359,22 @@ def test_RN_ROTA_T0010_precedencia_dos_motivos():
     r["NOME_CLIENTE"] = "Cliente 01"
     assert pn.motivo_fora_da_maxima({}, r) == "CONTA_000040"
     r["COD_VENDEDOR"] = "000015"
-    assert pn.motivo_fora_da_maxima({}, r) == "SABADO_DEPOSITO"
+    assert pn.motivo_fora_da_maxima({}, r) == ""        # 1o sabado: entra
+
+
+def test_RN_ROT_001_motivos_fora_sem_sabado_deposito():
+    """RN-ROT-001 (T-0010), R-20261120-111303: MOTIVOS_FORA_DA_MAXIMA ==
+    ("INATIVO", "INTERNO", "CONTA_000040"), nessa precedencia; o
+    sabado-deposito saiu da lista."""
+    assert pn.MOTIVOS_FORA_DA_MAXIMA == ("INATIVO", "INTERNO", "CONTA_000040")
+    assert "SABADO_DEPOSITO" not in pn.MOTIVOS_FORA_DA_MAXIMA
 
 
 # --------------------------------------------------------------------------
 # 4. inativo fora
 # --------------------------------------------------------------------------
-def test_RN_ROTA_T0010_inativo_fora():
-    """RN-ROTA T-0010, R-20261120-104729: inativo (no Protheus ou inativado
+def test_RN_ROT_001_inativo_fora():
+    """RN-ROT-001 (T-0010), R-20261120-104729: inativo (no Protheus ou inativado
     no Planner) nao vai, mesmo que a linha da rota exista."""
     r1 = _linha_rota("000001-01", D(2026, 11, 24))
     r2 = _linha_rota("000002-01", D(2026, 11, 24), ordem=2)
@@ -326,8 +387,8 @@ def test_RN_ROTA_T0010_inativo_fora():
     assert [x["codcli"] for x in out] == ["00000301"]
 
 
-def test_RN_ROTA_T0010_inativo_fora_da_rota_real(rotas):
-    """RN-ROTA T-0010, R-20261120-104729: na carteira ficticia, nenhum
+def test_RN_ROT_001_inativo_fora_da_rota_real(rotas):
+    """RN-ROT-001 (T-0010), R-20261120-104729: na carteira ficticia, nenhum
     inativo tem linha no JSON de nov nem de dez."""
     inativos = {f"{n:06d}01" for n in INATIVOS_PROTHEUS | INATIVOS_PLANNER}
     for _c, _k, _r, js in rotas.values():
@@ -337,11 +398,12 @@ def test_RN_ROTA_T0010_inativo_fora_da_rota_real(rotas):
 # --------------------------------------------------------------------------
 # 5. nenhum cliente perdido pelo gerador (gerar_rota real)
 # --------------------------------------------------------------------------
-def test_RN_ROTA_T0010_toda_visita_exportavel_vira_linha(rotas):
-    """RN-ROTA T-0010, R-20261120-104729: com a gerar_rota real (nov e
-    dez/2026, feriado 25/12, deposito ligado), TODA visita de cliente ativo
-    e exportavel fora do sabado-deposito vira exatamente uma linha; nenhuma
-    linha sobra; cada linha cobre exatamente a sua periodicidade
+def test_RN_ROT_001_toda_visita_exportavel_vira_linha(rotas):
+    """RN-ROT-001 (T-0010), R-20261120-104729 e R-20261120-111303: com a
+    gerar_rota real (nov e dez/2026, feriado 25/12, deposito ligado), TODA
+    visita de cliente ativo e exportavel, INCLUSIVE a do sabado-deposito,
+    vira exatamente uma linha; nenhuma linha sobra; nenhuma chave
+    codcli+codusur+dtproxvisita repete; cada linha cobre exatamente a sua periodicidade
     (dtfinal - dtproxvisita = p - 1) e gera uma so ocorrencia; nenhuma
     (cliente, data) repete entre as remessas de nov e dez."""
     internos = {f"{n:06d}01" for n in NOMES_INTERNOS}
@@ -355,8 +417,7 @@ def test_RN_ROTA_T0010_toda_visita_exportavel_vira_linha(rotas):
         for r in rota:
             c = por_chave[r["CHAVE_CLIENTE"]]
             if (pn.cliente_inativo(cfg, c) or _codcli(r) in internos
-                    or r["COD_VENDEDOR"].zfill(6) == "000040"
-                    or r["DATA"] == dep):
+                    or r["COD_VENDEDOR"].zfill(6) == "000040"):
                 continue
             esperadas[(_codcli(r), r["COD_VENDEDOR"].zfill(6),
                        f"{r['DATA']:%Y-%m-%d}T00:00:00",
@@ -369,6 +430,12 @@ def test_RN_ROTA_T0010_toda_visita_exportavel_vira_linha(rotas):
         sobram = obtidas - esperadas
         assert not faltam, f"{mes}: {sum(faltam.values())} visita(s) perdida(s)"
         assert not sobram, f"{mes}: {sum(sobram.values())} linha(s) a mais"
+        dep_iso = f"{dep:%Y-%m-%d}T00:00:00"
+        assert any(x["dtproxvisita"] == dep_iso for x in js), \
+            f"{mes}: o sabado-deposito tem de ir ao JSON"
+        chaves = collections.Counter(
+            (x["codcli"], x["codusur"], x["dtproxvisita"]) for x in js)
+        assert max(chaves.values()) == 1, f"{mes}: chave repetida no JSON"
         for x in js:
             p = int(x["periodicidade"])
             ini, fim = _d(x["dtproxvisita"]), _d(x["dtfinal"])
@@ -438,10 +505,12 @@ def _interno(c):
     return mn.e_cliente_interno(c.get("NOME_CLIENTE"), c.get("NOME_FANTASIA"))
 
 
-def test_RN_ROTA_T0010_sem_compromisso_na_janela_sem_perdido(rotas):
-    """RN-ROTA T-0010, R-20261120-104729: de 23/11 a 31/12/2026 (JSON de
-    nov a partir de 23/11 + JSON de dez), todo cliente sem compromisso tem
-    motivo de regra; PERDIDO_PELO_GERADOR = 0. Imprime so contagens."""
+def test_RN_ROT_001_sem_compromisso_na_janela_sem_perdido(rotas):
+    """RN-ROT-001 (T-0010), R-20261120-104729 e R-20261120-111303: de 23/11 a
+    31/12/2026 (JSON de nov a partir de 23/11 + JSON de dez), todo cliente
+    sem compromisso tem motivo de regra; PERDIDO_PELO_GERADOR = 0 e
+    SO_NO_SABADO_DEPOSITO = 0 (o sabado-deposito vai ao JSON: nenhum
+    cliente ativo some da Maxima por causa dele). Imprime so contagens."""
     motivo, period = _classificar(rotas)
     cont = collections.Counter(motivo.values())
     ativos = [ch for ch, m in motivo.items() if m != "INATIVO"]
@@ -464,11 +533,17 @@ def test_RN_ROTA_T0010_sem_compromisso_na_janela_sem_perdido(rotas):
                   f"{tot[7]:>3} {tot[14]:>3} {tot[30]:>3} {tot[45]:>3}")
     print("\n" + "\n".join(linhas))
     assert cont["PERDIDO_PELO_GERADOR"] == 0, "\n".join(linhas)
+    assert cont["SO_NO_SABADO_DEPOSITO"] == 0, "\n".join(linhas)
+    # o teste so prova algo se o deposito da janela (5/12) tiver visita
+    _cd, _kd, rota_d, js_d = rotas["2026-12"]
+    dep = _deposito("2026-12")
+    assert any(r["DATA"] == dep for r in rota_d)
+    assert any(_d(x["dtproxvisita"]) == dep for x in js_d)
     assert set(cont) <= set(MOTIVOS_JANELA) | {"COM_COMPROMISSO"}
 
 
-def test_RN_ROTA_T0010_rota_a_partir_de_23_11():
-    """RN-ROTA T-0010, R-20261120-104729: o JSON 'a partir de 23/11' leva
+def test_RN_ROT_001_rota_a_partir_de_23_11():
+    """RN-ROT-001 (T-0010), R-20261120-104729: o JSON 'a partir de 23/11' leva
     so as visitas de 23/11 em diante, com o mesmo dtfinal."""
     rota = [_linha_rota("000001-01", D(2026, 11, 20)),
             _linha_rota("000001-01", D(2026, 11, 23), curva="S"),
@@ -481,45 +556,174 @@ def test_RN_ROTA_T0010_rota_a_partir_de_23_11():
 
 
 # --------------------------------------------------------------------------
-# 7. pedido de exclusao da remessa anterior a Maxima (sem dado pessoal)
+# 6b. todo cliente ativo com compromisso no mes e o espacamento da rota
+# --------------------------------------------------------------------------
+MOTIVO_ESPACAMENTO = "espaçamento da rota do Planner (anterior à T-0010)"
+
+
+def _exportavel(cfg, c):
+    return not (pn.cliente_inativo(cfg, c) or _interno(c)
+                or pn.vendedor_do_cliente(cfg, c).zfill(6) == "000040")
+
+
+def test_RN_ROT_001_todo_ativo_tem_linha_no_json_do_mes(rotas):
+    """RN-ROT-001 (T-0010), R-20261120-104729 e R-20261120-111303: (1) todo
+    cliente ativo, fora interno e 000040, que a rota do mes visita tem ao
+    menos uma linha no JSON do mes; (2) nenhum cliente com linha na rota
+    some do JSON (fora os de motivo de regra). So contagens."""
+    rel = []
+    for mes, (cfg, cli, rota, js) in rotas.items():
+        no_json = {x["codcli"] for x in js}
+        na_rota = {_codcli(r) for r in rota}
+        ativos = {f"{c['COD_CLIENTE']}{c['LOJA'].zfill(2)}" for c in cli
+                  if _exportavel(cfg, c)}
+        por_chave = {c["CHAVE_CLIENTE"]: c for c in cli}
+        rota_export = {_codcli(r) for r in rota
+                       if _exportavel(cfg, por_chave[r["CHAVE_CLIENTE"]])
+                       and r["COD_VENDEDOR"].zfill(6) != "000040"}
+        sumidos = rota_export - no_json
+        sem_rota = ativos - na_rota
+        rel.append(f"{mes}: ativos exportaveis {len(ativos)}; com linha no "
+                   f"JSON {len(ativos & no_json)}; sem visita na rota do mes "
+                   f"{len(sem_rota)}; sumidos do JSON {len(sumidos)}")
+        assert not sumidos, "\n".join(rel)
+        assert not sem_rota, "\n".join(rel)
+        assert not (no_json - ativos), f"{mes}: linha de nao exportavel"
+    print("\n" + "\n".join(rel))
+
+
+def test_RN_ROT_001_espacamento_maior_que_a_periodicidade(rotas):
+    """RN-ROT-001 (T-0010), R-20261120-104729: relatorio (so contagens, sem
+    nome) de quem, de 23/11 a 31/12/2026, tem intervalo maior que a
+    periodicidade: a 1a visita da janela depois de p dias (sem visita entre
+    23/11 e 23/11 + p - 1) ou duas visitas seguidas a mais de p dias.
+    Motivo: espacamento da rota do Planner (anterior a T-0010). Nao
+    reprova: o gerador da rota nao mudou na T-0010; o teste prende o
+    limite de hoje (ninguem ativo fica sem visita na janela)."""
+    datas = collections.defaultdict(set)
+    per = {}
+    for mes, (cfg, cli, rota, js) in rotas.items():
+        por_cod = {f"{c['COD_CLIENTE']}{c['LOJA'].zfill(2)}": c for c in cli}
+        for x in js:
+            d = _d(x["dtproxvisita"])
+            if JANELA[0] <= d <= JANELA[1]:
+                datas[x["codcli"]].add(d)
+            per[x["codcli"]] = int(x["periodicidade"])
+        for cod, c in por_cod.items():
+            if _exportavel(cfg, c):
+                per.setdefault(cod, _periodicidade_esperada(c))
+    tot, inicio, meio = (collections.Counter() for _ in range(3))
+    sem_visita = collections.Counter()
+    for cod, p in per.items():
+        tot[p] += 1
+        ds = sorted(datas.get(cod, ()))
+        if not ds:
+            sem_visita[p] += 1
+            continue
+        if (ds[0] - JANELA[0]).days >= p:
+            inicio[p] += 1
+        if any((b - a).days > p for a, b in zip(ds, ds[1:])):
+            meio[p] += 1
+    linhas = [f"Espacamento > periodicidade, 23/11 a 31/12/2026 "
+              f"(motivo: {MOTIVO_ESPACAMENTO})",
+              f"{'p':>3} {'clientes':>8} {'1a visita > p':>13} "
+              f"{'intervalo > p':>13} {'sem visita':>10}"]
+    for p in sorted(tot):
+        linhas.append(f"{p:>3} {tot[p]:>8} {inicio[p]:>13} {meio[p]:>13} "
+                      f"{sem_visita[p]:>10}")
+    print("\n" + "\n".join(linhas))
+    # p=45 (D/Z, bimestral levado a 45) pode cair so em janeiro; os outros
+    # tem de ter visita na janela de 39 dias
+    assert not [p for p, n in sem_visita.items() if n and p < 45], \
+        "\n".join(linhas)
+
+
+# --------------------------------------------------------------------------
+# 7. remessas antigas (dtfinal 3000) e o pedido de exclusao a Maxima
 # --------------------------------------------------------------------------
 CNPJ_RE = r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"   # CNPJ formatado
+ARQUIVO_FICTICIO = "ROTA_PROTHEUS_2026-11_A_PARTIR_09-11_.json"
 
 
-def test_RN_ROTA_T0010_pedido_exclusao_maxima_sem_dado_pessoal():
-    """RN-ROTA T-0010, R-20261120-104729: o pedido de exclusao da remessa
-    anterior traz o nome do arquivo, a data da remessa (do codcompromisso,
-    dd/mm/aaaa HH:MM) e os codigos de vendedor distintos, em ordem, sem
-    nome de cliente, fantasia nem CNPJ."""
-    import re
-    if not hasattr(pn, "pedido_exclusao_maxima"):
-        pytest.skip("depende de planner_nucleo.pedido_exclusao_maxima "
-                    "(modulo-rota, T-0010)")
-    arquivo = "ROTA_PROTHEUS_2026-11_A_PARTIR_09-11_.json"
-    linhas = []
-    for i, vend in enumerate(["000016", "000015", "000016", "000040",
-                              "000015", "000015"], 1):
-        linhas.append({
+def _remessa(compromisso, vendedores, dtfinal):
+    """Linhas de uma remessa ficticia, com campos a mais que NAO podem
+    vazar (nome, fantasia, CNPJ e o nome do arquivo)."""
+    out = []
+    for i, vend in enumerate(vendedores, 1):
+        out.append({
             "codcli": f"{i:06d}01", "codusur": vend,
-            "codcompromisso": "20261109143705",
+            "codcompromisso": compromisso,
             "dtproxvisita": "2026-11-10T00:00:00", "periodicidade": "7",
             "sequencia": i, "diasemana": "TERCA", "numsemana": 1,
-            "dtinicio": "2000-01-01T00:00:00",
-            "dtfinal": "2026-11-16T00:00:00",
-            # campos a mais, ficticios, que NAO podem vazar
+            "dtinicio": "2000-01-01T00:00:00", "dtfinal": dtfinal,
+            "ARQUIVO": ARQUIVO_FICTICIO,
             "NOME_CLIENTE": f"Cliente {i:02d} Razao Ficticia",
             "NOME_FANTASIA": f"Fantasia Ficticia {i:02d}",
-            "CNPJ": f"00.000.000/{i:04d}-01", "A1_CGC": f"00000000{i:04d}01"})
-    texto = pn.pedido_exclusao_maxima(arquivo, linhas)
-    assert isinstance(texto, str) and texto.strip()
-    assert arquivo in texto
-    assert "09/11/2026 14:37" in texto
+            "CNPJ": f"00.000.000/{i:04d}-01",
+            "A1_CGC": f"00000000{i:04d}01"})
+    return out
+
+
+def test_RN_ROT_001_remessas_3000_vazio_sem_linha_3000():
+    """RN-ROT-001 (T-0010), R-20261120-111303: sem linha com dtfinal
+    3000-01-01, remessas_dtfinal_3000 devolve [] (o aviso de exclusao nao
+    abre); lista vazia e remessa vazia tambem."""
+    curta = _remessa("20261120080000", ["000015", "000016"],
+                     "2026-11-16T00:00:00")
+    assert pn.remessas_dtfinal_3000([curta, curta]) == []
+    assert pn.remessas_dtfinal_3000([]) == []
+    assert pn.remessas_dtfinal_3000([[]]) == []
+
+
+def test_RN_ROT_001_remessas_3000_da_mais_antiga_a_mais_nova():
+    """RN-ROT-001 (T-0010), R-20261120-111303: so as remessas com alguma
+    linha 3000-01-01, da mais antiga a mais nova, com a data (do
+    codcompromisso, dd/mm/aaaa hh:mm) e os codusur distintos e ordenados."""
+    nova = _remessa("20261115090000", ["000016", "000015"],
+                    "3000-01-01T00:00:00")
+    curta = _remessa("20261120080000", ["000015"], "2026-11-26T00:00:00")
+    velha = _remessa("20261109143705", ["000016", "000040", "000016"],
+                     "3000-01-01T00:00:00")
+    velha[0]["dtfinal"] = "2026-11-16T00:00:00"     # basta uma linha 3000
+    out = pn.remessas_dtfinal_3000([nova, curta, velha])
+    assert out == [
+        {"quando": "09/11/2026 14:37", "vendedores": ["000016", "000040"]},
+        {"quando": "15/11/2026 09:00", "vendedores": ["000015", "000016"]}]
+
+
+def test_RN_ROT_001_pedido_exclusao_maxima_periodo_e_vendedores():
+    """RN-ROT-001 (T-0010), R-20261120-111303: o pedido cita o periodo
+    (1a a ultima remessa 3000) e os codusur distintos, em ordem, uma vez
+    cada, e pede a exclusao de TODAS as anteriores com 3000-01-01."""
+    import re
+    rem = pn.remessas_dtfinal_3000([
+        _remessa("20261109143705", ["000016", "000015", "000040"],
+                 "3000-01-01T00:00:00"),
+        _remessa("20261115090000", ["000015", "000015"],
+                 "3000-01-01T00:00:00")])
+    texto = pn.pedido_exclusao_maxima(rem)
+    assert "Remessas enviadas em: 09/11/2026 14:37 a 15/11/2026 09:00" \
+        in texto
     achados = re.findall(r"\b0000(?:15|16|40)\b", texto)
-    assert sorted(set(achados)) == ["000015", "000016", "000040"]
-    assert len(achados) == 3, "cada vendedor uma vez so"
-    assert achados == sorted(achados), "vendedores em ordem"
+    assert achados == ["000015", "000016", "000040"]
+    assert "TODAS" in texto and "3000-01-01" in texto
+    um = pn.pedido_exclusao_maxima(rem[:1])
+    assert "Remessas enviadas em: 09/11/2026 14:37\n" in um
+    assert " a " not in um.splitlines()[1]
+
+
+def test_RN_ROT_001_pedido_exclusao_maxima_sem_dado_pessoal():
+    """RN-ROT-001 (T-0010), R-20261120-111303, regra 6: o pedido nao traz
+    nome de arquivo, nome de cliente, fantasia, CNPJ (com ou sem mascara)
+    nem codigo de cliente, mesmo que as linhas tragam esses campos."""
+    import re
+    linhas = _remessa("20261109143705", ["000016", "000015"],
+                      "3000-01-01T00:00:00")
+    texto = pn.pedido_exclusao_maxima(pn.remessas_dtfinal_3000([linhas]))
+    assert isinstance(texto, str) and texto.strip()
+    assert ARQUIVO_FICTICIO not in texto and ".json" not in texto
+    assert "ROTA_PROTHEUS" not in texto
     assert "Cliente" not in texto and "Ficticia" not in texto
     assert not re.search(CNPJ_RE, texto)
-    # o CNPJ sem mascara (14 digitos) tambem nao: o codcompromisso pode ir
     assert not [x["A1_CGC"] for x in linhas if x["A1_CGC"] in texto]
     assert not [x["codcli"] for x in linhas if x["codcli"] in texto]
