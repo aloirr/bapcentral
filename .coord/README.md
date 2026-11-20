@@ -9,7 +9,7 @@
 | `contratos/` | Contrato do relatório e funções públicas entre módulos | engenheiro-software |
 | `modelos/` | Modelos de tarefa e recado | gerente-projetos |
 
-**Recados** não ficam aqui: ficam no repositório **`aloirr/bapcentral-recados`**, lidos e gravados pelo `node scripts/coord.mjs`. A marca `/.coord/recados` e `/.coord/lidos` no `.gitignore` liga esse modo.
+**Recados** não ficam aqui: ficam no repositório **`aloirr/bapcentral-recados`**, lidos pelo `node scripts/coord.mjs`. Na nuvem, a gravação é com `git` no clone do repositório de recados, com push direto no `main` (R-20261120-092924-alexandre); o modo git do `coord.mjs` é a T-0007. A marca `/.coord/recados` e `/.coord/lidos` no `.gitignore` liga esse modo.
 
 ## O time
 
@@ -30,7 +30,7 @@
 
 ## Sessões no claude.ai/code
 - **BapCentral-PO** (`BAP_AGENTE=po`): é onde o Alexandre conversa. Abra quando quiser pedir, corrigir, aprovar ou saber o status.
-- **BapCentral-GP** (`BAP_AGENTE=gerente-projetos`): sessão fixa do gerente, com ronda a cada 15–20 min.
+- **BapCentral-GP** (`BAP_AGENTE=gerente-projetos`): sessão fixa do gerente ("BapCentral - Gerente Projeto"), com ronda a cada 20 min; a do po é a cada 10 min (R-20261120-093725-alexandre).
   - Ela chama os outros agentes como subagentes.
   - Quando a tarefa pede, abre outras sessões com `BAP_AGENTE=<agente>`.
 - Nos dois ambientes vai também o **`BAP_RECADOS_TOKEN`** (token fine-grained só com "Contents: read and write" no `aloirr/bapcentral-recados`).

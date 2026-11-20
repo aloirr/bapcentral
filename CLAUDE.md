@@ -38,7 +38,8 @@ Python 3.12; as telas atuais são Tkinter (Windows). Tudo em **português do Bra
 
 ## Recados (repositório próprio)
 - O repositório **`aloirr/bapcentral-recados`** (privado) é a fonte única dos recados.
-- O `coord.mjs` grava e lê direto lá pela API do GitHub, com o token **`BAP_RECADOS_TOKEN`** do ambiente. É um token fine-grained só com "Contents: read and write" nesse repositório.
+- O `coord.mjs` lê direto lá pela API do GitHub, com o token **`BAP_RECADOS_TOKEN`** do ambiente (fine-grained, só "Contents: read and write" nesse repositório).
+- Na nuvem, o proxy barra a gravação pela API: recado e lido são gravados com `git` no clone do repositório de recados anexado à sessão, com push direto no `main` (decisão do Alexandre, R-20261120-092924-alexandre). O modo git do `coord.mjs` é a T-0007.
 - O Alexandre também escreve pelo **formulário de issue "Recado"** do repositório de recados: a Action transforma em recado para o gerente-projetos.
 - Recado é imutável: responda com recado novo. Nada de recado em commit do código.
 
