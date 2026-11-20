@@ -8,3 +8,4 @@
 - 2026-11-20 09:30 — T-0001 — PASSO 0 do Alexandre: sessão renomeada, caixa marcada (3 lidos), recado literal R-20261120-092851, ronda de 20 min e reserva de hora em hora ligadas, relatório ao PO por send_message
 - 2026-11-20 09:45 — T-0008 — doc 07 (Fluxo e Recados) no branch gerente-projetos/T-0008-fluxo-po; T-0004: causa do CI vermelho achada (YAML do ci.yml, linha 30); T-0007/T-0004 aguardam a sessão de governança
 - 2026-11-20 — T-0008 — parecer do revisor no PR #1 (head e27a495): 🔴 só o CI (T-0004); 🟡 2 a 8 corrigidos no commit seguinte
+- 2026-11-20 10:05 — T-0004 — merge do PR #3 (8cd54cb) e do formulário no bapcentral-recados (de3f2ec), autorizados no R-20261120-095830-alexandre; PR #1 corrigido pela nova revisão

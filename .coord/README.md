@@ -9,7 +9,7 @@
 | `contratos/` | Contrato do relatório e funções públicas entre módulos | engenheiro-software |
 | `modelos/` | Modelos de tarefa e recado | gerente-projetos |
 
-**Recados** não ficam aqui: ficam no repositório **`aloirr/bapcentral-recados`**, lidos e gravados pelo `node scripts/coord.mjs`. A marca `/.coord/recados` e `/.coord/lidos` no `.gitignore` liga esse modo.
+**Recados** não ficam aqui: ficam no repositório **`aloirr/bapcentral-recados`**, lidos pelo `node scripts/coord.mjs`. Na nuvem, a gravação é com `git` no clone do repositório de recados, com push direto no `main` (R-20261120-092924-alexandre); o modo git do `coord.mjs` é a T-0007. A marca `/.coord/recados` e `/.coord/lidos` no `.gitignore` liga esse modo.
 
 ## O time
 
