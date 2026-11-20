@@ -21,7 +21,7 @@
 // desconhecido (alias ou extensão), e nome de comando incerto ($GH pr ...).
 // v7 (T-0122): `gh api` só de leitura (analisarGhApi/conferirGhApi): GET/HEAD e GraphQL "query" passam, mesmo com $VAR
 // ou "merge" no --jq; o resto é bloqueado para toda sessão.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, lstatSync, realpathSync } from 'node:fs';
 import { join, win32, posix } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
@@ -1311,4 +1311,268 @@ export function mensagemMergeMcp(erros) {
     `PR de governança: só local, pelo gerente-projetos, com o recado do Alexandre em ${PASTA_AUTORIZACOES} "autorizo o merge do PR #N no commit <sha>".\n` +
     'Não contorne o bloqueio (gh api, outra ferramenta, script): se a regra impede o merge, avise o gerente ou o Alexandre por recado.'
   );
+}
+
+// ──────────────── T-0009: o po grava recado de: alexandre no clone dos recados, por lista do que é PERMITIDO ────────────────
+//
+// R-20261120-100513-alexandre: "o guardião aceita 'de: alexandre' só do po e só no clone do aloirr/bapcentral-recados.
+// Nos outros lugares continua barrando." A exceção vale só quando TODAS as condições valem (desenho do revisor-codigo):
+//  1. o po da sessão principal (BAP_AGENTE=po, sem agent_id, sem agent_type de outro agente): podeGravarPeloAlexandre;
+//  2. o comando inteiro se encaixa só nas formas da lista, encadeadas por && (formaPermitidaDoPo, função pura);
+//  3. o clone é um caminho absoluto igual ao realpath, repositório git com origin (fetch e push) no
+//     aloirr/bapcentral-recados, fora do repositório de código e sem o código dentro dele (conferirCloneDoPo, no disco);
+//  4. no alvo do redirecionamento, a pasta pai existe e é pasta real no clone; o arquivo, se existe, não é link nem
+//     tem nlink > 1.
+// Qualquer outra coisa tira a exceção, e o guardião segue a regra de sempre (que barra "de: alexandre").
+
+/** O único agente que grava recado de: alexandre (no clone dos recados). */
+export const AGENTE_QUE_GRAVA_PELO_ALEXANDRE = 'po';
+
+/**
+ * Remote do repositório de recados, com o servidor amarrado: github.com (https ou ssh) ou o proxy git local da
+ * sessão da nuvem (http://[usuário@]127.0.0.1|localhost[:porta]/git/...). Outro servidor ou caminho local não vale.
+ */
+export const RE_REMOTE_DOS_RECADOS = /^(https:\/\/([^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/|https?:\/\/([^@/\s]+@)?(127\.0\.0\.1|localhost)(:\d+)?\/git\/)aloirr\/bapcentral-recados(\.git)?\/?$/i;
+export const ehRemoteDosRecados = (url) => RE_REMOTE_DOS_RECADOS.test(String(url || '').trim());
+
+/**
+ * A sessão pode gravar recado de: alexandre? Só o po da sessão principal: BAP_AGENTE=po, nenhum agent_id e nenhum
+ * agent_type de outro agente (um subagente "po" do gerente não vale). Função pura.
+ */
+export function podeGravarPeloAlexandre({ agente, origem = '', subagente = false, agentType = '' }) {
+  const tipo = String(agentType || '').trim();
+  return agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE && origem === 'variável BAP_AGENTE' && !subagente
+    && (tipo === '' || tipo === AGENTE_QUE_GRAVA_PELO_ALEXANDRE);
+}
+
+const RE_PALAVRA_LIVRE = /[A-Za-z0-9._/:=@%+,-]/;
+const RE_TAG_HEREDOC = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const RE_CLONE = /^(\/[A-Za-z0-9._-]+)+$/;
+const RE_NOME = /^[a-z0-9][a-z0-9-]*$/;
+const RE_ARQ_RECADO = /^R-\d{8}-\d{6}-[a-z0-9][a-z0-9-]*\.md$/;
+const RE_CAMINHO_DO_ADD = /^(recados|lidos)(\/[A-Za-z0-9._-]+)*$/;
+const semPontos = (p) => p.split('/').every((c) => c !== '.' && c !== '..');
+
+/**
+ * Tokens da linha de comando, só com o que a lista permite: palavras (livres, '...' ou "..." sem $, crase e \),
+ * &&, > e >>, <<'TAG'. Qualquer outro caractere fora de aspas (; | & isolado ( ) $ ` \ < * ? [ ~ { # !...) → null.
+ */
+function tokensPermitidos(linha) {
+  const tokens = [];
+  let palavra = null;
+  const fechar = () => { if (palavra) tokens.push(palavra); palavra = null; };
+  for (let i = 0; i < linha.length; i++) {
+    const ch = linha[i];
+    if (ch === ' ' || ch === '\t') { fechar(); continue; }
+    if (ch === "'") {
+      const fim = linha.indexOf("'", i + 1);
+      if (fim < 0) return null;
+      palavra = palavra || { v: '', aspas: false };
+      palavra.v += linha.slice(i + 1, fim);
+      palavra.aspas = true;
+      i = fim;
+      continue;
+    }
+    if (ch === '"') {
+      const fim = linha.indexOf('"', i + 1);
+      if (fim < 0) return null;
+      const dentro = linha.slice(i + 1, fim);
+      if (/[$`\\]/.test(dentro)) return null;
+      palavra = palavra || { v: '', aspas: false };
+      palavra.v += dentro;
+      palavra.aspas = true;
+      i = fim;
+      continue;
+    }
+    if (RE_PALAVRA_LIVRE.test(ch)) { palavra = palavra || { v: '', aspas: false }; palavra.v += ch; continue; }
+    if (palavra) return null; // operador colado na palavra (2>, x&&, a<b): fora da lista
+    if (ch === '&') {
+      if (linha[i + 1] !== '&' || linha[i + 2] === '&') return null;
+      tokens.push({ op: '&&' });
+      i += 1;
+      continue;
+    }
+    if (ch === '>') {
+      const duplo = linha[i + 1] === '>';
+      const prox = linha[i + (duplo ? 2 : 1)];
+      if (prox === '>' || prox === '&' || prox === '|') return null;
+      tokens.push({ op: duplo ? '>>' : '>' });
+      i += duplo ? 1 : 0;
+      continue;
+    }
+    if (ch === '<') {
+      const m = /^<<'([^']*)'/.exec(linha.slice(i));
+      if (!m || !RE_TAG_HEREDOC.test(m[1])) return null; // <, <<-, <<EOF sem aspas (expande), <<<
+      tokens.push({ op: '<<', tag: m[1] });
+      i += m[0].length - 1;
+      continue;
+    }
+    return null;
+  }
+  fechar();
+  return tokens;
+}
+
+/**
+ * O comando inteiro se encaixa só nas formas permitidas ao po, encadeadas por &&? Função pura.
+ * Formas: cat > <clone>/recados/<destino>/R-AAAAMMDD-HHMMSS-*.md <<'TAG' · cat >> <clone>/lidos/<agente>.txt <<'TAG' ·
+ * printf '<texto>'... com o mesmo redirecionamento · git -C <clone> pull -q --rebase · git -C <clone> add [--]
+ * <recados/...|lidos/...> · git -C <clone> -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q
+ * -m "<texto>" · git -C <clone> push -q origin HEAD:main · git -C <clone> fetch -q · git -C <clone> status.
+ * Um clone só no comando todo. O corpo do heredoc (delimitador entre aspas simples) é texto e não é analisado.
+ * @returns {{ok: true, clone: string, alvos: {op: string, alvo: string}[]} | {ok: false, motivo: string}}
+ */
+export function formaPermitidaDoPo(comando) {
+  const nao = (motivo) => ({ ok: false, motivo });
+  const texto = String(comando ?? '');
+  if (/[\r\0]/.test(texto)) return nao('caractere de controle no comando');
+  const linhas = texto.split('\n');
+  const tokens = tokensPermitidos(linhas[0]);
+  if (!tokens) return nao('caractere ou operador fora da lista na linha do comando');
+  // corpos dos heredocs, na ordem; depois deles, só linhas em branco (outra linha de comando = ";", fora da lista)
+  let k = 1;
+  for (const t of tokens.filter((x) => x.op === '<<')) {
+    while (k < linhas.length && linhas[k] !== t.tag) k++;
+    if (k >= linhas.length) return nao(`heredoc sem o fim "${t.tag}"`);
+    k++;
+  }
+  if (linhas.slice(k).some((l) => l.trim() !== '')) return nao('mais de uma linha de comando');
+  // segmentos separados por &&
+  const segmentos = [[]];
+  for (const t of tokens) {
+    if (t.op === '&&') segmentos.push([]);
+    else segmentos[segmentos.length - 1].push(t);
+  }
+  if (segmentos.some((s) => !s.length)) return nao('&& no começo, no fim ou repetido');
+  const clones = new Set();
+  const alvos = [];
+  for (const seg of segmentos) {
+    const palavras = [];
+    const redirs = [];
+    const heredocs = [];
+    for (let i = 0; i < seg.length; i++) {
+      const t = seg[i];
+      if (t.op === '<<') { heredocs.push(t.tag); continue; }
+      if (t.op === '>' || t.op === '>>') {
+        const alvo = seg[i + 1];
+        if (!alvo || alvo.op || alvo.aspas) return nao('redirecionamento sem caminho literal');
+        redirs.push({ op: t.op, alvo: alvo.v });
+        i++;
+        continue;
+      }
+      palavras.push(t);
+    }
+    const [nome, ...args] = palavras;
+    if (!nome || nome.aspas) return nao('comando sem nome literal');
+    if (nome.v === 'cat' || nome.v === 'printf') {
+      if (nome.v === 'cat' && (args.length || heredocs.length !== 1)) return nao('cat só com <<\'TAG\' e sem arquivo de entrada');
+      if (nome.v === 'printf' && (!args.length || args[0].v.startsWith('-') || heredocs.length)) return nao('printf só com texto literal, sem opção');
+      if (redirs.length !== 1) return nao(`${nome.v} com exatamente um redirecionamento > ou >>`);
+      const { op, alvo } = redirs[0];
+      if (!alvo.startsWith('/') || !semPontos(alvo) || alvo.includes('//')) return nao(`alvo não é caminho absoluto limpo (${alvo})`);
+      const partes = alvo.split('/');
+      const arq = partes[partes.length - 1];
+      let clone;
+      if (op === '>' && partes.length >= 5 && partes[partes.length - 3] === 'recados' && RE_NOME.test(partes[partes.length - 2]) && RE_ARQ_RECADO.test(arq)) clone = partes.slice(0, -3).join('/');
+      else if (op === '>>' && partes.length >= 4 && partes[partes.length - 2] === 'lidos' && /^[a-z0-9][a-z0-9-]*\.txt$/.test(arq)) clone = partes.slice(0, -2).join('/');
+      else return nao(`alvo fora da lista: > <clone>/recados/<destino>/R-AAAAMMDD-HHMMSS-*.md ou >> <clone>/lidos/<agente>.txt (veio ${op} ${alvo})`);
+      if (!RE_CLONE.test(clone)) return nao(`pasta do clone inválida (${clone})`);
+      clones.add(clone);
+      alvos.push({ op, alvo });
+      continue;
+    }
+    if (nome.v !== 'git') return nao(`comando "${nome.v}" fora da lista (só cat, printf e git)`);
+    if (redirs.length || heredocs.length) return nao('git sem redirecionamento');
+    if (args.length < 3 || args[0].v !== '-C' || args.slice(0, 2).some((a) => a.aspas)) return nao('git só com -C <clone absoluto> primeiro');
+    const clone = args[1].v;
+    if (!RE_CLONE.test(clone) || !semPontos(clone)) return nao(`git -C com caminho que não é absoluto e limpo (${clone})`);
+    clones.add(clone);
+    const resto = args.slice(2);
+    const v = resto.map((a) => a.v);
+    const literais = (n) => resto.slice(0, n).every((a) => !a.aspas);
+    const igual = (lista) => v.length === lista.length && lista.every((x, i) => v[i] === x) && literais(lista.length);
+    if (igual(['pull', '-q', '--rebase']) || igual(['push', '-q', 'origin', 'HEAD:main']) || igual(['fetch', '-q']) || igual(['status'])) continue;
+    if (v[0] === 'add' && literais(v.length)) {
+      const caminhos = v.slice(v[1] === '--' ? 2 : 1);
+      const ok = caminhos.length > 0 && caminhos.every((c) => {
+        const rel = c.startsWith(`${clone}/`) ? c.slice(clone.length + 1) : c;
+        return RE_CAMINHO_DO_ADD.test(rel) && semPontos(rel);
+      });
+      if (ok) continue;
+      return nao('git add só de caminhos em recados/ ou lidos/ do clone');
+    }
+    const COMMIT = ['-c', 'user.name=alexandre', '-c', 'user.email=alexandre@bapcentral.invalid', 'commit', '-q', '-m'];
+    if (v.length === COMMIT.length + 1 && COMMIT.every((x, i) => v[i] === x) && literais(COMMIT.length)) continue;
+    return nao(`git ${v.join(' ')} fora da lista (pull -q --rebase, add, commit, push -q origin HEAD:main, fetch -q, status)`);
+  }
+  if (clones.size !== 1) return nao('mais de um clone no comando');
+  return { ok: true, clone: [...clones][0], alvos };
+}
+
+/** Variáveis do git que trocam o repositório, o índice ou a configuração: com elas, nada de exceção. */
+export const GIT_ENV_PROIBIDAS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_COMMON_DIR', 'GIT_NAMESPACE', 'GIT_CONFIG', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_NOSYSTEM'];
+
+/**
+ * Condições 3 e 4 no disco: o clone e os alvos dos redirecionamentos. `fs` e `git` são injetáveis (testes).
+ * O git roda com o mesmo ambiente da sessão, então as URLs conferidas já trazem insteadOf/pushurl/GIT_CONFIG_*.
+ * @returns {string[]} motivos (vazio = condições valem)
+ */
+export function conferirCloneDoPo({
+  clone, alvos = [], raiz, env = process.env,
+  fs = { realpath: (p) => realpathSync.native(p), lstat: (p) => lstatSync(p), readdir: (p) => readdirSync(p) },
+  git = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }),
+}) {
+  const motivos = [];
+  const sob = (a, b) => a === b || a.startsWith(`${b}/`);
+  for (const k of GIT_ENV_PROIBIDAS) if (env[k] !== undefined && env[k] !== '') motivos.push(`variável ${k} no ambiente`);
+  let real;
+  try { real = fs.realpath(clone); } catch { return [...motivos, `o clone ${clone} não existe`]; }
+  if (real !== clone) return [...motivos, `o clone ${clone} não é o caminho real (realpath: ${real})`];
+  const raizes = [raiz];
+  try { raizes.push(fs.realpath(raiz)); } catch { /* só a léxica */ }
+  for (const r of raizes) if (r && (sob(clone, r) || sob(r, clone))) motivos.push('o clone e o repositório de código se sobrepõem');
+  try {
+    const topo = git(['-C', clone, 'rev-parse', '--show-toplevel']).trim();
+    const gitDir = git(['-C', clone, 'rev-parse', '--absolute-git-dir']).trim();
+    if (topo !== clone) motivos.push(`o clone não é a raiz do repositório git (${topo})`);
+    if (gitDir !== `${clone}/.git`) motivos.push(`o .git do clone aponta para outro lugar (${gitDir})`);
+    const st = fs.lstat(`${clone}/.git`);
+    if (st.isSymbolicLink() || !st.isDirectory()) motivos.push('o .git do clone não é uma pasta real');
+    const urls = [
+      ...git(['-C', clone, 'remote', 'get-url', '--all', 'origin']).split('\n'),
+      ...git(['-C', clone, 'remote', 'get-url', '--push', '--all', 'origin']).split('\n'),
+    ].map((u) => u.trim()).filter(Boolean);
+    if (!urls.length || !urls.every(ehRemoteDosRecados)) motivos.push('o origin (fetch ou push) do clone não é o aloirr/bapcentral-recados');
+    let hooksPath = '';
+    try { hooksPath = git(['-C', clone, 'config', '--get', 'core.hooksPath']).trim(); } catch { hooksPath = ''; }
+    if (hooksPath) motivos.push('core.hooksPath configurado no clone');
+    const ganchos = (() => { try { return fs.readdir(`${clone}/.git/hooks`); } catch { return []; } })();
+    if (ganchos.some((h) => !h.endsWith('.sample'))) motivos.push('gancho (hook) do git ativo no clone');
+  } catch {
+    motivos.push('o clone não é um repositório git legível');
+  }
+  for (const { alvo } of alvos) {
+    const pai = posix.dirname(alvo);
+    let paiReal = null;
+    try { paiReal = fs.realpath(pai); } catch { paiReal = null; }
+    if (paiReal !== pai || !sob(pai, clone)) { motivos.push(`a pasta de ${alvo} não existe ou não é pasta real no clone`); continue; }
+    try { if (!fs.lstat(pai).isDirectory()) { motivos.push(`${pai} não é pasta`); continue; } } catch { motivos.push(`${pai} não existe`); continue; }
+    let st = null;
+    try { st = fs.lstat(alvo); } catch (e) { if (e?.code !== 'ENOENT') motivos.push(`não deu para conferir ${alvo}`); }
+    if (st && (st.isSymbolicLink() || !st.isFile() || st.nlink > 1)) motivos.push(`${alvo} já existe como link, link pendente, hard link ou não arquivo`);
+  }
+  return motivos;
+}
+
+/**
+ * A exceção do po vale para este comando? Junta as 4 condições.
+ * @returns {{ok: boolean, motivos: string[]}}
+ */
+export function excecaoDoPo({ comando, agente, origem, subagente, agentType, raiz, env, fs, git }) {
+  if (!podeGravarPeloAlexandre({ agente, origem, subagente, agentType })) return { ok: false, motivos: ['não é o po da sessão principal'] };
+  const forma = formaPermitidaDoPo(comando);
+  if (!forma.ok) return { ok: false, motivos: [forma.motivo] };
+  const motivos = conferirCloneDoPo({ clone: forma.clone, alvos: forma.alvos, raiz, ...(env ? { env } : {}), ...(fs ? { fs } : {}), ...(git ? { git } : {}) });
+  return { ok: motivos.length === 0, motivos };
 }

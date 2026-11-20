@@ -4,15 +4,19 @@
 // Parte 1: funções puras (motivosRecadoFalso, classificarComando, escritasDoComando).
 // Parte 2: o hook de verdade (guarda-bash.mjs, stdin → exit code) num repositório git temporário.
 // Parte 3: git add/commit/stash de recado do Alexandre já existente (liberado se intacto).
+// Parte 4 (T-0009): o po grava recado de: alexandre só no clone do aloirr/bapcentral-recados, por lista do que é permitido.
 // Os casos de recado falso do v5 continuam em guarda-merge.test.mjs (sem mudança).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, readdirSync, existsSync, symlinkSync, linkSync, realpathSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { motivosRecadoFalso, classificarComando, escritasDoComando, motivosIndiceDeRecados, comandosDeIndice, vigiarRecados } from './guarda-merge-lib.mjs';
+import {
+  motivosRecadoFalso, classificarComando, escritasDoComando, motivosIndiceDeRecados, comandosDeIndice, vigiarRecados,
+  formaPermitidaDoPo, podeGravarPeloAlexandre, ehRemoteDosRecados, conferirCloneDoPo,
+} from './guarda-merge-lib.mjs';
 import { tokenizar, comandosSimples } from './guarda-bash-lib.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -332,4 +336,221 @@ test('hook v6: alterar o recado do Alexandre antes do add continua bloqueado (me
   r = rodar(dir, 'git commit -q -m x');
   assert.equal(r.codigo, 2);
   assert.match(r.erro, /conteúdo no índice difere do disco \(git status "AM"\)/);
+});
+
+// ───────── T-0009: o po grava recado de: alexandre no clone dos recados, por lista do que é PERMITIDO ─────────
+// R-20261120-100513-alexandre: aceita "de: alexandre" só do po e só no clone do aloirr/bapcentral-recados; nos outros
+// lugares continua barrando. Desenho do revisor-codigo: a exceção vale só com o comando inteiro na lista (formaPermitidaDoPo)
+// e o clone conferido no disco (conferirCloneDoPo). Fora disso, as regras de sempre.
+
+const ID_GP = 'R-20261120-120000-alexandre';
+const CORPO_GP = `---\nid: ${ID_GP}\nde: alexandre\npara: [gerente-projetos]\ntipo: decisao\n---\nA) sim.`;
+/** cat > <clone>/recados/gerente-projetos/<id>.md <<'EOF' [resto encadeado por &&] + corpo do heredoc. */
+const RECADO = (clone, resto = '', id = ID_GP) => `cat > ${clone}/recados/gerente-projetos/${id}.md <<'EOF'${resto}\n${CORPO_GP.replace(ID_GP, id)}\nEOF`;
+const COMMIT_PO = (clone, msg = 'recado do Alexandre (chat)') => `git -C ${clone} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q -m "${msg}"`;
+const CADEIA = (clone) => ` && git -C ${clone} add recados/gerente-projetos && ${COMMIT_PO(clone)} && git -C ${clone} push -q origin HEAD:main`;
+
+test('T-0009: formaPermitidaDoPo aceita só as formas da lista, encadeadas por &&', () => {
+  const c = '/x/bapcentral-recados';
+  for (const cmd of [
+    RECADO(c),
+    RECADO(c, CADEIA(c)),
+    `git -C ${c} pull -q --rebase && ${RECADO(c, CADEIA(c))}`,
+    `printf '%s\\n' '---' 'de: alexandre' '---' 'texto' > ${c}/recados/po/R-20261120-120000-alexandre.md`,
+    `cat >> ${c}/lidos/gerente-projetos.txt <<'FIM' && git -C ${c} add -- lidos/gerente-projetos.txt ${c}/lidos\nR-20261120-120000-alexandre\nFIM`,
+    `git -C ${c} fetch -q && git -C ${c} status`,
+    COMMIT_PO(c, 'de: alexandre; texto (com) sinais & e | dentro das aspas'),
+  ]) assert.equal(formaPermitidaDoPo(cmd).ok, true, cmd);
+  for (const cmd of [
+    `cd ${c} && ${RECADO(c)}`, `pushd ${c} && ${RECADO(c)}`, `X=1 ${RECADO(c)}`, `export GIT_DIR=/r/.git; ${RECADO(c)}`,
+    `${RECADO(c, ' | true')}`, `${RECADO(c, ' || true')}`, `${RECADO(c, ' ; true')}`, `${RECADO(c, ' & true')}`, `${RECADO(c, ' &&')}`,
+    `${RECADO(c)}\ngit -C ${c} add recados`, // segunda linha de comando = ";"
+    `${RECADO(c, ` && git -C ${c} log -1 --output=/r/x`)}`, `git -C ${c} diff`, `git -C ${c} show HEAD`,
+    `git -C ${c} push -q /r HEAD:refs/heads/po/forjado`, `git -C ${c} push -q origin HEAD:refs/heads/x`, `git -C ${c} push -q https://example.invalid/x.git HEAD:main`, `git -C ${c} push origin HEAD:main`,
+    `git -C ${c} add -A`, `git -C ${c} add .`, `git -C ${c} add -f recados`, `git -C ${c} add recados/../x`, `git -C ${c} add /r/x`, `git -C ${c} add 'recados/*'`,
+    `git -C ${c} -c core.hooksPath=/r commit -q -m x`, `git -C ${c} commit -q -m x`, `git -C ${c} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q -m "$(id)"`,
+    `git -C ${c} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q -m x --no-verify`,
+    `git -C x/rel status`, `git -C ${c}/../r status`, `git -C ${c}/./ status`, `git status`, `/usr/bin/git -C ${c} status`, `git --git-dir=/r/.git -C ${c} status`,
+    `cat > ${c}/recados/gerente-projetos/x.md <<'EOF'\nde: alexandre\nEOF`, `cat > recados/gerente-projetos/${ID_GP}.md <<'EOF'\nEOF`,
+    `cat > ${c}/recados/gerente-projetos/../../r/${ID_GP}.md <<'EOF'\nEOF`, `cat >> ${c}/recados/gerente-projetos/${ID_GP}.md <<'EOF'\nEOF`,
+    `cat > ${c}/lidos/po.txt <<'EOF'\nEOF`, `cat <<'EOF' > ${c}/recados/gerente-projetos/${ID_GP}.md /r/bap_dados.py\nEOF`,
+    `cat > ${c}/recados/gerente-projetos/${ID_GP}.md <<EOF\n$(id)\nEOF`, `cat > ${c}/recados/gerente-projetos/${ID_GP}.md <<-'EOF'\nEOF`,
+    `cat > ${c}/recados/gerente-projetos/${ID_GP}.md < /r/bap_dados.py`, `cat 2> ${c}/recados/gerente-projetos/${ID_GP}.md <<'EOF'\nEOF`,
+    `printf -v x 'a' > ${c}/recados/gerente-projetos/${ID_GP}.md`, `printf "$(id)" > ${c}/recados/gerente-projetos/${ID_GP}.md`, `printf \`id\` > ${c}/lidos/po.txt`,
+    `echo 'de: alexandre' > ${c}/recados/gerente-projetos/${ID_GP}.md`, `tee ${c}/recados/gerente-projetos/${ID_GP}.md`, `ln -s /r ${c}/lk && ${RECADO(c)}`,
+    `xargs -a ${c}/lista tee < ${c}/recados/gerente-projetos/${ID_GP}.md`, `eval "${RECADO(c)}"`, `bash -c 'git -C ${c} status'`,
+    `${RECADO(c, ` && git -C /r add -A`)}`, `git -C ${c} status && git -C /outro/clone status`,
+  ]) assert.equal(formaPermitidaDoPo(cmd).ok, false, cmd);
+});
+
+test('T-0009: podeGravarPeloAlexandre — só o po da sessão principal', () => {
+  assert.equal(podeGravarPeloAlexandre({ agente: 'po', origem: 'variável BAP_AGENTE' }), true);
+  assert.equal(podeGravarPeloAlexandre({ agente: 'po', origem: 'variável BAP_AGENTE', agentType: 'po' }), true);
+  assert.equal(podeGravarPeloAlexandre({ agente: 'po', origem: 'variável BAP_AGENTE', subagente: true }), false);
+  assert.equal(podeGravarPeloAlexandre({ agente: 'po', origem: 'variável BAP_AGENTE', agentType: 'gerente-projetos' }), false);
+  assert.equal(podeGravarPeloAlexandre({ agente: 'po', origem: 'subagente (agent_type)', subagente: true }), false);
+  assert.equal(podeGravarPeloAlexandre({ agente: 'po', origem: 'sessão local (agent_type)' }), false);
+  assert.equal(podeGravarPeloAlexandre({ agente: 'gerente-projetos', origem: 'variável BAP_AGENTE' }), false);
+  for (const u of ['https://github.com/aloirr/bapcentral-recados.git', 'git@github.com:aloirr/bapcentral-recados.git', 'http://local_proxy@127.0.0.1:1234/git/aloirr/bapcentral-recados'])
+    assert.equal(ehRemoteDosRecados(u), true, u);
+  for (const u of ['https://github.com/aloirr/bapcentral.git', 'https://github.com/outro/bapcentral-recados.git', 'https://qualquer/aloirr/bapcentral-recados', '/tmp/aloirr/bapcentral-recados', ''])
+    assert.equal(ehRemoteDosRecados(u), false, u);
+});
+
+/** Clone de mentira do aloirr/bapcentral-recados (caminho real), com recados/gerente-projetos, recados/po e lidos. */
+function criarClone(remote = 'https://github.com/aloirr/bapcentral-recados.git') {
+  const mae = realpathSync(mkdtempSync(join(tmpdir(), 'guarda-clone-')));
+  temporarios.push(mae);
+  const dir = join(mae, 'bapcentral-recados');
+  for (const p of ['recados/gerente-projetos', 'recados/po', 'lidos']) mkdirSync(join(dir, p), { recursive: true });
+  writeFileSync(join(dir, 'lidos', 'gerente-projetos.txt'), 'R-20261120-000000-po\n');
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'user.name', 'Teste');
+  git(dir, 'config', 'user.email', 'teste@exemplo.invalid');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  git(dir, 'remote', 'add', 'origin', remote);
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'inicial');
+  return dir;
+}
+const PO = { entrada: {}, env: { BAP_AGENTE: 'po', CLAUDE_CODE_REMOTE: 'true' } };
+const naoTocouOCodigo = (repo) => assert.equal(git(repo, 'status', '--porcelain').trim(), '');
+
+test('hook T-0009: os casos do parecer no 776851d barram (exit 2)', () => {
+  const repo = criarRepo();
+  escrever(repo, 'bap_dados.py', 'VERSAO = 27\n');
+  git(repo, 'add', '-A');
+  git(repo, 'commit', '-q', '-m', 'bap_dados');
+  const clone = criarClone();
+  const gp = (id) => join(clone, 'recados', 'gerente-projetos', `${id}.md`);
+  // (b) link pendente já existente, apontando para .coord/recados do código; (c) hard links já existentes
+  symlinkSync(join(repo, '.coord', 'recados', 'gerente-projetos', 'R-20261120-120100-alexandre.md'), gp('R-20261120-120100-alexandre'));
+  linkSync(join(repo, 'bap_dados.py'), join(clone, 'recados', 'hb.md'));
+  linkSync(join(repo, 'bap_dados.py'), gp('R-20261120-120200-alexandre'));
+  writeFileSync(join(clone, 'lista'), `${join(repo, 'bap_dados.py')}\n`);
+  const rec = gp(ID_GP);
+  const casos = [
+    ['(a) GIT_DIR/GIT_WORK_TREE no comando', RECADO(clone, ` && GIT_DIR=${repo}/.git GIT_WORK_TREE=${clone} git add -f recados && GIT_DIR=${repo}/.git git commit -q -m x`)],
+    ['(a) export GIT_DIR=...;', `export GIT_DIR=${repo}/.git; ${RECADO(clone, ` && git -C ${clone} add recados && ${COMMIT_PO(clone)}`)}`],
+    ['(b) link pendente já existente + printf >', `printf '%s\\n' '---' 'de: alexandre' '---' 'x' > ${gp('R-20261120-120100-alexandre')}`],
+    ['(c) hard link já existente (hb.md) + printf >', `printf '%s\\n' 'de: alexandre' > ${join(clone, 'recados', 'hb.md')}`],
+    ['(c) hard link já existente com nome de recado + printf >', `printf '%s\\n' 'de: alexandre' > ${gp('R-20261120-120200-alexandre')}`],
+    ['(d) git log --output para o código', RECADO(clone, ` && git -C ${clone} log -1 --format=de:alexandre --output=${repo}/.coord/recados/gerente-projetos/R-20261120-120300-alexandre.md`)],
+    ['(e) xargs -a ... tee < recado', `${RECADO(clone)}\nxargs -a ${clone}/lista tee < ${rec}`],
+    ['(e) xargs encadeado', RECADO(clone, ` && xargs -a ${clone}/lista tee < ${rec}`)],
+    ['(f) recado no clone && git -C <repo> add -A', RECADO(clone, ` && git -C ${repo} add -A`)],
+    ['(g) push para o repositório de código', RECADO(clone, ` && git -C ${clone} add recados && ${COMMIT_PO(clone)} && git -C ${clone} push -q ${repo} HEAD:refs/heads/po/forjado`)],
+    ['(g) push para uma URL qualquer', RECADO(clone, ` && git -C ${clone} add recados && ${COMMIT_PO(clone)} && git -C ${clone} push -q https://example.invalid/x.git HEAD:main`)],
+  ];
+  let barrados = 0;
+  for (const [nome, comando] of casos) {
+    const r = bash(repo, comando, PO);
+    assert.equal(r.codigo, 2, `${nome}\n${r.erro}`);
+    assert.match(r.erro, /BLOQUEADO/, nome);
+    barrados++;
+  }
+  assert.equal(barrados, casos.length);
+  // (g) também por configuração: pushurl ou insteadOf do clone apontando para o código → exceção cai
+  const clone2 = criarClone();
+  git(clone2, 'config', 'remote.origin.pushurl', repo);
+  assert.equal(bash(repo, RECADO(clone2, CADEIA(clone2)), PO).codigo, 2, 'pushurl para o código');
+  const clone3 = criarClone();
+  git(clone3, 'config', `url.${repo}/.insteadOf`, 'https://github.com/aloirr/bapcentral-recados');
+  assert.equal(bash(repo, RECADO(clone3, CADEIA(clone3)), PO).codigo, 2, 'insteadOf para o código');
+  // ambiente com GIT_DIR: a exceção cai
+  assert.equal(bash(repo, RECADO(clone, CADEIA(clone)), { entrada: {}, env: { ...PO.env, GIT_DIR: join(repo, '.git') } }).codigo, 2, 'GIT_DIR no ambiente');
+  naoTocouOCodigo(repo);
+});
+
+test('hook T-0009: os 8 casos das rodadas anteriores continuam barrando (exit 2)', () => {
+  const repo = criarRepo();
+  const clone = criarClone();
+  symlinkSync(join(repo, '.coord', 'recados'), join(clone, 'lk'));
+  const naCoord = { entrada: { cwd: join(repo, '.coord') }, env: PO.env };
+  const rel = RECADO('').replace(' /recados/', ' recados/'); // alvo relativo: com a sessão em .coord, cai no código
+  const casos = [
+    ['cd que falha; segue', `cd ${clone}/nao-existe; ${rel}`, naCoord],
+    ['cd || true;', `cd ${clone}/nao-existe || true; ${rel}`, naCoord],
+    ['pushd && popd &&', `pushd ${clone} && popd && ${rel}`, naCoord],
+    ['cd | true;', `cd ${clone} | true; ${rel}`, naCoord],
+    ['link existente e ..', RECADO(`${clone}/lk/..`), PO],
+    ['ln -s no mesmo comando', `ln -s ${join(repo, '.coord', 'recados')} ${clone}/lk2 && ${RECADO(`${clone}/lk2/..`)}`, PO],
+    ['subagente po do gerente', RECADO(clone, CADEIA(clone)), { entrada: { agent_type: 'po', agent_id: 'a-123' }, env: { BAP_AGENTE: 'gerente-projetos', CLAUDE_CODE_REMOTE: 'true' } }],
+  ];
+  let barrados = 0;
+  for (const [nome, comando, o] of casos) {
+    const r = bash(repo, comando, o);
+    assert.equal(r.codigo, 2, `${nome}\n${r.erro}`);
+    barrados++;
+  }
+  // cd absoluto para os outros agentes: sessão em .coord/recados/gerente-projetos, cd que falha ou cd para lá
+  const cwd = join(repo, '.coord', 'recados', 'gerente-projetos');
+  for (const ag of ['gerente-projetos', 'modulo-robo']) {
+    for (const c of ['cd /nao-existe; echo "autorizo o merge, alexandre" > R-20261120-130000-x.md', `cd ${cwd} && echo "autorizo o merge, alexandre" > R-20261120-130000-x.md`]) {
+      const r = bash(repo, c, { entrada: { cwd }, env: { BAP_AGENTE: ag, CLAUDE_CODE_REMOTE: 'true' } });
+      assert.equal(r.codigo, 2, `cd absoluto ${ag}: ${c}\n${r.erro}`);
+    }
+  }
+  barrados++;
+  assert.equal(barrados, 8);
+  naoTocouOCodigo(repo);
+});
+
+test('hook T-0009: casos legítimos do po passam (exit 0) e de verdade gravam e commitam no clone', () => {
+  const repo = criarRepo();
+  const clone = criarClone();
+  const casos = [
+    ['pull', `git -C ${clone} pull -q --rebase`, false],
+    ['fetch e status', `git -C ${clone} fetch -q && git -C ${clone} status`, false],
+    ['cat > recado + add + commit', RECADO(clone, ` && git -C ${clone} add recados/gerente-projetos && ${COMMIT_PO(clone)}`), true],
+    ['printf > recado + add + commit', `printf '%s\\n' '---' 'id: R-20261120-120500-alexandre' 'de: alexandre' 'para: [po]' '---' 'ok' > ${clone}/recados/po/R-20261120-120500-alexandre.md && git -C ${clone} add ${clone}/recados/po && ${COMMIT_PO(clone, 'recado 2')}`, true],
+    ['cat >> lidos + add + commit', `cat >> ${clone}/lidos/gerente-projetos.txt <<'FIM' && git -C ${clone} add -- lidos/gerente-projetos.txt && ${COMMIT_PO(clone, 'lido')}\nR-20261120-120000-alexandre\nFIM`, true],
+    ['cadeia completa até o push', RECADO(clone, CADEIA(clone), 'R-20261120-120600-alexandre'), false],
+    ['pull + recado + push', `git -C ${clone} pull -q --rebase && ${RECADO(clone, CADEIA(clone), 'R-20261120-120700-alexandre')}`, false],
+  ];
+  let passaram = 0;
+  for (const [nome, comando, rodar] of casos) {
+    for (const o of [PO, { entrada: { agent_type: 'po' }, env: PO.env }, { entrada: { cwd: clone }, env: PO.env }]) {
+      const r = bash(repo, comando, o);
+      assert.equal(r.codigo, 0, `${nome}\n${r.erro}`);
+    }
+    if (rodar) execFileSync('bash', ['-c', comando], { cwd: repo, stdio: 'ignore' });
+    passaram++;
+  }
+  assert.equal(passaram, casos.length);
+  assert.match(readFileSync(join(clone, 'recados', 'gerente-projetos', `${ID_GP}.md`), 'utf8'), /de: alexandre/);
+  assert.match(readFileSync(join(clone, 'lidos', 'gerente-projetos.txt'), 'utf8'), /R-20261120-120000-alexandre/);
+  assert.equal(git(clone, 'log', '--format=%an', '-3').trim(), 'alexandre\nalexandre\nalexandre');
+  naoTocouOCodigo(repo);
+  // depois de gravado, o recado é arquivo comum (nlink 1): reescrever no mesmo nome ainda passa a conferência do disco
+  assert.deepEqual(conferirCloneDoPo({ clone, alvos: [{ op: '>', alvo: join(clone, 'recados', 'gerente-projetos', `${ID_GP}.md`) }], raiz: repo, env: {} }), []);
+});
+
+test('hook T-0009: outros agentes, sessão sem BAP_AGENTE, subagente po e clone falso continuam barrados', () => {
+  const repo = criarRepo();
+  const clone = criarClone();
+  const falso = criarClone('https://github.com/aloirr/bapcentral.git');
+  const outroServidor = criarClone('https://qualquer/aloirr/bapcentral-recados');
+  const dentro = join(repo, 'recados-dentro');
+  mkdirSync(join(dentro, 'recados', 'gerente-projetos'), { recursive: true });
+  const cmd = RECADO(clone, CADEIA(clone));
+  const nuvem = { CLAUDE_CODE_REMOTE: 'true' };
+  const casos = [
+    ['po no clone (controle)', cmd, PO, 0],
+    ['po no repositório de código', RECADO(repo.replace(/\/$/, '') + '/.coord').replace('/.coord/recados/', '/.coord/recados/'), PO, 2],
+    ['po em pasta dentro do código', RECADO(dentro), PO, 2],
+    ['po em clone com outro remote', RECADO(falso, CADEIA(falso)), PO, 2],
+    ['po em remote de outro servidor', RECADO(outroServidor, CADEIA(outroServidor)), PO, 2],
+    ['po sem a pasta pai do alvo', RECADO(clone).replace('/gerente-projetos/', '/nao-existe/'), PO, 2],
+    ['modulo-robo no clone', cmd, { entrada: {}, env: { BAP_AGENTE: 'modulo-robo', ...nuvem } }, 2],
+    ['gerente no clone', cmd, { entrada: {}, env: { BAP_AGENTE: 'gerente-projetos', ...nuvem } }, 2],
+    ['sessão da nuvem sem BAP_AGENTE', cmd, { entrada: {}, env: nuvem }, 2],
+    ['po só por agent_type', cmd, { entrada: { agent_type: 'po' }, env: nuvem }, 2],
+    ['subagente po (BAP_AGENTE=po + agent_id)', cmd, { entrada: { agent_type: 'po', agent_id: 'a-1' }, env: PO.env }, 2],
+    ['BAP_AGENTE=po com agent_type de outro agente', cmd, { entrada: { agent_type: 'gerente-projetos' }, env: PO.env }, 2],
+  ];
+  for (const [nome, comando, o, esperado] of casos) {
+    const r = bash(repo, comando, o);
+    assert.equal(r.codigo, esperado, `${nome}\n${r.erro}`);
+  }
 });
