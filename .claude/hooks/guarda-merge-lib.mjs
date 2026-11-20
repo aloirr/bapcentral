@@ -1417,10 +1417,12 @@ function tokensPermitidos(linha) {
  * O comando inteiro se encaixa só nas formas permitidas ao po, encadeadas por &&? Função pura.
  * Formas: cat > <clone>/recados/<destino>/R-AAAAMMDD-HHMMSS-*.md <<'TAG' · cat >> <clone>/lidos/<agente>.txt <<'TAG' ·
  * printf '<texto>'... com o mesmo redirecionamento · git -C <clone> pull -q --rebase · git -C <clone> add [--]
- * <recados/...|lidos/...> · git -C <clone> -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q
- * -m "<texto>" · git -C <clone> push -q origin HEAD:main · git -C <clone> fetch -q · git -C <clone> status.
+ * <recados/...|lidos/...> · git -C <clone> -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid
+ * -c commit.gpgsign=false commit -q -m "<texto>" · git -C <clone> push -q origin HEAD:main · git -C <clone> fetch -q ·
+ * git -C <clone> status.
  * Um clone só no comando todo. O corpo do heredoc (delimitador entre aspas simples) é texto e não é analisado.
- * @returns {{ok: true, clone: string, alvos: {op: string, alvo: string}[]} | {ok: false, motivo: string}}
+ * `caminhos`: os alvos e os caminhos do add, relativos ao clone (conferidos no check-attr).
+ * @returns {{ok: true, clone: string, alvos: {op: string, alvo: string}[], caminhos: string[]} | {ok: false, motivo: string}}
  */
 export function formaPermitidaDoPo(comando) {
   const nao = (motivo) => ({ ok: false, motivo });
@@ -1446,6 +1448,7 @@ export function formaPermitidaDoPo(comando) {
   if (segmentos.some((s) => !s.length)) return nao('&& no começo, no fim ou repetido');
   const clones = new Set();
   const alvos = [];
+  const adds = [];
   for (const seg of segmentos) {
     const palavras = [];
     const redirs = [];
@@ -1498,15 +1501,19 @@ export function formaPermitidaDoPo(comando) {
         const rel = c.startsWith(`${clone}/`) ? c.slice(clone.length + 1) : c;
         return RE_CAMINHO_DO_ADD.test(rel) && semPontos(rel);
       });
-      if (ok) continue;
+      if (ok) { caminhos.forEach((c) => adds.push(c)); continue; }
       return nao('git add só de caminhos em recados/ ou lidos/ do clone');
     }
-    const COMMIT = ['-c', 'user.name=alexandre', '-c', 'user.email=alexandre@bapcentral.invalid', 'commit', '-q', '-m'];
+    // parecer no 775520e: sem assinatura (o aloirr/bapcentral-recados não exige commit assinado), o assinador não roda no commit
+    const COMMIT = ['-c', 'user.name=alexandre', '-c', 'user.email=alexandre@bapcentral.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m'];
     if (v.length === COMMIT.length + 1 && COMMIT.every((x, i) => v[i] === x) && literais(COMMIT.length)) continue;
     return nao(`git ${v.join(' ')} fora da lista (pull -q --rebase, add, commit, push -q origin HEAD:main, fetch -q, status)`);
   }
   if (clones.size !== 1) return nao('mais de um clone no comando');
-  return { ok: true, clone: [...clones][0], alvos };
+  const clone = [...clones][0];
+  const relativo = (c) => (c.startsWith(`${clone}/`) ? c.slice(clone.length + 1) : c);
+  const caminhos = [...new Set([...alvos.map((a) => relativo(a.alvo)), ...adds.map(relativo)])];
+  return { ok: true, clone, alvos, caminhos };
 }
 
 /** Variáveis do git que trocam o repositório, o índice, a configuração ou o programa: com elas, nada de exceção. */
@@ -1613,8 +1620,35 @@ export function motivosDaConfigGit(saida) {
   return motivos;
 }
 
-/** Atributo que executa programa (filter=, merge=, diff=) num texto de .gitattributes. Função pura. */
-export const temAtributoQueExecuta = (texto) => /(^|[\s])(filter|merge|diff)=/m.test(String(texto ?? ''));
+/** Drivers de merge internos do git (não executam programa; merge.<nome>.driver já é recusado na configuração). */
+export const MERGE_INTERNOS = new Set(['text', 'binary', 'union']);
+
+/**
+ * Atributo que pode executar programa num texto de .gitattributes (função pura): filter=<qualquer>, diff=<qualquer> e
+ * merge=<driver> fora de text/binary/union. O merge=union do .gitattributes real dos recados (lidos/*.txt) passa.
+ */
+export function temAtributoQueExecuta(texto) {
+  for (const m of String(texto ?? '').matchAll(/(^|\s)(filter|merge|diff)=(\S*)/gm)) {
+    if (m[2] === 'merge' && MERGE_INTERNOS.has(m[3])) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Motivos da saída de `git check-attr -z filter diff merge -- <caminhos>` (função pura): filter só sem valor
+ * (unspecified/unset), diff só unspecified/unset/set, merge só unspecified/unset/set/text/binary/union.
+ */
+export function motivosDoCheckAttr(saida, onde = 'disco') {
+  const motivos = [];
+  const v = String(saida ?? '').split('\0');
+  const livres = { filter: ['unspecified', 'unset'], diff: ['unspecified', 'unset', 'set'], merge: ['unspecified', 'unset', 'set', ...MERGE_INTERNOS] };
+  for (let i = 0; i + 2 < v.length; i += 3) {
+    const [caminho, attr, valor] = [v[i], v[i + 1], v[i + 2]];
+    if (!livres[attr]?.includes(valor)) motivos.push(`atributo ${attr}=${valor} em ${caminho} (${onde})`);
+  }
+  return motivos;
+}
 
 /** Arquivos do .git que desviam o repositório para outro lugar: com qualquer um deles, nada de exceção. */
 export const ARQUIVOS_QUE_DESVIAM = ['commondir', 'gitdir', 'objects/info/alternates', 'objects/info/http-alternates'];
@@ -1627,7 +1661,7 @@ const LIMITE_DA_VARREDURA = 20000;
  * @returns {string[]} motivos (vazio = condições valem)
  */
 export function conferirCloneDoPo({
-  clone, alvos = [], raiz, env = process.env,
+  clone, alvos = [], caminhos = [], raiz, env = process.env,
   fs = {
     realpath: (p) => realpathSync.native(p), lstat: (p) => lstatSync(p), readdir: (p) => readdirSync(p),
     readdirTipos: (p) => readdirSync(p, { withFileTypes: true }), readFile: (p) => readFileSync(p, 'utf8'),
@@ -1682,6 +1716,17 @@ export function conferirCloneDoPo({
       if (destino !== ASSINADOR_DA_NUVEM || !alvoReg) motivos.push(`gpg.ssh.program (${assinador}) não é o assinador da nuvem`);
     }
     motivos.push(...motivosDosAtributos(clone, env, fs));
+    // parecer no 775520e: o HEAD é o main, e os atributos dos caminhos também valem no índice (não só no disco).
+    // O check-attr lê o índice: roda só com tudo acima limpo (configuração conferida) e sem fsmonitor, para o
+    // próprio guardião não executar programa do clone.
+    let head = '';
+    try { head = git(['-C', clone, 'symbolic-ref', '-q', 'HEAD']).trim(); } catch { head = ''; }
+    if (head !== 'refs/heads/main') motivos.push(`o HEAD do clone não é refs/heads/main (${head || 'destacado'})`);
+    if (caminhos.length && !motivos.length) {
+      const attr = (extra) => git(['-C', clone, '-c', 'core.fsmonitor=false', 'check-attr', ...extra, '-z', 'filter', 'diff', 'merge', '--', ...caminhos]);
+      motivos.push(...motivosDoCheckAttr(attr([]), 'disco'));
+      motivos.push(...motivosDoCheckAttr(attr(['--cached']), 'índice'));
+    }
   } catch {
     motivos.push('o clone não é um repositório git legível');
   }
@@ -1759,7 +1804,7 @@ function motivosDosAtributos(clone, env, fs) {
   const ler = (p) => { try { return fs.readFile(p); } catch { return ''; } };
   const casa = env.HOME ? `${env.HOME}/.config` : '';
   for (const p of [`${clone}/.git/info/attributes`, env.XDG_CONFIG_HOME ? `${env.XDG_CONFIG_HOME}/git/attributes` : '', casa ? `${casa}/git/attributes` : '', '/etc/gitattributes']) {
-    if (p && temAtributoQueExecuta(ler(p))) motivos.push(`atributo filter=/merge=/diff= em ${p}`);
+    if (p && temAtributoQueExecuta(ler(p))) motivos.push(`atributo filter=/diff=/merge=<driver externo> em ${p}`);
   }
   let vistos = 0;
   const pilha = [clone];
@@ -1773,7 +1818,7 @@ function motivosDosAtributos(clone, env, fs) {
       if (dir === clone && e.name === '.git') continue;
       if (e.name === '.gitattributes') {
         if (!e.isFile()) motivos.push(`${p} não é arquivo comum`);
-        else if (temAtributoQueExecuta(ler(p))) motivos.push(`atributo filter=/merge=/diff= em ${p}`);
+        else if (temAtributoQueExecuta(ler(p))) motivos.push(`atributo filter=/diff=/merge=<driver externo> em ${p}`);
       } else if (e.isDirectory()) pilha.push(p);
     }
   }
@@ -1788,6 +1833,6 @@ export function excecaoDoPo({ comando, agente, origem, subagente, agentType, rai
   if (!podeGravarPeloAlexandre({ agente, origem, subagente, agentType })) return { ok: false, motivos: ['não é o po da sessão principal'] };
   const forma = formaPermitidaDoPo(comando);
   if (!forma.ok) return { ok: false, motivos: [forma.motivo] };
-  const motivos = conferirCloneDoPo({ clone: forma.clone, alvos: forma.alvos, raiz, ...(env ? { env } : {}), ...(fs ? { fs } : {}), ...(git ? { git } : {}) });
+  const motivos = conferirCloneDoPo({ clone: forma.clone, alvos: forma.alvos, caminhos: forma.caminhos, raiz, ...(env ? { env } : {}), ...(fs ? { fs } : {}), ...(git ? { git } : {}) });
   return { ok: motivos.length === 0, motivos };
 }

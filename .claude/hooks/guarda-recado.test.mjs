@@ -16,7 +16,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   motivosRecadoFalso, classificarComando, escritasDoComando, motivosIndiceDeRecados, comandosDeIndice, vigiarRecados,
   formaPermitidaDoPo, podeGravarPeloAlexandre, ehRemoteDosRecados, conferirCloneDoPo,
-  motivosDaConfigGit, motivosDoAmbienteGit, temAtributoQueExecuta,
+  motivosDaConfigGit, motivosDoAmbienteGit, temAtributoQueExecuta, motivosDoCheckAttr,
 } from './guarda-merge-lib.mjs';
 import { tokenizar, comandosSimples } from './guarda-bash-lib.mjs';
 
@@ -348,7 +348,7 @@ const ID_GP = 'R-20261120-120000-alexandre';
 const CORPO_GP = `---\nid: ${ID_GP}\nde: alexandre\npara: [gerente-projetos]\ntipo: decisao\n---\nA) sim.`;
 /** cat > <clone>/recados/gerente-projetos/<id>.md <<'EOF' [resto encadeado por &&] + corpo do heredoc. */
 const RECADO = (clone, resto = '', id = ID_GP) => `cat > ${clone}/recados/gerente-projetos/${id}.md <<'EOF'${resto}\n${CORPO_GP.replace(ID_GP, id)}\nEOF`;
-const COMMIT_PO = (clone, msg = 'recado do Alexandre (chat)') => `git -C ${clone} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q -m "${msg}"`;
+const COMMIT_PO = (clone, msg = 'recado do Alexandre (chat)') => `git -C ${clone} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid -c commit.gpgsign=false commit -q -m "${msg}"`;
 const CADEIA = (clone) => ` && git -C ${clone} add recados/gerente-projetos && ${COMMIT_PO(clone)} && git -C ${clone} push -q origin HEAD:main`;
 
 test('T-0009: formaPermitidaDoPo aceita só as formas da lista, encadeadas por &&', () => {
@@ -371,6 +371,8 @@ test('T-0009: formaPermitidaDoPo aceita só as formas da lista, encadeadas por &
     `git -C ${c} add -A`, `git -C ${c} add .`, `git -C ${c} add -f recados`, `git -C ${c} add recados/../x`, `git -C ${c} add /r/x`, `git -C ${c} add 'recados/*'`,
     `git -C ${c} -c core.hooksPath=/r commit -q -m x`, `git -C ${c} commit -q -m x`, `git -C ${c} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q -m "$(id)"`,
     `git -C ${c} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q -m x --no-verify`,
+    `git -C ${c} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid commit -q -m x`, // sem -c commit.gpgsign=false (parecer no 775520e)
+    `git -C ${c} -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid -c commit.gpgsign=true commit -q -m x`,
     `git -C x/rel status`, `git -C ${c}/../r status`, `git -C ${c}/./ status`, `git status`, `/usr/bin/git -C ${c} status`, `git --git-dir=/r/.git -C ${c} status`,
     `cat > ${c}/recados/gerente-projetos/x.md <<'EOF'\nde: alexandre\nEOF`, `cat > recados/gerente-projetos/${ID_GP}.md <<'EOF'\nEOF`,
     `cat > ${c}/recados/gerente-projetos/../../r/${ID_GP}.md <<'EOF'\nEOF`, `cat >> ${c}/recados/gerente-projetos/${ID_GP}.md <<'EOF'\nEOF`,
@@ -661,7 +663,24 @@ test('T-0009: motivosDaConfigGit e motivosDoAmbienteGit — lista permitida (fun
   assert.notDeepEqual(motivosDoAmbienteGit({ GIT_CONFIG_COUNT: 'x' }), []);
   assert.equal(temAtributoQueExecuta('*.md text eol=lf\n'), false);
   for (const t of ['*.md filter=z', '* diff=x', '[attr]m merge=y']) assert.equal(temAtributoQueExecuta(t), true, t);
+  // parecer no 775520e: merge=text|binary|union é driver interno do git (o .gitattributes real dos recados usa union)
+  assert.equal(temAtributoQueExecuta(GITATTRIBUTES_REAL), false);
+  for (const t of ['lidos/*.txt merge=union', '* merge=text', '*.png merge=binary', '* -merge', '* merge']) assert.equal(temAtributoQueExecuta(t), false, t);
+  for (const t of ['lidos/*.txt merge=union filter=z', 'lidos/*.txt merge=uniao', '* merge=union\n*.md diff=x', '* merge=']) assert.equal(temAtributoQueExecuta(t), true, t);
+  assert.deepEqual(motivosDoCheckAttr('lidos/po.txt\0filter\0unspecified\0lidos/po.txt\0diff\0unspecified\0lidos/po.txt\0merge\0union\0'), []);
+  for (const s of ['a\0filter\0z\0', 'a\0filter\0set\0', 'a\0diff\0x\0', 'a\0merge\0y\0'])
+    assert.notDeepEqual(motivosDoCheckAttr(s), [], s);
 });
+
+/** O .gitattributes do aloirr/bapcentral-recados real (commit ffab872), linha por linha. */
+const GITATTRIBUTES_REAL = `# Repositório de recados do time BAP Tools (ADR 0035 do aloirr/bapcentral, T-0139).
+# Fim de linha LF em tudo (o coord.mjs grava com "\\n"; o PC é Windows com core.autocrlf).
+* text=auto eol=lf
+# Lidos: cada linha é um id marcado como lido. Dois agentes (ou o PC e o GitHub) marcando ao mesmo tempo
+# juntam as linhas no merge/rebase, sem conflito.
+lidos/*.txt text eol=lf merge=union
+# Anexos citados nos recados do dono do produto (imagens, HTML...): o git detecta binário sozinho.
+`;
 
 test('hook T-0009: clone NORMAL (git clone de um bare local, remote trocado) passa na lista permitida e grava (exit 0)', () => {
   const repo = criarRepo();
@@ -669,6 +688,7 @@ test('hook T-0009: clone NORMAL (git clone de um bare local, remote trocado) pas
   temporarios.push(mae);
   const origem = join(mae, 'origem');
   for (const p of ['recados/gerente-projetos', 'recados/po', 'lidos']) { mkdirSync(join(origem, p), { recursive: true }); writeFileSync(join(origem, p, '.gitkeep'), ''); }
+  writeFileSync(join(origem, '.gitattributes'), GITATTRIBUTES_REAL); // 🔴 do parecer no 775520e: o merge=union barrava tudo
   git(origem, 'init', '-q', '-b', 'main');
   git(origem, 'add', '-A');
   git(origem, '-c', 'user.name=Teste', '-c', 'user.email=teste@exemplo.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'inicial');
@@ -694,5 +714,58 @@ test('hook T-0009: clone NORMAL (git clone de um bare local, remote trocado) pas
   }
   assert.equal(passaram, casos.length);
   assert.equal(git(clone, 'log', '--format=%an', '-2').trim(), 'alexandre\nalexandre');
+  naoTocouOCodigo(repo);
+});
+
+// ───────── T-0009, parecer no 775520e: índice, HEAD e o .gitattributes real ─────────
+
+test('hook T-0009 (parecer no 775520e): atributo só no índice, HEAD fora do main e merge=<driver externo> barram (exit 2)', () => {
+  const casos = [
+    ['.gitattributes com filter= só no índice (disco inofensivo)', (clone) => {
+      writeFileSync(join(clone, '.gitattributes'), 'recados/** filter=z\nlidos/** filter=z\n');
+      git(clone, 'add', '.gitattributes');
+      writeFileSync(join(clone, '.gitattributes'), GITATTRIBUTES_REAL);
+    }, /índice/],
+    ['HEAD destacado', (clone) => git(clone, 'checkout', '-q', '--detach'), /HEAD do clone não é refs\/heads\/main/],
+    ['HEAD em outro branch', (clone) => git(clone, 'checkout', '-q', '-b', 'outro'), /HEAD do clone não é refs\/heads\/main/],
+    ['merge=<driver externo> no .gitattributes', (clone) => writeFileSync(join(clone, '.gitattributes'), 'lidos/*.txt merge=meu\n'), /\.gitattributes/],
+    ['merge=union junto de filter=', (clone) => writeFileSync(join(clone, '.gitattributes'), 'lidos/*.txt merge=union filter=z\n'), /\.gitattributes/],
+  ];
+  let barrados = 0;
+  for (const [nome, preparar, motivo] of casos) {
+    const repo = criarRepo();
+    const clone = criarClone();
+    preparar(clone);
+    const r = bash(repo, FORMA(clone), PO);
+    assert.equal(r.codigo, 2, `${nome}\n${r.erro}`);
+    const forma = formaPermitidaDoPo(FORMA(clone));
+    assert.match(conferirCloneDoPo({ clone, caminhos: forma.caminhos, raiz: repo, env: {} }).join('\n'), motivo, nome);
+    barrados++;
+  }
+  assert.equal(barrados, casos.length);
+  assert.deepEqual(formaPermitidaDoPo(FORMA('/x/bapcentral-recados')).caminhos, ['recados/gerente-projetos/R-20261120-200000-alexandre.md', 'recados']);
+});
+
+test('hook T-0009 (🔴 do 775520e): com o .gitattributes real (merge=union), os casos legítimos passam (exit 0) e gravam', () => {
+  const repo = criarRepo();
+  const clone = criarClone();
+  writeFileSync(join(clone, '.gitattributes'), GITATTRIBUTES_REAL);
+  git(clone, 'add', '.gitattributes');
+  git(clone, 'commit', '-q', '-m', 'gitattributes');
+  const casos = [
+    ['cat > recado + add + commit', FORMA(clone, 'R-20261120-220000-alexandre'), true],
+    ['printf > recado + add + commit', `printf '%s\\n' '---' 'de: alexandre' '---' 'ok' > ${clone}/recados/po/R-20261120-220100-alexandre.md && git -C ${clone} add ${clone}/recados/po && ${COMMIT_PO(clone, 'recado 2')}`, true],
+    ['cat >> lidos + add + commit', `cat >> ${clone}/lidos/gerente-projetos.txt <<'FIM' && git -C ${clone} add -- lidos/gerente-projetos.txt && ${COMMIT_PO(clone, 'lido')}\nR-20261120-220000-alexandre\nFIM`, true],
+    ['status', `git -C ${clone} status`, false],
+  ];
+  let passaram = 0;
+  for (const [nome, comando, rodar] of casos) {
+    const r = bash(repo, comando, PO);
+    assert.equal(r.codigo, 0, `${nome}\n${r.erro}`);
+    if (rodar) execFileSync('bash', ['-c', comando], { cwd: repo, stdio: 'ignore' });
+    passaram++;
+  }
+  assert.equal(passaram, casos.length);
+  assert.equal(git(clone, 'log', '--format=%an %G?', '-3').trim(), 'alexandre N\nalexandre N\nalexandre N');
   naoTocouOCodigo(repo);
 });
