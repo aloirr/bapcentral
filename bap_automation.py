@@ -6672,7 +6672,8 @@ def selecionar_abas_web(r: dict) -> dict:
         bloco = next((b for b in ((p.get("painel") or {}).get("blocos") or [])
                       if isinstance(b, dict) and b.get("tipo") == "rrm"), None)
         vis = (bloco or {}).get("visao")
-        chave = _ABAS_WEB.get(vis) or _TITULOS_ABAS_WEB.get(p.get("titulo"))
+        chave = (_ABAS_WEB.get(vis) if vis
+                 else _TITULOS_ABAS_WEB.get(p.get("titulo")))
         if not chave or chave in abas or bloco is None:
             continue
         vis = vis or next(v for v, c in _ABAS_WEB.items() if c == chave)
