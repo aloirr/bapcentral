@@ -5221,13 +5221,6 @@ def _rota_calendario(r, ctx):
                              "i_vendedor": nm_.index("VENDEDOR")}
 
 
-def _visita_semanal_da_visita(v) -> str:
-    """'SIM' se a visita e de cliente VISITA_SEMANAL (chave `visita_semanal`
-    da visita, verdadeira ou 'SIM'); senao ''. Funcao pura."""
-    m = v.get("visita_semanal")
-    return "SIM" if m is True or str(m or "").strip().upper() == "SIM" else ""
-
-
 def _exportar_protheus_da_rota(ctx):
     """funcao(tabela, linhas_da_tela) -> as visitas no layout do Protheus
     (o mesmo .json da aba Exportar Protheus do Planner). Sem tabela: a
@@ -5260,11 +5253,10 @@ def _exportar_protheus_da_rota(ctx):
                  "LATITUDE": ponto.get(v.get("chave"), (None, None))[0],
                  "LONGITUDE": ponto.get(v.get("chave"), (None, None))[1],
                  "SEMANA": v["semana"],
-                 # (20/11) o gerador filtra INTERNO pelo nome e fixa a
-                 # periodicidade 7 do cliente semanal; gerador antigo ignora
+                 # (20/11) o gerador filtra INTERNO pelo nome; gerador
+                 # antigo ignora
                  "NOME_CLIENTE": v.get("nome") or "",
-                 "NOME_FANTASIA": v.get("fantasia") or "",
-                 "VISITA_SEMANAL": _visita_semanal_da_visita(v)}
+                 "NOME_FANTASIA": v.get("fantasia") or ""}
                 for v in escolhidas if v["data"]]
         return nu.linhas_protheus({}, [], linhas=rota)
     return montar
