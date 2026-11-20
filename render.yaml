@@ -1,0 +1,35 @@
+# Blueprint do Render da BAP Central web (T-0013).
+# Texto proposto em web/RENDER.md (seção 2) do PR #17.
+# Nenhum valor de segredo aqui: os 4 segredos (sync: false) o Alexandre cria no painel.
+services:
+  - type: web
+    name: bap-central
+    runtime: python
+    plan: starter            # US$ 7, 512 MB [SUPOSIÇÃO: confirmar no painel]
+    region: oregon           # [SUPOSIÇÃO: região não decidida pelo Alexandre; o padrão do Render é oregon]
+    rootDir: web
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:criar_app --factory --host 0.0.0.0 --port $PORT
+    healthCheckPath: /saude
+    autoDeploy: false        # deploy só com "aprovo deploy vX.Y.Z"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: TZ
+        value: America/Manaus
+      - key: BAP_WEB_DADOS
+        value: /var/data
+      - key: BAP_WEB_PACOTE_MAX_MB
+        value: "25"
+      - key: SESSION_SECRET
+        sync: false          # o Alexandre cria no painel
+      - key: BAP_WEB_TOKEN
+        sync: false
+      - key: BAP_ADMIN_USUARIO
+        sync: false
+      - key: BAP_ADMIN_SENHA_INICIAL
+        sync: false
+    disk:
+      name: bap-dados
+      mountPath: /var/data
+      sizeGB: 1
