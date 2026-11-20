@@ -14,7 +14,7 @@
 // Junções de recados (ADR 0035, T-0139): alvo no clone de recados (C:/bapcentral-recados/recados/...) é tratado como
 // .coord/recados/... (mesmas regras); o resto do clone e o git que escreve nele são bloqueados (só o coord.mjs e o
 // sincronizar-recados.ps1 mexem lá); o git status do clone entra na foto do PostToolUse com os caminhos de .coord/.
-import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync, readdirSync, unlinkSync, realpathSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { posix, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -206,20 +206,14 @@ export function tokenizar(cmd) {
   return tokens;
 }
 
-/**
- * Agrupa os tokens em comandos simples: {palavras, redirs:[{op, fd, alvo}], antes, depois} ou {grupo:'('|')'}.
- * antes/depois: operador antes e depois do comando (';', '\n', '&&', '||', '|', '|&', '&', '(', ')' ou null no
- * começo/fim). T-0009: o cd só vale com certeza dentro de uma cadeia de && (ver escritasDoComando).
- */
+/** Agrupa os tokens em comandos simples: {palavras, redirs:[{op, fd, alvo}]} ou {grupo:'('|')'}. */
 export function comandosSimples(tokens) {
   const lista = [];
   let atual = { palavras: [], redirs: [] };
-  let ultimo = null;
   const fechar = (sep) => {
-    if (atual.palavras.length || atual.redirs.length) lista.push({ ...atual, antes: ultimo, depois: sep });
+    if (atual.palavras.length || atual.redirs.length) lista.push(atual);
     atual = { palavras: [], redirs: [] };
     if (sep === '(' || sep === ')') lista.push({ grupo: sep });
-    ultimo = sep;
   };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -785,61 +779,6 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
   };
   analisar(comando, cwd, 0);
   return { violacoes, soLeitura, alvos: [...alvos].map(([rel, sub]) => ({ rel, sub })), instala };
-}
-
-// ───────────────────────────── T-0009: o clone do aloirr/bapcentral-recados, no disco ─────────────────────────────
-
-/**
- * Remote do repositório de recados, com o servidor amarrado: github.com (https ou ssh) ou o proxy git local da
- * sessão da nuvem (http://[usuário@]127.0.0.1|localhost[:porta]/git/...). Outro servidor não vale (🟢 1 do parecer).
- */
-export const RE_REMOTE_DOS_RECADOS = /^(https:\/\/([^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/|https?:\/\/([^@/\s]+@)?(127\.0\.0\.1|localhost)(:\d+)?\/git\/)aloirr\/bapcentral-recados(\.git)?\/?$/i;
-export const ehRemoteDosRecados = (url) => RE_REMOTE_DOS_RECADOS.test(String(url || '').trim());
-
-/**
- * Predicado (abs) => o caminho está no clone do aloirr/bapcentral-recados? (T-0009, R-20261120-100513-alexandre).
- * Confere no disco, nunca pelo texto do comando: realpath da pasta existente mais funda (link simbólico não engana);
- * fora do repositório de código; dentro da pasta do clone (junção do PC, juncoes.clone) ou de um repositório git cujo
- * remote origin é o aloirr/bapcentral-recados; nunca dentro do .git do clone. `realpath` e `git` são injetáveis.
- */
-export function cloneDeRecadosNoDisco({
-  raiz, juncoes = { mapas: [], clone: null },
-  realpath = (p) => realpathSync.native(p),
-  ehPasta = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } },
-  git = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim(),
-} = {}) {
-  const norm = (p) => barras(p).replace(/\/+$/, '');
-  const sob = (a, base) => {
-    const x = norm(a).toLowerCase();
-    const b = norm(base).toLowerCase();
-    return x === b || x.startsWith(`${b}/`);
-  };
-  let raizReal = norm(raiz);
-  try { raizReal = norm(realpath(raiz)); } catch { /* raiz sem realpath: a léxica */ }
-  const cache = new Map();
-  return (abs) => {
-    if (!abs) return false;
-    // ".." nunca: o normalize apagaria o ".." antes do realpath, e o kernel resolve o ".." depois do link (🔴 1e)
-    if (barras(abs).split('/').includes('..')) return false;
-    let p = posix.normalize(barras(abs));
-    if (sob(p, raiz) || sob(p, raizReal)) return false; // repositório de código
-    let real = null;
-    for (let k = 0; k < 256; k++) {
-      try { real = norm(realpath(p)); break; } catch { const pai = posix.dirname(p); if (pai === p) break; p = pai; }
-    }
-    if (!real || sob(real, raizReal)) return false;
-    const pasta = ehPasta(real) ? real : posix.dirname(real);
-    if (cache.has(pasta)) return cache.get(pasta);
-    let ok = false;
-    try {
-      const topo = norm(git(['-C', pasta, 'rev-parse', '--show-toplevel']));
-      ok = Boolean(topo) && !sob(topo, raizReal) && !sob(raizReal, topo) && !sob(real, `${topo}/.git`)
-        && ehRemoteDosRecados(git(['-C', topo, 'config', '--get', 'remote.origin.url']));
-    } catch { ok = false; }
-    if (!ok && juncoes.clone && sob(real, juncoes.clone) && !sob(real, `${juncoes.clone}/.git`)) ok = true; // PC: a pasta do clone
-    cache.set(pasta, ok);
-    return ok;
-  };
 }
 
 /**
