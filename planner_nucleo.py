@@ -6181,13 +6181,24 @@ def _folha_planner(ws, linhas, colunas=None):
 #                      N = 1 cai na propria data. (Ate 07/10 ia a semana
 #                      do calendario e empurrava a visita N-1 semanas.)
 #     dtinicio ....... 2000-01-01 e
-#     dtfinal ........ 3000-01-01: vigencia ampla, como a Maxima pediu. Com
-#                      o dia seguinte a visita (ate 07/10) o registro ja
-#                      chegava encerrado quando processado depois.
+#     dtfinal ........ (20/11, Alexandre) dtproxvisita + periodicidade - 1
+#                      dia (dtfinal_protheus), com a MESMA periodicidade do
+#                      campo acima: a Maxima repete a linha a cada
+#                      periodicidade dias ate o dtfinal, entao cada remessa
+#                      gera UMA visita e nao se sobrepoe a seguinte. Nenhuma
+#                      linha sai com 3000-01-01 (antes eram 753 duplicados).
+#
+# (20/11, Alexandre) FICAM FORA DO ARQUIVO (motivo_fora_da_maxima): cliente
+# INATIVO, cliente INTERNO (meta_nucleo.e_cliente_interno), a conta 000040
+# (vendedor de teste). O SABADO-DEPOSITO (1o sabado do mes) VOLTA ao arquivo,
+# com o dtfinal curto (dtfinal_protheus), R-20261120-111303: nenhum cliente
+# ativo some da Maxima.
 #
 # As duas datas saem no formato do exemplo: "2026-09-24T00:00:00".
 VIGENCIA_INICIO_PROTHEUS = "2000-01-01T00:00:00"
-VIGENCIA_FIM_PROTHEUS = "3000-01-01T00:00:00"
+MOTIVOS_FORA_DA_MAXIMA = ("INATIVO", "INTERNO", "CONTA_000040")
+                          # na ordem de precedencia
+CONTA_TESTE_MAXIMA = "000040"
 DIAS_PROTHEUS = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA",
                  "SABADO", "DOMINGO"]
 CAMPOS_PROTHEUS = ["codcli", "codusur", "codcompromisso", "dtproxvisita",
@@ -6226,6 +6237,116 @@ def _data_protheus(d) -> str:
     return f"{d:%Y-%m-%d}T00:00:00"
 
 
+def dtfinal_protheus(data_visita: dt.date, periodicidade: int) -> str:
+    """(20/11, Alexandre) dtfinal = dtproxvisita + periodicidade - 1 dia, no
+    formato "AAAA-MM-DDT00:00:00". Funcao pura."""
+    return _data_protheus(data_visita
+                          + dt.timedelta(days=int(periodicidade) - 1))
+
+
+def motivo_fora_da_maxima(cfg: dict, linha_rota: dict, cliente=None) -> str:
+    """(20/11, Alexandre) "" se a linha vai para o arquivo da Maxima; senao o
+    codigo (MOTIVOS_FORA_DA_MAXIMA), nesta precedencia: INATIVO, INTERNO,
+    CONTA_000040. O sabado-deposito NAO e motivo (R-20261120-111303). Funcao
+    pura."""
+    import meta_nucleo as _mn                           # noqa: PLC0415
+    cfg = cfg or {}
+    if cliente is not None and cliente_inativo(cfg, cliente):
+        return "INATIVO"
+    nome = linha_rota.get("NOME_CLIENTE") or ""
+    fant = linha_rota.get("NOME_FANTASIA") or ""
+    if cliente is not None:
+        nome = nome or cliente.get("NOME_CLIENTE") or ""
+        fant = fant or cliente.get("NOME_FANTASIA") or ""
+    if _mn.e_cliente_interno(nome, fant):
+        return "INTERNO"
+    if _codusur_protheus(linha_rota.get("COD_VENDEDOR")) == CONTA_TESTE_MAXIMA:
+        return "CONTA_000040"
+    return ""
+
+
+def remessas_dtfinal_3000(listas_de_linhas: list) -> list:
+    """(20/11, R-20261120-111303) Das remessas ja gravadas (cada uma a lista
+    de linhas do JSON), devolve so as que tem alguma linha com dtfinal
+    3000-01-01 (a regra antiga): [{"quando": "dd/mm/aaaa hh:mm" ou "",
+    "vendedores": [codusur ordenados]}], da mais antiga a mais nova. Nao traz
+    nome de arquivo, nome nem CNPJ. Funcao pura."""
+    saida = []
+    for linhas in listas_de_linhas or []:
+        linhas = [x for x in (linhas or []) if isinstance(x, dict)]
+        if not any(texto(x.get("dtfinal")).startswith("3000-01-01")
+                   for x in linhas):
+            continue
+        comp = Counter(texto(x.get("codcompromisso")) for x in linhas
+                       if texto(x.get("codcompromisso")))
+        codigo = comp.most_common(1)[0][0] if comp else ""
+        try:
+            quando = dt.datetime.strptime(codigo, "%Y%m%d%H%M%S")
+        except ValueError:
+            quando = None
+        saida.append({
+            "quando": quando.strftime("%d/%m/%Y %H:%M") if quando else "",
+            "_ordem": quando or dt.datetime.max,
+            "vendedores": sorted({texto(x.get("codusur")) for x in linhas
+                                  if texto(x.get("codusur"))})})
+    saida.sort(key=lambda r: r["_ordem"])
+    for r in saida:
+        del r["_ordem"]
+    return saida
+
+
+def remessas_a_excluir(remessas: list) -> list:
+    """(20/11, RN-ROT-001, R-20261120-111303) `remessas`: lista de pares
+    (data, linhas): `data` e datetime ou None (o mtime do arquivo) e `linhas`
+    a lista do JSON. A data da remessa e a do codcompromisso mais comum
+    (%Y%m%d%H%M%S); sem ele, vale a `data` do par. Remessa curta = tem linhas
+    e nenhuma com dtfinal 3000-01-01. Devolve (no formato de
+    remessas_dtfinal_3000) so as remessas com 3000 MAIS NOVAS que a ultima
+    curta datada; sem curta, todas as com 3000 (a sem data so entra assim).
+    Sem disco, sem nome de arquivo, nome nem CNPJ. Funcao pura."""
+    itens = []
+    for par in remessas or []:
+        try:
+            data, linhas = par
+        except (TypeError, ValueError):
+            continue
+        linhas = [x for x in (linhas or []) if isinstance(x, dict)]
+        comp = Counter(texto(x.get("codcompromisso")) for x in linhas
+                       if texto(x.get("codcompromisso")))
+        try:
+            quando = dt.datetime.strptime(comp.most_common(1)[0][0],
+                                          "%Y%m%d%H%M%S")
+        except (IndexError, ValueError):
+            quando = data if isinstance(data, dt.datetime) else None
+        tem3000 = any(texto(x.get("dtfinal")).startswith("3000-01-01")
+                      for x in linhas)
+        itens.append((quando, linhas, tem3000))
+    curtas = [q for q, linhas, t3 in itens if linhas and not t3 and q]
+    corte = max(curtas) if curtas else None
+    escolhidas = [linhas for q, linhas, t3 in itens if t3 and (
+        corte is None or (q is not None and q > corte))]
+    return remessas_dtfinal_3000(escolhidas)
+
+
+def pedido_exclusao_maxima(remessas: list) -> str:
+    """(20/11) O texto do pedido a Máxima para excluir TODAS as remessas
+    anteriores com data final 3000-01-01. `remessas`: saida de
+    remessas_dtfinal_3000. Cita so o periodo (datas das remessas) e o codusur
+    dos vendedores: nunca arquivo, nome nem CNPJ. Funcao pura."""
+    remessas = [r for r in (remessas or []) if isinstance(r, dict)]
+    datas = [texto(r.get("quando")) for r in remessas if r.get("quando")]
+    periodo = (f"{datas[0]} a {datas[-1]}" if len(datas) > 1 and
+               datas[0] != datas[-1] else (datas[0] if datas else
+                                           "data não identificada"))
+    vend = sorted({texto(v) for r in remessas
+                   for v in (r.get("vendedores") or []) if texto(v)})
+    return ("Pedido de exclusão de remessas da rota (ERP_MXSROTACLI)\n"
+            f"Remessas enviadas em: {periodo}\n"
+            f"Vendedores (codusur): {', '.join(vend) or 'nenhum'}\n"
+            "Favor excluir TODAS as remessas anteriores com data final "
+            "3000-01-01 antes de importar a nova.")
+
+
 def _numero_da_semana(rotulo) -> int:
     """'Semana 3' -> 3."""
     achado = re.search(r"(\d+)", texto(rotulo))
@@ -6250,9 +6371,13 @@ def linhas_protheus(cfg: dict, clientes: list, chaves=None,
     compromisso = compromisso or codigo_do_compromisso()
     curva = {c["CHAVE_CLIENTE"]: c.get("CURVA_RECEITA", "Z") for c in clientes}
 
+    por_chave = {c["CHAVE_CLIENTE"]: c for c in clientes}
+
     saida = []
     for r in sorted(linhas, key=lambda x: (x["COD_VENDEDOR"], x["DATA"],
                                            x["ORDEM_DE_VISITA"])):
+        if motivo_fora_da_maxima(cfg, r, por_chave.get(r["CHAVE_CLIENTE"])):
+            continue
         data = r["DATA"]
         dias = periodicidade_da_curva(curva.get(r["CHAVE_CLIENTE"],
                                                 r.get("CURVA_RECEITA", "Z")))
@@ -6260,17 +6385,18 @@ def linhas_protheus(cfg: dict, clientes: list, chaves=None,
             dias = 7                    # (17/10) top 30 / limite: semanal
         # (27/10) so os campos do layout ERP_MXSROTACLI; periodicidade com
         # os valores aceitos (60 -> 45)
+        per = periodicidade_maxima(dias)
         saida.append({
             "codcli": _codcli_protheus(r["COD_CLIENTE"], r["LOJA"]),
             "codusur": _codusur_protheus(r["COD_VENDEDOR"]),
             "codcompromisso": compromisso,
             "dtproxvisita": _data_protheus(data),
-            "periodicidade": str(periodicidade_maxima(dias)),
+            "periodicidade": str(per),
             "sequencia": int(r["ORDEM_DE_VISITA"]),
             "diasemana": DIAS_PROTHEUS[data.weekday()],
             "numsemana": 1,
             "dtinicio": VIGENCIA_INICIO_PROTHEUS,
-            "dtfinal": VIGENCIA_FIM_PROTHEUS,
+            "dtfinal": dtfinal_protheus(data, per),
         })
     return saida
 
