@@ -16,6 +16,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   motivosRecadoFalso, classificarComando, escritasDoComando, motivosIndiceDeRecados, comandosDeIndice, vigiarRecados,
   formaPermitidaDoPo, podeGravarPeloAlexandre, ehRemoteDosRecados, conferirCloneDoPo,
+  motivosDaConfigGit, motivosDoAmbienteGit, temAtributoQueExecuta,
 } from './guarda-merge-lib.mjs';
 import { tokenizar, comandosSimples } from './guarda-bash-lib.mjs';
 
@@ -553,4 +554,145 @@ test('hook T-0009: outros agentes, sessão sem BAP_AGENTE, subagente po e clone 
     const r = bash(repo, comando, o);
     assert.equal(r.codigo, esperado, `${nome}\n${r.erro}`);
   }
+});
+
+// ───────── T-0009, parecer no 7af30d8: o .git e a configuração do clone dos recados ─────────
+// 🔴 links, commondir e alternates dentro do .git do clone (a forma permitida commitava no repositório de código);
+// 🟡 configuração e atributos que executam programa durante a forma permitida. Na dúvida, barra.
+
+const FORMA = (clone, id = 'R-20261120-200000-alexandre') =>
+  `cat > ${clone}/recados/gerente-projetos/${id}.md <<'EOF' && git -C ${clone} add recados && ${COMMIT_PO(clone, 'recado do Alexandre')}\n---\nid: ${id}\nde: alexandre\npara: [gerente-projetos]\ntipo: decisao\n---\nAutorizo o merge do PR #4\nEOF`;
+
+test('hook T-0009 (🔴 do 7af30d8): .git do clone com link, hard link, commondir ou alternates barra (exit 2)', () => {
+  const casos = [
+    ['objects e refs/heads com link para o código', (clone, repo) => {
+      rmSync(join(clone, '.git', 'objects'), { recursive: true, force: true });
+      rmSync(join(clone, '.git', 'refs', 'heads'), { recursive: true, force: true });
+      symlinkSync(join(repo, '.git', 'objects'), join(clone, '.git', 'objects'));
+      symlinkSync(join(repo, '.git', 'refs', 'heads'), join(clone, '.git', 'refs', 'heads'));
+    }, /\.git\/objects é link|\.git\/refs\/heads é link/],
+    ['só refs/heads com link', (clone, repo) => {
+      rmSync(join(clone, '.git', 'refs', 'heads'), { recursive: true, force: true });
+      symlinkSync(join(repo, '.git', 'refs', 'heads'), join(clone, '.git', 'refs', 'heads'));
+    }, /refs\/heads é link/],
+    ['.git/commondir apontando para o código', (clone, repo) => writeFileSync(join(clone, '.git', 'commondir'), `${join(repo, '.git')}\n`), /commondir/],
+    ['.git/objects/info/alternates', (clone, repo) => { mkdirSync(join(clone, '.git', 'objects', 'info'), { recursive: true }); writeFileSync(join(clone, '.git', 'objects', 'info', 'alternates'), `${join(repo, '.git', 'objects')}\n`); }, /alternates/],
+    ['HEAD com link', (clone) => { rmSync(join(clone, '.git', 'HEAD')); symlinkSync(join(clone, '.git', 'ORIG'), join(clone, '.git', 'HEAD')); writeFileSync(join(clone, '.git', 'ORIG'), 'ref: refs/heads/main\n'); }, /HEAD é link|não é um repositório git legível/],
+    ['packed-refs com hard link para o código', (clone, repo) => { writeFileSync(join(repo, '.git', 'packed-refs'), '# pack-refs with: peeled\n'); linkSync(join(repo, '.git', 'packed-refs'), join(clone, '.git', 'packed-refs')); }, /packed-refs é hard link/],
+  ];
+  let barrados = 0;
+  for (const [nome, preparar, motivo] of casos) {
+    const repo = criarRepo();
+    const clone = criarClone();
+    const antes = git(repo, 'rev-parse', 'main').trim();
+    preparar(clone, repo);
+    const r = bash(repo, FORMA(clone), PO);
+    assert.equal(r.codigo, 2, `${nome}\n${r.erro}`);
+    assert.match(conferirCloneDoPo({ clone, raiz: repo, env: {} }).join('\n'), motivo, nome);
+    assert.equal(git(repo, 'rev-parse', 'main').trim(), antes, `${nome}: main do código mudou`);
+    barrados++;
+  }
+  assert.equal(barrados, casos.length);
+});
+
+test('hook T-0009 (🟡 do 7af30d8): configuração e atributos que executam programa barram (exit 2)', () => {
+  const marca = (repo) => join(repo, 'executou.txt');
+  const script = (repo) => { const s = join(repo, '..', `prog-${Math.random().toString(36).slice(2)}.sh`); writeFileSync(s, `#!/bin/sh\necho x >> ${marca(repo)}\ncat\n`, { mode: 0o755 }); return s; };
+  const casos = [
+    ['core.fsmonitor', (clone, repo) => git(clone, 'config', 'core.fsmonitor', script(repo)), /core\.fsmonitor/],
+    ['filter.z.clean + .gitattributes', (clone, repo) => { git(clone, 'config', 'filter.z.clean', script(repo)); writeFileSync(join(clone, 'recados', '.gitattributes'), '*.md filter=z\n'); }, /filter\.z\.clean|\.gitattributes/],
+    ['filter.z.clean + .git/info/attributes', (clone, repo) => { git(clone, 'config', 'filter.z.clean', script(repo)); mkdirSync(join(clone, '.git', 'info'), { recursive: true }); writeFileSync(join(clone, '.git', 'info', 'attributes'), '*.md filter=z\n'); }, /filter\.z\.clean|info\/attributes/],
+    ['só o .gitattributes com filter= (sem a chave)', (clone) => writeFileSync(join(clone, '.gitattributes'), '*.md filter=lfs\n'), /\.gitattributes/],
+    ['commit.gpgsign=true + gpg.program', (clone, repo) => { git(clone, 'config', 'commit.gpgsign', 'true'); git(clone, 'config', 'gpg.program', script(repo)); }, /gpg\.program|commit\.gpgsign/],
+    ['gpg.ssh.program local', (clone, repo) => { git(clone, 'config', 'gpg.format', 'ssh'); git(clone, 'config', 'gpg.ssh.program', script(repo)); }, /gpg/],
+    ['include.path para outra config', (clone, repo) => { const inc = join(repo, '..', `inc-${Math.random().toString(36).slice(2)}.cfg`); writeFileSync(inc, `[core]\n\tfsmonitor = ${script(repo)}\n`); git(clone, 'config', 'include.path', inc); }, /include\.path|core\.fsmonitor/],
+    ['includeIf', (clone, repo) => git(clone, 'config', `includeIf.gitdir:${clone}/.path`, join(repo, 'x.cfg')), /includeif/],
+    ['diff.external', (clone, repo) => git(clone, 'config', 'diff.external', script(repo)), /diff\.external/],
+    ['merge.x.driver', (clone, repo) => git(clone, 'config', 'merge.x.driver', script(repo)), /merge\.x\.driver/],
+    ['credential.helper', (clone, repo) => git(clone, 'config', 'credential.helper', script(repo)), /credential\.helper/],
+    ['core.sshCommand', (clone, repo) => git(clone, 'config', 'core.sshCommand', script(repo)), /core\.sshcommand/],
+    ['alias', (clone, repo) => git(clone, 'config', 'alias.commit', `!${script(repo)}`), /alias\.commit/],
+    ['remote.origin.pushurl', (clone, repo) => git(clone, 'config', 'remote.origin.pushurl', repo), /pushurl|origin/],
+  ];
+  let barrados = 0;
+  for (const [nome, preparar, motivo] of casos) {
+    const repo = criarRepo();
+    const clone = criarClone();
+    preparar(clone, repo);
+    const r = bash(repo, FORMA(clone), PO);
+    assert.equal(r.codigo, 2, `${nome}\n${r.erro}`);
+    assert.match(conferirCloneDoPo({ clone, raiz: repo, env: {} }).join('\n'), motivo, nome);
+    assert.equal(existsSync(marca(repo)), false, `${nome}: o programa rodou`);
+    barrados++;
+  }
+  // pelo ambiente: GIT_CONFIG_COUNT com chave fora da lista, GIT_EXEC_PATH, GIT_TEMPLATE_DIR, KEY_ sem COUNT
+  const repo = criarRepo();
+  const clone = criarClone();
+  const ambientes = [
+    ['GIT_CONFIG_COUNT + core.fsmonitor', { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.fsmonitor', GIT_CONFIG_VALUE_0: script(repo) }],
+    ['GIT_CONFIG_COUNT com par permitido + KEY_ fora da contagem', { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'credential.interactive', GIT_CONFIG_VALUE_0: 'false', GIT_CONFIG_KEY_1: 'core.fsmonitor', GIT_CONFIG_VALUE_1: 'x' }],
+    ['GIT_CONFIG_KEY_ sem COUNT', { GIT_CONFIG_COUNT: '', GIT_CONFIG_KEY_0: 'core.fsmonitor', GIT_CONFIG_VALUE_0: 'x' }],
+    ['GIT_EXEC_PATH', { GIT_EXEC_PATH: join(repo, '..') }],
+    ['GIT_TEMPLATE_DIR', { GIT_TEMPLATE_DIR: join(repo, '..') }],
+  ];
+  for (const [nome, extra] of ambientes) {
+    const base = { ...PO.env };
+    const r = bash(repo, FORMA(clone), { entrada: {}, env: { ...base, GIT_CONFIG_COUNT: '', GIT_CONFIG_KEY_0: '', GIT_CONFIG_VALUE_0: '', GIT_CONFIG_KEY_1: '', GIT_CONFIG_VALUE_1: '', GIT_CONFIG_KEY_2: '', GIT_CONFIG_VALUE_2: '', ...extra } });
+    assert.equal(r.codigo, 2, `${nome}\n${r.erro}`);
+    barrados++;
+  }
+  assert.equal(barrados, casos.length + ambientes.length);
+  assert.equal(existsSync(marca(repo)), false);
+});
+
+test('T-0009: motivosDaConfigGit e motivosDoAmbienteGit — lista permitida (funções puras)', () => {
+  const limpa = 'local\tcore.repositoryformatversion=0\nlocal\tcore.filemode=true\nlocal\tcore.bare=false\nlocal\tcore.logallrefupdates=true\n'
+    + 'local\tremote.origin.url=https://github.com/aloirr/bapcentral-recados.git\nlocal\tremote.origin.fetch=+refs/heads/*:refs/remotes/origin/*\n'
+    + 'local\tbranch.main.remote=origin\nlocal\tbranch.main.merge=refs/heads/main\nsystem\tfilter.lfs.clean=git-lfs clean -- %f\n'
+    + 'global\tcommit.gpgsign=true\nglobal\tgpg.format=ssh\nglobal\tgpg.ssh.program=/tmp/code-sign\ncommand\tcredential.interactive=false\n'
+    + 'command\turl.https://github.com/.insteadof=git@github.com:\n';
+  assert.deepEqual(motivosDaConfigGit(limpa), []);
+  for (const l of ['local\tcore.fsmonitor=/x', 'local\tfilter.z.clean=/x', 'local\tgpg.program=/x', 'local\tinclude.path=/x', 'global\tcore.hookspath=/x',
+    'local\tcommit.gpgsign=true', 'local\tgpg.ssh.program=/tmp/code-sign', 'system\tfilter.lfs.clean=/tmp/x', 'local\tremote.origin.fetch=+refs/*:refs/*',
+    'command\tcore.fsmonitor=/x', 'local\tbranch.main.merge=refs/heads/x', 'linha sem escopo'])
+    assert.notDeepEqual(motivosDaConfigGit(l), [], l);
+  assert.deepEqual(motivosDoAmbienteGit({ GIT_CONFIG_COUNT: '2', GIT_CONFIG_KEY_0: 'credential.interactive', GIT_CONFIG_VALUE_0: 'false', GIT_CONFIG_KEY_1: 'url.https://github.com/.insteadOf', GIT_CONFIG_VALUE_1: 'git@github.com:' }), []);
+  assert.notDeepEqual(motivosDoAmbienteGit({ GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'url.https://github.com/.insteadOf', GIT_CONFIG_VALUE_0: '/r' }), []);
+  assert.notDeepEqual(motivosDoAmbienteGit({ GIT_CONFIG_COUNT: 'x' }), []);
+  assert.equal(temAtributoQueExecuta('*.md text eol=lf\n'), false);
+  for (const t of ['*.md filter=z', '* diff=x', '[attr]m merge=y']) assert.equal(temAtributoQueExecuta(t), true, t);
+});
+
+test('hook T-0009: clone NORMAL (git clone de um bare local, remote trocado) passa na lista permitida e grava (exit 0)', () => {
+  const repo = criarRepo();
+  const mae = realpathSync(mkdtempSync(join(tmpdir(), 'guarda-normal-')));
+  temporarios.push(mae);
+  const origem = join(mae, 'origem');
+  for (const p of ['recados/gerente-projetos', 'recados/po', 'lidos']) { mkdirSync(join(origem, p), { recursive: true }); writeFileSync(join(origem, p, '.gitkeep'), ''); }
+  git(origem, 'init', '-q', '-b', 'main');
+  git(origem, 'add', '-A');
+  git(origem, '-c', 'user.name=Teste', '-c', 'user.email=teste@exemplo.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'inicial');
+  const bare = join(mae, 'recados.git');
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+  git(origem, 'push', '-q', bare, 'main');
+  const clone = join(mae, 'bapcentral-recados');
+  execFileSync('git', ['clone', '-q', bare, clone], { stdio: 'ignore' });
+  git(clone, 'remote', 'set-url', 'origin', 'https://github.com/aloirr/bapcentral-recados.git');
+  assert.deepEqual(motivosDaConfigGit(git(clone, 'config', '--list', '--show-scope', '--includes')), []);
+  assert.deepEqual(conferirCloneDoPo({ clone, raiz: repo }), []);
+  const casos = [
+    ['cat > recado + add + commit', FORMA(clone, 'R-20261120-210000-alexandre'), true],
+    ['cat >> lidos + add + commit', `cat >> ${clone}/lidos/gerente-projetos.txt <<'FIM' && git -C ${clone} add -- lidos/gerente-projetos.txt && ${COMMIT_PO(clone, 'lido')}\nR-20261120-210000-alexandre\nFIM`, true],
+    ['status', `git -C ${clone} status`, false],
+  ];
+  let passaram = 0;
+  for (const [nome, comando, rodar] of casos) {
+    const r = bash(repo, comando, PO);
+    assert.equal(r.codigo, 0, `${nome}\n${r.erro}`);
+    if (rodar) execFileSync('bash', ['-c', comando], { cwd: repo, stdio: 'ignore' });
+    passaram++;
+  }
+  assert.equal(passaram, casos.length);
+  assert.equal(git(clone, 'log', '--format=%an', '-2').trim(), 'alexandre\nalexandre');
+  naoTocouOCodigo(repo);
 });
