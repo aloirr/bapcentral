@@ -1,0 +1,678 @@
+T-0007 — proposta de diff (engenheiro-software, 20/11/2026). Desenho: docs/desenho/T-0007.md.
+Governança (dono alexandre) nos dois repositórios: este arquivo é proposta, não foi aplicado.
+Duas partes, uma para cada repositório (o git apply ignora este cabeçalho):
+  aloirr/bapcentral (opção a, recomendada):   git apply --include='scripts/*' T-0007-proposta.diff
+  aloirr/bapcentral-recados (só no plano B):  git apply --include='.github/*' T-0007-proposta.diff
+A parte do código vale sozinha: grava por git push direto ao main. A Action do plano B (opção b) só é necessária se
+o proxy passar a barrar o push ao main, e aí entra ANTES de alguém usar BAP_RECADOS_RAMO=claude/<sessão>.
+Conferido no protótipo:
+  - os dois "git apply --check" passam sobre o main atual de cada repositório;
+  - continuam verdes: os 26 testes de scripts/coord-recados.test.mjs, os 77 de scripts/coord-verificar.test.mjs e os
+    de .github/scripts/recados-lib.test.mjs;
+  - mais 2 testes de protótipo (opções a e b) verdes, com GitHubFalso + bare file://.
+Os testes definitivos ficam com o agente testes (plano na seção 8 do desenho).
+
+diff --git a/.github/scripts/integrar-recados.mjs b/.github/scripts/integrar-recados.mjs
+new file mode 100644
+index 0000000..44f749d
+--- /dev/null
++++ b/.github/scripts/integrar-recados.mjs
+@@ -0,0 +1,80 @@
++#!/usr/bin/env node
++// Integra no main os recados e lidos gravados pelo coord.mjs no ramo da sessão da nuvem (T-0007 do aloirr/bapcentral).
++// Uso (no checkout do main, workflow integrar-recados.yml): node .github/scripts/integrar-recados.mjs [ramo ...]
++//   sem ramo (varredura agendada): todos os claude/** do origin.
++// Idempotente: olha a árvore inteira do topo de cada ramo (não o diff do push), então um run cancelado na fila não
++// perde nada — o próximo integra tudo. Só acrescenta: recado novo válido e linhas de lidos; nunca apaga nem
++// sobrescreve. Não imprime o texto dos recados (só caminho e motivo). Saídas (GITHUB_OUTPUT): antes, depois, integrados.
++import { execFileSync } from 'node:child_process';
++import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
++import { dirname } from 'node:path';
++import { planejarIntegracao } from './recados-lib.mjs';
++
++const git = (...a) => execFileSync('git', ['-c', 'core.quotepath=off', ...a], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
++const ehDoIndice = (p) => /^recados\/(?!anexos\/)[^/]+\/[^/]+\.md$/.test(p) || /^lidos\/[^/]+\.txt$/.test(p);
++const dormir = (s) => execFileSync('sleep', [String(s)]);
++
++/** {caminho: oid} de recados/ e lidos/ num commit. */
++export function blobsDe(ref, rodar = git) {
++  const r = {};
++  for (const e of rodar('ls-tree', '-r', '-z', ref, '--', 'recados', 'lidos').split('\0').filter(Boolean)) {
++    const [info, caminho] = e.split('\t');
++    const [, tipo, oid] = info.split(' ');
++    if (tipo === 'blob' && ehDoIndice(caminho)) r[caminho] = oid;
++  }
++  return r;
++}
++
++/** Plano de um ramo contra o HEAD (main): só os caminhos com blob diferente viram texto. */
++export function planoDoRamo(ref, rodar = git) {
++  const doMainOid = blobsDe('HEAD', rodar);
++  const doRamoOid = blobsDe(ref, rodar);
++  const doRamo = {};
++  const doMain = {};
++  for (const [c, oid] of Object.entries(doRamoOid)) {
++    if (doMainOid[c] === oid) continue;
++    doRamo[c] = rodar('cat-file', 'blob', oid);
++    if (doMainOid[c]) doMain[c] = rodar('cat-file', 'blob', doMainOid[c]);
++  }
++  return planejarIntegracao({ doRamo, doMain });
++}
++
++const saida = (k, v) => { if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${k}=${v}\n`); };
++
++if (import.meta.main) {
++  let ramos = process.argv.slice(2).filter(Boolean);
++  if (!ramos.length) {
++    ramos = git('ls-remote', '--heads', 'origin', 'refs/heads/claude/*').split('\n').filter(Boolean).map((l) => l.split('\t')[1].replace(/^refs\/heads\//, ''));
++  }
++  ramos = ramos.filter((r) => /^claude\/[A-Za-z0-9._-]+$/.test(r));
++  if (!ramos.length) { console.log('nenhum ramo claude/** para integrar'); process.exit(0); }
++  git('config', 'user.name', 'github-actions[bot]');
++  git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com');
++  for (let t = 1; t <= 5; t++) {
++    git('fetch', '-q', '--no-tags', '--depth=1', 'origin', '+refs/heads/main:refs/remotes/origin/main', ...ramos.map((r) => `+refs/heads/${r}:refs/remotes/origin/${r}`));
++    git('reset', '-q', '--hard', 'origin/main');
++    const antes = git('rev-parse', 'HEAD').trim();
++    let nRec = 0; let nLid = 0;
++    for (const ramo of ramos) {
++      const p = planoDoRamo(`refs/remotes/origin/${ramo}`);
++      for (const x of p.recusados) console.log(`::warning::${ramo}: ${x.caminho} NÃO integrado: ${x.motivo}`);
++      for (const x of [...p.recados, ...p.lidos]) {
++        mkdirSync(dirname(x.caminho), { recursive: true });
++        writeFileSync(x.caminho, x.texto);
++        git('add', '--', x.caminho);
++      }
++      nRec += p.recados.length; nLid += p.lidos.length;
++      console.log(`${ramo}: ${p.recados.length} recado(s) novo(s), ${p.lidos.length} arquivo(s) de lidos, ${p.iguais} já no main, ${p.recusados.length} recusado(s)`);
++    }
++    if (!nRec && !nLid) { console.log('nada a integrar'); process.exit(0); }
++    git('commit', '-q', '-m', `recados: integra ${nRec} recado(s) e ${nLid} lido(s) de ${ramos.join(', ')}`);
++    try {
++      git('push', '-q', 'origin', 'HEAD:main');
++      saida('antes', antes); saida('depois', git('rev-parse', 'HEAD').trim()); saida('integrados', String(nRec));
++      console.log('integrado no main');
++      process.exit(0);
++    } catch { dormir(t * 3); }
++  }
++  console.log('::error::push ao main recusado 5 vezes');
++  process.exit(1);
++}
+diff --git a/.github/scripts/recados-lib.mjs b/.github/scripts/recados-lib.mjs
+index 5146b82..17be03d 100644
+--- a/.github/scripts/recados-lib.mjs
++++ b/.github/scripts/recados-lib.mjs
+@@ -380,3 +380,71 @@ export async function enviarTelegram(texto, { token, chatId, responderA = null,
+ export function mascarar(valores, escrever = (l) => process.stdout.write(l)) {
+   for (const v of valores) if (v) escrever(`::add-mask::${v}\n`);
+ }
++
++// ───────────────────── Integração do ramo da sessão no main (workflow integrar-recados.yml, T-0007) ─────────────────────
++
++/** Remetentes que só o servidor grava (ADR 0043 do repositório de código): o ramo nunca traz recado deles. */
++export const REMETENTES_DE_SISTEMA = ['diagnostico'];
++export const LIMITE_RECADO = 256 * 1024;
++const RE_RECADO_DO_RAMO = new RegExp(`^recados/([a-z-]+)/(${PADRAO_ID})\\.md$`);
++const RE_LIDOS_DO_RAMO = /^lidos\/([a-z-]+)\.txt$/;
++const RE_LINHA_DE_LIDO = new RegExp(`^${PADRAO_ID}$`);
++const listaDoCabecalho = (v) => String(v || '').replace(/^\[|\]$/g, '').split(',').map((s) => s.trim()).filter(Boolean);
++
++/** Linhas de vários textos, sem repetir, na ordem em que aparecem (o main primeiro). Igual ao unirLinhas da coord-lib. */
++export function unirLinhas(...textos) {
++  const vistas = new Set();
++  for (const t of textos) for (const l of String(t || '').split(/\r?\n/)) if (l.trim()) vistas.add(l.trim());
++  return [...vistas];
++}
++
++/** Motivo para não integrar o recado do ramo (null = vale): caminho, cabeçalho, remetente e destino conferidos. */
++export function motivoParaRecusarRecado(caminho, texto) {
++  const m = caminho.match(RE_RECADO_DO_RAMO);
++  if (!m) return 'caminho fora do padrão recados/<destino>/<id>.md';
++  const [, destino, id] = m;
++  if (!DESTINOS.includes(destino)) return `destino desconhecido: ${destino}`;
++  if (Buffer.byteLength(texto, 'utf8') > LIMITE_RECADO) return 'recado maior que 256 KB';
++  const r = lerRecado(texto);
++  if (!r) return 'sem o cabeçalho do recado';
++  const de = remetenteDoId(id);
++  if (r.meta.id !== id) return 'o id do cabeçalho não bate com o nome do arquivo';
++  if (r.meta.de !== de) return 'o remetente do cabeçalho não bate com o id';
++  if (REMETENTES_DE_SISTEMA.includes(de)) return `remetente de sistema (${de}) só o servidor grava`;
++  if (![...AGENTES, 'alexandre'].includes(de)) return `remetente desconhecido: ${de}`;
++  if (!TIPOS.includes(r.meta.tipo)) return `tipo inválido: ${r.meta.tipo}`;
++  if (![...listaDoCabecalho(r.meta.para), ...listaDoCabecalho(r.meta.cc)].includes(destino)) return 'o destino da pasta não está no para nem no cc';
++  return null;
++}
++
++/**
++ * O que integrar do ramo no main (função pura, idempotente): `doRamo` e `doMain` = {caminho: texto} de recados/ e lidos/.
++ * - recado novo e válido → recados; igual ao do main → iguais; mesmo caminho com outro texto → recusado (imutável);
++ * - lidos/<destino>.txt → texto do main + linhas do ramo que faltam (ids válidos), só se mudou;
++ * - o resto (anexos, outros caminhos, arquivo do main que o ramo não tem) não entra e não apaga nada.
++ * @returns {{recados: {caminho: string, texto: string}[], lidos: {caminho: string, texto: string}[], recusados: {caminho: string, motivo: string}[], iguais: number}}
++ */
++export function planejarIntegracao({ doRamo, doMain }) {
++  const plano = { recados: [], lidos: [], recusados: [], iguais: 0 };
++  for (const caminho of Object.keys(doRamo).sort()) {
++    const texto = doRamo[caminho];
++    if (caminho.startsWith('recados/') && !caminho.startsWith('recados/anexos/')) {
++      if (doMain[caminho] !== undefined) {
++        if (doMain[caminho] === texto) plano.iguais++;
++        else plano.recusados.push({ caminho, motivo: 'já existe no main com outro texto (recado é imutável)' });
++        continue;
++      }
++      const motivo = motivoParaRecusarRecado(caminho, texto);
++      if (motivo) plano.recusados.push({ caminho, motivo }); else plano.recados.push({ caminho, texto });
++      continue;
++    }
++    const l = caminho.match(RE_LIDOS_DO_RAMO);
++    if (!l) continue;
++    if (!DESTINOS.includes(l[1])) { plano.recusados.push({ caminho, motivo: `lidos de destino desconhecido: ${l[1]}` }); continue; }
++    const doRamoValidas = unirLinhas(texto).filter((x) => RE_LINHA_DE_LIDO.test(x));
++    const atuais = unirLinhas(doMain[caminho]);
++    const juntas = unirLinhas(atuais.join('\n'), doRamoValidas.join('\n'));
++    if (juntas.length > atuais.length) plano.lidos.push({ caminho, texto: `${juntas.join('\n')}\n` });
++  }
++  return plano;
++}
+diff --git a/.github/workflows/integrar-recados.yml b/.github/workflows/integrar-recados.yml
+new file mode 100644
+index 0000000..2833a57
+--- /dev/null
++++ b/.github/workflows/integrar-recados.yml
+@@ -0,0 +1,53 @@
++# Integra no main os recados e lidos que o coord.mjs grava no ramo da sessão da nuvem (T-0007 do aloirr/bapcentral).
++# Na nuvem do claude.ai/code o proxy só deixa empurrar o ramo claude/<sessão>; este workflow leva para o main.
++# O script vem do checkout do main (nunca do ramo). Só acrescenta (recado novo válido, linhas de lidos).
++# O push feito com o GITHUB_TOKEN não dispara outros workflows: o aviso do Telegram roda aqui mesmo.
++name: integrar recados da sessão
++
++on:
++  push:
++    branches: ['claude/**']
++  schedule:
++    - cron: '23 11-23 * * 1-5' # varredura de hora em hora, 7h às 19h de Manaus, seg a sex (lidos e runs cancelados)
++  workflow_dispatch:
++
++permissions: {}
++
++# Um run por ramo; o run pendente que a fila cancela não perde nada (o próximo olha a árvore inteira do ramo).
++# Não use o grupo escrita-no-main: lá um run pendente do formulário seria cancelado. A corrida no push ao main
++# se resolve com a nova tentativa do script.
++concurrency:
++  group: integrar-${{ github.ref }}
++  cancel-in-progress: false
++
++jobs:
++  integrar:
++    runs-on: ubuntu-latest
++    timeout-minutes: 5
++    permissions:
++      contents: write
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          ref: main
++          fetch-depth: 1
++
++      - uses: actions/setup-node@v4
++        with:
++          node-version: 24
++
++      - name: integrar no main
++        id: integrar
++        env:
++          RAMO: ${{ github.event_name == 'push' && github.ref_name || '' }}
++        run: node .github/scripts/integrar-recados.mjs "$RAMO"
++
++      - name: aviso no Telegram dos recados integrados para o alexandre
++        if: vars.TELEGRAM_LIGADO == 'sim' && steps.integrar.outputs.integrados != '' && steps.integrar.outputs.integrados != '0'
++        env:
++          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
++          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
++          ANTES: ${{ steps.integrar.outputs.antes }}
++          DEPOIS: ${{ steps.integrar.outputs.depois }}
++          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
++        run: node .github/scripts/aviso-telegram.mjs
+diff --git a/scripts/coord-lib.mjs b/scripts/coord-lib.mjs
+index 18f4081..81023db 100644
+--- a/scripts/coord-lib.mjs
++++ b/scripts/coord-lib.mjs
+@@ -1,10 +1,10 @@
+ // Biblioteca comum do protocolo de coordenação do time BAP Tools.
+ // Usada pelo guardião (.claude/hooks/guarda-donos.mjs) e pela CLI (scripts/coord.mjs).
+ // Sem dependências externas.
+-import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync, realpathSync } from 'node:fs';
++import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync, realpathSync, openSync, closeSync, unlinkSync, rmSync } from 'node:fs';
+ import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+-import { execFileSync } from 'node:child_process';
++import { execFileSync, spawnSync } from 'node:child_process';
+ import { tmpdir, homedir } from 'node:os';
+ import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
+ import { createHash } from 'node:crypto';
+@@ -751,10 +751,17 @@ export function modoDosRecados({ raiz = RAIZ, env = process.env } = {}) {
+ }
+ 
+ export class ErroRecados extends Error {
+-  /** @param {string} mensagem @param {{rede?: boolean}} [o] rede = o GitHub não respondeu (vale a cópia local na leitura) */
+-  constructor(mensagem, { rede = false } = {}) { super(mensagem); this.name = 'ErroRecados'; this.rede = rede; }
++  /**
++   * @param {string} mensagem
++   * @param {{rede?: boolean, proxy?: boolean}} [o] rede = o GitHub não respondeu (vale a cópia local na leitura);
++   *   proxy = o proxy da sessão na nuvem barrou a gravação pela API (nada foi publicado; T-0007: vale o git push)
++   */
++  constructor(mensagem, { rede = false, proxy = false } = {}) { super(mensagem); this.name = 'ErroRecados'; this.rede = rede; this.proxy = proxy; }
+ }
+ 
++/** O 403 é do proxy da sessão do claude.ai/code (e não do GitHub)? Só a resposta de "gravação não permitida" conta. */
++export const ehNegadoPeloProxy = (r) => r?.status === 403 && /not permitted through this proxy/i.test(String(r?.texto || ''));
++
+ /** Hash do git de um blob (sha1 de "blob <bytes>\0<conteúdo>"): confere o cache e reconhece o próprio envio. */
+ export function shaDoBlob(conteudo) {
+   const b = Buffer.isBuffer(conteudo) ? conteudo : Buffer.from(String(conteudo), 'utf8');
+@@ -921,6 +928,7 @@ export function criarClienteDeRecados({ http, repo = REPO_RECADOS, api = API_GIT
+     let j = null;
+     try { j = JSON.parse(r.texto); } catch { /* abaixo */ }
+     if (r.status === 401) throw new ErroRecados(`o GitHub recusou o token (${origem}, HTTP 401)`);
++    if (ehNegadoPeloProxy(r)) throw new ErroRecados('o proxy da sessão não deixa gravar pela API do GitHub (HTTP 403)', { proxy: true });
+     if (r.status === 403 || r.status === 429) throw new ErroRecados(`o GitHub recusou o pedido (HTTP ${r.status}${j?.message ? `: ${j.message}` : ''})`, { rede: true });
+     if (r.status === 404 && aceita404) return null;
+     if (r.status === 404) throw new ErroRecados(`o token (${origem}) não enxerga ${repo} (HTTP 404)`);
+@@ -1006,6 +1014,13 @@ export function criarClienteDeRecados({ http, repo = REPO_RECADOS, api = API_GIT
+       return { oid, existe: true, blob: j.sha, texto: t };
+     },
+ 
++    /** Um arquivo num ramo qualquer (T-0007: os lidos ainda no ramo da sessão): texto ou null (ramo ou arquivo ausente). */
++    arquivoNoRamo(caminho, ramo) {
++      const j = um({ url: `${raiz}/contents/${caminhoUrl(caminho)}?ref=${encodeURIComponent(ramo)}` }, { aceita404: true });
++      if (!j || Array.isArray(j) || j.type !== 'file' || typeof j.content !== 'string') return null;
++      return texto(Buffer.from(j.content, 'base64'));
++    },
++
+     /** Entradas de uma pasta no topo do main, direto do GitHub: {oid, entradas: [{name, type, oid}]}. */
+     pasta(caminho) {
+       const oid = cabeca();
+@@ -1204,6 +1219,7 @@ export function enviarRecadoNoGitHub({ cliente, cache, de, destinos, gerarId, mo
+       return { id, commit, tentativas: t };
+     } catch (e) {
+       if (!(e instanceof ErroRecados)) throw e;
++      if (e.proxy) throw e; // T-0007: o proxy barrou a 1ª gravação (blob); nada foi publicado e quem chama passa ao git
+       ultimo = e;
+       // Confere no GitHub antes de decidir: com a resposta perdida, o commit pode ter entrado.
+       let r;
+@@ -1238,6 +1254,7 @@ export function marcarLidosNoGitHub({ cliente, agente, ids, tentativas = 6, espe
+       return { novos, commit: cliente.commitar({ esperado: a.oid, adicoes: [{ caminho, conteudo }], titulo: `lidos: ${agente} (${novos.length})` }) };
+     } catch (e) {
+       if (!(e instanceof ErroRecados)) throw e;
++      if (e.proxy) throw e; // T-0007: idem ao envio
+       ultimo = e;
+       let r;
+       try { r = cliente.arquivo(caminho); } catch (e2) {
+@@ -1267,6 +1284,244 @@ export function recadosDaPastaNoGitHub({ cliente, cache, pasta, filtro = () => t
+   return escolhidas.filter((e) => typeof textos[e.oid] === 'string').map((e) => ({ nome: e.name, texto: textos[e.oid] }));
+ }
+ 
++// ── Gravação por git push (T-0007) ───────────────────────────────────────────────────────────────────────────────
++// Na nuvem do claude.ai/code o proxy lê a API do GitHub mas barra a gravação por ela (HTTP 403); o git push passa.
++// Então o coord grava o recado num commit feito pelo git e empurrado ao main dos recados (sem force; recusado por
++// não ser fast-forward → busca de novo e remonta). Plano B (desenho T-0007, opção b): BAP_RECADOS_RAMO=claude/<sessão>
++// grava no ramo da sessão e a Action integrar-recados.yml leva ao main. A leitura continua pela API (índice e cache).
++// No PC do Alexandre nada muda: a API grava direto no main (o modo 'auto' só passa ao git depois do 403 do proxy).
++
++/** Modo de gravação: BAP_RECADOS_ESCRITA=api|git; sem a variável, 'auto' (API; com o 403 do proxy, git). */
++export function modoDeEscrita(env = process.env) {
++  const v = String(env.BAP_RECADOS_ESCRITA || '').trim().toLowerCase();
++  return v === 'api' || v === 'git' ? v : 'auto';
++}
++
++const RE_RAMO = /^(?!.*\.\.)(?!\/)[A-Za-z0-9._\/-]+(?<![\/.])$/;
++/**
++ * Ramo do repositório de recados onde o git grava: o main (opção a do desenho T-0007) ou BAP_RECADOS_RAMO (opção b:
++ * o ramo claude/<sessão>, integrado pela Action). Nome inválido → null (quem chama explica).
++ */
++export function ramoDeEscrita({ env = process.env } = {}) {
++  const v = String(env.BAP_RECADOS_RAMO || '').trim();
++  if (!v) return BRANCH_RECADOS;
++  return RE_RAMO.test(v) ? v : null;
++}
++
++/** Data/hora no fuso do time, qualquer que seja o fuso da máquina: {iso: '...-04:00', compacto: 'AAAAMMDD-HHMMSS'}. */
++export function horaLocal(data = new Date(), fuso = 'America/Manaus') {
++  const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
++    timeZone: fuso, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'longOffset',
++  }).formatToParts(data).map((p) => [p.type, p.value]));
++  const desloc = partes.timeZoneName === 'GMT' ? '+00:00' : partes.timeZoneName.replace('GMT', '');
++  const local = `${partes.year}-${partes.month}-${partes.day}T${partes.hour}:${partes.minute}:${partes.second}`;
++  return { iso: `${local}${desloc}`, compacto: local.replace(/[-:]/g, '').replace('T', '-') };
++}
++
++/** Saída do git sem credencial: tira usuário:senha de URL e linhas que falam de token/authorization; no máximo 3 linhas. */
++export function limparSaidaDoGit(t) {
++  return String(t || '').replace(/(https?:\/\/)[^@\s\/]+@/gi, '$1***@').split(/\r?\n/)
++    .filter((l) => l.trim() && !/token|authorization|password|senha/i.test(l)).slice(-3).join(' | ').slice(0, 500);
++}
++
++/** git sem shell, síncrono: (args, {entrada?: Buffer|string, env?: {}}) => {codigo, saida, erro}. Nunca imprime. */
++export function gitSincrono({ env = process.env, timeoutMs = 120_000 } = {}) {
++  return (args, { entrada, env: extra = {} } = {}) => {
++    const r = spawnSync('git', args, {
++      input: entrada === undefined ? undefined : Buffer.isBuffer(entrada) ? entrada : Buffer.from(String(entrada), 'utf8'), encoding: 'buffer', timeout: timeoutMs, windowsHide: true, maxBuffer: 256 * 1024 * 1024,
++      env: { ...env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...extra },
++    });
++    if (r.error) return { codigo: -1, saida: '', erro: r.error.code === 'ENOENT' ? 'git não encontrado no PATH' : String(r.error.code || r.error.message) };
++    return { codigo: r.status, saida: r.stdout.toString('utf8'), erro: r.stderr.toString('utf8') };
++  };
++}
++
++/** Linhas de vários textos, sem repetir, na ordem em que aparecem (lidos: o main primeiro). Função pura. */
++export function unirLinhas(...textos) {
++  const vistas = new Set();
++  for (const t of textos) for (const l of String(t || '').split(/\r?\n/)) if (l.trim()) vistas.add(l.trim());
++  return [...vistas];
++}
++
++/** Trava entre processos da mesma máquina (arquivo criado com 'wx'); trava com mais de `velhaMs` é abandonada. */
++function comTrava(arquivo, fn, { esperar = dormir, prazoMs = 60_000, velhaMs = 120_000 } = {}) {
++  const inicio = Date.now();
++  for (;;) {
++    try { closeSync(openSync(arquivo, 'wx')); break; } catch (e) {
++      if (e.code !== 'EEXIST') throw e;
++      try { if (Date.now() - statSync(arquivo).mtimeMs > velhaMs) { unlinkSync(arquivo); continue; } } catch { continue; }
++      if (Date.now() - inicio > prazoMs) throw new ErroRecados('outro coord.mjs está gravando há mais de 1 minuto nesta máquina; tente de novo');
++      esperar(200 + Math.floor(Math.random() * 300));
++    }
++  }
++  try { return fn(); } finally { try { unlinkSync(arquivo); } catch { /* já saiu */ } }
++}
++
++/**
++ * Gravador por git push num repositório bare só do coord (na pasta do cache, fora de qualquer clone): busca o topo do
++ * ramo (ou do main, se o ramo ainda não existe) com --depth=1, monta o commit pelo encanamento do git (hash-object,
++ * índice temporário, write-tree, commit-tree) e empurra sem force. Recusa por não ser fast-forward (outro agente
++ * empurrou antes) → busca de novo e remonta. A credencial é a do git da máquina (na nuvem, o proxy); o coord não a vê.
++ * @param {{git: Function, url: string, ramo: string, pasta: string, principal?: string, tentativas?: number, esperar?: Function}} p
++ */
++export function criarGravadorGit({ git, url, ramo, pasta, principal = BRANCH_RECADOS, tentativas = 6, esperar = dormir }) {
++  const g = (args, o) => git(['--git-dir', pasta, ...args], o);
++  const ok = (args, o) => {
++    const r = g(args, o);
++    if (r.codigo !== 0) throw new ErroRecados(`git ${args[0]} falhou: ${limparSaidaDoGit(r.erro) || `saída ${r.codigo}`}`, { rede: true });
++    return r.saida.trim();
++  };
++  function preparar() { // dentro da trava: dois coord ao mesmo tempo não criam o bare juntos
++    if (existsSync(join(pasta, 'HEAD'))) return;
++    const r = git(['init', '--bare', '-q', pasta]);
++    if (r.codigo !== 0) throw new ErroRecados(`git init falhou: ${limparSaidaDoGit(r.erro)}`);
++  }
++  /** {ramo: oid|null, principal: oid|null} no GitHub agora. */
++  function topos() {
++    const out = ok(['ls-remote', url, `refs/heads/${ramo}`, `refs/heads/${principal}`]);
++    const t = { ramo: null, principal: null };
++    for (const l of out.split('\n')) {
++      const [oid, ref] = l.trim().split(/\s+/);
++      if (ref === `refs/heads/${ramo}`) t.ramo = oid;
++      if (ref === `refs/heads/${principal}`) t.principal = oid;
++    }
++    return t;
++  }
++  /** Leitura da base (o commit de onde o novo sai): ids dos recados e texto de um caminho. */
++  function leitor(base) {
++    const nomes = ok(['ls-tree', '-r', '--name-only', base, '--', 'recados']).split('\n').filter(Boolean);
++    const existentes = new Set(nomes);
++    return {
++      ids: new Set(nomes.filter((n) => /^recados\/(?!anexos\/)[^/]+\/[^/]+\.md$/i.test(n)).map((n) => n.replace(/^.*\/|\.md$/gi, ''))),
++      existe: (c) => existentes.has(c),
++      texto(c) { const r = g(['cat-file', 'blob', `${base}:${c}`]); return r.codigo === 0 ? r.saida : null; },
++    };
++  }
++  const assinar = () => g(['config', '--bool', 'commit.gpgsign']).saida.trim() === 'true';
++  const identidade = () => (g(['config', 'user.email']).saida.trim() ? {} : {
++    GIT_AUTHOR_NAME: 'bap-coord', GIT_AUTHOR_EMAIL: 'bap-coord@users.noreply.github.com',
++    GIT_COMMITTER_NAME: 'bap-coord', GIT_COMMITTER_EMAIL: 'bap-coord@users.noreply.github.com',
++  });
++
++  /** Um commit com os arquivos sobre a base (atômico); null se não há o que gravar. */
++  function montarCommit(base, arquivos, mensagem) {
++    const indice = join(pasta, `indice-${process.pid}`);
++    const env = { GIT_INDEX_FILE: indice };
++    try {
++      ok(['read-tree', base], { env });
++      for (const a of arquivos) {
++        const buf = Buffer.isBuffer(a.conteudo) ? a.conteudo : Buffer.from(String(a.conteudo), 'utf8');
++        const blob = ok(['hash-object', '-w', '--stdin'], { entrada: buf });
++        if (blob !== shaDoBlob(buf)) throw new ErroRecados('o git devolveu um blob diferente do enviado');
++        ok(['update-index', '--add', '--cacheinfo', `100644,${blob},${a.caminho}`], { env });
++      }
++      const arvore = ok(['write-tree'], { env });
++      return ok(['commit-tree', arvore, '-p', base, ...(assinar() ? ['-S'] : []), '-F', '-'], { entrada: mensagem, env: identidade() });
++    } finally { try { rmSync(indice, { force: true }); } catch { /* ok */ } }
++  }
++
++  return {
++    ramo,
++    /**
++     * Grava no ramo. `montar(leitor)` → {arquivos: [{caminho, conteudo}], titulo, corpo?} ou null (nada a gravar);
++     * é chamado de novo a cada tentativa, sobre a base nova. → {oid, ramo, tentativas} | null.
++     */
++    publicar(montar) {
++      mkdirSync(pasta, { recursive: true });
++      return comTrava(join(pasta, 'bap-coord.lock'), () => {
++        preparar();
++        let ultimo = null;
++        for (let t = 1; t <= tentativas; t++) {
++          const tp = topos();
++          const ref = tp.ramo ? ramo : principal;
++          if (!tp.ramo && !tp.principal) throw new ErroRecados(`o ${principal} do repositório de recados não foi encontrado pelo git`);
++          ok(['fetch', '-q', '--no-tags', '--depth=1', url, `+refs/heads/${ref}:refs/bap/base`]);
++          const base = ok(['rev-parse', 'refs/bap/base^{commit}']);
++          const plano = montar(leitor(base));
++          if (!plano || !plano.arquivos.length) return null;
++          const commit = montarCommit(base, plano.arquivos, plano.corpo ? `${plano.titulo}\n\n${plano.corpo}\n` : `${plano.titulo}\n`);
++          const r = g(['-c', 'push.negotiate=false', 'push', '--porcelain', '--no-verify', url, `${commit}:refs/heads/${ramo}`]);
++          if (r.codigo === 0) return { oid: commit, ramo, tentativas: t };
++          // outro push chegou antes: recusa no cliente (non-fast-forward) ou no servidor (a ref mudou entre o anúncio e a gravação)
++          const recusado = /\[rejected\]|non-fast-forward|fetch first|stale info|cannot lock ref|incorrect old value|failed to update ref/i.test(`${r.saida}\n${r.erro}`);
++          if (!recusado) {
++            // resposta perdida? confere o topo do ramo antes de dizer que falhou
++            let agora = null;
++            try { agora = topos().ramo; } catch { /* abaixo */ }
++            if (agora === commit) return { oid: commit, ramo, tentativas: t, conferido: true };
++            const negado = /\b403\b|not permitted|denied|permission/i.test(r.erro);
++            const dica = negado && ramo === principal ? ' (se a Action integrar-recados.yml já estiver no repositório de recados, defina BAP_RECADOS_RAMO=claude/<sessão>)' : '';
++            throw new ErroRecados(`o git push para o ${ramo} foi ${negado ? 'negado' : 'recusado'}: ${limparSaidaDoGit(r.erro) || `saída ${r.codigo}`}${dica}`, { rede: !negado, proxy: negado });
++          }
++          ultimo = limparSaidaDoGit(r.saida || r.erro);
++          esperar(250 * t + Math.floor(Math.random() * 500));
++        }
++        throw new ErroRecados(`o ramo ${ramo} mudou ${tentativas} vezes durante a gravação${ultimo ? ` (${ultimo})` : ''}; nada foi gravado. Tente de novo`);
++      });
++    },
++  };
++}
++
++/** Espera o caminho aparecer no main com o blob certo (a Action integrou). → true | false (prazo esgotado). */
++export function esperarNoMain({ cliente, caminho, blob, prazoMs = 120_000, passoMs = 5_000, esperar = dormir, agora = Date.now }) {
++  const fim = agora() + prazoMs;
++  for (;;) {
++    try { const r = cliente.arquivo(caminho); if (r.existe && r.blob === blob) return true; } catch (e) { if (!(e instanceof ErroRecados)) throw e; }
++    if (agora() + passoMs > fim) return false;
++    esperar(passoMs);
++  }
++}
++
++/**
++ * Envia um recado pelo git (T-0007): lê o main pela API (ids, --responde-a), grava no ramo e espera a integração.
++ * "enviado" só com o recado no main (integrado: true); com o prazo esgotado, integrado: false (gravado no ramo).
++ * @returns {{id: string, commit: {oid: string, ramo: string}, integrado: boolean}}
++ */
++export function enviarRecadoPorGit({ cliente, cache, gravador, de, destinos, gerarId, montar, respondeA = null, prazoMs = 120_000, esperar = dormir }) {
++  const idx = atualizarIndiceDeRecados({ cliente, cache, exigirOnline: true });
++  const doMain = idsDoIndice(idx);
++  let id = null;
++  let conteudo = null;
++  const commit = gravador.publicar((base) => {
++    const ids = new Set([...doMain, ...base.ids]);
++    if (respondeA && !ids.has(respondeA)) throw new ErroRecados(`--responde-a: recado ${respondeA} não encontrado`);
++    id = gerarId(ids);
++    conteudo = montar(id);
++    const arquivos = destinos.map((d) => ({ caminho: `recados/${d}/${id}.md`, conteudo }));
++    if (arquivos.some((a) => idx.arquivos[a.caminho] || base.existe(a.caminho))) throw new ErroRecados(`o recado ${id} já existe no GitHub (nada foi sobrescrito)`);
++    return { arquivos, titulo: `recados: ${id}`, corpo: `de ${de} para ${destinos.join(', ')}` };
++  });
++  const blob = shaDoBlob(conteudo);
++  const integrado = gravador.ramo === BRANCH_RECADOS
++    || esperarNoMain({ cliente, caminho: `recados/${destinos[0]}/${id}.md`, blob, prazoMs, esperar });
++  return { id, commit, integrado };
++}
++
++/**
++ * Marca lidos pelo git (T-0007): lidos/<agente>.txt do ramo = linhas do main + as do ramo + as novas (sem repetir).
++ * Não espera a integração: a caixa da sessão já une os lidos do ramo (lidosDoRamo). → {novos, commit?}.
++ */
++export function marcarLidosPorGit({ cliente, gravador, agente, ids }) {
++  const caminho = `lidos/${agente}.txt`;
++  const doMain = cliente.arquivo(caminho).texto || '';
++  let novos = [];
++  const commit = gravador.publicar((base) => {
++    const noRamo = base.texto(caminho) || '';
++    const atuais = new Set(unirLinhas(doMain, noRamo));
++    novos = [...new Set(ids)].filter((i) => !atuais.has(i));
++    if (!novos.length) return null;
++    return { arquivos: [{ caminho, conteudo: `${unirLinhas(doMain, noRamo, novos.join('\n')).join('\n')}\n` }], titulo: `lidos: ${agente} (${novos.length})` };
++  });
++  return commit ? { novos, commit } : { novos };
++}
++
++/** Gravador real: bare em <cache>/git-<repo>, URL https do GitHub (BAP_RECADOS_GIT_URL troca: testes usam file://). */
++export function gravadorGitDeRecados({ env = process.env, ramo, repo = String(env.BAP_RECADOS_REPO || REPO_RECADOS).trim(), git = gitSincrono({ env }) } = {}) {
++  if (!ramo) throw new ErroRecados('BAP_RECADOS_RAMO inválido (use main ou claude/<sessão>)');
++  const url = String(env.BAP_RECADOS_GIT_URL || `https://github.com/${repo}.git`).trim();
++  return criarGravadorGit({ git, url, ramo, pasta: join(pastaDoCacheDeRecados(env), `git-${repo.replace(/[^a-z0-9]+/gi, '-')}`) });
++}
++
+ /**
+  * Conexão real com o repositório de recados: {cliente, cache}. Repositório, API e cache trocáveis por variável
+  * (BAP_RECADOS_REPO, BAP_RECADOS_API, BAP_RECADOS_CACHE). Sem token, o cliente falha com a explicação.
+diff --git a/scripts/coord.mjs b/scripts/coord.mjs
+index fba7607..3aa0c53 100644
+--- a/scripts/coord.mjs
++++ b/scripts/coord.mjs
+@@ -10,6 +10,11 @@
+ //        no aloirr/bapcentral-recados (um commit por envio; "enviado" só depois de o GitHub confirmar) e caixa,
+ //        pendencias, ler e fio leem o main do GitHub na hora (cache local por commit). Token: BAP_RECADOS_TOKEN,
+ //        GH_TOKEN, GITHUB_TOKEN ou gh auth token. BAP_RECADOS=local volta às pastas .coord/recados e .coord/lidos.
++//        Gravação na nuvem (T-0007): o proxy do claude.ai/code barra a API de escrita (403); com BAP_RECADOS_ESCRITA=git
++//        (ou 'auto', o padrão, depois do 403) enviar e lido fazem git push ao main dos recados (um commit por envio,
++//        sem force, nova tentativa se o main mudou). Plano B: BAP_RECADOS_RAMO=claude/<sessão> grava no ramo da sessão
++//        e a Action integrar-recados.yml leva ao main; enviar espera o recado no main (BAP_RECADOS_ESPERA_S, padrão
++//        120) e, sem ele, sai 3 ("gravado no ramo, NÃO reenvie"). Ids e criado_em no fuso America/Manaus. No PC, nada muda.
+ //   node scripts/coord.mjs caixa <agente>           recados abertos/não lidos do agente
+ //   node scripts/coord.mjs lido <agente> <id> [...]  marca avisos/entregas/respostas como lidos
+ //   node scripts/coord.mjs ler <id>                 mostra um recado
+@@ -61,6 +66,7 @@ import {
+   WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
+   modoDosRecados, regraDoRecadoNovo, ErroRecados, conexaoDeRecados, atualizarIndiceDeRecados, recadosDoIndice,
+   lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub, ehRemetenteDeSistema,
++  modoDeEscrita, ramoDeEscrita, gravadorGitDeRecados, enviarRecadoPorGit, marcarLidosPorGit, BRANCH_RECADOS, horaLocal,
+ } from './coord-lib.mjs';
+ 
+ const PASTA = join(RAIZ, '.coord', 'recados');
+@@ -82,13 +88,8 @@ function opcoes(args) {
+ const lista = (v) => (v && v !== true ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : []);
+ const falhar = (m) => { console.error(`Erro: ${m}`); process.exit(1); };
+ 
+-function agoraLocal() {
+-  const d = new Date();
+-  const off = -d.getTimezoneOffset();
+-  const p = (n) => String(Math.abs(n)).padStart(2, '0');
+-  const loc = new Date(d.getTime() + off * 60000).toISOString().slice(0, 19);
+-  return { iso: `${loc}${off >= 0 ? '+' : '-'}${p(Math.trunc(off / 60))}:${p(off % 60)}`, compacto: loc.replace(/[-:]/g, '').replace('T', '-') };
+-}
++// Ids e criado_em no fuso do time (T-0007, R-20261120-091217-po): o contêiner da nuvem roda em UTC.
++const agoraLocal = () => horaLocal(new Date(), 'America/Manaus');
+ 
+ function parse(txt) {
+   const m = txt.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+@@ -122,6 +123,23 @@ const MODO = modoDosRecados();
+ let conexao = null;
+ let indice = null;
+ const github = () => (conexao ||= conexaoDeRecados());
++// Gravação (T-0007): API no main (PC) ou git push no ramo da sessão (nuvem). 'auto' passa ao git com o 403 do proxy.
++const ESCRITA = modoDeEscrita();
++let ramo;
++const RAMO = () => (ramo === undefined ? (ramo = ramoDeEscrita()) : ramo);
++let gravador = null;
++const gravadorGit = () => (gravador ||= gravadorGitDeRecados({ ramo: RAMO() }));
++/** Grava pela API; no modo 'auto', o 403 do proxy (nada publicado) passa ao git. `porApi` e `porGit` devolvem o resultado. */
++function gravar(porApi, porGit) {
++  if (ESCRITA === 'git') return { ...porGit(), via: 'git' };
++  try {
++    return { ...porApi(), via: 'api' };
++  } catch (e) {
++    if (!(e instanceof ErroRecados) || !e.proxy || ESCRITA !== 'auto') throw e;
++    console.log(`Aviso: o proxy da sessão barra a gravação pela API; gravando por git push no ${RAMO() || '?'} (defina BAP_RECADOS_ESCRITA=git para ir direto).`);
++    return { ...porGit(), via: 'git' };
++  }
++}
+ function indiceDoGitHub() {
+   if (indice) return indice;
+   try {
+@@ -154,7 +172,11 @@ function encerrados(recs) {
+ }
+ function lidosDe(agente) {
+   const arq = join(RAIZ, '.coord', 'lidos', `${agente}.txt`);
+-  const texto = MODO === 'github' ? lidosDoIndice(indiceDoGitHub(), agente) : existsSync(arq) ? readFileSync(arq, 'utf8') : '';
++  let texto = MODO === 'github' ? lidosDoIndice(indiceDoGitHub(), agente) : existsSync(arq) ? readFileSync(arq, 'utf8') : '';
++  // T-0007: na nuvem, os lidos marcados por git podem estar só no ramo da sessão até a Action integrar
++  if (MODO === 'github' && ESCRITA !== 'api' && RAMO() && RAMO() !== BRANCH_RECADOS) {
++    try { texto += `\n${github().cliente.arquivoNoRamo(`lidos/${agente}.txt`, RAMO()) || ''}`; } catch { /* sem o ramo: só o main */ }
++  }
+   return new Set(texto.split(/\r?\n/).filter(Boolean));
+ }
+ const titulo = (r) => (r.corpo.match(/^#\s+(.+)$/m) || [null, '(sem assunto)'])[1];
+@@ -597,13 +619,23 @@ switch (cmd) {
+         }
+       }
+       let r;
++      const respondeA = o['responde-a'] || null;
+       try {
+-        r = enviarRecadoNoGitHub({ ...github(), de, destinos, gerarId, montar, respondeA: o['responde-a'] || null });
++        r = gravar(
++          () => enviarRecadoNoGitHub({ ...github(), de, destinos, gerarId, montar, respondeA }),
++          () => enviarRecadoPorGit({ ...github(), gravador: gravadorGit(), de, destinos, gerarId, montar, respondeA, prazoMs: Number(process.env.BAP_RECADOS_ESPERA_S || 120) * 1000 }),
++        );
+       } catch (e) {
+         if (!(e instanceof ErroRecados)) throw e;
+         falhar(/^--responde-a|NÃO/.test(e.message) ? e.message : `recado NÃO enviado (nada foi gravado): ${e.message}`);
+       }
+-      console.log(`Recado ${r.id} enviado para ${enviadoPara} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.conferido ? ', confirmado na conferência' : ''})`);
++      const onde = `GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}`;
++      if (r.via === 'git' && !r.integrado) {
++        // gravado no GitHub (ramo da sessão), mas ainda fora do main: não é "enviado" e NÃO deve ser reenviado
++        console.log(`Recado ${r.id} gravado no ramo ${r.commit.ramo} (${onde}), mas ainda NÃO está no main: a Action integrar-recados não terminou. NÃO reenvie; confira em alguns minutos com: node scripts/coord.mjs ler ${r.id}`);
++        process.exit(3);
++      }
++      console.log(`Recado ${r.id} enviado para ${enviadoPara} (${onde}${r.via === 'git' ? (r.commit.ramo === BRANCH_RECADOS ? ', por git push' : `, pelo ramo ${r.commit.ramo}`) : ''}${r.conferido ? ', confirmado na conferência' : ''})`);
+       break;
+     }
+     const existentes = new Set(todosRecados().map((r) => r.meta.id));
+@@ -645,14 +677,17 @@ switch (cmd) {
+     if (MODO === 'github') {
+       let r;
+       try {
+-        r = marcarLidosNoGitHub({ cliente: github().cliente, agente, ids });
++        r = gravar(
++          () => marcarLidosNoGitHub({ cliente: github().cliente, agente, ids }),
++          () => marcarLidosPorGit({ cliente: github().cliente, gravador: gravadorGit(), agente, ids }),
++        );
+       } catch (e) {
+         if (!(e instanceof ErroRecados)) throw e;
+         falhar(/NÃO/.test(e.message) ? e.message : `NÃO marcado (nada foi gravado): ${e.message}`);
+       }
+       const ja = ids.length - r.novos.length;
+       console.log(r.commit
+-        ? `${r.novos.length} recado(s) marcado(s) como lido(s) por ${agente}${ja ? ` (${ja} já estava(m))` : ''} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.conferido ? ', confirmado na conferência' : ''}).`
++        ? `${r.novos.length} recado(s) marcado(s) como lido(s) por ${agente}${ja ? ` (${ja} já estava(m))` : ''} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.via === 'git' ? (r.commit.ramo === BRANCH_RECADOS ? ', por git push' : `, no ramo ${r.commit.ramo}; a Action leva ao main`) : ''}${r.conferido ? ', confirmado na conferência' : ''}).`
+         : `${ids.length} recado(s) já estava(m) marcado(s) como lido(s) por ${agente}.`);
+       break;
+     }
