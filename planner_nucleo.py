@@ -6295,6 +6295,39 @@ def remessas_dtfinal_3000(listas_de_linhas: list) -> list:
     return saida
 
 
+def remessas_a_excluir(remessas: list) -> list:
+    """(20/11, RN-ROT-001, R-20261120-111303) `remessas`: lista de pares
+    (data, linhas): `data` e datetime ou None (o mtime do arquivo) e `linhas`
+    a lista do JSON. A data da remessa e a do codcompromisso mais comum
+    (%Y%m%d%H%M%S); sem ele, vale a `data` do par. Remessa curta = tem linhas
+    e nenhuma com dtfinal 3000-01-01. Devolve (no formato de
+    remessas_dtfinal_3000) so as remessas com 3000 MAIS NOVAS que a ultima
+    curta datada; sem curta, todas as com 3000 (a sem data so entra assim).
+    Sem disco, sem nome de arquivo, nome nem CNPJ. Funcao pura."""
+    itens = []
+    for par in remessas or []:
+        try:
+            data, linhas = par
+        except (TypeError, ValueError):
+            continue
+        linhas = [x for x in (linhas or []) if isinstance(x, dict)]
+        comp = Counter(texto(x.get("codcompromisso")) for x in linhas
+                       if texto(x.get("codcompromisso")))
+        try:
+            quando = dt.datetime.strptime(comp.most_common(1)[0][0],
+                                          "%Y%m%d%H%M%S")
+        except (IndexError, ValueError):
+            quando = data if isinstance(data, dt.datetime) else None
+        tem3000 = any(texto(x.get("dtfinal")).startswith("3000-01-01")
+                      for x in linhas)
+        itens.append((quando, linhas, tem3000))
+    curtas = [q for q, linhas, t3 in itens if linhas and not t3 and q]
+    corte = max(curtas) if curtas else None
+    escolhidas = [linhas for q, linhas, t3 in itens if t3 and (
+        corte is None or (q is not None and q > corte))]
+    return remessas_dtfinal_3000(escolhidas)
+
+
 def pedido_exclusao_maxima(remessas: list) -> str:
     """(20/11) O texto do pedido a Máxima para excluir TODAS as remessas
     anteriores com data final 3000-01-01. `remessas`: saida de

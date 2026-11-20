@@ -174,7 +174,7 @@ AVISO_RECALCULAR = ("PARA QUALQUER ALTERACAO TER VALIDADE, VA EM PARAMETROS "
                     "E CLIQUE EM RECALCULAR PLANNER.")
 # (20/11) aviso ao gravar a ROTA com a regra nova do dtfinal.
 AVISO_REMESSA_ANTERIOR = ("Antes de importar esta rota, peça à Máxima a "
-                          "exclusão da remessa anterior (uma vez só, no "
+                          "exclusão das remessas anteriores (uma vez só, no "
                           "primeiro envio com a regra nova).")
 NOMES_DAS_ABAS = ("1. Resumo gerencial", "2. Vendedores e supervisores",
                   "3. Zonas", "4. Rota por cidade", "5. Analítico da rota",
@@ -5994,10 +5994,12 @@ class App(pb.base_da_janela()):
         self._tarefa(trabalho, pronto, "Montando o JSON do Protheus...")
 
     def _aviso_remessa_anterior(self, gravado):
-        """(20/11) So se ha remessa anterior com dtfinal 3000-01-01 na pasta:
-        mostra o aviso + botao que copia o pedido de exclusao (so periodo e
-        codusur, sem nome de arquivo)."""
-        listas = []
+        """(20/11) So le a pasta (exceto o recem-gravado) e pergunta a
+        nu.remessas_a_excluir: so abre se sobrou remessa com dtfinal
+        3000-01-01 mais nova que a ultima remessa curta (uma vez so). Mostra
+        o aviso + botao que copia o pedido de exclusao (so periodo e codusur,
+        sem nome de arquivo)."""
+        pares = []
         for p in gravado.parent.glob("ROTA_PROTHEUS_*.json"):
             if p.name == gravado.name:
                 continue
@@ -6006,8 +6008,12 @@ class App(pb.base_da_janela()):
             except (OSError, ValueError):
                 continue
             if isinstance(dados, list):
-                listas.append(dados)
-        remessas = nu.remessas_dtfinal_3000(listas)
+                try:
+                    mtime = dt.datetime.fromtimestamp(p.stat().st_mtime)
+                except OSError:
+                    mtime = None
+                pares.append((mtime, dados))
+        remessas = nu.remessas_a_excluir(pares)
         if not remessas:
             return
         j = tk.Toplevel(self)
