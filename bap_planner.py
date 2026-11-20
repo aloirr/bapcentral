@@ -172,6 +172,10 @@ ROTULO_TOTAL = "TOTAL"
 
 AVISO_RECALCULAR = ("PARA QUALQUER ALTERACAO TER VALIDADE, VA EM PARAMETROS "
                     "E CLIQUE EM RECALCULAR PLANNER.")
+# (20/11) aviso ao gravar a ROTA com a regra nova do dtfinal.
+AVISO_REMESSA_ANTERIOR = ("Antes de importar esta rota, peça à Máxima a "
+                          "exclusão das remessas anteriores (uma vez só, no "
+                          "primeiro envio com a regra nova).")
 NOMES_DAS_ABAS = ("1. Resumo gerencial", "2. Vendedores e supervisores",
                   "3. Zonas", "4. Rota por cidade", "5. Analítico da rota",
                   "6. Base cliente", "7. Exportar Protheus", "8. Parâmetros")
@@ -5985,7 +5989,47 @@ class App(pb.base_da_janela()):
                                    f"Gravado em:\n{destino.parent}\n\n"
                                    f"Abrir a pasta?"):
                 self._abrir(destino.parent)
+            if qual == "rota":
+                self._aviso_remessa_anterior(destino)
         self._tarefa(trabalho, pronto, "Montando o JSON do Protheus...")
+
+    def _aviso_remessa_anterior(self, gravado):
+        """(20/11) So le a pasta (exceto o recem-gravado) e pergunta a
+        nu.remessas_a_excluir: so abre se sobrou remessa com dtfinal
+        3000-01-01 mais nova que a ultima remessa curta (uma vez so). Mostra
+        o aviso + botao que copia o pedido de exclusao (so periodo e codusur,
+        sem nome de arquivo)."""
+        pares = []
+        for p in gravado.parent.glob("ROTA_PROTHEUS_*.json"):
+            if p.name == gravado.name:
+                continue
+            try:
+                dados = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(dados, list):
+                try:
+                    mtime = dt.datetime.fromtimestamp(p.stat().st_mtime)
+                except OSError:
+                    mtime = None
+                pares.append((mtime, dados))
+        remessas = nu.remessas_a_excluir(pares)
+        if not remessas:
+            return
+        j = tk.Toplevel(self)
+        j.title("Planner BAP")
+        ttk.Label(j, text=AVISO_REMESSA_ANTERIOR, wraplength=420
+                  ).pack(padx=16, pady=(14, 8))
+        msg = ttk.Label(j, text="", wraplength=420)
+
+        def copiar():
+            self.clipboard_clear()
+            self.clipboard_append(nu.pedido_exclusao_maxima(remessas))
+            msg.configure(text="Pedido copiado. Cole no e-mail à Máxima.")
+        ttk.Button(j, text="Copiar pedido à Máxima", command=copiar
+                   ).pack(pady=4)
+        msg.pack(padx=16)
+        ttk.Button(j, text="Fechar", command=j.destroy).pack(pady=(4, 12))
 
     def _resumo_padrao(self, linhas) -> str:
         """(20/10) Quantos clientes foram para o vendedor/supervisor padrao
@@ -6230,7 +6274,9 @@ class App(pb.base_da_janela()):
         self._linha_padrao.pack(anchor="w", pady=(8, 0))
         ttk.Label(pj, style="Sub.TLabel", wraplength=560,
                   text="ROTEIRIZAÇÃO: todas as visitas do mês, data exata "
-                       "(numsemana 1, vigência 2000 a 3000). BASE DE "
+                       "(numsemana 1, dtfinal = data + periodicidade - 1 "
+                       "dia; fora do arquivo: inativo, interno, conta "
+                       "000040). BASE DE "
                        "CLIENTES: o vendedor e o supervisor de cada cliente "
                        "pelo Planner (A1_VEND). TODOS vão ATIVO: quem está "
                        "fora do Planner (sem vendedor, cadeira vaga ou "
