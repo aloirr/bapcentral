@@ -28,12 +28,14 @@
 
 > **Efeito colateral (atenção): `montar` não é só leitura.** Ele grava em duas frentes (risco R2 em `docs/desenho/T-0002.md`):
 > - **Histórico do Painel do Diretor.** `montar("vc_painel")` → `_abas_do_painel` → `pdr.calcular(ctx, ano, mes)` (`relatorios_nucleo.py:9608`), com `gravar_hist=True` por padrão (`painel_diretor.py:196`). Grava `RELATORIOS/painel_diretor_hist.json` quando o corte dos dados é do mês corrente **e** os números mudaram (`painel_diretor.py:788-797`). O `painel_cartoes.py:136` já chama com `gravar_hist=False`.
-> - **Caches em disco** (o `.gitignore` ignora `*.pkl` e `__pycache__/`, então nada aparece no `git status`):
+> - **Caches em disco** (o `.gitignore` ignora `*.pkl`, `*.py[cod]` e `__pycache__/`, `.gitignore:17-19`, então nada aparece no `git status`):
 >   - `RELATORIOS/_CACHE_RELATORIOS/*.pkl`: os blocos do `bap_dados.carregar` (`bap_dados.py:342`, `:363`) e o `custos_legado.pkl` (`bap_dados.py:1255`);
->   - `<pasta do PLANNER>/_CACHE_RELATORIOS/planner_*.pkl` (`meta_nucleo.ler_planner`, `meta_nucleo.py:644-645`), em geral `RELATORIOS/Roteirizacao/_CACHE_RELATORIOS/`; e o `mix_familia_*.pkl` (`meta_nucleo.py:2010-2011`);
+>   - `<pasta do PLANNER>/_CACHE_RELATORIOS/planner_*.pkl` (`meta_nucleo.ler_planner`, `meta_nucleo.py:644-645`), em geral `RELATORIOS/Roteirizacao/_CACHE_RELATORIOS/`;
+>   - `<pasta da TABELA_BAP>/_CACHE_RELATORIOS/mix_familia_*.pkl` (`meta_nucleo._mix_m3m`: `caminho = Path(caminho_tabela)`, `meta_nucleo.py:1986`, e `caminho.parent`, `:2010-2011`), na prática `RELATORIOS/_CACHE_RELATORIOS/`;
 >   - `<pasta do .xlsx>/_CACHE_RELATORIOS/xlsx/*.pkl` (`xlsx_rapido._arquivo_cache`, `xlsx_rapido.py:571`), só onde a `_CACHE_RELATORIOS/` já existe (`_usa_disco`, `:580`);
 >   - `RELATORIOS/Visitas/ANALITICO/_leitura_analitico.pkl` (`visitas_nucleo._ler_espelhos`, `visitas_nucleo.py:890`, `:935`), **fora** de qualquer `_CACHE_RELATORIOS/`;
->   - `SISTEMA BAP/cache/` ao lado do código: o bytecode do Python. Sem `LOCALAPPDATA` (Linux, Render), o `sys.pycache_prefix` ligado no import de `farol_ddr.py:48` e `geocodificar.py:76` (e das telas) aponta para lá. Com `PYTHONPYCACHEPREFIX` no ambiente, o prefixo já vem pronto e é mantido.
+>   - `SISTEMA BAP/cache/` ao lado do código: o bytecode do Python. Sem `LOCALAPPDATA` (Linux, Render), o `sys.pycache_prefix` ligado no import de `farol_ddr.py:48` e `geocodificar.py:76` (e das telas) aponta para lá. Com `PYTHONPYCACHEPREFIX` no ambiente, o prefixo já vem pronto e é mantido. Os `.pyc` dessa pasta ficam fora do git pelo `*.py[cod]` (`.gitignore:18`), não pelo `__pycache__/`. A pasta recebe também o bytecode da biblioteca padrão compilado depois do import;
+>   - `__pycache__/` na raiz: os módulos importados **antes** do `farol_ddr` (o prefixo ainda não existe) gravam o bytecode no lugar padrão, ignorado pelo `__pycache__/` (`.gitignore:17`).
 >
 > Por isso `gravar_hist=False` sozinho **não** deixa o `montar` em leitura pura (§10.5).
 
@@ -364,12 +366,12 @@ Regras gerais:
 
 - **Na tela** (`Vista.total_de`, `bap_relatorios.py:2700-2721`):
   1. com `total_de`: `total_de(linhas visíveis)`; erro = sem total;
-  2. sem `total_de` e **sem filtro**: `tabela["total"]`;
-  3. sem `total_de`, com filtro: o `totais_por` só quando todas as linhas visíveis têm o mesmo valor na coluna e são **todas** as linhas desse valor; senão, sem total.
+  2. sem `total_de` e com o número de linhas visíveis **igual** ao da tabela (`len(linhas) == len(tabela["linhas"])`, `bap_relatorios.py:2709`): `tabela["total"]`. A conta é só de tamanho, não de "sem filtro": um filtro que não tira nenhuma linha também mostra o `total`;
+  3. sem `total_de` e com menos linhas visíveis: o `totais_por` só quando todas as linhas visíveis têm o mesmo valor na coluna e são **todas** as linhas desse valor; senão, sem total.
 - **Na web:** a mesma regra, no servidor (o `totais_por` é serializável, mas a regra fica junto da do filtro, num lugar só). Com filtro e sem `total_de`, a web **não** mostra o `total` da tabela inteira.
 
 ### 11.4 `recortes`
 
-- **Na tela** (`Vista._filtradas`, `bap_relatorios.py:2651-2698`): o recorte é uma caixa com os rótulos (some na tabela `enxuta`, `bap_relatorios.py:2442-2444`). O recorte por função tira a linha que dá `False`, junto com os filtros e a busca. O recorte `{"top", "coluna", "so_positivo"?}` vem depois: ordena pela coluna (maior primeiro), corta em `top` e, com `so_positivo`, fica só com valor > 0.
+- **Na tela** (`Vista._filtradas`, `bap_relatorios.py:2651-2698`): o recorte é uma caixa com os rótulos (some na tabela `enxuta`, `bap_relatorios.py:2442-2444`). O recorte por função tira a linha que dá `False`, junto com os filtros e a busca. O recorte `{"top", "coluna", "so_positivo"?}` vem depois, nesta ordem (`bap_relatorios.py:2686-2691`): com `so_positivo`, fica só com valor > 0 na coluna; depois ordena pela coluna (maior primeiro) e corta em `top`.
 - **Na web:** o navegador recebe só a lista de rótulos (`[rotulo, ...]`) e manda o rótulo escolhido. O servidor aplica os dois tipos. O de `top` é serializável, mas segue o mesmo caminho, para a ordem e o corte serem os da tela.
 - O recorte entra no `kpis_de` e no `total_de` (§11.2 e §11.3), porque eles recebem as linhas visíveis já recortadas.
