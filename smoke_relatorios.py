@@ -46,7 +46,7 @@ except Exception:                                       # noqa: BLE001
 import tempfile
 from collections import defaultdict
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import tempfile as _tf_d
 from pathlib import Path
 
@@ -1248,9 +1248,25 @@ else:
     checar(False, "Farol Roteirização › Por cliente: aba não montou")
 _tcal = next((t_ for t_ in _rv["tabelas"] if t_["titulo"] == "Calendário"), None)
 _pr_todos = _rv["exportar_protheus"]() if _rv.get("exportar_protheus") else []
-_pr_um = (_rv["exportar_protheus"](_tcal, _tcal["linhas"][:5])
+# (20/11, T-0010, R-20261120-104729) fora do .json: a visita do 1o sabado
+# do mes (deposito) e a conta 000040; o interno tem o check dele embaixo
+
+
+def _fora_mx(l_):
+    d_ = l_[0]
+    if hasattr(d_, "date"):
+        d_ = d_.date()
+    dep_ = next(date(d_.year, d_.month, n_) for n_ in range(1, 8)
+                if date(d_.year, d_.month, n_).weekday() == 5)
+    return d_ == dep_ or str(l_[4]).split(" - ")[0].strip().zfill(6) \
+        == "000040"
+
+
+_cal_mx = [l_ for l_ in (_tcal["linhas"] if _tcal else []) if l_[0]
+           and not _fora_mx(l_)]
+_pr_um = (_rv["exportar_protheus"](_tcal, _cal_mx[:5])
           if _tcal else [])
-checar(_tcal and _tcal.get("calendario") and len(_tcal["linhas"]) == len(_pr_todos)
+checar(_tcal and _tcal.get("calendario") and len(_cal_mx) == len(_pr_todos)
        and len(_pr_um) == 5 and set(_pr_todos[0]) == set(
            ["codcli", "codusur", "codcompromisso", "dtproxvisita",
             "periodicidade", "sequencia", "diasemana", "numsemana",
@@ -1262,6 +1278,16 @@ checar(_tcal and _tcal.get("calendario") and len(_tcal["linhas"]) == len(_pr_tod
        f"Farol Roteirização › Calendário e Exportar Protheus "
        f"({len(_pr_todos)} visitas; layout ERP_MXSROTACLI, sem hash e "
        f"coordenada, periodicidade aceita)")
+# (20/11, T-0010) CNPJ interno (FRW / BAP AUTOPARTS / PMZ DISTRIBUIDORA no
+# nome ou na fantasia) tambem nao vai no .json exportado pelo Farol
+_int_mx = {l_[10].replace("-", "") for l_ in _cal_mx
+           if mn.e_cliente_interno(l_[11], l_[15])}
+checar(not {x_["codcli"][-8:] for x_ in _pr_todos} & {
+    c_.split("-")[0].zfill(6) + c_.split("-")[-1].zfill(2)
+    for c_ in (l_[10] for l_ in _cal_mx
+               if mn.e_cliente_interno(l_[11], l_[15]))},
+       f"Farol Roteirização › Exportar Protheus sem cliente interno "
+       f"({len(_int_mx)} visita(s) de interno no calendário)")
 # 07/10: BASE PROTHEUS nos farois e Divergencias clientes Planner x Protheus
 _dv = rn.montar("an_divergencias", AQUI)
 _fc_v = next(t_ for t_ in rn.montar("vc_base", AQUI)["tabelas"]
@@ -1288,18 +1314,21 @@ checar(_fc_v["colunas"][1]["nome"] == "BASE PROTHEUS"
        f"BASE PROTHEUS nos farois ({len(_lj)} lojas) e Divergências "
        f"Máxima x Protheus ({len(_dv_t[1]['linhas']) if len(_dv_t) > 1 else 0}"
        f" clientes, {len(_dv_js)} no .json de correção)")
-# 07/10: o formato combinado com a Maxima - data EXATA, numsemana 1 e
-# vigencia 2000 -> 3000 (a Maxima gera na N-esima DIASEMANA a partir da
-# dtproxvisita: com N = 1 cai na propria data)
+# 07/10: o formato combinado com a Maxima - data EXATA, numsemana 1 (a
+# Maxima gera na N-esima DIASEMANA a partir da dtproxvisita: com N = 1 cai
+# na propria data). (20/11, T-0010, R-20261120-104729) vigencia 2000 ->
+# dtproxvisita + periodicidade - 1 dia: cada linha gera UMA visita
 _dias_mx = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO",
             "DOMINGO"]
 checar(_pr_todos and all(
     l_["numsemana"] == 1 and l_["dtinicio"] == "2000-01-01T00:00:00"
-    and l_["dtfinal"] == "3000-01-01T00:00:00"
+    and l_["dtfinal"] == (date.fromisoformat(l_["dtproxvisita"][:10])
+                          + timedelta(days=int(l_["periodicidade"]) - 1)
+                          ).strftime("%Y-%m-%dT00:00:00")
     and _dias_mx[date.fromisoformat(l_["dtproxvisita"][:10]).weekday()]
     == l_["diasemana"] for l_ in _pr_todos),
        "JSON da rota no formato da Máxima: data exata, numsemana 1, "
-       "vigência 2000 a 3000")
+       "vigência 2000 a dtproxvisita+periodicidade−1")
 
 # ---- Resumo indicadores
 _ri = rn.montar("an_resumo", AQUI)
