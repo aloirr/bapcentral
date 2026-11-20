@@ -50,6 +50,8 @@
 //  - T-0009 (R-20261120-100513-alexandre): "de: alexandre" passa só do po e só quando toda escrita do comando cai no
 //    clone do aloirr/bapcentral-recados (pasta da junção ou remote, conferidos no disco: cloneDeRecadosNoDisco);
 //    o git add/commit do po nesse clone também passa no v6. Outro agente, o repositório de código: barrado como antes.
+//    Estreita (parecer do revisor no 982a1fe): só BAP_AGENTE=po sem agent_id; sem cd/pushd/popd, "..", ln/cp/mv
+//    nem git além de add/commit/push e leituras (incertezasDoPo); cd fora de cadeia de && deixa a pasta incerta.
 //  - ADR 0035 (T-0139): com .coord/recados e .coord/lidos em junção para o clone do bapcentral-recados, o alvo pelo
 //    caminho de verdade do clone segue as regras de .coord/recados, o git que grava no clone é bloqueado e a foto do
 //    PostToolUse inclui o git status do clone (juncoesDeRecados; casos em guarda-juncao.test.mjs).
@@ -69,7 +71,7 @@ import {
 } from './guarda-bash-lib.mjs';
 import {
   conferirMerge, conferirGhApi, consultarPrGh, lerRecadosDoGerente, motivosRecadoFalso, mensagemRecadoFalso,
-  motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados, AGENTE_QUE_GRAVA_PELO_ALEXANDRE,
+  motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados, podeGravarPeloAlexandre,
 } from './guarda-merge-lib.mjs';
 
 /** Conteúdo de um arquivo do repositório (rel) ou null. */
@@ -138,7 +140,9 @@ if (evento === 'PreToolUse') {
   }
   // Guardião v5: nenhum agente cria recado em nome de outro (sobretudo de: alexandre).
   // T-0009: só o po, e só no clone do aloirr/bapcentral-recados (conferido no disco), grava recado de: alexandre.
-  const ehCloneDeRecados = agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE ? cloneDeRecadosNoDisco({ raiz: RAIZ, juncoes }) : () => false;
+  // Só o po da sessão principal (BAP_AGENTE=po, sem agent_id): um subagente "po" do gerente não vale.
+  const poPrincipal = podeGravarPeloAlexandre({ agente, origem, subagente: Boolean(String(entrada.agent_id || '').trim()) });
+  const ehCloneDeRecados = poPrincipal ? cloneDeRecadosNoDisco({ raiz: RAIZ, juncoes }) : () => false;
   const motivos = motivosRecadoFalso({ comando, agente, cwd: entrada.cwd || process.cwd(), ehCloneDeRecados });
   if (motivos.length) {
     process.stderr.write(mensagemRecadoFalso(agente, motivos) + '\n');

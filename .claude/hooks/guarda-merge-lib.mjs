@@ -830,6 +830,22 @@ const RE_RECADOS = /recados/i;
 const RE_ALEXANDRE = /alexandre/i;
 
 /**
+ * cd/pushd que com certeza troca a pasta dos comandos seguintes: não vem depois de ||, |, |& nem &, e é seguido
+ * de && (ou fecha o comando). Depois de ";", "\n", "||", "|" ou "&", um cd que falhou deixa o resto rodar na pasta
+ * antiga; no pipeline e em segundo plano ele roda num subshell (🔴 1a, 1b, 1d e 🟡 1 do parecer da T-0009).
+ */
+function cdCerto(cmd) {
+  if (['||', '|', '|&', '&'].includes(cmd.antes)) return false;
+  return cmd.depois === '&&' || cmd.depois === null;
+}
+
+/** A cadeia de && que começou num cd se quebra (;, \n, ||, |, &): dali em diante a pasta é incerta. */
+function quebraDaCadeia(cmd, cwd, cadeia) {
+  if (cadeia && cmd.antes !== '&&') return { cwd: null, cadeia: false };
+  return { cwd, cadeia };
+}
+
+/**
  * Escritas do comando inteiro (comandos simples, $(...), bash -c e eval literais, cd acompanhado).
  * @returns {{escritas: {alvo: {valor: string, incerto: boolean}, cwd: string|null}[], opacos: {motivo: string, texto: string}[], coord: boolean}}
  *   cwd: pasta (como escrita no comando) onde a escrita acontece; null = incerta (cd $X).
@@ -840,10 +856,12 @@ export function escritasDoComando(comando, cwdInicial = '', nivel = 0) {
   const heredoc = /<<-?\s*['"]?[A-Za-z_]/.test(String(comando));
   let coord = false;
   let cwd = cwdInicial;
+  let cadeia = false; // houve cd na cadeia de && atual
   const pilha = [];
   for (const cmd of comandosSimples(tokenizar(comando))) {
-    if (cmd.grupo === '(') { pilha.push(cwd); continue; }
-    if (cmd.grupo === ')') { if (pilha.length) cwd = pilha.pop(); continue; }
+    if (cmd.grupo === '(') { pilha.push({ cwd, cadeia }); cadeia = false; continue; }
+    if (cmd.grupo === ')') { if (pilha.length) ({ cwd, cadeia } = pilha.pop()); continue; }
+    ({ cwd, cadeia } = quebraDaCadeia(cmd, cwd, cadeia));
     const todas = [...cmd.palavras, ...cmd.redirs.map((r) => r.alvo)];
     if (nivel < 4) {
       for (const w of todas) {
@@ -864,10 +882,12 @@ export function escritasDoComando(comando, cwdInicial = '', nivel = 0) {
     }
     const { nome, args } = semAtribuicoes(cmd.palavras);
     const n = nome && !nome.incerto ? nomeBase(nome.valor) : '';
-    if (n === 'cd' || n === 'pushd') {
+    if (n === 'cd' || n === 'pushd' || n === 'popd') {
       const a = args.find((x) => !x.valor.startsWith('-'));
-      // cd com caminho absoluto troca a pasta (T-0009: antes virava "<cwd>//<caminho>")
-      cwd = !a ? '~' : a.incerto || cwd === null ? null : ehAbsoluto(barras(a.valor)) ? barras(a.valor) : `${cwd}/${a.valor}`;
+      // cd com caminho absoluto troca a pasta (T-0009: antes virava "<cwd>//<caminho>"); popd, cd incerto e cd
+      // fora de uma cadeia de && (pode falhar, roda em subshell no pipeline ou em segundo plano): pasta incerta.
+      cwd = !cdCerto(cmd) || n === 'popd' ? null : !a ? '~' : a.incerto || cwd === null ? null : ehAbsoluto(barras(a.valor)) ? barras(a.valor) : `${cwd}/${a.valor}`;
+      cadeia = true;
       continue;
     }
     const c = classificarComando(cmd.palavras);
@@ -989,7 +1009,7 @@ export function motivosIndiceDeRecados({ comando, cwd = '', raiz = '', status = 
   const cmds = comandosDeIndice(comando);
   if (!cmds.length) return [];
   // T-0009: git add/commit do po no clone do aloirr/bapcentral-recados não mexe no índice do repositório de código.
-  if (agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE) {
+  if (agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE && !incertezasDoPo(comando).length) {
     const pastas = pastasDosComandosDeIndice(comando, cwd);
     if (pastas.length === cmds.length && pastas.every((p) => p !== null && ehCloneDeRecados(p))) return [];
   }
@@ -1077,13 +1097,77 @@ export function caminhoAbsoluto(base, valor) {
  * bash sem -c...), coord.mjs que grava, alvo ou pasta incertos, ou qualquer alvo fora do clone.
  */
 export function soEscreveNoCloneDeRecados({ comando, cwd = '', ehCloneDeRecados = () => false }) {
+  if (incertezasDoPo(comando).length) return false;
   const { escritas, opacos, coord } = escritasDoComando(comando, barras(cwd || ''));
   if (coord || opacos.length || !escritas.length) return false;
   return escritas.every(({ alvo, cwd: c }) => {
-    if (alvo.incerto) return false;
+    if (alvo.incerto || temPontoPonto(alvo.valor)) return false;
     const a = caminhoAbsoluto(c, alvo.valor);
     return a !== null && Boolean(ehCloneDeRecados(a));
   });
+}
+
+const temPontoPonto = (v) => barras(v ?? '').split('/').includes('..');
+/** git que o po pode rodar no comando com recado de: alexandre (nada que traga arquivo, link ou remote de fora). */
+const GIT_DO_PO = new Set(['add', 'commit', 'push', 'status', 'diff', 'log', 'show', 'fetch', 'rev-parse', 'ls-files']);
+/** Comandos que criam link ou trazem arquivo (talvez um link) de outro lugar: fora da exceção do po. */
+const LINK_OU_COPIA = new Set(['ln', 'link', 'symlink', 'cp', 'mv', 'rsync', 'install', 'ditto', 'cpio', 'tar', 'bsdtar', 'unzip', 'mklink']);
+
+/**
+ * Por que a exceção do po (T-0009) não vale para este comando? Função pura; vazio = nada incerto.
+ * Na dúvida, barra: a pasta só pode ser a da sessão ou um caminho absoluto literal (sem cd/pushd/popd), nenhum
+ * "..", nenhum comando que crie link ou copie/mova arquivo (ln, cp, mv, rsync...), git só add/commit/push e leituras,
+ * sem --git-dir/--work-tree/-c e com -C literal sem "..". Olha também dentro de $(...), bash -c e eval literais.
+ * @returns {string[]}
+ */
+export function incertezasDoPo(comando, nivel = 0) {
+  const res = [];
+  for (const cmd of comandosSimples(tokenizar(comando))) {
+    if (cmd.grupo) continue;
+    const todas = [...cmd.palavras, ...cmd.redirs.map((r) => r.alvo)];
+    for (const w of todas) {
+      if (!w.incerto) continue;
+      if (nivel >= 4) { res.push('substituição aninhada demais'); continue; }
+      for (const sub of substituicoes(w.valor)) res.push(...incertezasDoPo(sub, nivel + 1));
+    }
+    for (const r of cmd.redirs) if (temPontoPonto(r.alvo.valor)) res.push(`".." no caminho (${r.alvo.valor})`);
+    const { nome, args } = semAtribuicoes(cmd.palavras);
+    if (!nome) continue;
+    if (nome.incerto) { res.push(`nome de comando incerto (${nome.valor})`); continue; }
+    const n = nomeBase(nome.valor);
+    if (n === 'cd' || n === 'pushd' || n === 'popd') { res.push(`${n} no comando (use o caminho absoluto ou a pasta da sessão no clone)`); continue; }
+    if (LINK_OU_COPIA.has(n)) { res.push(`${n} no comando (pode criar link ou trazer arquivo de fora do clone)`); continue; }
+    if (n === 'git') {
+      let i = 0;
+      while (i < args.length && args[i].valor.startsWith('-')) {
+        const o = args[i].valor;
+        if (o === '-C') {
+          const d = args[i + 1];
+          if (!d || d.incerto || d.valor.startsWith('~') || temPontoPonto(d.valor)) res.push(`git -C incerto ou com ".." (${d?.valor ?? ''})`);
+          i += 2;
+          continue;
+        }
+        res.push(`git ${o} no comando`);
+        i += OPCOES_GIT_COM_VALOR.has(o) ? 2 : 1;
+      }
+      const sub = args[i];
+      if (!sub || sub.incerto || !GIT_DO_PO.has(sub.valor)) res.push(`git ${sub?.valor ?? ''} no comando (só add, commit, push e leituras)`.replace('  ', ' '));
+    }
+    const c = classificarComando(cmd.palavras);
+    if (c.interno) {
+      if (nivel >= 4) res.push('bash -c/eval aninhado demais');
+      else res.push(...incertezasDoPo(c.interno, nivel + 1));
+    }
+  }
+  return res;
+}
+
+/**
+ * A sessão pode gravar recado de: alexandre (no clone dos recados)? Só o po da sessão principal: BAP_AGENTE=po e
+ * nenhum agent_id (um subagente "po" do gerente não vale: 🔴 2 do parecer da T-0009). Função pura.
+ */
+export function podeGravarPeloAlexandre({ agente, origem = '', subagente = false }) {
+  return agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE && origem === 'variável BAP_AGENTE' && !subagente;
 }
 
 /**
@@ -1093,16 +1177,19 @@ export function soEscreveNoCloneDeRecados({ comando, cwd = '', ehCloneDeRecados 
 export function pastasDosComandosDeIndice(comando, cwdInicial = '') {
   const res = [];
   let cwd = barras(cwdInicial || '');
+  let cadeia = false;
   const pilha = [];
   for (const cmd of comandosSimples(tokenizar(comando))) {
-    if (cmd.grupo === '(') { pilha.push(cwd); continue; }
-    if (cmd.grupo === ')') { if (pilha.length) cwd = pilha.pop(); continue; }
+    if (cmd.grupo === '(') { pilha.push({ cwd, cadeia }); cadeia = false; continue; }
+    if (cmd.grupo === ')') { if (pilha.length) ({ cwd, cadeia } = pilha.pop()); continue; }
+    ({ cwd, cadeia } = quebraDaCadeia(cmd, cwd, cadeia));
     const { nome, args } = semAtribuicoes(cmd.palavras);
     if (!nome || nome.incerto) continue;
     const n = nomeBase(nome.valor);
-    if (n === 'cd' || n === 'pushd') {
+    if (n === 'cd' || n === 'pushd' || n === 'popd') {
       const a = args.find((x) => !x.valor.startsWith('-'));
-      cwd = !a || a.incerto || cwd === null ? null : caminhoAbsoluto(cwd, a.valor);
+      cwd = !cdCerto(cmd) || n === 'popd' || !a || a.incerto || cwd === null ? null : caminhoAbsoluto(cwd, a.valor);
+      cadeia = true;
       continue;
     }
     if (n !== 'git') continue;
@@ -1110,7 +1197,7 @@ export function pastasDosComandosDeIndice(comando, cwdInicial = '') {
     let pasta = cwd;
     while (i < args.length && args[i].valor.startsWith('-')) {
       const o = args[i].valor;
-      if (o === '-C') pasta = !args[i + 1] || args[i + 1].incerto || pasta === null ? null : caminhoAbsoluto(pasta, args[i + 1].valor);
+      if (o === '-C') pasta = !args[i + 1] || args[i + 1].incerto ? null : caminhoAbsoluto(pasta, args[i + 1].valor); // absoluto: certo mesmo com a pasta incerta
       else if (OPCOES_GIT_COM_VALOR.has(o) && o !== '-c') pasta = null;
       else if (/^--(git-dir|work-tree)=/.test(o)) pasta = null;
       i += OPCOES_GIT_COM_VALOR.has(o) ? 2 : 1;

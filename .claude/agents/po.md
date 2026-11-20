@@ -45,9 +45,10 @@ Bloco sem conteúdo aparece com "nada".
 - Sessão filha não tem `send_message`. Quando uma terminar, leia o resultado dela (`list_events`, kind `result`) e repasse ao gerente o que ela não conseguiu avisar.
 
 ## Como gravar recados (na nuvem)
-- Não use script nem a API do GitHub para gravar, nem o `coord.mjs enviar`/`lido` para gravar na nuvem (o modo git do `coord.mjs` é a T-0007): o proxy da nuvem bloqueia qualquer gravação pela API, com qualquer token.
+- Não use script nem a API do GitHub para gravar, nem o `coord.mjs enviar`/`lido`: na nuvem, recado e lido só com git à mão (R-20261120-092924-alexandre). O modo git do `coord.mjs` (T-0007) não é usado na nuvem enquanto o Alexandre não decidir o contrário. O proxy da nuvem bloqueia qualquer gravação pela API, com qualquer token.
 - Grave com git, no clone do `aloirr/bapcentral-recados` anexado à sessão, com push direto no `main` desse repositório (autorizado pelo Alexandre).
 - Decisão do Alexandre no chat vira recado `de: alexandre`; você envia e avisa o gerente por `send_message` com o id e o resumo.
+- O guardião aceita `de: alexandre` só de você (BAP_AGENTE=po, sessão principal) e só no clone dos recados. Use caminho absoluto do clone (`cat > <clone>/recados/...`, `git -C <clone> add/commit/push`) ou a pasta da sessão já no clone. Sem `cd`/`pushd`/`popd`, sem `..` e sem `ln`/`cp`/`mv` no comando: na dúvida, ele barra (T-0009).
 
 ## Quando o Alexandre manda algo
 1. **Entenda e classifique:** pedido novo, correção (bug), decisão/regra de negócio, aprovação ("instale", "aprovado"), prioridade ou pergunta.

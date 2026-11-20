@@ -206,14 +206,20 @@ export function tokenizar(cmd) {
   return tokens;
 }
 
-/** Agrupa os tokens em comandos simples: {palavras, redirs:[{op, fd, alvo}]} ou {grupo:'('|')'}. */
+/**
+ * Agrupa os tokens em comandos simples: {palavras, redirs:[{op, fd, alvo}], antes, depois} ou {grupo:'('|')'}.
+ * antes/depois: operador antes e depois do comando (';', '\n', '&&', '||', '|', '|&', '&', '(', ')' ou null no
+ * começo/fim). T-0009: o cd só vale com certeza dentro de uma cadeia de && (ver escritasDoComando).
+ */
 export function comandosSimples(tokens) {
   const lista = [];
   let atual = { palavras: [], redirs: [] };
+  let ultimo = null;
   const fechar = (sep) => {
-    if (atual.palavras.length || atual.redirs.length) lista.push(atual);
+    if (atual.palavras.length || atual.redirs.length) lista.push({ ...atual, antes: ultimo, depois: sep });
     atual = { palavras: [], redirs: [] };
     if (sep === '(' || sep === ')') lista.push({ grupo: sep });
+    ultimo = sep;
   };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -783,8 +789,11 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
 
 // ───────────────────────────── T-0009: o clone do aloirr/bapcentral-recados, no disco ─────────────────────────────
 
-/** Remote do repositório de recados (https, ssh ou o proxy da nuvem: .../aloirr/bapcentral-recados[.git]). */
-export const RE_REMOTE_DOS_RECADOS = /(^|[/:])aloirr\/bapcentral-recados(\.git)?\/?$/i;
+/**
+ * Remote do repositório de recados, com o servidor amarrado: github.com (https ou ssh) ou o proxy git local da
+ * sessão da nuvem (http://[usuário@]127.0.0.1|localhost[:porta]/git/...). Outro servidor não vale (🟢 1 do parecer).
+ */
+export const RE_REMOTE_DOS_RECADOS = /^(https:\/\/([^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/|https?:\/\/([^@/\s]+@)?(127\.0\.0\.1|localhost)(:\d+)?\/git\/)aloirr\/bapcentral-recados(\.git)?\/?$/i;
 export const ehRemoteDosRecados = (url) => RE_REMOTE_DOS_RECADOS.test(String(url || '').trim());
 
 /**
@@ -810,6 +819,8 @@ export function cloneDeRecadosNoDisco({
   const cache = new Map();
   return (abs) => {
     if (!abs) return false;
+    // ".." nunca: o normalize apagaria o ".." antes do realpath, e o kernel resolve o ".." depois do link (🔴 1e)
+    if (barras(abs).split('/').includes('..')) return false;
     let p = posix.normalize(barras(abs));
     if (sob(p, raiz) || sob(p, raizReal)) return false; // repositório de código
     let real = null;
