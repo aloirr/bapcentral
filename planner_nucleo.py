@@ -6190,14 +6190,14 @@ def _folha_planner(ws, linhas, colunas=None):
 #
 # (20/11, Alexandre) FICAM FORA DO ARQUIVO (motivo_fora_da_maxima): cliente
 # INATIVO, cliente INTERNO (meta_nucleo.e_cliente_interno), a conta 000040
-# (vendedor de teste) e a visita do SABADO-DEPOSITO (o 1o sabado do mes, onde
-# gerar_rota joga o excedente: e deposito, nao visita marcada).
+# (vendedor de teste). O SABADO-DEPOSITO (1o sabado do mes) VOLTA ao arquivo,
+# com o dtfinal curto (dtfinal_protheus), R-20261120-111303: nenhum cliente
+# ativo some da Maxima.
 #
 # As duas datas saem no formato do exemplo: "2026-09-24T00:00:00".
 VIGENCIA_INICIO_PROTHEUS = "2000-01-01T00:00:00"
-VIGENCIA_FIM_PROTHEUS = "3000-01-01T00:00:00"   # so compatibilidade: sem uso
-MOTIVOS_FORA_DA_MAXIMA = ("INATIVO", "INTERNO", "CONTA_000040",
-                          "SABADO_DEPOSITO")     # na ordem de precedencia
+MOTIVOS_FORA_DA_MAXIMA = ("INATIVO", "INTERNO", "CONTA_000040")
+                          # na ordem de precedencia
 CONTA_TESTE_MAXIMA = "000040"
 DIAS_PROTHEUS = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA",
                  "SABADO", "DOMINGO"]
@@ -6247,7 +6247,8 @@ def dtfinal_protheus(data_visita: dt.date, periodicidade: int) -> str:
 def motivo_fora_da_maxima(cfg: dict, linha_rota: dict, cliente=None) -> str:
     """(20/11, Alexandre) "" se a linha vai para o arquivo da Maxima; senao o
     codigo (MOTIVOS_FORA_DA_MAXIMA), nesta precedencia: INATIVO, INTERNO,
-    CONTA_000040, SABADO_DEPOSITO. Funcao pura."""
+    CONTA_000040. O sabado-deposito NAO e motivo (R-20261120-111303). Funcao
+    pura."""
     import meta_nucleo as _mn                           # noqa: PLC0415
     cfg = cfg or {}
     if cliente is not None and cliente_inativo(cfg, cliente):
@@ -6261,44 +6262,56 @@ def motivo_fora_da_maxima(cfg: dict, linha_rota: dict, cliente=None) -> str:
         return "INTERNO"
     if _codusur_protheus(linha_rota.get("COD_VENDEDOR")) == CONTA_TESTE_MAXIMA:
         return "CONTA_000040"
-    data = linha_rota.get("DATA")
-    if isinstance(data, dt.datetime):
-        data = data.date()
-    if isinstance(data, dt.date) and data.weekday() == 5:
-        ano, mes = data.year, data.month
-        m = re.match(r"^(\d{4})-(\d{2})", texto(cfg.get("mes")))
-        if m:
-            ano, mes = int(m.group(1)), int(m.group(2))
-        primeiro = next(dt.date(ano, mes, d) for d in range(1, 8)
-                        if dt.date(ano, mes, d).weekday() == 5)
-        if data == primeiro:
-            return "SABADO_DEPOSITO"
     return ""
 
 
-def pedido_exclusao_maxima(nome_arquivo: str, linhas_anteriores: list) -> str:
-    """(20/11) O texto do pedido a Maxima para excluir a remessa ANTERIOR da
-    rota. `linhas_anteriores`: as linhas do JSON dessa remessa (layout
-    Protheus). Traz so arquivo, data/hora, compromisso e codusur: nunca nome
-    nem CNPJ, mesmo que as linhas tragam campos a mais. Funcao pura."""
-    linhas = [x for x in (linhas_anteriores or []) if isinstance(x, dict)]
-    comp = Counter(texto(x.get("codcompromisso")) for x in linhas
-                   if texto(x.get("codcompromisso")))
-    codigo = comp.most_common(1)[0][0] if comp else ""
-    quando = "data não identificada"
-    try:
-        quando = dt.datetime.strptime(codigo, "%Y%m%d%H%M%S"
-                                      ).strftime("%d/%m/%Y %H:%M")
-    except ValueError:
-        pass
-    vend = sorted({texto(x.get("codusur")) for x in linhas
-                   if texto(x.get("codusur"))})
-    return ("Pedido de exclusao de remessa da rota (ERP_MXSROTACLI)\n"
-            f"Arquivo: {nome_arquivo}\n"
-            f"Remessa de: {quando}\n"
-            f"Compromisso: {codigo or 'nao identificado'}\n"
+def remessas_dtfinal_3000(listas_de_linhas: list) -> list:
+    """(20/11, R-20261120-111303) Das remessas ja gravadas (cada uma a lista
+    de linhas do JSON), devolve so as que tem alguma linha com dtfinal
+    3000-01-01 (a regra antiga): [{"quando": "dd/mm/aaaa hh:mm" ou "",
+    "vendedores": [codusur ordenados]}], da mais antiga a mais nova. Nao traz
+    nome de arquivo, nome nem CNPJ. Funcao pura."""
+    saida = []
+    for linhas in listas_de_linhas or []:
+        linhas = [x for x in (linhas or []) if isinstance(x, dict)]
+        if not any(texto(x.get("dtfinal")).startswith("3000-01-01")
+                   for x in linhas):
+            continue
+        comp = Counter(texto(x.get("codcompromisso")) for x in linhas
+                       if texto(x.get("codcompromisso")))
+        codigo = comp.most_common(1)[0][0] if comp else ""
+        try:
+            quando = dt.datetime.strptime(codigo, "%Y%m%d%H%M%S")
+        except ValueError:
+            quando = None
+        saida.append({
+            "quando": quando.strftime("%d/%m/%Y %H:%M") if quando else "",
+            "_ordem": quando or dt.datetime.max,
+            "vendedores": sorted({texto(x.get("codusur")) for x in linhas
+                                  if texto(x.get("codusur"))})})
+    saida.sort(key=lambda r: r["_ordem"])
+    for r in saida:
+        del r["_ordem"]
+    return saida
+
+
+def pedido_exclusao_maxima(remessas: list) -> str:
+    """(20/11) O texto do pedido a Máxima para excluir TODAS as remessas
+    anteriores com data final 3000-01-01. `remessas`: saida de
+    remessas_dtfinal_3000. Cita so o periodo (datas das remessas) e o codusur
+    dos vendedores: nunca arquivo, nome nem CNPJ. Funcao pura."""
+    remessas = [r for r in (remessas or []) if isinstance(r, dict)]
+    datas = [texto(r.get("quando")) for r in remessas if r.get("quando")]
+    periodo = (f"{datas[0]} a {datas[-1]}" if len(datas) > 1 and
+               datas[0] != datas[-1] else (datas[0] if datas else
+                                           "data não identificada"))
+    vend = sorted({texto(v) for r in remessas
+                   for v in (r.get("vendedores") or []) if texto(v)})
+    return ("Pedido de exclusão de remessas da rota (ERP_MXSROTACLI)\n"
+            f"Remessas enviadas em: {periodo}\n"
             f"Vendedores (codusur): {', '.join(vend) or 'nenhum'}\n"
-            "Favor excluir esta remessa antes de importar a nova.")
+            "Favor excluir TODAS as remessas anteriores com data final "
+            "3000-01-01 antes de importar a nova.")
 
 
 def _numero_da_semana(rotulo) -> int:

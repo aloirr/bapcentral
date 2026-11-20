@@ -173,7 +173,6 @@ ROTULO_TOTAL = "TOTAL"
 AVISO_RECALCULAR = ("PARA QUALQUER ALTERACAO TER VALIDADE, VA EM PARAMETROS "
                     "E CLIQUE EM RECALCULAR PLANNER.")
 # (20/11) aviso ao gravar a ROTA com a regra nova do dtfinal.
-# [SUPOSICAO: texto a confirmar pelo Alexandre]
 AVISO_REMESSA_ANTERIOR = ("Antes de importar esta rota, peça à Máxima a "
                           "exclusão da remessa anterior (uma vez só, no "
                           "primeiro envio com a regra nova).")
@@ -5995,12 +5994,22 @@ class App(pb.base_da_janela()):
         self._tarefa(trabalho, pronto, "Montando o JSON do Protheus...")
 
     def _aviso_remessa_anterior(self, gravado):
-        """(20/11) Aviso da rota + botao que copia o pedido de exclusao da
-        remessa anterior (o ROTA_PROTHEUS_*.json mais recente, fora o novo)."""
-        outros = sorted((p for p in gravado.parent.glob("ROTA_PROTHEUS_*.json")
-                         if p.name != gravado.name),
-                        key=lambda p: p.stat().st_mtime)
-        anterior = outros[-1] if outros else None
+        """(20/11) So se ha remessa anterior com dtfinal 3000-01-01 na pasta:
+        mostra o aviso + botao que copia o pedido de exclusao (so periodo e
+        codusur, sem nome de arquivo)."""
+        listas = []
+        for p in gravado.parent.glob("ROTA_PROTHEUS_*.json"):
+            if p.name == gravado.name:
+                continue
+            try:
+                dados = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(dados, list):
+                listas.append(dados)
+        remessas = nu.remessas_dtfinal_3000(listas)
+        if not remessas:
+            return
         j = tk.Toplevel(self)
         j.title("Planner BAP")
         ttk.Label(j, text=AVISO_REMESSA_ANTERIOR, wraplength=420
@@ -6008,18 +6017,8 @@ class App(pb.base_da_janela()):
         msg = ttk.Label(j, text="", wraplength=420)
 
         def copiar():
-            if anterior is None:
-                msg.configure(text="Não há remessa anterior nesta pasta.")
-                return
-            try:
-                dados = json.loads(anterior.read_text(encoding="utf-8"))
-                texto_pedido = nu.pedido_exclusao_maxima(
-                    anterior.name, dados if isinstance(dados, list) else [])
-            except (OSError, ValueError) as e:
-                msg.configure(text=f"Não consegui ler {anterior.name}: {e}")
-                return
             self.clipboard_clear()
-            self.clipboard_append(texto_pedido)
+            self.clipboard_append(nu.pedido_exclusao_maxima(remessas))
             msg.configure(text="Pedido copiado. Cole no e-mail à Máxima.")
         ttk.Button(j, text="Copiar pedido à Máxima", command=copiar
                    ).pack(pady=4)
@@ -6271,7 +6270,7 @@ class App(pb.base_da_janela()):
                   text="ROTEIRIZAÇÃO: todas as visitas do mês, data exata "
                        "(numsemana 1, dtfinal = data + periodicidade - 1 "
                        "dia; fora do arquivo: inativo, interno, conta "
-                       "000040 e o sábado-depósito). BASE DE "
+                       "000040). BASE DE "
                        "CLIENTES: o vendedor e o supervisor de cada cliente "
                        "pelo Planner (A1_VEND). TODOS vão ATIVO: quem está "
                        "fora do Planner (sem vendedor, cadeira vaga ou "
