@@ -10,6 +10,10 @@
 //        no aloirr/bapcentral-recados (um commit por envio; "enviado" só depois de o GitHub confirmar) e caixa,
 //        pendencias, ler e fio leem o main do GitHub na hora (cache local por commit). Token: BAP_RECADOS_TOKEN,
 //        GH_TOKEN, GITHUB_TOKEN ou gh auth token. BAP_RECADOS=local volta às pastas .coord/recados e .coord/lidos.
+//        Gravação na nuvem (T-0007): o proxy do claude.ai/code barra a API de escrita (403); no modo 'auto' (o padrão)
+//        enviar e lido passam então ao git push ao main dos recados (um commit por envio, sem force, nova tentativa se o
+//        main mudou). BAP_RECADOS_ESCRITA=api|git fixa o modo (não usada nos ambientes: decisão D2 da T-0007).
+//        Ids e criado_em no fuso America/Manaus. No PC, nada muda.
 //   node scripts/coord.mjs caixa <agente>           recados abertos/não lidos do agente
 //   node scripts/coord.mjs lido <agente> <id> [...]  marca avisos/entregas/respostas como lidos
 //   node scripts/coord.mjs ler <id>                 mostra um recado
@@ -61,6 +65,7 @@ import {
   WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
   modoDosRecados, regraDoRecadoNovo, ErroRecados, conexaoDeRecados, atualizarIndiceDeRecados, recadosDoIndice,
   lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub, ehRemetenteDeSistema,
+  modoDeEscrita, gravadorGitDeRecados, enviarRecadoPorGit, marcarLidosPorGit, horaLocal,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -82,13 +87,8 @@ function opcoes(args) {
 const lista = (v) => (v && v !== true ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : []);
 const falhar = (m) => { console.error(`Erro: ${m}`); process.exit(1); };
 
-function agoraLocal() {
-  const d = new Date();
-  const off = -d.getTimezoneOffset();
-  const p = (n) => String(Math.abs(n)).padStart(2, '0');
-  const loc = new Date(d.getTime() + off * 60000).toISOString().slice(0, 19);
-  return { iso: `${loc}${off >= 0 ? '+' : '-'}${p(Math.trunc(off / 60))}:${p(off % 60)}`, compacto: loc.replace(/[-:]/g, '').replace('T', '-') };
-}
+// Ids e criado_em no fuso do time (T-0007, R-20261120-091217-po): o contêiner da nuvem roda em UTC.
+const agoraLocal = () => horaLocal(new Date(), 'America/Manaus');
 
 function parse(txt) {
   const m = txt.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
@@ -122,6 +122,21 @@ const MODO = modoDosRecados();
 let conexao = null;
 let indice = null;
 const github = () => (conexao ||= conexaoDeRecados());
+// Gravação (T-0007): API (PC) ou git push (nuvem), as duas no main. 'auto' passa ao git com o 403 do proxy.
+const ESCRITA = modoDeEscrita();
+let gravador = null;
+const gravadorGit = () => (gravador ||= gravadorGitDeRecados());
+/** Grava pela API; no modo 'auto', o 403 do proxy (nada publicado) passa ao git. `porApi` e `porGit` devolvem o resultado. */
+function gravar(porApi, porGit) {
+  if (ESCRITA === 'git') return { ...porGit(), via: 'git' };
+  try {
+    return { ...porApi(), via: 'api' };
+  } catch (e) {
+    if (!(e instanceof ErroRecados) || !e.proxy || ESCRITA !== 'auto') throw e;
+    console.log('Aviso: o proxy da sessão barra a gravação pela API; gravando por git push no main dos recados.');
+    return { ...porGit(), via: 'git' };
+  }
+}
 function indiceDoGitHub() {
   if (indice) return indice;
   try {
@@ -597,13 +612,17 @@ switch (cmd) {
         }
       }
       let r;
+      const respondeA = o['responde-a'] || null;
       try {
-        r = enviarRecadoNoGitHub({ ...github(), de, destinos, gerarId, montar, respondeA: o['responde-a'] || null });
+        r = gravar(
+          () => enviarRecadoNoGitHub({ ...github(), de, destinos, gerarId, montar, respondeA }),
+          () => enviarRecadoPorGit({ ...github(), gravador: gravadorGit(), de, destinos, gerarId, montar, respondeA }),
+        );
       } catch (e) {
         if (!(e instanceof ErroRecados)) throw e;
         falhar(/^--responde-a|NÃO/.test(e.message) ? e.message : `recado NÃO enviado (nada foi gravado): ${e.message}`);
       }
-      console.log(`Recado ${r.id} enviado para ${enviadoPara} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.conferido ? ', confirmado na conferência' : ''})`);
+      console.log(`Recado ${r.id} enviado para ${enviadoPara} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.via === 'git' ? ', por git push' : ''}${r.conferido ? ', confirmado na conferência' : ''})`);
       break;
     }
     const existentes = new Set(todosRecados().map((r) => r.meta.id));
@@ -645,14 +664,17 @@ switch (cmd) {
     if (MODO === 'github') {
       let r;
       try {
-        r = marcarLidosNoGitHub({ cliente: github().cliente, agente, ids });
+        r = gravar(
+          () => marcarLidosNoGitHub({ cliente: github().cliente, agente, ids }),
+          () => marcarLidosPorGit({ gravador: gravadorGit(), agente, ids }),
+        );
       } catch (e) {
         if (!(e instanceof ErroRecados)) throw e;
         falhar(/NÃO/.test(e.message) ? e.message : `NÃO marcado (nada foi gravado): ${e.message}`);
       }
       const ja = ids.length - r.novos.length;
       console.log(r.commit
-        ? `${r.novos.length} recado(s) marcado(s) como lido(s) por ${agente}${ja ? ` (${ja} já estava(m))` : ''} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.conferido ? ', confirmado na conferência' : ''}).`
+        ? `${r.novos.length} recado(s) marcado(s) como lido(s) por ${agente}${ja ? ` (${ja} já estava(m))` : ''} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.via === 'git' ? ', por git push' : ''}${r.conferido ? ', confirmado na conferência' : ''}).`
         : `${ids.length} recado(s) já estava(m) marcado(s) como lido(s) por ${agente}.`);
       break;
     }

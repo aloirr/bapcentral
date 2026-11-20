@@ -1,10 +1,10 @@
 // Biblioteca comum do protocolo de coordenação do time BAP Tools.
 // Usada pelo guardião (.claude/hooks/guarda-donos.mjs) e pela CLI (scripts/coord.mjs).
 // Sem dependências externas.
-import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync, realpathSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync, realpathSync, openSync, closeSync, unlinkSync, rmSync, utimesSync } from 'node:fs';
 import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir, homedir } from 'node:os';
 import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
@@ -751,9 +751,16 @@ export function modoDosRecados({ raiz = RAIZ, env = process.env } = {}) {
 }
 
 export class ErroRecados extends Error {
-  /** @param {string} mensagem @param {{rede?: boolean}} [o] rede = o GitHub não respondeu (vale a cópia local na leitura) */
-  constructor(mensagem, { rede = false } = {}) { super(mensagem); this.name = 'ErroRecados'; this.rede = rede; }
+  /**
+   * @param {string} mensagem
+   * @param {{rede?: boolean, proxy?: boolean}} [o] rede = o GitHub não respondeu (vale a cópia local na leitura);
+   *   proxy = o proxy da sessão na nuvem barrou a gravação pela API (nada foi publicado; T-0007: vale o git push)
+   */
+  constructor(mensagem, { rede = false, proxy = false } = {}) { super(mensagem); this.name = 'ErroRecados'; this.rede = rede; this.proxy = proxy; }
 }
+
+/** O 403 é do proxy da sessão do claude.ai/code (e não do GitHub)? Só a resposta de "gravação não permitida" conta. */
+export const ehNegadoPeloProxy = (r) => r?.status === 403 && /not permitted through this proxy/i.test(String(r?.texto || ''));
 
 /** Hash do git de um blob (sha1 de "blob <bytes>\0<conteúdo>"): confere o cache e reconhece o próprio envio. */
 export function shaDoBlob(conteudo) {
@@ -921,6 +928,7 @@ export function criarClienteDeRecados({ http, repo = REPO_RECADOS, api = API_GIT
     let j = null;
     try { j = JSON.parse(r.texto); } catch { /* abaixo */ }
     if (r.status === 401) throw new ErroRecados(`o GitHub recusou o token (${origem}, HTTP 401)`);
+    if (ehNegadoPeloProxy(r)) throw new ErroRecados('o proxy da sessão não deixa gravar pela API do GitHub (HTTP 403)', { proxy: true });
     if (r.status === 403 || r.status === 429) throw new ErroRecados(`o GitHub recusou o pedido (HTTP ${r.status}${j?.message ? `: ${j.message}` : ''})`, { rede: true });
     if (r.status === 404 && aceita404) return null;
     if (r.status === 404) throw new ErroRecados(`o token (${origem}) não enxerga ${repo} (HTTP 404)`);
@@ -1204,6 +1212,7 @@ export function enviarRecadoNoGitHub({ cliente, cache, de, destinos, gerarId, mo
       return { id, commit, tentativas: t };
     } catch (e) {
       if (!(e instanceof ErroRecados)) throw e;
+      if (e.proxy) throw e; // T-0007: o proxy barrou a 1ª gravação (blob); nada foi publicado e quem chama passa ao git
       ultimo = e;
       // Confere no GitHub antes de decidir: com a resposta perdida, o commit pode ter entrado.
       let r;
@@ -1238,6 +1247,7 @@ export function marcarLidosNoGitHub({ cliente, agente, ids, tentativas = 6, espe
       return { novos, commit: cliente.commitar({ esperado: a.oid, adicoes: [{ caminho, conteudo }], titulo: `lidos: ${agente} (${novos.length})` }) };
     } catch (e) {
       if (!(e instanceof ErroRecados)) throw e;
+      if (e.proxy) throw e; // T-0007: idem ao envio
       ultimo = e;
       let r;
       try { r = cliente.arquivo(caminho); } catch (e2) {
@@ -1265,6 +1275,248 @@ export function recadosDaPastaNoGitHub({ cliente, cache, pasta, filtro = () => t
   for (const e of escolhidas) if (salvo?.textos[e.oid] !== undefined) textos[e.oid] = salvo.textos[e.oid];
   Object.assign(textos, cliente.textos(escolhidas.filter((e) => textos[e.oid] === undefined).map((e) => e.oid), oid));
   return escolhidas.filter((e) => typeof textos[e.oid] === 'string').map((e) => ({ nome: e.name, texto: textos[e.oid] }));
+}
+
+// ── Gravação por git push (T-0007) ───────────────────────────────────────────────────────────────────────────────
+// Na nuvem do claude.ai/code o proxy lê a API do GitHub mas barra a gravação por ela (HTTP 403); o git push passa.
+// Então o coord grava o recado num commit feito pelo git e empurrado ao main dos recados (sem force; recusado por
+// não ser fast-forward → busca de novo e remonta). A leitura continua pela API (índice e cache).
+// No PC do Alexandre nada muda: a API grava direto no main (o modo 'auto' só passa ao git depois do 403 do proxy).
+
+/** Modo de gravação: BAP_RECADOS_ESCRITA=api|git; sem a variável, 'auto' (API; com o 403 do proxy, git). */
+export function modoDeEscrita(env = process.env) {
+  const v = String(env.BAP_RECADOS_ESCRITA || '').trim().toLowerCase();
+  return v === 'api' || v === 'git' ? v : 'auto';
+}
+
+/** Data/hora no fuso do time, qualquer que seja o fuso da máquina: {iso: '...-04:00', compacto: 'AAAAMMDD-HHMMSS'}. */
+export function horaLocal(data = new Date(), fuso = 'America/Manaus') {
+  const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone: fuso, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'longOffset',
+  }).formatToParts(data).map((p) => [p.type, p.value]));
+  const desloc = partes.timeZoneName === 'GMT' ? '+00:00' : partes.timeZoneName.replace('GMT', '');
+  const local = `${partes.year}-${partes.month}-${partes.day}T${partes.hour}:${partes.minute}:${partes.second}`;
+  return { iso: `${local}${desloc}`, compacto: local.replace(/[-:]/g, '').replace('T', '-') };
+}
+
+/** Saída do git sem credencial: tira usuário:senha de URL e linhas que falam de token/authorization; no máximo 3 linhas. */
+export function limparSaidaDoGit(t) {
+  return String(t || '').replace(/(https?:\/\/)[^@\s\/]+@/gi, '$1***@').split(/\r?\n/)
+    .filter((l) => l.trim() && !/token|authorization|password|senha/i.test(l)).slice(-3).join(' | ').slice(0, 500);
+}
+
+/** Variáveis que o coord nunca repassa ao git: o token dele é só da API de leitura (critério 5 da T-0007). */
+const FORA_DO_GIT = ['BAP_RECADOS_TOKEN'];
+
+/**
+ * git sem shell, síncrono: (args, {entrada?: Buffer|string, env?: {}}) => {codigo, saida, erro}. Nunca imprime.
+ * O filho recebe o ambiente sem o BAP_RECADOS_TOKEN; a credencial é a do git da máquina (na nuvem, o proxy).
+ */
+export function gitSincrono({ env = process.env, timeoutMs = 120_000 } = {}) {
+  const base = Object.fromEntries(Object.entries(env).filter(([k]) => !FORA_DO_GIT.includes(k.toUpperCase())));
+  return (args, { entrada, env: extra = {} } = {}) => {
+    const r = spawnSync('git', args, {
+      input: entrada === undefined ? undefined : Buffer.isBuffer(entrada) ? entrada : Buffer.from(String(entrada), 'utf8'), encoding: 'buffer', timeout: timeoutMs, windowsHide: true, maxBuffer: 256 * 1024 * 1024,
+      env: { ...base, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...extra },
+    });
+    if (r.error) return { codigo: -1, saida: '', erro: r.error.code === 'ENOENT' ? 'git não encontrado no PATH' : String(r.error.code || r.error.message) };
+    return { codigo: r.status, saida: r.stdout.toString('utf8'), erro: r.stderr.toString('utf8') };
+  };
+}
+
+/**
+ * Trava entre processos da mesma máquina (arquivo criado com 'wx'). `fn(renovar)`: quem segura chama renovar() antes de
+ * cada comando git, e o mtime nunca fica parado mais que o timeout de um comando. Por isso a trava só é dada como
+ * abandonada depois de `velhaMs` sem renovação (o timeout do git + folga), e não por quanto tempo o envio dura.
+ */
+function comTrava(arquivo, fn, { esperar = dormir, prazoMs = 60_000, velhaMs = 180_000 } = {}) {
+  const inicio = Date.now();
+  for (;;) {
+    try { closeSync(openSync(arquivo, 'wx')); break; } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      try { if (Date.now() - statSync(arquivo).mtimeMs > velhaMs) { unlinkSync(arquivo); continue; } } catch { continue; }
+      if (Date.now() - inicio > prazoMs) throw new ErroRecados('outro coord.mjs está gravando há mais de 1 minuto nesta máquina; tente de novo');
+      esperar(200 + Math.floor(Math.random() * 300));
+    }
+  }
+  const renovar = () => { try { const t = new Date(); utimesSync(arquivo, t, t); } catch { /* a trava sumiu: o push sem force ainda protege o main */ } };
+  try { return fn(renovar); } finally { try { unlinkSync(arquivo); } catch { /* já saiu */ } }
+}
+
+const linhasDe = (t) => new Set(String(t || '').split(/\r?\n/).filter(Boolean));
+
+/**
+ * Gravador por git push no main dos recados, a partir de um repositório bare só do coord (na pasta do cache, fora de
+ * qualquer clone): busca o topo do main com --depth=1, monta o commit pelo encanamento do git (hash-object, índice
+ * temporário, write-tree, commit-tree) e empurra sem force. Recusa por não ser fast-forward (outro agente empurrou
+ * antes) → busca de novo e remonta. Qualquer outra falha → confere o topo do main buscado de novo, com o blob de cada
+ * arquivo (como o enviarRecadoNoGitHub faz com cliente.arquivo): presente → conferido; o main mudou → nova tentativa;
+ * nada mudou → "NÃO enviado (nada foi gravado)". A credencial é a do git da máquina (na nuvem, o proxy).
+ * @param {{git: Function, url: string, pasta: string, tentativas?: number, esperar?: Function, velhaMs?: number}} p
+ */
+export function criarGravadorGit({ git, url, pasta, tentativas = 6, esperar = dormir, velhaMs = 180_000 }) {
+  const ramo = BRANCH_RECADOS;
+  let renovar = () => {};
+  const g = (args, o) => { renovar(); return git(['--git-dir', pasta, ...args], o); };
+  const ok = (args, o) => {
+    const r = g(args, o);
+    if (r.codigo !== 0) throw new ErroRecados(`git ${args[0]} falhou: ${limparSaidaDoGit(r.erro) || `saída ${r.codigo}`}`, { rede: true });
+    return r.saida.trim();
+  };
+  function preparar() { // dentro da trava: dois coord ao mesmo tempo não criam o bare juntos
+    if (existsSync(join(pasta, 'HEAD'))) return;
+    renovar();
+    const r = git(['init', '--bare', '-q', pasta]);
+    if (r.codigo !== 0) throw new ErroRecados(`git init falhou: ${limparSaidaDoGit(r.erro)}`);
+  }
+  /** Busca o topo do main no GitHub para a ref local `destino` e devolve o oid. */
+  function buscar(destino) {
+    ok(['fetch', '-q', '--no-tags', '--depth=1', url, `+refs/heads/${ramo}:${destino}`]);
+    return ok(['rev-parse', `${destino}^{commit}`]);
+  }
+  /** Leitura de um commit: ids dos recados, existência, texto e blob de um caminho. */
+  function leitor(base) {
+    const nomes = ok(['ls-tree', '-r', '--name-only', base, '--', 'recados']).split('\n').filter(Boolean);
+    const existentes = new Set(nomes);
+    return {
+      ids: new Set(nomes.filter((n) => /^recados\/(?!anexos\/)[^/]+\/[^/]+\.md$/i.test(n)).map((n) => n.replace(/^.*\/|\.md$/gi, ''))),
+      existe: (c) => existentes.has(c),
+      texto(c) { const r = g(['cat-file', 'blob', `${base}:${c}`]); return r.codigo === 0 ? r.saida : null; },
+      blob(c) { const r = g(['rev-parse', '-q', '--verify', `${base}:${c}`]); return r.codigo === 0 ? r.saida.trim() : null; },
+    };
+  }
+  const assinar = () => g(['config', '--bool', 'commit.gpgsign']).saida.trim() === 'true';
+  // Sem identidade no git da máquina: nome do coord e e-mail num domínio reservado (.invalid), que não é de ninguém.
+  const identidade = () => (g(['config', 'user.email']).saida.trim() ? {} : {
+    GIT_AUTHOR_NAME: 'bap-coord', GIT_AUTHOR_EMAIL: 'bap-coord@bap-coord.invalid',
+    GIT_COMMITTER_NAME: 'bap-coord', GIT_COMMITTER_EMAIL: 'bap-coord@bap-coord.invalid',
+  });
+
+  /** Um commit com os arquivos sobre a base (atômico). */
+  function montarCommit(base, arquivos, mensagem) {
+    const indice = join(pasta, `indice-${process.pid}`);
+    const env = { GIT_INDEX_FILE: indice };
+    try {
+      ok(['read-tree', base], { env });
+      for (const a of arquivos) {
+        const buf = Buffer.isBuffer(a.conteudo) ? a.conteudo : Buffer.from(String(a.conteudo), 'utf8');
+        const blob = ok(['hash-object', '-w', '--stdin'], { entrada: buf });
+        if (blob !== shaDoBlob(buf)) throw new ErroRecados('o git devolveu um blob diferente do enviado');
+        ok(['update-index', '--add', '--cacheinfo', `100644,${blob},${a.caminho}`], { env });
+      }
+      const arvore = ok(['write-tree'], { env });
+      return ok(['commit-tree', arvore, '-p', base, ...(assinar() ? ['-S'] : []), '-F', '-'], { entrada: mensagem, env: identidade() });
+    } finally { try { rmSync(indice, { force: true }); } catch { /* ok */ } }
+  }
+
+  return {
+    ramo,
+    /**
+     * Grava no main. `montar(leitor)` → {arquivos: [{caminho, conteudo}], titulo, corpo?, confirmado?(leitor)} ou null
+     * (nada a gravar); é chamado de novo a cada tentativa, sobre a base nova. `confirmado` diz se o topo conferido já
+     * tem a gravação (padrão: todo arquivo com o blob enviado). → {oid, tentativas, conferido?} | null.
+     * Erro com `naoConfirmado: true` = a conferência não respondeu (pode ter entrado; quem chama orienta).
+     */
+    publicar(montar) {
+      mkdirSync(pasta, { recursive: true });
+      return comTrava(join(pasta, 'bap-coord.lock'), (renovarTrava) => {
+        renovar = renovarTrava;
+        try {
+          preparar();
+          let ultimo = null;
+          for (let t = 1; t <= tentativas; t++) {
+            const base = buscar('refs/bap/base');
+            const plano = montar(leitor(base));
+            if (!plano || !plano.arquivos.length) return null;
+            const commit = montarCommit(base, plano.arquivos, plano.corpo ? `${plano.titulo}\n\n${plano.corpo}\n` : `${plano.titulo}\n`);
+            const r = g(['-c', 'push.negotiate=false', 'push', '--porcelain', '--no-verify', url, `${commit}:refs/heads/${ramo}`]);
+            if (r.codigo === 0) return { oid: commit, tentativas: t };
+            const motivo = limparSaidaDoGit(r.erro || r.saida) || `saída ${r.codigo}`;
+            // outro push chegou antes: recusa no cliente (non-fast-forward) ou no servidor (a ref mudou entre o anúncio e a gravação)
+            if (/\[rejected\]|non-fast-forward|fetch first|stale info|cannot lock ref|incorrect old value|failed to update ref/i.test(`${r.saida}\n${r.erro}`)) {
+              ultimo = motivo;
+              esperar(250 * t + Math.floor(Math.random() * 500));
+              continue;
+            }
+            // Resposta perdida? Confere o topo do main buscado de novo, com o blob (outro push logo depois do nosso não engana).
+            let topo;
+            let lido;
+            try { topo = buscar('refs/bap/conferencia'); lido = leitor(topo); } catch (e2) {
+              throw Object.assign(new ErroRecados(`a gravação NÃO foi confirmada (git push: ${motivo}; conferência: ${e2.message})`, { rede: true }), { naoConfirmado: true });
+            }
+            const confirmado = plano.confirmado || ((l) => plano.arquivos.every((a) => l.blob(a.caminho) === shaDoBlob(a.conteudo)));
+            if (topo !== base && confirmado(lido)) return { oid: topo, tentativas: t, conferido: true };
+            const negado = /\b403\b|not permitted|denied|permission/i.test(r.erro);
+            if (negado) throw new ErroRecados(`o git push ao ${ramo} dos recados foi negado: ${motivo}. Avise o Alexandre (desenho T-0007, plano B)`);
+            if (topo !== base) { ultimo = motivo; esperar(250 * t + Math.floor(Math.random() * 500)); continue; } // outro commit entrou: remonta
+            throw new ErroRecados(`o git push ao ${ramo} falhou e o topo do main não mudou: ${motivo}`, { rede: true });
+          }
+          throw new ErroRecados(`o ${ramo} do repositório de recados mudou ${tentativas} vezes durante a gravação${ultimo ? ` (${ultimo})` : ''}. Tente de novo`);
+        } finally { renovar = () => {}; }
+      }, { velhaMs });
+    },
+  };
+}
+
+/**
+ * Envia um recado pelo git (T-0007): ids do main (API) e da base do git, --responde-a conferido nesse conjunto, nada
+ * sobrescrito. Mesmo retorno do enviarRecadoNoGitHub: {id, commit: {oid}, tentativas, conferido?}.
+ */
+export function enviarRecadoPorGit({ cliente, cache, gravador, de, destinos, gerarId, montar, respondeA = null }) {
+  const idx = atualizarIndiceDeRecados({ cliente, cache, exigirOnline: true });
+  const doMain = idsDoIndice(idx);
+  let id = null;
+  let r;
+  try {
+    r = gravador.publicar((base) => {
+      const ids = new Set([...doMain, ...base.ids]);
+      if (respondeA && !ids.has(respondeA)) throw new ErroRecados(`--responde-a: recado ${respondeA} não encontrado`);
+      id = gerarId(ids);
+      const conteudo = montar(id);
+      const arquivos = destinos.map((d) => ({ caminho: `recados/${d}/${id}.md`, conteudo }));
+      if (arquivos.some((a) => idx.arquivos[a.caminho] || base.existe(a.caminho))) throw new ErroRecados(`o recado ${id} já existe no GitHub (nada foi sobrescrito)`);
+      return { arquivos, titulo: `recados: ${id}`, corpo: `de ${de} para ${destinos.join(', ')}` };
+    });
+  } catch (e) {
+    if (e instanceof ErroRecados && e.naoConfirmado) {
+      throw new ErroRecados(`o envio do recado ${id} NÃO foi confirmado (${e.message}). Antes de reenviar, confira: node scripts/coord.mjs ler ${id}`, { rede: true });
+    }
+    throw e;
+  }
+  return { id, commit: { oid: r.oid }, tentativas: r.tentativas, ...(r.conferido ? { conferido: true } : {}) };
+}
+
+/**
+ * Marca lidos pelo git (T-0007), como o marcarLidosNoGitHub: sobre o texto do topo do main, só acrescenta ao fim os ids
+ * que faltam (as linhas que já estavam ficam como estão). Mesmo retorno: {novos, commit?: {oid}, conferido?}.
+ */
+export function marcarLidosPorGit({ gravador, agente, ids }) {
+  const caminho = `lidos/${agente}.txt`;
+  let novos = [];
+  let r;
+  try {
+    r = gravador.publicar((base) => {
+      const texto = base.texto(caminho) || '';
+      const atuais = linhasDe(texto);
+      novos = [...new Set(ids)].filter((i) => !atuais.has(i));
+      if (!novos.length) return null;
+      const conteudo = `${texto}${texto && !texto.endsWith('\n') ? '\n' : ''}${novos.join('\n')}\n`;
+      const esperados = novos;
+      return { arquivos: [{ caminho, conteudo }], titulo: `lidos: ${agente} (${novos.length})`, confirmado: (l) => { const agora = linhasDe(l.texto(caminho)); return esperados.every((i) => agora.has(i)); } };
+    });
+  } catch (e) {
+    if (e instanceof ErroRecados && e.naoConfirmado) {
+      throw new ErroRecados(`a marcação NÃO foi confirmada (${e.message}). Rode o mesmo comando de novo (marcar duas vezes não duplica)`, { rede: true });
+    }
+    throw e;
+  }
+  return r ? { novos, commit: { oid: r.oid }, ...(r.conferido ? { conferido: true } : {}) } : { novos };
+}
+
+/** Gravador real: bare em <cache>/git-<repo>, URL https do GitHub (BAP_RECADOS_GIT_URL troca: testes usam file://). */
+export function gravadorGitDeRecados({ env = process.env, repo = String(env.BAP_RECADOS_REPO || REPO_RECADOS).trim(), git = gitSincrono({ env }) } = {}) {
+  const url = String(env.BAP_RECADOS_GIT_URL || `https://github.com/${repo}.git`).trim();
+  return criarGravadorGit({ git, url, pasta: join(pastaDoCacheDeRecados(env), `git-${repo.replace(/[^a-z0-9]+/gi, '-')}`) });
 }
 
 /**

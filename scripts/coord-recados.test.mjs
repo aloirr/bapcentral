@@ -7,7 +7,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync, readdirSync, existsSync, chmodSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,12 +18,14 @@ import {
   criarClienteDeRecados, atualizarIndiceDeRecados, enviarRecadoNoGitHub, marcarLidosNoGitHub, recadosDaPastaNoGitHub,
   recadosDoIndice, idsDoIndice, lidosDoIndice, ErroRecados, MOTIVO_RECADOS_NO_GITHUB,
   AGENTES, PESSOAS, DESTINOS, REMETENTES_DE_SISTEMA, ehRemetenteDeSistema, remetenteDoRecado, classificarMudancas,
+  ehNegadoPeloProxy, modoDeEscrita, horaLocal, limparSaidaDoGit, gitSincrono, criarGravadorGit, enviarRecadoPorGit, marcarLidosPorGit,
 } from './coord-lib.mjs';
 import { lerRecadosDoGerente, autorizacoesDoAlexandre } from '../.claude/hooks/guarda-merge-lib.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const TOKEN = 'token-de-teste-que-nao-pode-vazar';
 const MARCA = '/.coord/recados\n/.coord/lidos\n';
+const PROXY_403 = 'Write access to this GitHub API path is not permitted through this proxy';
 
 const temporarios = [];
 after(() => { for (const d of temporarios) rmSync(d, { recursive: true, force: true }); });
@@ -45,6 +47,7 @@ class GitHubFalso {
     this.antesDoCommit = null;
     this.perderResposta = false;
     this.semPacote = false;
+    this.proxyNegaEscrita = false; // T-0007: o proxy da nuvem barra POST/PATCH na API (HTTP 403)
     this.head = this.novoCommit(null, arquivos, 'inicial');
   }
   /** Árvore com hash pelo conteúdo: guarda os arquivos abaixo de `prefixo` (caminhos relativos a ele). */
@@ -77,6 +80,7 @@ class GitHubFalso {
           : resto.startsWith('git/blobs') ? (metodo === 'POST' ? 'criarBlob' : 'blob') : resto.startsWith('contents/') ? 'conteudo' : resto.startsWith('tarball/') ? 'tarball' : '?';
     this.chamadas.push({ url, op });
     if (this.offline) return { rede: 'TypeError: fetch failed: ECONNREFUSED' };
+    if (this.proxyNegaEscrita && metodo !== 'GET') return { status: 403, texto: PROXY_403 };
     if (token !== TOKEN) return { status: 401, texto: '{"message":"Bad credentials"}' };
     const ok = (j) => ({ status: 200, texto: JSON.stringify(j) });
     const nao = { status: 404, texto: '{"message":"Not Found"}' };
@@ -524,11 +528,12 @@ test('diagnostico: recado dele nunca autoriza merge nem governança, nem com "de
 
 // ───────────────────────── ponta a ponta: CLI de verdade contra um servidor HTTP local ─────────────────────────
 
-async function servir(gh) {
+async function servir(gh, antes = () => {}) {
   const srv = createServer((req, res) => {
     let b = '';
     req.on('data', (d) => (b += d));
     req.on('end', () => {
+      antes();
       const token = String(req.headers.authorization || '').replace(/^bearer /i, '');
       const r = gh.responder({ url: req.url, metodo: req.method, corpo: b ? JSON.parse(b) : undefined, token });
       if (r.rede) { req.socket.destroy(); return; }
@@ -774,4 +779,398 @@ test('subir-pendentes: sobe o que falta num commit só, une os lidos, não sobre
     assert.match(r.saida, /0 recado\(s\)\/anexo\(s\) a subir, 0 arquivo\(s\) de lidos a unir \(0 linha\(s\)\), 4 já no GitHub, 1 conflito/);
     assert.equal(gh.historico().length, 3, 'rodar de novo não grava nada');
   } finally { await s.fechar(); }
+});
+
+// ───────────────────────── T-0007: gravação por git push quando o proxy barra a API ─────────────────────────
+// O main dos recados fica num repositório bare local (file://); o GitHub de mentira espelha esse main para a leitura
+// pela API (índice), e o git de verdade grava nele. Nada vai à rede.
+
+const GIT_LIMPO = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+const IDENTIDADE_DE_FORA = { GIT_AUTHOR_NAME: 'outro', GIT_AUTHOR_EMAIL: 'outro@teste.invalid', GIT_COMMITTER_NAME: 'outro', GIT_COMMITTER_EMAIL: 'outro@teste.invalid' };
+const ambienteDoGit = () => { const e = { ...process.env, ...GIT_LIMPO }; delete e.BAP_RECADOS_TOKEN; return e; };
+const gitExec = (args, o = {}) => execFileSync('git', args, { env: { ...ambienteDoGit(), ...IDENTIDADE_DE_FORA }, encoding: 'utf8', ...o }).trim();
+const gitDeTeste = () => gitSincrono({ env: ambienteDoGit() });
+const GIT_REAL = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+
+/** Repositório bare com `arquivos` no main (um commit). */
+function bareDe(arquivos) {
+  const dir = pastaTemp('coord-git-');
+  const bare = join(dir, 'recados.git');
+  const obra = join(dir, 'obra');
+  gitExec(['init', '-q', '--bare', '--initial-branch=main', bare]);
+  gitExec(['init', '-q', '--initial-branch=main', obra]);
+  for (const [c, t] of Object.entries(arquivos)) { mkdirSync(dirname(join(obra, c)), { recursive: true }); writeFileSync(join(obra, c), t); }
+  gitExec(['-C', obra, 'add', '-A']);
+  gitExec(['-C', obra, 'commit', '-q', '-m', 'inicial']);
+  gitExec(['-C', obra, 'push', '-q', `file://${bare}`, 'main']);
+  return { bare, url: `file://${bare}`, pasta: dir };
+}
+const topoDo = (bare) => gitExec(['--git-dir', bare, 'rev-parse', 'main']);
+const historicoDo = (bare) => gitExec(['--git-dir', bare, 'log', '--format=%s', 'main']).split('\n').reverse();
+function arquivosDo(bare, ref = 'main') {
+  const r = {};
+  for (const c of gitExec(['--git-dir', bare, 'ls-tree', '-r', '--name-only', ref]).split('\n').filter(Boolean)) {
+    r[c] = execFileSync('git', ['--git-dir', bare, 'cat-file', 'blob', `${ref}:${c}`], { env: ambienteDoGit(), encoding: 'utf8' });
+  }
+  return r;
+}
+/** Outro agente empurra um arquivo ao main (clone próprio). */
+function empurrarDeFora(bare, caminho, texto) {
+  const obra = join(pastaTemp('coord-fora-'), 'w');
+  gitExec(['clone', '-q', '--depth=1', `file://${bare}`, obra]);
+  mkdirSync(dirname(join(obra, caminho)), { recursive: true });
+  writeFileSync(join(obra, caminho), texto);
+  gitExec(['-C', obra, 'add', '-A']);
+  gitExec(['-C', obra, 'commit', '-q', '-m', `fora: ${caminho}`]);
+  gitExec(['-C', obra, 'push', '-q', 'origin', 'main']);
+  return topoDo(bare);
+}
+/** O GitHub de mentira passa a mostrar o main do bare (quando ele muda). */
+function espelhar(gh, bare) {
+  let visto = null;
+  return () => {
+    const h = topoDo(bare);
+    if (h !== visto) { visto = h; gh.head = gh.novoCommit(gh.head, arquivosDo(bare), `espelho ${h.slice(0, 7)}`); }
+  };
+}
+/** Git injetável: `aoEmpurrar(n, real, args, o)` substitui o n-ésimo push (1, 2, ...); `aoBuscar` idem para o fetch. */
+function gitComGanchos({ aoEmpurrar = null, aoBuscar = null } = {}) {
+  const real = gitDeTeste();
+  let pushes = 0;
+  const chamadas = [];
+  const git = (args, o) => {
+    chamadas.push(args);
+    if (aoEmpurrar && args.includes('push')) { const r = aoEmpurrar(++pushes, real, args, o); if (r) return r; }
+    if (aoBuscar && args.includes('fetch')) { const r = aoBuscar(args); if (r) return r; }
+    return real(args, o);
+  };
+  return { git, chamadas, get pushes() { return pushes; } };
+}
+const PERDIDA = { codigo: 128, saida: '', erro: 'fatal: the remote end hung up unexpectedly' };
+
+/** GitHub falso espelhando um bare, gravador git sobre ele e um enviar pronto. */
+function cenarioGit(extra = {}, ganchos = {}) {
+  const gh = base();
+  for (const [c, t] of Object.entries(extra)) gh.externo(c, t);
+  const r = bareDe(gh.arquivos);
+  const sincronizar = espelhar(gh, r.bare);
+  const http = (reqs) => { sincronizar(); return httpDe(gh)(reqs); };
+  const cliente = criarClienteDeRecados({ http });
+  const g = gitComGanchos(ganchos);
+  const gravador = criarGravadorGit({ git: g.git, url: r.url, pasta: join(r.pasta, 'cache-bare'), esperar: semEspera });
+  const enviar = (o = {}) => enviarRecadoPorGit({
+    cliente, cache: cacheEmMemoria(), gravador, de: 'modulo-robo', destinos: ['testes', 'gerente-projetos'],
+    gerarId: (ids) => { let id = 'R-20261109-090000-modulo-robo'; for (let n = 2; ids.has(id); n++) id = `R-20261109-090000-${n}-modulo-robo`; return id; },
+    montar: (id) => recado({ id, de: 'modulo-robo', para: 'testes, gerente-projetos' }),
+    ...o,
+  });
+  return { gh, ...r, g, gravador, cliente, enviar };
+}
+
+test('T-0007 ehNegadoPeloProxy: só o 403 com o texto do proxy; 403 do GitHub, 401, 404 e 429 não', () => {
+  assert.equal(ehNegadoPeloProxy({ status: 403, texto: PROXY_403 }), true);
+  assert.equal(ehNegadoPeloProxy({ status: 403, texto: '{"message":"Resource not accessible by personal access token"}' }), false);
+  assert.equal(ehNegadoPeloProxy({ status: 403, texto: '{"message":"API rate limit exceeded"}' }), false);
+  for (const status of [401, 404, 429]) assert.equal(ehNegadoPeloProxy({ status, texto: PROXY_403 }), false, String(status));
+  assert.equal(ehNegadoPeloProxy(undefined), false);
+});
+
+test('T-0007 modoDeEscrita: vazio e desconhecido = auto; api e git sem caixa nem espaço', () => {
+  assert.equal(modoDeEscrita({}), 'auto');
+  assert.equal(modoDeEscrita({ BAP_RECADOS_ESCRITA: '' }), 'auto');
+  assert.equal(modoDeEscrita({ BAP_RECADOS_ESCRITA: 'API' }), 'api');
+  assert.equal(modoDeEscrita({ BAP_RECADOS_ESCRITA: ' git ' }), 'git');
+  assert.equal(modoDeEscrita({ BAP_RECADOS_ESCRITA: 'xyz' }), 'auto');
+});
+
+test('T-0007 horaLocal (regra 4 do CLAUDE.md, fuso America/Manaus): -04:00 e virada de dia', () => {
+  assert.deepEqual(horaLocal(new Date('2026-11-20T13:10:32Z')), { iso: '2026-11-20T09:10:32-04:00', compacto: '20261120-091032' });
+  assert.deepEqual(horaLocal(new Date('2026-11-21T02:00:00Z')), { iso: '2026-11-20T22:00:00-04:00', compacto: '20261120-220000' });
+  assert.equal(horaLocal(new Date('2026-01-01T00:00:00Z'), 'UTC').iso, '2026-01-01T00:00:00+00:00');
+});
+
+test('T-0007 limparSaidaDoGit: tira usuário:senha da URL e linhas com token; no máximo 3 linhas', () => {
+  const t = limparSaidaDoGit('a\nb\nfatal: unable to access https://u:segredo@github.com/x.git/\nGH token=abc123\nc\nd');
+  assert.doesNotMatch(t, /segredo|abc123/);
+  assert.match(t, /https:\/\/\*\*\*@github\.com/);
+  assert.equal(t.split(' | ').length, 3);
+});
+
+test('T-0007 gitSincrono: o BAP_RECADOS_TOKEN não chega ao processo do git; sem git no PATH, erro claro', () => {
+  const git = gitSincrono({ env: { ...ambienteDoGit(), BAP_RECADOS_TOKEN: TOKEN, BAP_MARCA_TESTE: 'chegou' } });
+  const r = git(['-c', 'alias.ambiente=!env', 'ambiente']);
+  assert.equal(r.codigo, 0, r.erro);
+  assert.match(r.saida, /^BAP_MARCA_TESTE=chegou$/m);
+  assert.match(r.saida, /^GIT_TERMINAL_PROMPT=0$/m);
+  assert.doesNotMatch(r.saida, new RegExp(`BAP_RECADOS_TOKEN|${TOKEN}`));
+  const sem = gitSincrono({ env: { PATH: pastaTemp('coord-sem-git-') } })(['--version']);
+  assert.equal(sem.codigo, -1);
+  assert.equal(sem.erro, 'git não encontrado no PATH');
+});
+
+test('T-0007 proxy barra a API: enviar e lido lançam proxy:true na 1ª gravação, sem tentar de novo nem conferir', () => {
+  const gh = base();
+  gh.proxyNegaEscrita = true;
+  assert.throws(() => enviarTeste(gh, cacheEmMemoria()), (e) => e instanceof ErroRecados && e.proxy === true);
+  assert.equal(gh.ops('criarBlob'), 1, 'uma tentativa só');
+  assert.equal(gh.ops('atualizarRef'), 0);
+  assert.equal(gh.ops('conteudo'), 0, 'sem conferência');
+  assert.throws(() => marcarLidosNoGitHub({ cliente: clienteDe(gh), agente: 'testes', ids: ['R-2'], esperar: semEspera }), (e) => e instanceof ErroRecados && e.proxy === true);
+  assert.equal(gh.ops('criarBlob'), 2);
+  assert.equal(gh.historico().length, 1, 'nada publicado');
+});
+
+test('T-0007 git: um commit com pai = topo, só os arquivos novos, .github intacto, autor .invalid sem identidade; id do mesmo segundo vira -2', () => {
+  const c = cenarioGit({ '.github/workflows/x.yml': 'on: push\n' });
+  const antes = topoDo(c.bare);
+  const arquivosAntes = arquivosDo(c.bare);
+  const r = c.enviar();
+  assert.equal(r.id, 'R-20261109-090000-2-modulo-robo');
+  assert.equal(r.tentativas, 1);
+  assert.equal(r.conferido, undefined);
+  assert.equal(r.commit.oid, topoDo(c.bare));
+  assert.equal(gitExec(['--git-dir', c.bare, 'rev-parse', `${r.commit.oid}^`]), antes, 'pai = topo do main');
+  assert.deepEqual(gitExec(['--git-dir', c.bare, 'diff', '--name-status', antes, r.commit.oid]).split('\n').sort(),
+    [`A\trecados/gerente-projetos/${r.id}.md`, `A\trecados/testes/${r.id}.md`]);
+  const depois = arquivosDo(c.bare);
+  for (const [k, v] of Object.entries(arquivosAntes)) assert.equal(depois[k], v, k);
+  assert.equal(depois[`recados/testes/${r.id}.md`], recado({ id: r.id, de: 'modulo-robo', para: 'testes, gerente-projetos' }));
+  assert.equal(gitExec(['--git-dir', c.bare, 'log', '-1', '--format=%an <%ae>|%s', 'main']), `bap-coord <bap-coord@bap-coord.invalid>|recados: ${r.id}`);
+  // nunca sobrescreve: --responde-a inexistente e id já existente dão erro, e nada entra
+  assert.throws(() => c.enviar({ respondeA: 'R-nao-existe' }), /--responde-a: recado R-nao-existe não encontrado/);
+  assert.throws(() => c.enviar({ gerarId: () => r.id }), /já existe no GitHub \(nada foi sobrescrito\)/);
+  assert.equal(topoDo(c.bare), r.commit.oid);
+});
+
+test('T-0007 git: push recusado por não ser fast-forward (outro agente empurrou antes) → busca de novo e grava', () => {
+  let outro;
+  const c = cenarioGit({}, { aoEmpurrar: (n) => { if (n === 1) outro = empurrarDeFora(c.bare, 'recados/testes/R-20261109-095959-po.md', 'do outro\n'); return null; } });
+  const r = c.enviar();
+  assert.equal(r.tentativas, 2);
+  assert.equal(c.g.pushes, 2);
+  assert.equal(gitExec(['--git-dir', c.bare, 'rev-parse', `${r.commit.oid}^`]), outro, 'o commit do outro fica, por baixo do nosso');
+  assert.equal(arquivosDo(c.bare)['recados/testes/R-20261109-095959-po.md'], 'do outro\n');
+  assert.equal(historicoDo(c.bare).filter((s) => s === `recados: ${r.id}`).length, 1);
+});
+
+test('T-0007 git: resposta perdida com o recado já no main (e outro push logo depois) → conferido, sem duplicar', () => {
+  let outro;
+  const c = cenarioGit({}, {
+    aoEmpurrar: (n, real, args, o) => {
+      if (n !== 1) return null;
+      const r = real(args, o);
+      assert.equal(r.codigo, 0, r.erro);
+      outro = empurrarDeFora(c.bare, 'recados/po/R-20261109-100000-testes.md', 'logo depois\n');
+      return PERDIDA;
+    },
+  });
+  const r = c.enviar();
+  assert.equal(r.conferido, true);
+  assert.equal(r.commit.oid, outro, 'oid = topo conferido (como no modo API)');
+  assert.equal(c.g.pushes, 1, 'não empurrou de novo');
+  assert.equal(historicoDo(c.bare).filter((s) => s.startsWith('recados: ')).length, 1, 'um commit nosso só');
+  const arquivos = Object.keys(arquivosDo(c.bare));
+  assert.ok(arquivos.includes(`recados/testes/${r.id}.md`) && arquivos.includes(`recados/gerente-projetos/${r.id}.md`));
+  assert.equal(arquivos.some((k) => k.includes('R-20261109-090000-3-')), false, 'nenhum id duplicado');
+});
+
+test('T-0007 git: push falhou sem entrar → "topo não mudou" (nada gravado); se o topo mudou, tenta de novo e entra uma vez', () => {
+  const a = cenarioGit({}, { aoEmpurrar: () => PERDIDA });
+  const antes = topoDo(a.bare);
+  assert.throws(() => a.enviar(), (e) => e instanceof ErroRecados && /falhou e o topo do main não mudou/.test(e.message));
+  assert.equal(topoDo(a.bare), antes);
+
+  const b = cenarioGit({}, { aoEmpurrar: (n) => { if (n === 1) { empurrarDeFora(b.bare, 'recados/testes/R-20261109-095958-po.md', 'x\n'); return PERDIDA; } return null; } });
+  const r = b.enviar();
+  assert.equal(r.tentativas, 2);
+  assert.equal(r.conferido, undefined);
+  assert.equal(historicoDo(b.bare).filter((s) => s === `recados: ${r.id}`).length, 1);
+});
+
+test('T-0007 git: a conferência não responde → "NÃO foi confirmado", com o ler <id>; push negado → "Avise o Alexandre"', () => {
+  const a = cenarioGit({}, {
+    aoEmpurrar: () => PERDIDA,
+    aoBuscar: (args) => (args.some((x) => x.includes('refs/bap/conferencia')) ? { codigo: 128, saida: '', erro: 'fatal: unable to access' } : null),
+  });
+  assert.throws(() => a.enviar(), /envio do recado R-20261109-090000-2-modulo-robo NÃO foi confirmado.*node scripts\/coord\.mjs ler R-20261109-090000-2-modulo-robo/);
+
+  const b = cenarioGit();
+  const gancho = join(b.bare, 'hooks', 'pre-receive');
+  writeFileSync(gancho, '#!/bin/sh\necho "Write access 403 not permitted" >&2\nexit 1\n');
+  chmodSync(gancho, 0o755);
+  const antes = topoDo(b.bare);
+  assert.throws(() => b.enviar(), /git push ao main dos recados foi negado: .*Avise o Alexandre \(desenho T-0007, plano B\)/);
+  assert.equal(topoDo(b.bare), antes, 'nada no main');
+});
+
+test('T-0007 git: lidos só acrescentam ao fim (linhas antigas intactas), concorrência não perde linha e repetir não grava', () => {
+  const original = 'R-1\n\n  R-2  \nR-3';
+  const c = cenarioGit({ 'lidos/testes.txt': original }, {
+    aoEmpurrar: (n) => { if (n === 1) empurrarDeFora(c.bare, 'lidos/testes.txt', `${original}\nR-9\n`); return null; },
+  });
+  const r = marcarLidosPorGit({ gravador: c.gravador, agente: 'testes', ids: ['R-3', 'R-4', 'R-4'] });
+  assert.deepEqual(r.novos, ['R-4']);
+  assert.equal(arquivosDo(c.bare)['lidos/testes.txt'], `${original}\nR-9\nR-4\n`);
+  const topo = topoDo(c.bare);
+  assert.deepEqual(marcarLidosPorGit({ gravador: c.gravador, agente: 'testes', ids: ['R-9', 'R-4'] }), { novos: [] });
+  assert.equal(topoDo(c.bare), topo, 'nada a gravar: sem commit');
+  marcarLidosPorGit({ gravador: c.gravador, agente: 'modulo-robo', ids: ['R-5'] });
+  assert.equal(arquivosDo(c.bare)['lidos/modulo-robo.txt'], 'R-5\n');
+});
+
+test('T-0007 git: trava abandonada (mtime de mais de 180 s) é descartada e o envio segue', () => {
+  const c = cenarioGit();
+  const pasta = join(c.pasta, 'cache-bare');
+  mkdirSync(pasta, { recursive: true });
+  const trava = join(pasta, 'bap-coord.lock');
+  writeFileSync(trava, '');
+  const velho = new Date(Date.now() - 200_000);
+  utimesSync(trava, velho, velho);
+  const r = c.enviar();
+  assert.ok(r.commit.oid);
+  assert.equal(existsSync(trava), false, 'a trava sai no fim');
+});
+
+// ── CLI de ponta a ponta: API barrada pelo proxy e git push a um bare file:// ──
+
+/** `git` falso no PATH: grava o ambiente que recebeu (para provar que o token não chega) e chama o git de verdade. */
+function gitEspiao() {
+  const dir = pastaTemp('coord-espiao-');
+  const bin = join(dir, 'bin');
+  const amostras = join(dir, 'amb');
+  mkdirSync(bin);
+  mkdirSync(amostras);
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\nenv > "${amostras}/env-$$.txt"\nexec "${GIT_REAL}" "$@"\n`);
+  chmodSync(join(bin, 'git'), 0o755);
+  return { PATH: `${bin}:${process.env.PATH}`, amostras: () => readdirSync(amostras).map((f) => readFileSync(join(amostras, f), 'utf8')) };
+}
+
+async function cenarioCli(extra = {}) {
+  const gh = base();
+  for (const [c, t] of Object.entries(extra)) gh.externo(c, t);
+  const r = bareDe(gh.arquivos);
+  const s = await servir(gh, espelhar(gh, r.bare));
+  const dir = repoDeCodigo();
+  const espiao = gitEspiao();
+  const env = { ...amb(dir, s.api), ...GIT_LIMPO, BAP_RECADOS_GIT_URL: r.url, PATH: espiao.PATH, TZ: 'UTC' };
+  return { gh, ...r, s, dir, espiao, env };
+}
+const ESCRITA_NA_API = ['criarBlob', 'criarArvore', 'criarCommit', 'atualizarRef'];
+
+test('T-0007 CLI auto com o 403 do proxy: enviar e lido gravam por git push; ids em -04:00 com TZ=UTC; o token não chega ao git', async () => {
+  const lidosAntes = 'R-1\n\n  R-x  ';
+  const c = await cenarioCli({ 'lidos/testes.txt': lidosAntes });
+  try {
+    c.gh.proxyNegaEscrita = true;
+    const args = ['enviar', '--de', 'testes', '--para', 'modulo-robo', '--tipo', 'aviso', '--prioridade', 'alta', '--contrato', 'core.x.y@1', '--assunto', 'Formato', '--corpo', 'a | b | c'];
+    let r = await rodar(c.dir, args, c.env);
+    assert.equal(r.codigo, 0, r.tudo);
+    assert.equal(r.saida.match(/^Aviso: .*$/gm)?.length, 1, r.saida);
+    assert.match(r.saida, /^Aviso: o proxy da sessão barra a gravação pela API; gravando por git push no main dos recados\.$/m);
+    assert.doesNotMatch(r.tudo, /BAP_RECADOS_ESCRITA/, 'não manda definir variável (D2)');
+    const id = r.saida.match(/Recado (R-\S+) enviado para modulo-robo \(GitHub aloirr\/bapcentral-recados@([0-9a-f]{7}), por git push\)/)?.[1];
+    assert.ok(id, r.saida);
+    assert.equal(c.gh.ops('atualizarRef'), 0);
+    assert.equal(c.gh.ops('criarBlob'), 1, 'um pedido barrado, nada publicado pela API');
+    const gravado = arquivosDo(c.bare)[`recados/modulo-robo/${id}.md`];
+    assert.ok(gravado, 'o recado está no main do bare');
+    // fuso de Manaus com a máquina em UTC: id e criado_em batem e estão a menos de 2 min de agora
+    const criado = gravado.match(/^criado_em: (.*)$/m)[1];
+    assert.match(criado, /-04:00$/);
+    assert.equal(id.slice(2, 17), criado.slice(0, 19).replace(/[-:]/g, '').replace('T', '-'));
+    assert.ok(Math.abs(Date.parse(criado) - Date.now()) < 120_000, criado);
+    // mesmo formato do modo local
+    const dirL = repoDeCodigo({ marca: false });
+    const l = await rodar(dirL, args, {});
+    assert.equal(l.codigo, 0, l.tudo);
+    const idL = l.saida.match(/Recado (\S+)/)[1];
+    const local = readFileSync(join(dirL, '.coord', 'recados', 'modulo-robo', `${idL}.md`), 'utf8');
+    const normal = (t, i) => t.replaceAll(i, 'ID').replace(/^criado_em: .*$/m, 'criado_em: X');
+    assert.equal(normal(gravado, id), normal(local, idL));
+
+    r = await rodar(c.dir, ['lido', 'testes', id], c.env);
+    assert.equal(r.codigo, 0, r.tudo);
+    assert.match(r.saida, /1 recado\(s\) marcado\(s\) como lido\(s\) por testes \(GitHub aloirr\/bapcentral-recados@[0-9a-f]{7}, por git push\)\./);
+    assert.equal(arquivosDo(c.bare)['lidos/testes.txt'], `${lidosAntes}\n${id}\n`, 'só acrescenta');
+    const topo = topoDo(c.bare);
+    r = await rodar(c.dir, ['lido', 'testes', id], c.env);
+    assert.equal(r.codigo, 0, r.tudo);
+    assert.match(r.saida, /já estava\(m\) marcado/);
+    assert.equal(topoDo(c.bare), topo, 'repetir não grava');
+    assert.equal(c.gh.ops('atualizarRef'), 0);
+
+    const amostras = c.espiao.amostras();
+    assert.ok(amostras.length > 3, 'o git rodou');
+    for (const a of amostras) { assert.doesNotMatch(a, /BAP_RECADOS_TOKEN/); assert.doesNotMatch(a, new RegExp(TOKEN)); }
+    assert.doesNotMatch(r.tudo, new RegExp(TOKEN));
+  } finally { await c.s.fechar(); }
+});
+
+test('T-0007 CLI: dois processos com caches diferentes × 5 recados ao mesmo tempo → 10 de 10 no main', async () => {
+  const c = await cenarioCli();
+  try {
+    c.gh.proxyNegaEscrita = true;
+    const serie = async (de) => {
+      const ids = [];
+      for (let i = 0; i < 5; i++) {
+        const r = await rodar(c.dir, ['enviar', '--de', de, '--para', 'gerente-projetos', '--assunto', `${de} ${i}`], { ...c.env, BAP_RECADOS_CACHE: join(c.dir, `cache-${de}`) });
+        assert.equal(r.codigo, 0, r.tudo);
+        ids.push(r.saida.match(/Recado (R-\S+) enviado/)[1]);
+      }
+      return ids;
+    };
+    const ids = (await Promise.all([serie('testes'), serie('modulo-robo')])).flat();
+    assert.equal(new Set(ids).size, 10);
+    const arquivos = arquivosDo(c.bare);
+    for (const id of ids) assert.ok(arquivos[`recados/gerente-projetos/${id}.md`], id);
+    assert.equal(historicoDo(c.bare).filter((s) => s.startsWith('recados: ')).length, 10);
+  } finally { await c.s.fechar(); }
+});
+
+test('T-0007 CLI: BAP_RECADOS_ESCRITA=api com o 403 → "NÃO enviado" e git nenhum; =git → nenhuma gravação pela API', async () => {
+  const c = await cenarioCli();
+  try {
+    c.gh.proxyNegaEscrita = true;
+    const antes = topoDo(c.bare);
+    let r = await rodar(c.dir, ['enviar', '--de', 'testes', '--para', 'modulo-robo', '--assunto', 'x'], { ...c.env, BAP_RECADOS_ESCRITA: 'api' });
+    assert.equal(r.codigo, 1, r.tudo);
+    assert.match(r.erro, /recado NÃO enviado \(nada foi gravado\): o proxy da sessão não deixa gravar pela API do GitHub \(HTTP 403\)/);
+    assert.equal(topoDo(c.bare), antes);
+    assert.equal(c.espiao.amostras().length, 0, 'o git nem foi chamado');
+
+    c.gh.proxyNegaEscrita = false;
+    const n = c.gh.chamadas.length;
+    r = await rodar(c.dir, ['enviar', '--de', 'testes', '--para', 'modulo-robo', '--assunto', 'y'], { ...c.env, BAP_RECADOS_ESCRITA: 'git' });
+    assert.equal(r.codigo, 0, r.tudo);
+    assert.doesNotMatch(r.saida, /Aviso:/);
+    assert.match(r.saida, /, por git push\)/);
+    assert.equal(c.gh.chamadas.slice(n).filter((x) => ESCRITA_NA_API.includes(x.op)).length, 0);
+    r = await rodar(c.dir, ['enviar', '--de', 'testes', '--para', 'modulo-robo', '--responde-a', 'R-nao-existe', '--assunto', 'z'], { ...c.env, BAP_RECADOS_ESCRITA: 'git' });
+    assert.equal(r.codigo, 1);
+    assert.match(r.erro, /--responde-a: recado R-nao-existe não encontrado/);
+    assert.equal(historicoDo(c.bare).filter((s) => s.startsWith('recados: ')).length, 1);
+  } finally { await c.s.fechar(); }
+});
+
+test('T-0007 CLI modo API sem proxy continua igual (sem "por git push", git nenhum); BAP_RECADOS=local grava no disco sem git', async () => {
+  const c = await cenarioCli();
+  try {
+    let r = await rodar(c.dir, ['enviar', '--de', 'testes', '--para', 'modulo-robo', '--assunto', 'x'], c.env);
+    assert.equal(r.codigo, 0, r.tudo);
+    assert.match(r.saida, /Recado R-\S+ enviado para modulo-robo \(GitHub aloirr\/bapcentral-recados@[0-9a-f]{7}\)\n/);
+    assert.equal(c.gh.ops('atualizarRef'), 1);
+    assert.equal(c.espiao.amostras().length, 0);
+
+    const dirL = repoDeCodigo({ marca: false });
+    const envL = { ...GIT_LIMPO, PATH: c.espiao.PATH, TZ: 'UTC' };
+    r = await rodar(dirL, ['enviar', '--de', 'testes', '--para', 'modulo-robo', '--assunto', 'local'], envL);
+    assert.equal(r.codigo, 0, r.tudo);
+    const id = r.saida.match(/Recado (R-\S+)/)[1];
+    const texto = readFileSync(join(dirL, '.coord', 'recados', 'modulo-robo', `${id}.md`), 'utf8');
+    assert.match(texto, /^criado_em: .*-04:00$/m);
+    r = await rodar(dirL, ['lido', 'modulo-robo', id], envL);
+    assert.equal(r.codigo, 0, r.tudo);
+    assert.match(readFileSync(join(dirL, '.coord', 'lidos', 'modulo-robo.txt'), 'utf8'), new RegExp(id));
+    assert.equal(c.espiao.amostras().length, 0, 'nenhum git no modo local');
+  } finally { await c.s.fechar(); }
 });
