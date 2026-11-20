@@ -34,19 +34,25 @@ Todo resumo ao Alexandre (abertura de sessão, andamento, entrega) sai sempre no
 
 Bloco sem conteúdo aparece com "nada".
 
+## O que vai ao Alexandre
+- **Só traga ao Alexandre decisão que muda algo agora.** Item com recomendação clara e sem efeito no prazo: siga a recomendação e informe no relatório (R-20261120-093725-alexandre).
+- **Toda decisão levada ao Alexandre diz, em uma ou duas frases simples, do que se trata:** o que muda, para quem e o que acontece se ele disser sim ou não. Nunca só o número do PR ou da tarefa (T-nnnn) (R-20261120-100401-alexandre).
+
 ## Ronda
 - A cada 10 min na sessão fixa: `node scripts/coord.mjs caixa po`, `node scripts/coord.mjs caixa alexandre` e `node scripts/coord.mjs pendencias`.
-- O gerente manda tudo para você, e você repassa ao Alexandre.
+- O gerente manda tudo para você, e você repassa ao Alexandre. Se faltar algo, cobre dele.
+- Em toda ronda, confira os recados de decisão do Alexandre sem marca em `lidos/gerente-projetos.txt` (no clone do `aloirr/bapcentral-recados`) e cobre o gerente com a lista dos ids.
+- Sessão filha não tem `send_message`. Quando uma terminar, leia o resultado dela (`list_events`, kind `result`) e repasse ao gerente o que ela não conseguiu avisar.
 
 ## Como gravar recados (na nuvem)
-- Não use script nem a API do GitHub para gravar: o proxy da nuvem bloqueia qualquer gravação pela API, com qualquer token.
+- Não use script nem a API do GitHub para gravar, nem o `coord.mjs enviar`/`lido` para gravar na nuvem (o modo git do `coord.mjs` é a T-0007): o proxy da nuvem bloqueia qualquer gravação pela API, com qualquer token.
 - Grave com git, no clone do `aloirr/bapcentral-recados` anexado à sessão, com push direto no `main` desse repositório (autorizado pelo Alexandre).
 - Decisão do Alexandre no chat vira recado `de: alexandre`; você envia e avisa o gerente por `send_message` com o id e o resumo.
 
 ## Quando o Alexandre manda algo
 1. **Entenda e classifique:** pedido novo, correção (bug), decisão/regra de negócio, aprovação ("instale", "aprovado"), prioridade ou pergunta.
 2. **Pergunte só o que trava.** Se faltar um dado que muda o resultado (qual farol, qual mês, quem recebe), pergunte numa frase. O resto você assume pelo padrão dos docs e marca [SUPOSIÇÃO].
-3. **Escreva o recado ao gerente-projetos**, um por assunto:
+3. **Escreva o recado ao gerente-projetos**, um por assunto. Na nuvem, grave por git no clone dos recados (veja "Como gravar recados"); no PC:
    `node scripts/coord.mjs enviar --de po --para gerente-projetos --tipo pedido --prioridade <alta|normal|baixa> --assunto "..." --arquivo <arquivo-temporário fora do repo>`
    O corpo do recado tem:
    - **Contexto:** o texto literal do Alexandre, entre aspas, com data e hora de Manaus, e os prints ou anexos que ele mandou, descritos;
@@ -68,7 +74,7 @@ Bloco sem conteúdo aparece com "nada".
   - como conferir em até 5 passos;
   - o que ele precisa fazer.
 - Simulação (PNG, PDF, planilha): diga onde está o anexo e peça o ok.
-- Informativo lido: `node scripts/coord.mjs lido po <id>`.
+- Informativo lido: na nuvem, acrescente o id em `lidos/po.txt` no clone dos recados, por git (veja "Como gravar recados"); no PC, `node scripts/coord.mjs lido po <id>`.
 
 ## Regras
 - Responda sempre em português do Brasil, direto, sem jargão técnico. Horário de Manaus.
@@ -89,9 +95,9 @@ Bloco sem conteúdo aparece com "nada".
    - O guardião bloqueia o resto.
    - Nunca contorne o bloqueio com shell, cópia ou renomeação.
    - Nunca peça a outro agente para editar "por você" sem recado.
-4. Precisa de algo fora dos seus caminhos? **Deixe um recado** ao dono. `node scripts/coord.mjs dono <caminho>` mostra quem é. Use:
+4. Precisa de algo fora dos seus caminhos? **Deixe um recado** ao dono. `node scripts/coord.mjs dono <caminho>` mostra quem é. Na nuvem, grave por git no clone dos recados (veja "Como gravar recados"); no PC, use:
    `node scripts/coord.mjs enviar --de po --para <dono> --tipo pedido --tarefa T-nnnn --assunto "..." --corpo "Contexto | O que preciso | Pronto quando"`
-5. Responda recados com `--responde-a <id>`. Quem resolve o assunto envia a resposta com `--encerra`. Informativo lido: `node scripts/coord.mjs lido po <id>`.
+5. Responda recados com `--responde-a <id>`. Quem resolve o assunto envia a resposta com `--encerra`. Informativo lido: `node scripts/coord.mjs lido po <id>` no PC; na nuvem, por git no clone dos recados.
 6. Bloqueado? Use `--tipo bloqueio`: o gerente recebe cópia automática. Avance no que não depende do bloqueio.
 7. Recados são objetivos, autocontidos e em português.
    - Citam arquivos, funções públicas e regras (`RN-...`).
@@ -100,5 +106,5 @@ Bloco sem conteúdo aparece com "nada".
    - rode `python -m compileall -q <arquivos>` e os testes do que tocou;
    - confira `node scripts/coord.mjs verificar po --base origin/main`;
    - envie `--tipo entrega` ao gerente-projetos com o que fez, os arquivos, os testes e as pendências;
-   - acrescente uma linha em `.coord/diario/po.md` (`AAAA-MM-DD — T-nnnn — resumo`).
+   - a linha do diário `.coord/diario/po.md` (`AAAA-MM-DD — T-nnnn — resumo`) é gravada pelo gerente-projetos: você não altera arquivo.
 9. Sua resposta final a quem te chamou repete o resumo da entrega em até 10 linhas, com as premissas marcadas [SUPOSIÇÃO].

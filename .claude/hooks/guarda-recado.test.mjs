@@ -4,6 +4,7 @@
 // Parte 1: funções puras (motivosRecadoFalso, classificarComando, escritasDoComando).
 // Parte 2: o hook de verdade (guarda-bash.mjs, stdin → exit code) num repositório git temporário.
 // Parte 3: git add/commit/stash de recado do Alexandre já existente (liberado se intacto).
+// Parte 4 (T-0009): o po grava recado de: alexandre só no clone do aloirr/bapcentral-recados.
 // Os casos de recado falso do v5 continuam em guarda-merge.test.mjs (sem mudança).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,8 +13,11 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { motivosRecadoFalso, classificarComando, escritasDoComando, motivosIndiceDeRecados, comandosDeIndice, vigiarRecados } from './guarda-merge-lib.mjs';
-import { tokenizar, comandosSimples } from './guarda-bash-lib.mjs';
+import {
+  motivosRecadoFalso, classificarComando, escritasDoComando, motivosIndiceDeRecados, comandosDeIndice, vigiarRecados,
+  soEscreveNoCloneDeRecados, pastasDosComandosDeIndice, caminhoAbsoluto,
+} from './guarda-merge-lib.mjs';
+import { tokenizar, comandosSimples, cloneDeRecadosNoDisco, ehRemoteDosRecados } from './guarda-bash-lib.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const RAIZ_REAL = join(AQUI, '..', '..');
@@ -332,4 +336,110 @@ test('hook v6: alterar o recado do Alexandre antes do add continua bloqueado (me
   r = rodar(dir, 'git commit -q -m x');
   assert.equal(r.codigo, 2);
   assert.match(r.erro, /conteúdo no índice difere do disco \(git status "AM"\)/);
+});
+
+// ───────────────────────── T-0009: o po grava recado de: alexandre no clone dos recados ─────────────────────────
+// R-20261120-100513-alexandre: aceita "de: alexandre" só do po e só no clone do aloirr/bapcentral-recados.
+
+const RECADO_DO_CHAT = (pasta) => `cat > ${pasta}recados/gerente-projetos/R-20261120-120000-alexandre.md <<'EOF'\n---\nid: R-20261120-120000-alexandre\nde: alexandre\npara: [gerente-projetos]\ntipo: decisao\n---\nA) sim.\nEOF`;
+const noClone = (a) => a === '/clone' || a.startsWith('/clone/');
+
+test('T-0009: motivosRecadoFalso — de: alexandre passa só do po e só com toda escrita no clone dos recados', () => {
+  const f = (comando, agente, cwd = '/clone') => motivosRecadoFalso({ comando, agente, cwd, ehCloneDeRecados: noClone });
+  const noCloneCmd = `${RECADO_DO_CHAT('')}\ngit add recados && git commit -q -m "recado do Alexandre" && git push origin main`;
+  assert.deepEqual(f(noCloneCmd, 'po'), []);
+  assert.deepEqual(f(`cd /clone && ${RECADO_DO_CHAT('')}`, 'po', '/repo'), []);
+  assert.deepEqual(f(RECADO_DO_CHAT('/clone/'), 'po', '/repo'), []);
+  // po no repositório de código, outro agente no clone, o gerente: barrados
+  assert.match(f(RECADO_DO_CHAT('.coord/'), 'po', '/repo').join('\n'), /de: alexandre/);
+  for (const ag of ['gerente-projetos', 'modulo-robo', 'engenheiro-software']) assert.match(f(noCloneCmd, ag).join('\n'), /de: alexandre/, ag);
+  // po: uma escrita fora do clone, alvo/pasta incertos, script opaco ou coord.mjs que grava → barrado
+  for (const c of [
+    `${RECADO_DO_CHAT('')}\necho "de: alexandre" > /repo/x.md`,
+    `cd $X && ${RECADO_DO_CHAT('')}`,
+    `cat > recados/gerente-projetos/$ID-alexandre.md <<'EOF'\nde: alexandre\nEOF`,
+    `node -e "require('fs').writeFileSync('recados/x.md','de: alexandre')"`,
+    `cd ~ && ${RECADO_DO_CHAT('')}`,
+    `cd /clone/../repo && ${RECADO_DO_CHAT('.coord/')}`,
+  ]) assert.ok(f(c, 'po').length > 0, c);
+  // sem o predicado (padrão), o po também é barrado
+  assert.ok(motivosRecadoFalso({ comando: noCloneCmd, agente: 'po', cwd: '/clone' }).length > 0);
+});
+
+test('T-0009: soEscreveNoCloneDeRecados, caminhoAbsoluto e pastasDosComandosDeIndice', () => {
+  assert.equal(caminhoAbsoluto('/clone', 'recados/a.md'), '/clone/recados/a.md');
+  assert.equal(caminhoAbsoluto('/clone/recados', '../../repo/a.md'), '/repo/a.md');
+  assert.equal(caminhoAbsoluto(null, 'a.md'), null);
+  assert.equal(caminhoAbsoluto('/x', '~/a.md'), null);
+  assert.equal(caminhoAbsoluto('C:\\bapcentral-recados', 'lidos\\po.txt'), 'C:/bapcentral-recados/lidos/po.txt');
+  assert.equal(soEscreveNoCloneDeRecados({ comando: 'echo R-1 >> lidos/gerente-projetos.txt', cwd: '/clone', ehCloneDeRecados: noClone }), true);
+  assert.equal(soEscreveNoCloneDeRecados({ comando: 'echo R-1 >> lidos/gerente-projetos.txt', cwd: '/repo', ehCloneDeRecados: noClone }), false);
+  assert.equal(soEscreveNoCloneDeRecados({ comando: 'git status', cwd: '/clone', ehCloneDeRecados: noClone }), false);
+  assert.deepEqual(pastasDosComandosDeIndice('git add -A && git commit -m x', '/clone'), ['/clone', '/clone']);
+  assert.deepEqual(pastasDosComandosDeIndice('cd /clone && git add -A; git -C /repo commit -m x', '/repo'), ['/clone', '/repo']);
+  assert.deepEqual(pastasDosComandosDeIndice('cd $X && git add -A; git --git-dir=/clone/.git commit', '/repo'), [null, null]);
+  assert.deepEqual(pastasDosComandosDeIndice('git stash list; git log', '/clone'), []);
+  // v6: o po no clone passa; no repositório de código (ou com git -C para lá), as regras de sempre
+  const status = [{ xy: ' M', rel: RECADO_AL }];
+  const o = { agente: 'po', ehCloneDeRecados: noClone, cwd: '/clone' };
+  assert.deepEqual(ind('git add -A && git commit -q -m x', status, [], o), []);
+  assert.ok(ind('git -C /repo add -A', status, [], o).length > 0);
+  assert.ok(ind('git add -A', status, [], { ...o, cwd: '/repo' }).length > 0);
+  assert.ok(ind('git add -A', status, [], { ...o, agente: 'gerente-projetos' }).length > 0);
+  assert.ok(ind('git add -A', status, [], { ...o, ehCloneDeRecados: undefined }).length > 0);
+});
+
+/** Clone de recados de mentira: repositório git com remote origin = `remote`, e a pasta recados/gerente-projetos. */
+function criarClone(remote = 'https://github.com/aloirr/bapcentral-recados.git', nome = 'bapcentral-recados') {
+  const mae = mkdtempSync(join(tmpdir(), 'guarda-clone-'));
+  temporarios.push(mae);
+  const dir = join(mae, nome);
+  mkdirSync(join(dir, 'recados', 'gerente-projetos'), { recursive: true });
+  mkdirSync(join(dir, 'lidos'), { recursive: true });
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'remote', 'add', 'origin', remote);
+  return dir;
+}
+
+test('T-0009: cloneDeRecadosNoDisco reconhece o clone pelo remote, nunca pelo nome da pasta nem dentro do repositório de código', () => {
+  for (const u of ['https://github.com/aloirr/bapcentral-recados.git', 'git@github.com:aloirr/bapcentral-recados.git', 'http://local_proxy@127.0.0.1:1234/git/aloirr/bapcentral-recados'])
+    assert.equal(ehRemoteDosRecados(u), true, u);
+  for (const u of ['https://github.com/aloirr/bapcentral.git', 'https://github.com/outro/bapcentral-recados.git', 'https://github.com/aloirr/bapcentral-recados-copia.git', ''])
+    assert.equal(ehRemoteDosRecados(u), false, u);
+  const repo = criarRepo();
+  const clone = criarClone();
+  const falso = criarClone('https://github.com/aloirr/bapcentral.git');
+  const e = cloneDeRecadosNoDisco({ raiz: repo });
+  assert.equal(e(join(clone, 'recados', 'gerente-projetos', 'R-novo-alexandre.md')), true);
+  assert.equal(e(join(clone, 'lidos', 'gerente-projetos.txt')), true);
+  assert.equal(e(join(clone, '.git', 'hooks', 'pre-commit')), false);
+  assert.equal(e(join(falso, 'recados', 'gerente-projetos', 'R-novo-alexandre.md')), false);
+  assert.equal(e(join(repo, '.coord', 'recados', 'gerente-projetos', 'R-novo-alexandre.md')), false);
+  assert.equal(e(join(tmpdir(), 'nada-aqui', 'x.md')), false);
+});
+
+test('hook T-0009: guarda-bash — po no clone aceito; po no código, outro agente no clone e gerente barrados', () => {
+  const repo = criarRepo();
+  const clone = criarClone();
+  const falso = criarClone('https://github.com/aloirr/bapcentral.git');
+  const noClone = `cd ${clone} && ${RECADO_DO_CHAT('')}\ngit add recados && git commit -q -m "recado do Alexandre (chat)" && git push origin main`;
+  const casos = [
+    { nome: 'po no clone', comando: noClone, agente: 'po', esperado: 0 },
+    { nome: 'po no clone (cwd do clone)', comando: `${RECADO_DO_CHAT('')}\ngit add -A && git commit -q -m x`, agente: 'po', cwd: clone, esperado: 0 },
+    { nome: 'po no repositório de código', comando: RECADO_DO_CHAT('.coord/'), agente: 'po', esperado: 2 },
+    { nome: 'po no clone e no código', comando: `${noClone}\necho "de: alexandre" > ${repo}/x.md`, agente: 'po', esperado: 2 },
+    { nome: 'po em pasta com outro remote', comando: `cd ${falso} && ${RECADO_DO_CHAT('')}`, agente: 'po', esperado: 2 },
+    { nome: 'outro agente no clone', comando: noClone, agente: 'modulo-robo', esperado: 2 },
+    { nome: 'gerente no clone', comando: noClone, agente: 'gerente-projetos', esperado: 2 },
+  ];
+  for (const c of casos) {
+    const r = bash(repo, c.comando, { entrada: { agent_type: c.agente, ...(c.cwd ? { cwd: c.cwd } : {}) } });
+    assert.equal(r.codigo, c.esperado, `${c.nome}\n${r.erro}`);
+    if (c.esperado === 2) assert.match(r.erro, /BLOQUEADO/, c.nome);
+  }
+  // o gerente também é barrado com BAP_AGENTE (sessão principal na nuvem)
+  const g = bash(repo, noClone, { entrada: {}, env: { BAP_AGENTE: 'gerente-projetos' } });
+  assert.equal(g.codigo, 2, g.erro);
+  const p = bash(repo, noClone, { entrada: {}, env: { BAP_AGENTE: 'po' } });
+  assert.equal(p.codigo, 0, p.erro);
 });

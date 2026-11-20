@@ -866,7 +866,8 @@ export function escritasDoComando(comando, cwdInicial = '', nivel = 0) {
     const n = nome && !nome.incerto ? nomeBase(nome.valor) : '';
     if (n === 'cd' || n === 'pushd') {
       const a = args.find((x) => !x.valor.startsWith('-'));
-      cwd = !a ? '~' : a.incerto || cwd === null ? null : `${cwd}/${a.valor}`;
+      // cd com caminho absoluto troca a pasta (T-0009: antes virava "<cwd>//<caminho>")
+      cwd = !a ? '~' : a.incerto || cwd === null ? null : ehAbsoluto(barras(a.valor)) ? barras(a.valor) : `${cwd}/${a.valor}`;
       continue;
     }
     const c = classificarComando(cmd.palavras);
@@ -897,11 +898,13 @@ export function escritasDoComando(comando, cwdInicial = '', nivel = 0) {
  *    bash sem -c...) que cita alexandre ele mesmo ou num comando que também cita recados.
  * Comando só de leitura (ls, cat, grep, find, head, git show/ls-tree/fetch, for que só lê) passa,
  * mesmo citando alexandre e .coord/recados (v6: o v5 bloqueava, falso positivo do gerente).
- * @param {{comando: string, agente: string, cwd?: string, soLeitura?: boolean}} p  soLeitura: ignorado
- *   desde o v6 (a classificação é feita aqui); cwd: pasta atual da sessão (entrada.cwd do hook).
+ * T-0009: o po passa quando TODA escrita do comando cai no clone do aloirr/bapcentral-recados (soEscreveNoCloneDeRecados).
+ * @param {{comando: string, agente: string, cwd?: string, soLeitura?: boolean, ehCloneDeRecados?: (abs: string) => boolean}} p
+ *   soLeitura: ignorado desde o v6 (a classificação é feita aqui); cwd: pasta atual da sessão (entrada.cwd do hook);
+ *   ehCloneDeRecados: o caminho absoluto está no clone dos recados? (o hook confere no disco, pelo remote; padrão: não).
  * @returns {string[]} motivos do bloqueio (vazio = passa)
  */
-export function motivosRecadoFalso({ comando, agente, cwd = '' }) {
+export function motivosRecadoFalso({ comando, agente, cwd = '', ehCloneDeRecados = () => false }) {
   if (!agente || agente === 'alexandre') return [];
   const motivos = [];
   visitarComandos(comando, ({ nome, args }) => {
@@ -922,6 +925,8 @@ export function motivosRecadoFalso({ comando, agente, cwd = '' }) {
   const { escritas, opacos, coord } = escritasDoComando(comando, String(cwd || '').replace(/\\/g, '/'));
   const grava = escritas.length > 0 || opacos.length > 0 || coord;
   if (!grava) return motivos; // só leitura: passa (v6)
+  // T-0009 (R-20261120-100513-alexandre): o po grava recado de: alexandre só no clone do aloirr/bapcentral-recados.
+  if (agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE && soEscreveNoCloneDeRecados({ comando, cwd, ehCloneDeRecados })) return motivos;
   const citaAlexandre = RE_ALEXANDRE.test(t);
   const citaRecados = RE_RECADOS.test(t);
   const pastaSuspeita = (c) => c === null || RE_RECADOS.test(c);
@@ -980,9 +985,14 @@ export function comandosDeIndice(comando) {
  * @param {{comando: string, cwd?: string, raiz?: string, status: {xy: string, rel: string}[],
  *   tocados?: Set<string>|string[], ehDoAlexandre: (rel: string) => boolean}} p
  */
-export function motivosIndiceDeRecados({ comando, cwd = '', raiz = '', status = [], tocados = [], ehDoAlexandre }) {
+export function motivosIndiceDeRecados({ comando, cwd = '', raiz = '', status = [], tocados = [], ehDoAlexandre, agente = '', ehCloneDeRecados = () => false }) {
   const cmds = comandosDeIndice(comando);
   if (!cmds.length) return [];
+  // T-0009: git add/commit do po no clone do aloirr/bapcentral-recados não mexe no índice do repositório de código.
+  if (agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE) {
+    const pastas = pastasDosComandosDeIndice(comando, cwd);
+    if (pastas.length === cmds.length && pastas.every((p) => p !== null && ehCloneDeRecados(p))) return [];
+  }
   const tocadosSet = new Set(tocados);
   const candidatos = (status || []).filter((s) => /^\.coord\/recados\//i.test(s.rel) && ehDoAlexandre(s.rel));
   if (!candidatos.length) return [];
@@ -1036,6 +1046,85 @@ export function vigiarRecados(comando, cwd = '') {
   if (opacos.length) return true;
   // escrita do próprio git (stash, restore, checkout --) só move conteúdo que já está em commit/stash
   return escritas.some(({ alvo, cwd: c, de }) => de !== 'git' && (alvo.incerto || RE_RECADOS.test(alvo.valor) || /alexandre/i.test(alvo.valor) || c === null || RE_RECADOS.test(c || '')));
+}
+
+// ───────────────────────────── T-0009: o po grava recado de: alexandre no clone dos recados ─────────────────────────────
+//
+// R-20261120-100513-alexandre: o guardião aceita "de: alexandre" só do po e só no clone do aloirr/bapcentral-recados
+// (o po grava a decisão do Alexandre no chat, R-20261120-092924-alexandre). Nos outros lugares continua barrando:
+// outro agente (o gerente inclusive), a mesma pasta com outro agente, o repositório de código. O clone é reconhecido
+// no disco pelo hook (pasta da junção ou remote do repositório; ver cloneDeRecadosNoDisco em guarda-bash-lib.mjs),
+// nunca pelo texto do comando.
+
+/** O único agente que grava recado de: alexandre (no clone dos recados). */
+export const AGENTE_QUE_GRAVA_PELO_ALEXANDRE = 'po';
+
+const ehAbsoluto = (x) => x.startsWith('/') || /^[A-Za-z]:\//.test(x);
+
+/** Caminho absoluto (com /) de `valor` a partir da pasta `base`; null se a pasta ou o caminho é incerto (~, $X). */
+export function caminhoAbsoluto(base, valor) {
+  const v = barras(valor ?? '');
+  if (!v || v.startsWith('~')) return null;
+  if (ehAbsoluto(v)) return posix.normalize(v);
+  if (base == null) return null;
+  const b = barras(base);
+  if (!b || !ehAbsoluto(b)) return null;
+  return posix.normalize(`${b}/${v}`);
+}
+
+/**
+ * Toda escrita do comando cai no clone dos recados? Função pura. Não: comando opaco (script, node -e que grava,
+ * bash sem -c...), coord.mjs que grava, alvo ou pasta incertos, ou qualquer alvo fora do clone.
+ */
+export function soEscreveNoCloneDeRecados({ comando, cwd = '', ehCloneDeRecados = () => false }) {
+  const { escritas, opacos, coord } = escritasDoComando(comando, barras(cwd || ''));
+  if (coord || opacos.length || !escritas.length) return false;
+  return escritas.every(({ alvo, cwd: c }) => {
+    if (alvo.incerto) return false;
+    const a = caminhoAbsoluto(c, alvo.valor);
+    return a !== null && Boolean(ehCloneDeRecados(a));
+  });
+}
+
+/**
+ * Pasta onde roda cada git add/stage/commit/stash do comando, no nível de cima (cd e git -C acompanhados);
+ * null = incerta (cd $X, --git-dir, --work-tree). Em $(...) não entra: aí as contagens não batem e o po não passa.
+ */
+export function pastasDosComandosDeIndice(comando, cwdInicial = '') {
+  const res = [];
+  let cwd = barras(cwdInicial || '');
+  const pilha = [];
+  for (const cmd of comandosSimples(tokenizar(comando))) {
+    if (cmd.grupo === '(') { pilha.push(cwd); continue; }
+    if (cmd.grupo === ')') { if (pilha.length) cwd = pilha.pop(); continue; }
+    const { nome, args } = semAtribuicoes(cmd.palavras);
+    if (!nome || nome.incerto) continue;
+    const n = nomeBase(nome.valor);
+    if (n === 'cd' || n === 'pushd') {
+      const a = args.find((x) => !x.valor.startsWith('-'));
+      cwd = !a || a.incerto || cwd === null ? null : caminhoAbsoluto(cwd, a.valor);
+      continue;
+    }
+    if (n !== 'git') continue;
+    let i = 0;
+    let pasta = cwd;
+    while (i < args.length && args[i].valor.startsWith('-')) {
+      const o = args[i].valor;
+      if (o === '-C') pasta = !args[i + 1] || args[i + 1].incerto || pasta === null ? null : caminhoAbsoluto(pasta, args[i + 1].valor);
+      else if (OPCOES_GIT_COM_VALOR.has(o) && o !== '-c') pasta = null;
+      else if (/^--(git-dir|work-tree)=/.test(o)) pasta = null;
+      i += OPCOES_GIT_COM_VALOR.has(o) ? 2 : 1;
+    }
+    const sub = args[i];
+    if (!sub || sub.incerto || !SUBCOMANDOS_DE_INDICE.has(sub.valor)) continue;
+    if (sub.valor === 'stash') {
+      const resto = args.slice(i + 1);
+      const primeiro = resto.find((a) => !a.valor.startsWith('-'));
+      if (primeiro && !['push', 'save'].includes(primeiro.valor) && resto.indexOf(primeiro) === 0) continue;
+    }
+    res.push(pasta);
+  }
+  return res;
 }
 
 export function mensagemRecadoFalso(agente, motivos) {

@@ -47,6 +47,9 @@
 //    alterado durante comando desta sessão (o PostToolUse registra o que muda em recado do Alexandre durante
 //    comando opaco ou de escrita incerta) e com o conteúdo do índice igual ao do disco. O gh é procurado no
 //    PATH e, no Windows, também em %ProgramFiles%\GitHub CLI e %LOCALAPPDATA%\Programs\GitHub CLI.
+//  - T-0009 (R-20261120-100513-alexandre): "de: alexandre" passa só do po e só quando toda escrita do comando cai no
+//    clone do aloirr/bapcentral-recados (pasta da junção ou remote, conferidos no disco: cloneDeRecadosNoDisco);
+//    o git add/commit do po nesse clone também passa no v6. Outro agente, o repositório de código: barrado como antes.
 //  - ADR 0035 (T-0139): com .coord/recados e .coord/lidos em junção para o clone do bapcentral-recados, o alvo pelo
 //    caminho de verdade do clone segue as regras de .coord/recados, o git que grava no clone é bloqueado e a foto do
 //    PostToolUse inclui o git status do clone (juncoesDeRecados; casos em guarda-juncao.test.mjs).
@@ -61,12 +64,12 @@ import { RAIZ, carregarDonos, agenteDaSessao, juncoesDeRecados } from '../../scr
 import {
   analisarComando, ambienteReal, mensagemPre, lerStatus, fotografar, compararFotos, statDe,
   violacoesDasMudancas, mensagemPos, mensagemAviso, separarAcusacoes, atualizarAcusados, descontarDesfeitos, permitidosDe,
-  arquivoFoto, arquivoAcusados, arquivoRecadosDaSessao, ehRecadoDoAlexandre,
+  arquivoFoto, arquivoAcusados, arquivoRecadosDaSessao, ehRecadoDoAlexandre, cloneDeRecadosNoDisco,
   lerJson, gravarJson, apagarArquivo, limparAntigos,
 } from './guarda-bash-lib.mjs';
 import {
   conferirMerge, conferirGhApi, consultarPrGh, lerRecadosDoGerente, motivosRecadoFalso, mensagemRecadoFalso,
-  motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados,
+  motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados, AGENTE_QUE_GRAVA_PELO_ALEXANDRE,
 } from './guarda-merge-lib.mjs';
 
 /** Conteúdo de um arquivo do repositório (rel) ou null. */
@@ -134,7 +137,9 @@ if (evento === 'PreToolUse') {
     process.exit(2);
   }
   // Guardião v5: nenhum agente cria recado em nome de outro (sobretudo de: alexandre).
-  const motivos = motivosRecadoFalso({ comando, agente, cwd: entrada.cwd || process.cwd() });
+  // T-0009: só o po, e só no clone do aloirr/bapcentral-recados (conferido no disco), grava recado de: alexandre.
+  const ehCloneDeRecados = agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE ? cloneDeRecadosNoDisco({ raiz: RAIZ, juncoes }) : () => false;
+  const motivos = motivosRecadoFalso({ comando, agente, cwd: entrada.cwd || process.cwd(), ehCloneDeRecados });
   if (motivos.length) {
     process.stderr.write(mensagemRecadoFalso(agente, motivos) + '\n');
     process.exit(2);
@@ -145,7 +150,7 @@ if (evento === 'PreToolUse') {
     const indice = motivosIndiceDeRecados({
       comando, cwd: entrada.cwd || process.cwd(), raiz: RAIZ, status: amb.status() || [],
       tocados: Object.keys(lerJson(arquivoRecadosDaSessao(entrada, agente, RAIZ), {})),
-      ehDoAlexandre: (rel) => ehRecadoDoAlexandre(rel, lerDoRepo),
+      ehDoAlexandre: (rel) => ehRecadoDoAlexandre(rel, lerDoRepo), agente, ehCloneDeRecados,
     });
     if (indice.length) {
       process.stderr.write(mensagemIndiceDeRecados(agente, indice) + '\n');

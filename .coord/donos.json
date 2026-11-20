@@ -73,7 +73,7 @@
     },
     {
       "padrao": ".coord/diario/po.md",
-      "dono": "po"
+      "dono": "gerente-projetos"
     },
     {
       "padrao": ".coord/diario/engenheiro-software.md",
@@ -473,6 +473,10 @@
     },
     {
       "padrao": "ATUALIZAR_DO_GITHUB.bat",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "atualizar_do_github.py",
       "dono": "engenheiro-software"
     },
     {
