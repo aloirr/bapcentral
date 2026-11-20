@@ -10,3 +10,4 @@
 - 2026-11-20 — T-0008 — parecer do revisor no PR #1 (head e27a495): 🔴 só o CI (T-0004); 🟡 2 a 8 corrigidos no commit seguinte
 - 2026-11-20 10:05 — T-0004 — merge do PR #3 (8cd54cb) e do formulário no bapcentral-recados (de3f2ec), autorizados no R-20261120-095830-alexandre; PR #1 corrigido pela nova revisão
 - 2026-11-20 10:07 — T-0001 — concluída; merges dos PRs #1 e #2; T-0005 ao po (R-20261120-100628-gerente-projetos); sessões filhas da T-0002, T-0003 e T-0006; governança da T-0007 e da T-0008
+- 2026-11-20 11:20 — T-0010 — merges do dia: #3, #1 (recados), #1, #2, #5, #7, #8; T-0002, T-0005, T-0006 e T-0007 concluídas; RN-ROT-001 registrada; T-0010 e T-0011 criadas; T-0009 separada no PR #11
