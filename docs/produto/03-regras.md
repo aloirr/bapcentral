@@ -22,6 +22,7 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 - Roteirização por lugar, com dia compacto de 5 km.
 - 1º sábado = depósito do excedente; o recálculo não reescreve o passado.
 - Cliente INATIVO no Protheus sai da rota.
+- RN-ROT-001 · JSON da rota para a Máxima: data final de cada linha = próxima visita + periodicidade − 1 (em vez de 3000-01-01); inativo, CNPJ interno (pelo nome, como o `meta_nucleo`) e conta 000040 fora; o sábado-depósito entra com a mesma data final (20/11; R-20261120-102022, -104729 e -111303-alexandre; T-0010).
 
 ## Metas e RV (RN-MET)
 - NOV/26: desafio de R$ 1,5 mi.
