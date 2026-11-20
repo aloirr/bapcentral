@@ -63,10 +63,22 @@ Depois do primeiro acesso, `BAP_ADMIN_SENHA_INICIAL` pode ser apagada do painel.
 
 - Cabeçalho `Authorization: Bearer $BAP_WEB_TOKEN` (401 se ausente ou errado) e `Content-Type: application/json` (outro tipo, multipart ou `.pkl` = 415).
 - Limite `BAP_WEB_PACOTE_MAX_MB` (padrão 25): 413 pelo `Content-Length` ou durante a leitura.
-- Corpo: `{"versao_contrato": 1, "gerado_em": "2026-11-20T08:30:00-04:00", "ano": 2026, "mes": 11, "relatorios": {"vc_painel_diretor": <parte dado>, "pl_inadimplencia": <parte dado>}}`.
-- Cada relatório: `titulo`, `kpis`, `tabelas`, e no Diretor `paineis[]` com `titulo` e `kpis_export`. Esquema errado = 422 com a lista de problemas. Chaves que começam com `_` são descartadas na gravação.
-- `gerado_em` vira o nome do arquivo (só letras e dígitos). Gravação atômica; ficam os 15 mais recentes.
-- A web mostra o pacote mais recente. Não calcula nada: formata, filtra e ordena.
+- Escopo da T-0013 (R-20261120-120939): só **Painel · resultado** e **Painel · produtividade** do `vc_painel`. Não há mais Inadimplência nem a aba "por dia útil".
+- Corpo (as chaves que a tela lê):
+
+```json
+{"versao_contrato": 1, "gerado_em": "2026-11-20T08:30:00-04:00", "ano": 2026, "mes": 11,
+ "relatorios": {"vc_painel": {"titulo": "Painel Executivo", "abas": {
+   "resultado":     {"titulo": "Painel · resultado", "kpis_export": [], "altura_min": 2000,
+                     "painel": {"blocos": [{"tipo": "rrm", "visao": "res", "dados": {"res": [CARTÃO, ...], "sub": {"res": "visão absoluta · ..."}, "como_ler": "...", "avisos": []}}]}},
+   "produtividade": {"titulo": "Painel · produtividade", "...": "igual, com visao \"prod\" e dados.prod / dados.sub.prod"}}}}}
+```
+
+- Como o PC monta: `relatorios_nucleo._abas_do_painel` insere `paineis[0]` e `paineis[1]` a partir de `painel_rrm.VISOES` (`res`, `prod`), cada um com um bloco `rrm` cujo `dados` é a saída de `painel_rrm.calcular`. **Escolha**: o robô manda esses dois itens em `abas.resultado` e `abas.produtividade` (a web identifica a aba pela chave e confere `painel.blocos[0].tipo == "rrm"` e `visao == "res"|"prod"`, não pelo título nem pelo índice). A web só lê `dados[visao]`, `dados.sub[visao]`, `dados.como_ler` e `dados.avisos`; o resto (`du`, `comp`, `dados_ate`, `diretor`) pode ir, mas é descartado na gravação. O robô deve mandar só essas duas visões, para o pacote ficar pequeno.
+- `CARTÃO` é o dict de `painel_rrm.card`, em JSON (tupla vira lista): `{"titulo", "valor" (texto pronto), "legenda", "aneis": [[rótulo, % (número), meta (texto)]], "faixa": [[mês, variação (texto), tom, fechamento (texto)]] (até 3), "estados": {"barras": [[UF, número, texto, % ou variação (texto), tom]], "legenda"} | null, "ajuda"}`. `tom` em `ok`, `atencao`, `alerta` ou `""`.
+- A web não recalcula: mostra textos e números como vêm. Só a apresentação é dela: o percentual do anel (`11%`), o arco SVG e a cor do anel (verde ≥ 100, amarelo 90-99, vermelho < 90, as mesmas faixas do PC, pois o PC não manda o tom do anel), e a altura relativa da barra (`|número| ÷ maior`).
+- Esquema errado (sem `vc_painel`, sem uma das duas abas, cartão malformado) = 422 com a lista de problemas. Chaves que começam com `_` são descartadas. `gerado_em` (ISO 8601) vira o nome do arquivo (só letras e dígitos); gravação atômica; ficam os 15 mais recentes.
+- O campo `paineis[0].diretor` (`painel_diretor.calcular`) **não é necessário**: o cartão já traz tudo o que o PC desenha (anéis, faixa, barras). Nada a pedir ao robô.
 
 ## 5. Memória medida (Starter tem 512 MB)
 
@@ -75,23 +87,24 @@ Medida local (Python 3.13, uvicorn, 1 processo) por `VmHWM` de `/proc/<pid>/stat
 | Momento | VmHWM |
 |---|---|
 | App recém-subido, sem pacote | 60,6 MB |
-| Depois de receber um pacote fictício de **3,6 MB** (17 tabelas no Diretor, 5 na Inadimplência com 2 de 4.000 linhas, 3 abas RRM) e abrir as duas telas, as 3 abas, busca e ordem | **81,4 MB** |
+| Pacote fictício esperado (2 abas × 10 cartões, 12 KB) recebido e as 2 telas abertas | **62,8 MB** |
+| Estresse: 2 abas × 500 cartões (565 KB, 50 vezes o esperado), 2 telas abertas | 69,7 MB |
 
-O tamanho real do pacote **não é conhecido**: 3,6 MB é estimativa pelo contrato (vc_painel: 17 tabelas, 7 kpis; pl_inadimplencia: 7 tabelas) [SUPOSIÇÃO]. Cada tabela desenha no máximo 300 linhas (o resto vem pela busca e pelo filtro), então a página fica em torno de 0,2 a 0,6 MB. Com folga de mais de 5 vezes sobre os 512 MB, mesmo que o pacote real seja bem maior.
+O pacote do painel é pequeno (cartões e textos prontos, sem tabelas). Folga de mais de 7 vezes sobre os 512 MB. O tamanho real é estimado pelo contrato [SUPOSIÇÃO].
 
 ## 6. Como testar em 5 passos (local, sem Render)
 
-1. `pip install -r web/requirements-dev.txt` e, na raiz, `pytest web/tests` (23 testes, todos com dado fictício).
+1. `pip install -r web/requirements-dev.txt` e, na raiz, `pytest web/tests` (todos com dado fictício).
 2. Defina no terminal, só para esta sessão: `SESSION_SECRET`, `BAP_WEB_TOKEN`, `BAP_ADMIN_USUARIO`, `BAP_ADMIN_SENHA_INICIAL`, `BAP_WEB_DADOS=./dados_local`, `TZ=America/Manaus`, `BAP_WEB_COOKIE_SEGURO=0` (só em http local).
 3. Em `web/`: `uvicorn app.main:criar_app --factory --port 8099` e abra `http://127.0.0.1:8099/saude` (mostra versão, hora de Manaus, `tz_ok` e `ultimo_pacote`).
 4. Envie um pacote: `curl -X POST localhost:8099/api/pacote -H "Authorization: Bearer $BAP_WEB_TOKEN" -H "Content-Type: application/json" --data-binary @pacote.json` (resposta 200).
-5. Entre em `/login` com o admin, troque a senha (obrigatório), abra "Painel do Diretor" (3 abas) e "Farol de Inadimplência"; em "Usuários" crie um gerente e confira que ele não vê `/usuarios`.
+5. Entre em `/login` com o admin, troque a senha (obrigatório), abra "Painel Executivo" (abas Painel · resultado e Painel · produtividade); em "Usuários" crie um gerente e confira que ele não vê `/usuarios`.
 
 Simulação visual: `web/docs/simulacao_onda1.png` (dados fictícios).
 
 ## 7. Limites desta onda
 
-- Gráficos, `insights_painel` e o `painel` (blocos `rrm`) do contrato não são desenhados ainda; o Diretor mostra os cartões de `kpis_export` e as tabelas.
-- Perfis `admin`, `diretor` e `gerente` veem os dois relatórios [SUPOSIÇÃO].
+- Só `vc_painel`, abas resultado e produtividade. Tabelas, gráficos, "por dia útil" e Inadimplência ficam para outra onda.
+- Perfis `admin`, `diretor` e `gerente` veem o painel [SUPOSIÇÃO].
 - Bloqueio por tentativas vale por usuário existente (5 erros = 15 minutos, ou até o admin trocar a senha); não há limite por IP.
 - Uma instância só (disco preso a ela); deploy deixa o serviço fora do ar por alguns segundos.

@@ -15,40 +15,39 @@ ADMIN = "admin.teste"
 SENHA0 = "senha-inicial-123"
 
 
-def pacote_ficticio(gerado_em="2026-11-20T08:30:00-04:00", n=3):
-    def kp(r, v, cor="neutro"):
-        return {"rotulo": r, "valor": v, "cor": cor, "detalhe": "detalhe fictício",
-                "linhas": [["Atrasados", "3", "alerta"]]}
+def _cartao(titulo, valor, leg="", aneis=(), uf_bars=None, ant=True):
+    return {"chave": "x", "titulo": titulo, "valor": valor, "legenda": leg,
+            "aneis": [list(a) for a in aneis],
+            "faixa": [["out", "+11%", "ok", "R$ 149 mil"], ["set", "−31%", "alerta", "R$ 237 mil"],
+                      ["jul (bench.)", "−74%", "alerta", "R$ 626 mil"]],
+            "estados": {"barras": uf_bars or [["PA", 28600.0, "R$ 28,6 mil", "9%", "alerta"],
+                                              ["MA", 87000.0, "R$ 87,0 mil", "110%", "ok"],
+                                              ["AM", 49100.0, "R$ 49,1 mil", "95%", "atencao"],
+                                              ["RR", 0.0, "R$ 0", "", ""]],
+                        "legenda": "atingimento da meta do mês (projeção ÷ meta)"},
+            "ajuda": "texto de ajuda fictício"}
 
-    tab = {"titulo": "Por filial", "colunas": [
-        {"nome": "FILIAL", "tipo": "texto"}, {"nome": "VALOR", "tipo": "moeda"},
-        {"nome": "PCT", "tipo": "pct1"}, {"nome": "DATA", "tipo": "data"},
-        {"nome": "OCULTA", "tipo": "texto", "oculta": True}],
-        "linhas": [[f"Filial {i:02d}", 1000.5 * (i + 1), 12.34 * i, "2026-11-19", "x"]
-                   for i in range(n)],
-        "tons": ["", "alerta", "ok"][:n], "filtros": ["FILIAL"],
-        "total": ["TOTAL", 9999.0, None, None, None],
-        "cores_celulas": [{"1": "#B3261E"}] + [{}] * (n - 1)}
+
+def _aba(visao, titulo, cartoes):
+    return {"titulo": titulo, "kpis_export": [], "altura_min": 2000,
+            "painel": {"blocos": [{"tipo": "rrm", "visao": visao, "row": 0, "col": 0, "colspan": 3,
+                                   "dados": {"comp": "2026-11", "ano": 2026, "mes": 11,
+                                             visao: cartoes,
+                                             "sub": {visao: "visão absoluta · novembro até 19/11 (13 de 19 dias úteis) · variação × mês fechado"},
+                                             "como_ler": "Como ler fictício.", "dados_ate": "2026-11-19",
+                                             "avisos": []}}]}}
+
+
+def pacote_ficticio(gerado_em="2026-11-20T08:30:00-04:00", n=3):
+    res = [_cartao("Faturamento líquido · proj.", "R$ 165 mil", "projeção do mês",
+                   [("MTD", 11.2, "1,03 mi"), ("MÊS", 100.4, "1,50 mi")]),
+           _cartao("Positivação", "45", "projeção do mês 66", [("MTD", 40.0, "112"), ("MÊS", 93.0, "163")]),
+           _cartao("Pedidos faturados · proj.", "85", "projeção do mês")]
+    prod = [_cartao("Visitas", "310", "", [("MÊS", 70.0, "440")])]
     return {"versao_contrato": 1, "gerado_em": gerado_em, "ano": 2026, "mes": 11,
-            "relatorios": {
-                "vc_painel_diretor": {
-                    "titulo": "Painel do Diretor", "subtitulo": "Posição fictícia", "kpis": [],
-                    "paineis": [
-                        {"titulo": "Painel · resultado", "kpis": [], "kpis_export": [
-                            kp("Faturamento", "R$ 1.500.000", "ok"),
-                            kp("Positivação", "42 clientes", "atencao")]},
-                        {"titulo": "Painel · produtividade", "kpis": [],
-                         "kpis_export": [kp("Visitas", "310")]},
-                        {"titulo": "Painel · por dia útil", "kpis": [],
-                         "kpis_export": [kp("Fat. por DU", "R$ 75.000")]}],
-                    "tabelas": [tab]},
-                "pl_inadimplencia": {
-                    "titulo": "Farol de Inadimplência", "kpis": [kp("Vencido", "R$ 200.000", "alerta")],
-                    "avisos": ["Aviso fictício"], "tabelas": [
-                        {**tab, "titulo": "Por cliente",
-                         "linhas": [["Cliente Fictício 01", 500.0, 1.0, "2026-10-01", ""],
-                                    ["<script>alert(1)</script>", 700.0, 2.0, "2026-10-02", ""]],
-                         "tons": ["", ""], "cores_celulas": [{}, {}]}]}}}
+            "relatorios": {"vc_painel": {"titulo": "Painel Executivo", "abas": {
+                "resultado": _aba("res", "Painel · resultado", res),
+                "produtividade": _aba("prod", "Painel · produtividade", prod)}}}}
 
 
 @pytest.fixture

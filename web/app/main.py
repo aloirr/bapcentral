@@ -23,11 +23,8 @@ from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
 MANAUS = ZoneInfo("America/Manaus")
-VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem os 2 relatórios
-RELATORIOS = {
-    "diretor": ("vc_painel_diretor", "Painel do Diretor", VERES),
-    "inadimplencia": ("pl_inadimplencia", "Farol de Inadimplência", VERES),
-}
+VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
+RELATORIO = ("vc_painel", "Painel Executivo")
 FORM_MAX = 16 * 1024
 
 
@@ -194,36 +191,23 @@ def criar_app() -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def home(request: Request):
         u = usuario(request)
-        menu = [{"href": f"/{k}", "nome": nome} for k, (_, nome, ps) in RELATORIOS.items()
-                if u["perfil"] in ps]
+        menu = [{"href": "/painel", "nome": RELATORIO[1]}] if u["perfil"] in VERES else []
         if u["perfil"] == "admin":
             menu.append({"href": "/usuarios", "nome": "Usuários"})
         menu.append({"href": "/senha", "nome": "Trocar senha"})
         return pagina(request, "home.html", menu=menu)
 
-    def tela_relatorio(request: Request, chave: str):
-        rid, nome, perfis = RELATORIOS[chave]
-        u = usuario(request, perfis)
+    @app.get("/painel", response_class=HTMLResponse)
+    async def painel(request: Request, aba: str = "resultado"):
+        usuario(request, VERES)
         info = ultimo.get()
-        rel = (info or {}).get("relatorios", {}).get(rid)
-        if not rel:
-            return pagina(request, "relatorio.html", titulo=nome, rel=None, chave=chave)
-        args = request.query_params
-        abas = rel.get("paineis") or []
-        aba = int(args["aba"]) if (args.get("aba") or "").isdigit() and int(args["aba"]) < len(abas) else 0
-        kpis = (abas[aba].get("kpis_export") or abas[aba].get("kpis") or []) if abas else rel.get("kpis", [])
-        tabelas = [render.preparar_tabela(t, i, args) for i, t in enumerate(rel.get("tabelas", []))]
-        return pagina(request, "relatorio.html", titulo=nome, rel=rel, chave=chave,
-                      abas=[a["titulo"] for a in abas], aba=aba, kpis=kpis, tabelas=tabelas,
-                      cor_kpi=render.cor_kpi, ano=info["ano"], mes=info["mes"])
-
-    @app.get("/diretor", response_class=HTMLResponse)
-    async def diretor(request: Request):
-        return tela_relatorio(request, "diretor")
-
-    @app.get("/inadimplencia", response_class=HTMLResponse)
-    async def inadimplencia(request: Request):
-        return tela_relatorio(request, "inadimplencia")
+        rel = (info or {}).get("relatorios", {}).get(RELATORIO[0])
+        abas = render.localizar_abas(rel) if rel else []
+        if not abas:
+            return pagina(request, "painel.html", abas=[], tela=None, aba=aba)
+        atual = next((a for a in abas if a["chave"] == aba), abas[0])
+        return pagina(request, "painel.html", abas=abas, aba=atual["chave"],
+                      tela=render.aba_para_tela(atual))
 
     # ------------------------------------------------------------ usuários (admin)
     @app.get("/usuarios", response_class=HTMLResponse)

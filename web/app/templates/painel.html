@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block titulo %}Painel Executivo{% endblock %}
+{% block corpo %}
+{% if not tela %}
+<h1>Painel Executivo</h1>
+<p class="aviso atencao">Sem dados do painel no último pacote.</p>
+{% else %}
+<nav class="abas">
+  {% for a in abas %}<a href="/painel?aba={{ a.chave }}" class="{{ 'ativa' if a.chave == aba }}">{{ a.titulo }}</a>{% endfor %}
+</nav>
+<header class="cab-painel"><h1>{{ tela.titulo }}</h1><span>{{ tela.sub }}</span></header>
+{% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
+<section class="rrm">
+{% for c in tela.cartoes %}
+<article class="rc">
+  <div class="rc-topo">
+    <div class="rc-id">
+      <div class="rc-rot">{{ c.titulo }}</div>
+      <div class="rc-valor">{{ c.valor }}</div>
+      {% if c.legenda %}<div class="rc-leg">{{ c.legenda }}</div>{% endif %}
+    </div>
+    {% if c.aneis %}
+    <div class="rc-aneis">
+      {% for a in c.aneis %}
+      <div class="anel t-{{ a.tom }}">
+        <span class="anel-rot">{{ a.rot }}</span>
+        <svg viewBox="0 0 80 80" width="84" height="84" role="img" aria-label="{{ a.rot }} {{ a.pct }}">
+          <circle cx="40" cy="40" r="34" class="trilho"/>
+          {% if a.tem %}<circle cx="40" cy="40" r="34" class="arco" stroke-dasharray="{{ a.arco }} {{ a.circ }}" transform="rotate(-90 40 40)"/>{% endif %}
+        </svg>
+        <span class="anel-pct">{{ a.pct }}</span>
+        <span class="anel-sub">{{ a.sub }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% if c.faixa %}
+  <div class="rc-faixa">
+    {% for f in c.faixa %}
+    <div><span class="fr">{{ f.rot }}</span> <b class="t-{{ f.tom }}">{{ f.var }}</b><div class="fv">{{ f.real }}</div></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="rc-filete"></div>
+  {% if c.estados %}
+  <div class="rc-barras">
+    {% for b in c.estados.barras %}
+    <div class="col">
+      <div class="area">
+        {% if not b.vazio %}
+          {% if b.sem_barra %}
+            <div class="rot-b t-{{ b.tom }}">{{ b.rot }}</div><div class="txt-b">{{ b.txt }}</div>
+          {% else %}
+            <div class="txt-b">{{ b.txt }}</div>
+            <div class="barra" style="height:{{ b.alt }}%"><span class="rot-b t-{{ b.tom }}">{{ b.rot }}</span></div>
+          {% endif %}
+        {% endif %}
+      </div>
+      <div class="uf">{{ b.uf }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if c.estados.legenda %}<div class="rc-legb">● {{ c.estados.legenda }}</div>{% endif %}
+  {% endif %}
+</article>
+{% endfor %}
+</section>
+{% if tela.como_ler %}<p class="como">{{ tela.como_ler }}</p>{% endif %}
+{% endif %}
+{% endblock %}

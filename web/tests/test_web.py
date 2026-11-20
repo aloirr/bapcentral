@@ -32,14 +32,14 @@ def test_senha_com_hash_e_sal(cli, amb):
 
 
 def test_rotas_exigem_login(cli):
-    for url in ("/", "/diretor", "/inadimplencia", "/usuarios"):
+    for url in ("/", "/painel", "/usuarios"):
         r = cli.get(url, follow_redirects=False)
         assert r.status_code == 303 and r.headers["location"] == "/login"
 
 
 def test_primeiro_acesso_obriga_trocar_senha(cli):
     assert entrar(cli, ADMIN, SENHA0).status_code == 303
-    r = cli.get("/diretor", follow_redirects=False)
+    r = cli.get("/painel", follow_redirects=False)
     assert r.headers["location"] == "/senha"
     r = cli.post("/senha", data={"atual": SENHA0, "nova": "curta", "confirma": "curta",
                                  "csrf": token_form(cli, "/senha")})
@@ -48,7 +48,7 @@ def test_primeiro_acesso_obriga_trocar_senha(cli):
                                  "confirma": "uma-senha-nova-10",
                                  "csrf": token_form(cli, "/senha")}, follow_redirects=False)
     assert r.status_code == 303
-    assert cli.get("/diretor").status_code == 200
+    assert cli.get("/painel").status_code == 200
 
 
 def test_bloqueio_depois_de_5_erros(cli):
@@ -92,8 +92,7 @@ def test_perfil_gerente_nao_ve_usuarios(admin):
                                "confirma": "senha-nova-gerente-9", "csrf": token_form(g, "/senha")})
         assert g.get("/usuarios").status_code == 403
         assert g.post("/usuarios", data={"acao": "criar", "csrf": token_form(g, "/senha")}).status_code == 403
-        assert g.get("/diretor").status_code == 200
-        assert g.get("/inadimplencia").status_code == 200
+        assert g.get("/painel").status_code == 200
         assert "Usuários" not in g.get("/").text
 
 
@@ -149,61 +148,76 @@ def test_pacote_415_e_422(cli):
 
 def test_pacote_remove_chaves_internas(cli, amb):
     p = pacote_ficticio()
-    p["relatorios"]["pl_inadimplencia"]["_champions"] = {"vendedores": ["Pessoa Fictícia"]}
+    p["relatorios"]["vc_painel"]["_champions"] = {"vendedores": ["Pessoa Fictícia"]}
     assert postar(cli, p).status_code == 200
     assert "_champions" not in (next((amb / "pacotes").glob("*.json"))).read_text()
 
 
 # ---------------------------------------------------------------- telas
 def test_sem_pacote_aviso(admin):
-    r = admin.get("/diretor")
+    r = admin.get("/painel")
     assert "Ainda não chegou nenhum pacote do PC" in r.text
 
 
-def test_render_diretor_abas_e_inadimplencia(admin):
+def test_render_painel_abas_aneis_barras_rodapes(admin):
     postar(admin, pacote_ficticio())
-    r = admin.get("/diretor")
-    assert "Dados de 20/11/2026 08:30" in r.text
-    for t in ("Painel · resultado", "Painel · produtividade", "Painel · por dia útil",
-              "Faturamento", "R$ 1.500.000", "BAP AUTOPARTS"):
-        assert t in r.text
-    assert "Visitas" not in r.text
-    assert "Visitas" in admin.get("/diretor?aba=1").text
-    assert "Fat. por DU" in admin.get("/diretor?aba=2").text
-    assert "R$ 1.000" in r.text and "R$ 3.002" in r.text and "12,3%" in r.text and "19/11/2026" in r.text
-    assert "OCULTA" not in r.text and "background:#B3261E" in r.text
-    r = admin.get("/inadimplencia")
-    assert "Vencido" in r.text and "R$ 200.000" in r.text and "Aviso fictício" in r.text
-    assert "Cliente Fictício 01" in r.text
+    r = admin.get("/painel").text
+    assert "Dados de 20/11/2026 08:30" in r and "BAP AUTOPARTS" in r
+    for t in ("Painel · resultado", "Painel · produtividade", "Painel do Diretor · resultado",
+              "visão absoluta · novembro até 19/11 (13 de 19 dias úteis)",
+              "FATURAMENTO LÍQUIDO · PROJ.", "R$ 165 mil", "projeção do mês 66", "POSITIVAÇÃO",
+              "PEDIDOS FATURADOS · PROJ.", "jul (bench.)", "−74%", "R$ 626 mil",
+              "atingimento da meta do mês (projeção ÷ meta)", "Como ler fictício."):
+        assert t in r, t
+    assert r.count("<article") == 3 and r.count('class="arco"') == 4
+    assert "11%" in r and "1,03 mi" in r and "100%" in r
+    assert 'class="anel t-alerta"' in r and 'class="anel t-ok"' in r and 'class="anel t-atencao"' not in r.split("POSITIVAÇÃO")[0]
+    for uf in ("PA", "MA", "AM", "RR"):
+        assert f'<div class="uf">{uf}</div>' in r
+    assert "R$ 87,0 mil" in r and "R$ 28,6 mil" in r
+    assert "height:92.0%" in r                      # a maior barra
+    assert "Visitas" not in r
+    r = admin.get("/painel?aba=produtividade").text
+    assert "Painel do Diretor · produtividade" in r and "VISITAS" in r and "FATURAMENTO" not in r
+    assert "Painel do Diretor · resultado" in admin.get("/painel?aba=qualquer").text
+
+
+def test_pacote_sem_vc_painel_422(cli):
+    p = pacote_ficticio()
+    p["relatorios"] = {"pl_inadimplencia": {"titulo": "x"}}
+    r = postar(cli, p)
+    assert r.status_code == 422
+    p["relatorios"] = {}
+    assert postar(cli, p).status_code == 422
+    p = pacote_ficticio()
+    del p["relatorios"]["vc_painel"]["abas"]["produtividade"]
+    assert postar(cli, p).status_code == 422
+    p = pacote_ficticio()
+    p["relatorios"]["vc_painel"]["abas"]["resultado"]["painel"]["blocos"][0]["dados"]["res"][0]["faixa"] = [["a"]]
+    assert postar(cli, p).status_code == 422
+
+
+def test_pacote_guarda_so_o_que_a_tela_le(cli, amb):
+    p = pacote_ficticio()
+    a = p["relatorios"]["vc_painel"]["abas"]["resultado"]
+    a["diretor"] = {"cliente": "Cliente Fictício 01"}
+    a["painel"]["blocos"][0]["dados"]["du"] = [{"titulo": "x"}]
+    assert postar(cli, p).status_code == 200
+    txt = next((amb / "pacotes").glob("*.json")).read_text()
+    assert "Cliente Fictício 01" not in txt and '"du"' not in txt
 
 
 def test_autoescape(admin):
-    postar(admin, pacote_ficticio())
-    r = admin.get("/inadimplencia")
-    assert "<script>alert(1)</script>" not in r.text
-    assert "&lt;script&gt;" in r.text
+    p = pacote_ficticio()
+    p["relatorios"]["vc_painel"]["abas"]["resultado"]["painel"]["blocos"][0]["dados"]["res"][0]["titulo"] = "<script>alert(1)</script>"
+    postar(admin, p)
+    r = admin.get("/painel").text
+    assert "<script>alert(1)</script>" not in r.lower() and "&lt;SCRIPT&gt;" in r
 
 
-def test_filtro_ordem_na_url_e_total(admin):
-    postar(admin, pacote_ficticio(n=3))
-    r = admin.get("/diretor?t=0&q=filial 01")
-    assert ">Filial 01</td>" in r.text and ">Filial 02</td>" not in r.text
-    assert "TOTAL" not in r.text                  # com filtro, sem total (contrato 11.3)
-    assert "TOTAL" in admin.get("/diretor").text
-    r = admin.get("/diretor?t=0&f0=Filial 02")
-    assert ">Filial 02</td>" in r.text and ">Filial 00</td>" not in r.text
-    r = admin.get("/diretor?t=0&o=1&d=1").text
-    assert r.index(">Filial 02</td>") < r.index(">Filial 00</td>")
-    r = admin.get("/diretor?t=0&o=1&d=0").text
-    assert r.index(">Filial 00</td>") < r.index(">Filial 02</td>")
-
-
-def test_formatos_do_contrato():
-    assert render.formatar(1250.0, "moeda") == "R$ 1.250"
-    assert render.formatar(1250.5, "moeda2") == "R$ 1.250,50"
-    assert render.formatar(85.34, "pct1") == "85,3%"
-    assert render.formatar("2026-11-19", "dia") == "19/11"
-    assert render.formatar(None, "moeda") == ""
+def test_formatos_e_tom_do_anel():
+    assert render.pc(11.2) == "11%" and render.pc(None) == "—" and render.br(1250.5, 2) == "1.250,50"
+    assert [render.tom_de(x) for x in (100, 95, 89.9, None)] == ["ok", "atencao", "alerta", ""]
 
 
 # ---------------------------------------------------------------- saúde e TZ
@@ -223,15 +237,3 @@ def test_home_avisa_tz_errado(admin, monkeypatch):
     assert "Fuso do servidor fora do padrão" in admin.get("/").text
     monkeypatch.setenv("TZ", "America/Manaus")
     assert "Fuso do servidor fora do padrão" not in admin.get("/").text
-
-
-def test_tabela_grande_corta_linhas(admin):
-    p = pacote_ficticio()
-    t = p["relatorios"]["pl_inadimplencia"]["tabelas"][0]
-    t["linhas"] = [[f"Cliente Fictício {i:04d}", 1.0, 1.0, "2026-10-01", ""] for i in range(500)]
-    t["tons"], t["cores_celulas"] = [], []
-    postar(admin, p)
-    r = admin.get("/inadimplencia").text
-    assert "Mostrando as primeiras 300 linhas de 500" in r
-    assert ">Cliente Fictício 0299</td>" in r and ">Cliente Fictício 0300</td>" not in r
-    assert ">Cliente Fictício 0450</td>" in admin.get("/inadimplencia?t=0&q=0450").text

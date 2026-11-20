@@ -8,7 +8,8 @@ from pathlib import Path
 
 from .arquivos import gravar_json
 
-ACEITOS = ("vc_painel_diretor", "pl_inadimplencia")
+ACEITOS = ("vc_painel",)
+ABAS = (("resultado", "res"), ("produtividade", "prod"))
 GUARDAR = 15
 
 
@@ -18,6 +19,18 @@ def nome_arquivo(gerado_em: str) -> str:
 
 def _int(v, lo, hi):
     return isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi
+
+
+def _cartao_ok(c) -> bool:
+    if not (isinstance(c, dict) and isinstance(c.get("titulo"), str) and isinstance(c.get("valor"), str)):
+        return False
+    if not all(isinstance(a, list) and len(a) == 3 for a in c.get("aneis") or []):
+        return False
+    if not all(isinstance(f, list) and len(f) == 4 for f in c.get("faixa") or []):
+        return False
+    e = c.get("estados")
+    return e is None or (isinstance(e, dict) and all(
+        isinstance(b, list) and len(b) == 5 for b in e.get("barras") or []))
 
 
 def validar(c) -> list[str]:
@@ -49,21 +62,24 @@ def validar(c) -> list[str]:
         if not isinstance(r, dict) or not isinstance(r.get("titulo"), str):
             erros.append(f"{k}: titulo ausente")
             continue
-        kp = r.get("kpis", [])
-        if not isinstance(kp, list) or not all(isinstance(x, dict) and "rotulo" in x for x in kp):
-            erros.append(f"{k}: kpis inválidos")
-        tb = r.get("tabelas", [])
-        if not isinstance(tb, list) or not all(
-                isinstance(t, dict) and isinstance(t.get("colunas"), list)
-                and isinstance(t.get("linhas"), list)
-                and all(isinstance(x, dict) and "nome" in x for x in t["colunas"])
-                and all(isinstance(l, list) for l in t["linhas"]) for t in tb):
-            erros.append(f"{k}: tabelas inválidas")
-        ps = r.get("paineis", [])
-        if not isinstance(ps, list) or not all(
-                isinstance(p, dict) and isinstance(p.get("titulo"), str)
-                and isinstance(p.get("kpis_export", []), list) for p in ps):
-            erros.append(f"{k}: paineis inválidos")
+        abas = r.get("abas")
+        if not isinstance(abas, dict):
+            erros.append(f"{k}: abas ausente")
+            continue
+        for chave, visao in ABAS:
+            a = abas.get(chave)
+            if not isinstance(a, dict) or not isinstance(a.get("titulo"), str):
+                erros.append(f"{k}.abas.{chave}: ausente")
+                continue
+            bl = (a.get("painel") or {}).get("blocos") if isinstance(a.get("painel"), dict) else None
+            b = bl[0] if isinstance(bl, list) and bl and isinstance(bl[0], dict) else {}
+            d = b.get("dados")
+            if b.get("tipo") != "rrm" or b.get("visao") != visao or not isinstance(d, dict):
+                erros.append(f"{k}.abas.{chave}: painel.blocos[0] precisa ser rrm/{visao} com dados")
+                continue
+            cs = d.get(visao)
+            if not isinstance(cs, list) or not cs or not all(_cartao_ok(c) for c in cs):
+                erros.append(f"{k}.abas.{chave}: cartões inválidos")
     return erros[:10]
 
 
@@ -77,9 +93,23 @@ def _sem_internas(o):
     return o
 
 
+def _enxuto(corpo: dict) -> dict:
+    """Guarda só o que a tela lê: por aba, os cartões da visão, `sub`, `como_ler`, avisos."""
+    for rel in corpo["relatorios"].values():
+        for chave, visao in ABAS:
+            a = rel["abas"][chave]
+            d = a["painel"]["blocos"][0]["dados"]
+            a["painel"]["blocos"][0]["dados"] = {
+                visao: d[visao], "sub": {visao: (d.get("sub") or {}).get(visao, "")},
+                "como_ler": d.get("como_ler", ""), "avisos": d.get("avisos", []),
+                "ano": d.get("ano"), "mes": d.get("mes")}
+            a.pop("diretor", None)
+    return corpo
+
+
 def gravar(dados: Path, corpo: dict, recebido_em: str) -> Path:
     pasta = dados / "pacotes"
-    corpo = _sem_internas(corpo)
+    corpo = _enxuto(_sem_internas(corpo))
     corpo["recebido_em"] = recebido_em
     destino = pasta / (nome_arquivo(corpo["gerado_em"]) + ".json")
     gravar_json(destino, corpo)
