@@ -21,7 +21,7 @@
 // desconhecido (alias ou extensão), e nome de comando incerto ($GH pr ...).
 // v7 (T-0122): `gh api` só de leitura (analisarGhApi/conferirGhApi): GET/HEAD e GraphQL "query" passam, mesmo com $VAR
 // ou "merge" no --jq; o resto é bloqueado para toda sessão.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, lstatSync, realpathSync, readlinkSync } from 'node:fs';
 import { join, win32, posix } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
@@ -1311,4 +1311,528 @@ export function mensagemMergeMcp(erros) {
     `PR de governança: só local, pelo gerente-projetos, com o recado do Alexandre em ${PASTA_AUTORIZACOES} "autorizo o merge do PR #N no commit <sha>".\n` +
     'Não contorne o bloqueio (gh api, outra ferramenta, script): se a regra impede o merge, avise o gerente ou o Alexandre por recado.'
   );
+}
+
+// ──────────────── T-0009: o po grava recado de: alexandre no clone dos recados, por lista do que é PERMITIDO ────────────────
+//
+// R-20261120-100513-alexandre: "o guardião aceita 'de: alexandre' só do po e só no clone do aloirr/bapcentral-recados.
+// Nos outros lugares continua barrando." A exceção vale só quando TODAS as condições valem (desenho do revisor-codigo):
+//  1. o po da sessão principal (BAP_AGENTE=po, sem agent_id, sem agent_type de outro agente): podeGravarPeloAlexandre;
+//  2. o comando inteiro se encaixa só nas formas da lista, encadeadas por && (formaPermitidaDoPo, função pura);
+//  3. o clone é um caminho absoluto igual ao realpath, repositório git com origin (fetch e push) no
+//     aloirr/bapcentral-recados, fora do repositório de código e sem o código dentro dele (conferirCloneDoPo, no disco);
+//  4. no alvo do redirecionamento, a pasta pai existe e é pasta real no clone; o arquivo, se existe, não é link nem
+//     tem nlink > 1.
+// Qualquer outra coisa tira a exceção, e o guardião segue a regra de sempre (que barra "de: alexandre").
+
+/** O único agente que grava recado de: alexandre (no clone dos recados). */
+export const AGENTE_QUE_GRAVA_PELO_ALEXANDRE = 'po';
+
+/**
+ * Remote do repositório de recados, com o servidor amarrado: github.com (https ou ssh) ou o proxy git local da
+ * sessão da nuvem (http://[usuário@]127.0.0.1|localhost[:porta]/git/...). Outro servidor ou caminho local não vale.
+ */
+export const RE_REMOTE_DOS_RECADOS = /^(https:\/\/([^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/|https?:\/\/([^@/\s]+@)?(127\.0\.0\.1|localhost)(:\d+)?\/git\/)aloirr\/bapcentral-recados(\.git)?\/?$/i;
+export const ehRemoteDosRecados = (url) => RE_REMOTE_DOS_RECADOS.test(String(url || '').trim());
+
+/**
+ * A sessão pode gravar recado de: alexandre? Só o po da sessão principal: BAP_AGENTE=po, nenhum agent_id e nenhum
+ * agent_type de outro agente (um subagente "po" do gerente não vale). Função pura.
+ */
+export function podeGravarPeloAlexandre({ agente, origem = '', subagente = false, agentType = '' }) {
+  const tipo = String(agentType || '').trim();
+  return agente === AGENTE_QUE_GRAVA_PELO_ALEXANDRE && origem === 'variável BAP_AGENTE' && !subagente
+    && (tipo === '' || tipo === AGENTE_QUE_GRAVA_PELO_ALEXANDRE);
+}
+
+const RE_PALAVRA_LIVRE = /[A-Za-z0-9._/:=@%+,-]/;
+const RE_TAG_HEREDOC = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const RE_CLONE = /^(\/[A-Za-z0-9._-]+)+$/;
+const RE_NOME = /^[a-z0-9][a-z0-9-]*$/;
+const RE_ARQ_RECADO = /^R-\d{8}-\d{6}-[a-z0-9][a-z0-9-]*\.md$/;
+const RE_CAMINHO_DO_ADD = /^(recados|lidos)(\/[A-Za-z0-9._-]+)*$/;
+const semPontos = (p) => p.split('/').every((c) => c !== '.' && c !== '..');
+
+/**
+ * Tokens da linha de comando, só com o que a lista permite: palavras (livres, '...' ou "..." sem $, crase e \),
+ * &&, > e >>, <<'TAG'. Qualquer outro caractere fora de aspas (; | & isolado ( ) $ ` \ < * ? [ ~ { # !...) → null.
+ */
+function tokensPermitidos(linha) {
+  const tokens = [];
+  let palavra = null;
+  const fechar = () => { if (palavra) tokens.push(palavra); palavra = null; };
+  for (let i = 0; i < linha.length; i++) {
+    const ch = linha[i];
+    if (ch === ' ' || ch === '\t') { fechar(); continue; }
+    if (ch === "'") {
+      const fim = linha.indexOf("'", i + 1);
+      if (fim < 0) return null;
+      palavra = palavra || { v: '', aspas: false };
+      palavra.v += linha.slice(i + 1, fim);
+      palavra.aspas = true;
+      i = fim;
+      continue;
+    }
+    if (ch === '"') {
+      const fim = linha.indexOf('"', i + 1);
+      if (fim < 0) return null;
+      const dentro = linha.slice(i + 1, fim);
+      if (/[$`\\]/.test(dentro)) return null;
+      palavra = palavra || { v: '', aspas: false };
+      palavra.v += dentro;
+      palavra.aspas = true;
+      i = fim;
+      continue;
+    }
+    if (RE_PALAVRA_LIVRE.test(ch)) { palavra = palavra || { v: '', aspas: false }; palavra.v += ch; continue; }
+    if (palavra) return null; // operador colado na palavra (2>, x&&, a<b): fora da lista
+    if (ch === '&') {
+      if (linha[i + 1] !== '&' || linha[i + 2] === '&') return null;
+      tokens.push({ op: '&&' });
+      i += 1;
+      continue;
+    }
+    if (ch === '>') {
+      const duplo = linha[i + 1] === '>';
+      const prox = linha[i + (duplo ? 2 : 1)];
+      if (prox === '>' || prox === '&' || prox === '|') return null;
+      tokens.push({ op: duplo ? '>>' : '>' });
+      i += duplo ? 1 : 0;
+      continue;
+    }
+    if (ch === '<') {
+      const m = /^<<'([^']*)'/.exec(linha.slice(i));
+      if (!m || !RE_TAG_HEREDOC.test(m[1])) return null; // <, <<-, <<EOF sem aspas (expande), <<<
+      tokens.push({ op: '<<', tag: m[1] });
+      i += m[0].length - 1;
+      continue;
+    }
+    return null;
+  }
+  fechar();
+  return tokens;
+}
+
+/**
+ * O comando inteiro se encaixa só nas formas permitidas ao po, encadeadas por &&? Função pura.
+ * Formas: cat > <clone>/recados/<destino>/R-AAAAMMDD-HHMMSS-*.md <<'TAG' · cat >> <clone>/lidos/<agente>.txt <<'TAG' ·
+ * printf '<texto>'... com o mesmo redirecionamento · git -C <clone> pull -q --rebase · git -C <clone> add [--]
+ * <recados/...|lidos/...> · git -C <clone> -c user.name=alexandre -c user.email=alexandre@bapcentral.invalid
+ * -c commit.gpgsign=false commit -q -m "<texto>" · git -C <clone> push -q origin HEAD:main · git -C <clone> fetch -q ·
+ * git -C <clone> status.
+ * Um clone só no comando todo. O corpo do heredoc (delimitador entre aspas simples) é texto e não é analisado.
+ * `caminhos`: os alvos e os caminhos do add, relativos ao clone (conferidos no check-attr).
+ * @returns {{ok: true, clone: string, alvos: {op: string, alvo: string}[], caminhos: string[]} | {ok: false, motivo: string}}
+ */
+export function formaPermitidaDoPo(comando) {
+  const nao = (motivo) => ({ ok: false, motivo });
+  const texto = String(comando ?? '');
+  if (/[\r\0]/.test(texto)) return nao('caractere de controle no comando');
+  const linhas = texto.split('\n');
+  const tokens = tokensPermitidos(linhas[0]);
+  if (!tokens) return nao('caractere ou operador fora da lista na linha do comando');
+  // corpos dos heredocs, na ordem; depois deles, só linhas em branco (outra linha de comando = ";", fora da lista)
+  let k = 1;
+  for (const t of tokens.filter((x) => x.op === '<<')) {
+    while (k < linhas.length && linhas[k] !== t.tag) k++;
+    if (k >= linhas.length) return nao(`heredoc sem o fim "${t.tag}"`);
+    k++;
+  }
+  if (linhas.slice(k).some((l) => l.trim() !== '')) return nao('mais de uma linha de comando');
+  // segmentos separados por &&
+  const segmentos = [[]];
+  for (const t of tokens) {
+    if (t.op === '&&') segmentos.push([]);
+    else segmentos[segmentos.length - 1].push(t);
+  }
+  if (segmentos.some((s) => !s.length)) return nao('&& no começo, no fim ou repetido');
+  const clones = new Set();
+  const alvos = [];
+  const adds = [];
+  for (const seg of segmentos) {
+    const palavras = [];
+    const redirs = [];
+    const heredocs = [];
+    for (let i = 0; i < seg.length; i++) {
+      const t = seg[i];
+      if (t.op === '<<') { heredocs.push(t.tag); continue; }
+      if (t.op === '>' || t.op === '>>') {
+        const alvo = seg[i + 1];
+        if (!alvo || alvo.op || alvo.aspas) return nao('redirecionamento sem caminho literal');
+        redirs.push({ op: t.op, alvo: alvo.v });
+        i++;
+        continue;
+      }
+      palavras.push(t);
+    }
+    const [nome, ...args] = palavras;
+    if (!nome || nome.aspas) return nao('comando sem nome literal');
+    if (nome.v === 'cat' || nome.v === 'printf') {
+      if (nome.v === 'cat' && (args.length || heredocs.length !== 1)) return nao('cat só com <<\'TAG\' e sem arquivo de entrada');
+      if (nome.v === 'printf' && (!args.length || args[0].v.startsWith('-') || heredocs.length)) return nao('printf só com texto literal, sem opção');
+      if (redirs.length !== 1) return nao(`${nome.v} com exatamente um redirecionamento > ou >>`);
+      const { op, alvo } = redirs[0];
+      if (!alvo.startsWith('/') || !semPontos(alvo) || alvo.includes('//')) return nao(`alvo não é caminho absoluto limpo (${alvo})`);
+      const partes = alvo.split('/');
+      const arq = partes[partes.length - 1];
+      let clone;
+      if (op === '>' && partes.length >= 5 && partes[partes.length - 3] === 'recados' && RE_NOME.test(partes[partes.length - 2]) && RE_ARQ_RECADO.test(arq)) clone = partes.slice(0, -3).join('/');
+      else if (op === '>>' && partes.length >= 4 && partes[partes.length - 2] === 'lidos' && /^[a-z0-9][a-z0-9-]*\.txt$/.test(arq)) clone = partes.slice(0, -2).join('/');
+      else return nao(`alvo fora da lista: > <clone>/recados/<destino>/R-AAAAMMDD-HHMMSS-*.md ou >> <clone>/lidos/<agente>.txt (veio ${op} ${alvo})`);
+      if (!RE_CLONE.test(clone)) return nao(`pasta do clone inválida (${clone})`);
+      clones.add(clone);
+      alvos.push({ op, alvo });
+      continue;
+    }
+    if (nome.v !== 'git') return nao(`comando "${nome.v}" fora da lista (só cat, printf e git)`);
+    if (redirs.length || heredocs.length) return nao('git sem redirecionamento');
+    if (args.length < 3 || args[0].v !== '-C' || args.slice(0, 2).some((a) => a.aspas)) return nao('git só com -C <clone absoluto> primeiro');
+    const clone = args[1].v;
+    if (!RE_CLONE.test(clone) || !semPontos(clone)) return nao(`git -C com caminho que não é absoluto e limpo (${clone})`);
+    clones.add(clone);
+    const resto = args.slice(2);
+    const v = resto.map((a) => a.v);
+    const literais = (n) => resto.slice(0, n).every((a) => !a.aspas);
+    const igual = (lista) => v.length === lista.length && lista.every((x, i) => v[i] === x) && literais(lista.length);
+    if (igual(['pull', '-q', '--rebase']) || igual(['push', '-q', 'origin', 'HEAD:main']) || igual(['fetch', '-q']) || igual(['status'])) continue;
+    if (v[0] === 'add' && literais(v.length)) {
+      const caminhos = v.slice(v[1] === '--' ? 2 : 1);
+      const ok = caminhos.length > 0 && caminhos.every((c) => {
+        const rel = c.startsWith(`${clone}/`) ? c.slice(clone.length + 1) : c;
+        return RE_CAMINHO_DO_ADD.test(rel) && semPontos(rel);
+      });
+      if (ok) { caminhos.forEach((c) => adds.push(c)); continue; }
+      return nao('git add só de caminhos em recados/ ou lidos/ do clone');
+    }
+    // parecer no 775520e: sem assinatura (o aloirr/bapcentral-recados não exige commit assinado), o assinador não roda no commit
+    const COMMIT = ['-c', 'user.name=alexandre', '-c', 'user.email=alexandre@bapcentral.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m'];
+    if (v.length === COMMIT.length + 1 && COMMIT.every((x, i) => v[i] === x) && literais(COMMIT.length)) continue;
+    return nao(`git ${v.join(' ')} fora da lista (pull -q --rebase, add, commit, push -q origin HEAD:main, fetch -q, status)`);
+  }
+  if (clones.size !== 1) return nao('mais de um clone no comando');
+  const clone = [...clones][0];
+  const relativo = (c) => (c.startsWith(`${clone}/`) ? c.slice(clone.length + 1) : c);
+  const caminhos = [...new Set([...alvos.map((a) => relativo(a.alvo)), ...adds.map(relativo)])];
+  return { ok: true, clone, alvos, caminhos };
+}
+
+/** Variáveis do git que trocam o repositório, o índice, a configuração ou o programa: com elas, nada de exceção. */
+export const GIT_ENV_PROIBIDAS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_COMMON_DIR', 'GIT_NAMESPACE', 'GIT_CONFIG', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_NOSYSTEM',
+  'GIT_CONFIG_COUNT', 'GIT_EXEC_PATH', 'GIT_TEMPLATE_DIR'];
+
+/**
+ * GIT_CONFIG_COUNT/KEY_i/VALUE_i que a sessão da nuvem já traz de fábrica (escopo "command"): só estes pares exatos.
+ * Com GIT_CONFIG_COUNT e qualquer outro par (ou KEY_/VALUE_ fora da contagem), nada de exceção.
+ */
+export const GIT_CONFIG_ENV_PERMITIDOS = [
+  ['credential.interactive', 'false'],
+  ['url.https://github.com/.insteadof', 'git@github.com:'],
+  ['url.https://github.com/.insteadof', 'ssh://git@github.com/'],
+];
+
+/** Motivos do ambiente (função pura): variáveis proibidas e os pares GIT_CONFIG_* fora da lista. */
+export function motivosDoAmbienteGit(env = {}) {
+  const motivos = [];
+  const tem = (k) => env[k] !== undefined && env[k] !== '';
+  for (const k of GIT_ENV_PROIBIDAS) if (k !== 'GIT_CONFIG_COUNT' && tem(k)) motivos.push(`variável ${k} no ambiente`);
+  const extras = Object.keys(env).filter((k) => /^GIT_CONFIG_(KEY|VALUE)_/.test(k));
+  if (!tem('GIT_CONFIG_COUNT')) {
+    if (extras.length) motivos.push('GIT_CONFIG_KEY_*/VALUE_* no ambiente sem GIT_CONFIG_COUNT');
+    return motivos;
+  }
+  const n = String(env.GIT_CONFIG_COUNT);
+  if (!/^\d{1,2}$/.test(n)) return [...motivos, 'GIT_CONFIG_COUNT inválido no ambiente'];
+  const usados = new Set();
+  for (let i = 0; i < Number(n); i++) {
+    const k = `GIT_CONFIG_KEY_${i}`;
+    const v = `GIT_CONFIG_VALUE_${i}`;
+    usados.add(k); usados.add(v);
+    const par = [String(env[k] ?? '').toLowerCase(), String(env[v] ?? '')];
+    if (!GIT_CONFIG_ENV_PERMITIDOS.some(([a, b]) => a === par[0] && b === par[1])) motivos.push(`GIT_CONFIG_KEY_${i} (${par[0] || 'vazio'}) fora da lista`);
+  }
+  if (extras.some((k) => !usados.has(k))) motivos.push('GIT_CONFIG_KEY_*/VALUE_* fora da contagem no ambiente');
+  return motivos;
+}
+
+/**
+ * LISTA PERMITIDA da configuração do git vista pelo clone (`git config --list --show-scope --includes`).
+ * Cada regra: [escopos, chave (minúscula), valor (string exata, RegExp ou null = qualquer)]. Qualquer outra linha
+ * (include.path, includeIf, core.fsmonitor, filter.*, gpg.program, diff.external, merge.*.driver, credential.helper,
+ * core.sshCommand, core.hooksPath, core.attributesFile, alias.*, ...) tira a exceção.
+ */
+const TODOS = ['system', 'global', 'local', 'command'];
+const SG = ['system', 'global'];
+const RE_GIT_LFS = /^git-lfs (clean|smudge|filter-process)( --skip)?( -- %f)?$/;
+export const CONFIG_PERMITIDA = [
+  [['local'], 'core.repositoryformatversion', /^[01]$/],
+  [['local'], 'core.filemode', /^(true|false)$/],
+  [['local'], 'core.bare', 'false'],
+  [['local'], 'core.logallrefupdates', /^(true|false)$/],
+  [['local'], 'core.symlinks', /^(true|false)$/],
+  [['local'], 'core.ignorecase', /^(true|false)$/],
+  [['local'], 'core.precomposeunicode', /^(true|false)$/],
+  [TODOS, 'gc.auto', /^\d+$/],
+  [['local'], 'remote.origin.url', null], // conferida à parte (ehRemoteDosRecados, já com insteadOf)
+  [['local'], 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'],
+  [['local'], 'branch.main.remote', 'origin'],
+  [['local'], 'branch.main.merge', 'refs/heads/main'],
+  [TODOS, 'user.name', null],
+  [TODOS, 'user.email', null],
+  [TODOS, 'commit.gpgsign', 'false'],
+  [['command'], 'credential.interactive', 'false'],
+  [['command'], 'url.https://github.com/.insteadof', /^(git@github\.com:|ssh:\/\/git@github\.com\/)$/],
+  // configuração global da sessão da nuvem: assinatura do commit pelo programa do ambiente (conferido no disco)
+  [['global'], 'user.signingkey', /^[A-Za-z0-9._\/-]+$/],
+  [['global'], 'gpg.format', 'ssh'],
+  [['global'], 'gpg.ssh.program', '/tmp/code-sign'],
+  [['global'], 'commit.gpgsign', 'true'],
+  [['global'], 'http.proxyauthmethod', 'basic'],
+  [['global'], 'core.checkstat', /^(default|minimal)$/],
+  [['global'], 'core.trustctime', /^(true|false)$/],
+  [['global'], 'push.negotiate', /^(true|false)$/],
+  // git-lfs instalado no sistema (só roda com atributo filter=lfs, que é recusado no clone)
+  [SG, 'filter.lfs.clean', RE_GIT_LFS],
+  [SG, 'filter.lfs.smudge', RE_GIT_LFS],
+  [SG, 'filter.lfs.process', RE_GIT_LFS],
+  [SG, 'filter.lfs.required', 'true'],
+  [SG, 'safe.directory', null],
+];
+/** O programa de assinatura da sessão da nuvem: /tmp/code-sign é link para este arquivo. */
+export const ASSINADOR_DA_NUVEM = '/opt/env-runner/environment-manager';
+
+/**
+ * Motivos da configuração (função pura): `saida` é o texto de `git config --list --show-scope --includes`
+ * (escopo TAB chave=valor, uma por linha). Chave fora da lista, escopo fora da regra ou valor diferente → motivo.
+ */
+export function motivosDaConfigGit(saida) {
+  const motivos = [];
+  for (const linha of String(saida ?? '').split('\n')) {
+    if (!linha.trim()) continue;
+    const m = /^([a-z]+)\t([^=\n]+?)(?:=(.*))?$/.exec(linha);
+    if (!m) { motivos.push('linha da configuração do git ilegível'); continue; }
+    const [, escopo, chaveBruta, valor = ''] = m;
+    const chave = chaveBruta.toLowerCase();
+    const ok = CONFIG_PERMITIDA.some(([escopos, k, v]) => escopos.includes(escopo) && k === chave
+      && (v === null || (v instanceof RegExp ? v.test(valor) : v === valor)));
+    if (!ok) motivos.push(`configuração do git fora da lista (${escopo} ${chave})`);
+  }
+  return motivos;
+}
+
+/** Drivers de merge internos do git (não executam programa; merge.<nome>.driver já é recusado na configuração). */
+export const MERGE_INTERNOS = new Set(['text', 'binary', 'union']);
+
+/**
+ * Atributo que pode executar programa num texto de .gitattributes (função pura): filter=<qualquer>, diff=<qualquer> e
+ * merge=<driver> fora de text/binary/union. O merge=union do .gitattributes real dos recados (lidos/*.txt) passa.
+ */
+export function temAtributoQueExecuta(texto) {
+  for (const m of String(texto ?? '').matchAll(/(^|\s)(filter|merge|diff)=(\S*)/gm)) {
+    if (m[2] === 'merge' && MERGE_INTERNOS.has(m[3])) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Motivos da saída de `git check-attr -z filter diff merge -- <caminhos>` (função pura): filter só sem valor
+ * (unspecified/unset), diff só unspecified/unset/set, merge só unspecified/unset/set/text/binary/union.
+ */
+export function motivosDoCheckAttr(saida, onde = 'disco') {
+  const motivos = [];
+  const v = String(saida ?? '').split('\0');
+  const livres = { filter: ['unspecified', 'unset'], diff: ['unspecified', 'unset', 'set'], merge: ['unspecified', 'unset', 'set', ...MERGE_INTERNOS] };
+  for (let i = 0; i + 2 < v.length; i += 3) {
+    const [caminho, attr, valor] = [v[i], v[i + 1], v[i + 2]];
+    if (!livres[attr]?.includes(valor)) motivos.push(`atributo ${attr}=${valor} em ${caminho} (${onde})`);
+  }
+  return motivos;
+}
+
+/** Arquivos do .git que desviam o repositório para outro lugar: com qualquer um deles, nada de exceção. */
+export const ARQUIVOS_QUE_DESVIAM = ['commondir', 'gitdir', 'objects/info/alternates', 'objects/info/http-alternates'];
+const RE_PASTA_DE_OBJETOS = /^objects\/[0-9a-f]{2}$/;
+const LIMITE_DA_VARREDURA = 20000;
+
+/**
+ * Condições 3 e 4 no disco: o clone e os alvos dos redirecionamentos. `fs` e `git` são injetáveis (testes).
+ * O git roda com o mesmo ambiente da sessão, então as URLs conferidas já trazem insteadOf/pushurl/GIT_CONFIG_*.
+ * @returns {string[]} motivos (vazio = condições valem)
+ */
+export function conferirCloneDoPo({
+  clone, alvos = [], caminhos = [], raiz, env = process.env,
+  fs = {
+    realpath: (p) => realpathSync.native(p), lstat: (p) => lstatSync(p), readdir: (p) => readdirSync(p),
+    readdirTipos: (p) => readdirSync(p, { withFileTypes: true }), readFile: (p) => readFileSync(p, 'utf8'),
+    readlink: (p) => readlinkSync(p),
+  },
+  git = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }),
+}) {
+  const motivos = [];
+  const sob = (a, b) => a === b || a.startsWith(`${b}/`);
+  motivos.push(...motivosDoAmbienteGit(env));
+  let real;
+  try { real = fs.realpath(clone); } catch { return [...motivos, `o clone ${clone} não existe`]; }
+  if (real !== clone) return [...motivos, `o clone ${clone} não é o caminho real (realpath: ${real})`];
+  const raizes = [raiz];
+  try { raizes.push(fs.realpath(raiz)); } catch { /* só a léxica */ }
+  for (const r of raizes) if (r && (sob(clone, r) || sob(r, clone))) motivos.push('o clone e o repositório de código se sobrepõem');
+  try {
+    const topo = git(['-C', clone, 'rev-parse', '--show-toplevel']).trim();
+    const gitDir = git(['-C', clone, 'rev-parse', '--absolute-git-dir']).trim();
+    if (topo !== clone) motivos.push(`o clone não é a raiz do repositório git (${topo})`);
+    if (gitDir !== `${clone}/.git`) motivos.push(`o .git do clone aponta para outro lugar (${gitDir})`);
+    const st = fs.lstat(`${clone}/.git`);
+    if (st.isSymbolicLink() || !st.isDirectory()) motivos.push('o .git do clone não é uma pasta real');
+    // 🔴 do parecer no 7af30d8: o .git inteiro é do clone, sem link, sem hard link e sem desvio para outro repositório
+    for (const op of ['--git-dir', '--git-common-dir']) {
+      const d = git(['-C', clone, 'rev-parse', '--path-format=absolute', op]).trim();
+      let dReal = null;
+      try { dReal = fs.realpath(d); } catch { dReal = null; }
+      if (d !== `${clone}/.git` || dReal !== `${clone}/.git`) motivos.push(`${op} do clone não é ${clone}/.git (${d})`);
+    }
+    motivos.push(...varrerPastaGit(`${clone}/.git`, fs));
+    motivos.push(...mesmasPastasDoCodigo(clone, raiz, fs, git));
+    const urls = [
+      ...git(['-C', clone, 'remote', 'get-url', '--all', 'origin']).split('\n'),
+      ...git(['-C', clone, 'remote', 'get-url', '--push', '--all', 'origin']).split('\n'),
+    ].map((u) => u.trim()).filter(Boolean);
+    if (!urls.length || !urls.every(ehRemoteDosRecados)) motivos.push('o origin (fetch ou push) do clone não é o aloirr/bapcentral-recados');
+    let hooksPath = '';
+    try { hooksPath = git(['-C', clone, 'config', '--get', 'core.hooksPath']).trim(); } catch { hooksPath = ''; }
+    if (hooksPath) motivos.push('core.hooksPath configurado no clone');
+    const ganchos = (() => { try { return fs.readdir(`${clone}/.git/hooks`); } catch { return []; } })();
+    if (ganchos.some((h) => !h.endsWith('.sample'))) motivos.push('gancho (hook) do git ativo no clone');
+    // 🟡 do parecer no 7af30d8: configuração e atributos que executam programa durante a forma permitida
+    motivos.push(...motivosDaConfigGit(git(['-C', clone, 'config', '--list', '--show-scope', '--includes'])));
+    let assinador = null;
+    try { assinador = git(['-C', clone, 'config', '--get', 'gpg.ssh.program']).trim(); } catch { assinador = null; }
+    if (assinador) {
+      let destino = null;
+      try { destino = fs.lstat(assinador).isSymbolicLink() ? fs.readlink(assinador) : null; } catch { destino = null; }
+      let alvoReg = false;
+      try { const sa = fs.lstat(ASSINADOR_DA_NUVEM); alvoReg = sa.isFile() && !sa.isSymbolicLink() && sa.nlink === 1; } catch { alvoReg = false; }
+      if (destino !== ASSINADOR_DA_NUVEM || !alvoReg) motivos.push(`gpg.ssh.program (${assinador}) não é o assinador da nuvem`);
+    }
+    motivos.push(...motivosDosAtributos(clone, env, fs));
+    // parecer no 775520e: o HEAD é o main, e os atributos dos caminhos também valem no índice (não só no disco).
+    // O check-attr lê o índice: roda só com tudo acima limpo (configuração conferida) e sem fsmonitor, para o
+    // próprio guardião não executar programa do clone.
+    let head = '';
+    try { head = git(['-C', clone, 'symbolic-ref', '-q', 'HEAD']).trim(); } catch { head = ''; }
+    if (head !== 'refs/heads/main') motivos.push(`o HEAD do clone não é refs/heads/main (${head || 'destacado'})`);
+    if (caminhos.length && !motivos.length) {
+      const attr = (extra) => git(['-C', clone, '-c', 'core.fsmonitor=false', 'check-attr', ...extra, '-z', 'filter', 'diff', 'merge', '--', ...caminhos]);
+      motivos.push(...motivosDoCheckAttr(attr([]), 'disco'));
+      motivos.push(...motivosDoCheckAttr(attr(['--cached']), 'índice'));
+    }
+  } catch {
+    motivos.push('o clone não é um repositório git legível');
+  }
+  for (const { alvo } of alvos) {
+    const pai = posix.dirname(alvo);
+    let paiReal = null;
+    try { paiReal = fs.realpath(pai); } catch { paiReal = null; }
+    if (paiReal !== pai || !sob(pai, clone)) { motivos.push(`a pasta de ${alvo} não existe ou não é pasta real no clone`); continue; }
+    try { if (!fs.lstat(pai).isDirectory()) { motivos.push(`${pai} não é pasta`); continue; } } catch { motivos.push(`${pai} não existe`); continue; }
+    let st = null;
+    try { st = fs.lstat(alvo); } catch (e) { if (e?.code !== 'ENOENT') motivos.push(`não deu para conferir ${alvo}`); }
+    if (st && (st.isSymbolicLink() || !st.isFile() || st.nlink > 1)) motivos.push(`${alvo} já existe como link, link pendente, hard link ou não arquivo`);
+  }
+  return motivos;
+}
+
+/**
+ * Varre o .git do clone com lstat: nada de link (simbólico ou pendente), de arquivo com nlink > 1, de coisa que não é
+ * pasta nem arquivo, nem dos arquivos que desviam o repositório (commondir, gitdir, alternates). Nos objetos soltos
+ * (objects/xx/), confere só o tipo (sem link), pelo desempenho. Pasta grande demais → barra.
+ */
+function varrerPastaGit(dotGit, fs) {
+  const motivos = [];
+  for (const rel of ARQUIVOS_QUE_DESVIAM) {
+    let existe = false;
+    try { fs.lstat(`${dotGit}/${rel}`); existe = true; } catch (e) { existe = e?.code !== 'ENOENT'; }
+    if (existe) motivos.push(`.git/${rel} no clone`);
+  }
+  let vistos = 0;
+  const pilha = [''];
+  while (pilha.length) {
+    const rel = pilha.pop();
+    let entradas;
+    try { entradas = fs.readdirTipos(rel ? `${dotGit}/${rel}` : dotGit); } catch { motivos.push(`não deu para ler .git/${rel}`); continue; }
+    const soltos = RE_PASTA_DE_OBJETOS.test(rel);
+    for (const e of entradas) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (++vistos > LIMITE_DA_VARREDURA) return [...motivos, 'o .git do clone é grande demais para conferir'];
+      if (soltos) {
+        if (!e.isFile()) motivos.push(`.git/${r} não é arquivo comum`);
+        continue;
+      }
+      let st;
+      try { st = fs.lstat(`${dotGit}/${r}`); } catch { motivos.push(`não deu para conferir .git/${r}`); continue; }
+      if (st.isSymbolicLink()) motivos.push(`.git/${r} é link`);
+      else if (st.isDirectory()) pilha.push(r);
+      else if (!st.isFile()) motivos.push(`.git/${r} não é pasta nem arquivo`);
+      else if (st.nlink > 1) motivos.push(`.git/${r} é hard link (nlink ${st.nlink})`);
+    }
+  }
+  return motivos;
+}
+
+/** O .git, objects e refs do clone não podem ser as mesmas pastas (dev + inode) do repositório de código (bind mount). */
+function mesmasPastasDoCodigo(clone, raiz, fs, git) {
+  let comum = null;
+  try { comum = git(['-C', raiz, 'rev-parse', '--path-format=absolute', '--git-common-dir']).trim(); } catch { comum = null; }
+  if (!comum) return [];
+  const id = (p) => { try { const s = fs.lstat(p); return `${s.dev}:${s.ino}`; } catch { return null; } };
+  const motivos = [];
+  for (const sub of ['', '/objects', '/refs', '/refs/heads']) {
+    const a = id(`${clone}/.git${sub}`);
+    if (a && a === id(`${comum}${sub}`)) motivos.push(`.git${sub} do clone é a mesma pasta do repositório de código`);
+  }
+  return motivos;
+}
+
+/**
+ * Atributos que executam programa (filter=, merge=, diff=): no .gitattributes de qualquer pasta do clone, em
+ * .git/info/attributes, no arquivo global ($XDG_CONFIG_HOME/git/attributes ou ~/.config/git/attributes) e no do
+ * sistema (/etc/gitattributes). .gitattributes que é link também barra.
+ */
+function motivosDosAtributos(clone, env, fs) {
+  const motivos = [];
+  const ler = (p) => { try { return fs.readFile(p); } catch { return ''; } };
+  const casa = env.HOME ? `${env.HOME}/.config` : '';
+  for (const p of [`${clone}/.git/info/attributes`, env.XDG_CONFIG_HOME ? `${env.XDG_CONFIG_HOME}/git/attributes` : '', casa ? `${casa}/git/attributes` : '', '/etc/gitattributes']) {
+    if (p && temAtributoQueExecuta(ler(p))) motivos.push(`atributo filter=/diff=/merge=<driver externo> em ${p}`);
+  }
+  let vistos = 0;
+  const pilha = [clone];
+  while (pilha.length) {
+    const dir = pilha.pop();
+    let entradas;
+    try { entradas = fs.readdirTipos(dir); } catch { motivos.push(`não deu para ler ${dir}`); continue; }
+    for (const e of entradas) {
+      if (++vistos > LIMITE_DA_VARREDURA) return [...motivos, 'o clone é grande demais para conferir os atributos'];
+      const p = `${dir}/${e.name}`;
+      if (dir === clone && e.name === '.git') continue;
+      if (e.name === '.gitattributes') {
+        if (!e.isFile()) motivos.push(`${p} não é arquivo comum`);
+        else if (temAtributoQueExecuta(ler(p))) motivos.push(`atributo filter=/diff=/merge=<driver externo> em ${p}`);
+      } else if (e.isDirectory()) pilha.push(p);
+    }
+  }
+  return motivos;
+}
+
+/**
+ * A exceção do po vale para este comando? Junta as 4 condições.
+ * @returns {{ok: boolean, motivos: string[]}}
+ */
+export function excecaoDoPo({ comando, agente, origem, subagente, agentType, raiz, env, fs, git }) {
+  if (!podeGravarPeloAlexandre({ agente, origem, subagente, agentType })) return { ok: false, motivos: ['não é o po da sessão principal'] };
+  const forma = formaPermitidaDoPo(comando);
+  if (!forma.ok) return { ok: false, motivos: [forma.motivo] };
+  const motivos = conferirCloneDoPo({ clone: forma.clone, alvos: forma.alvos, caminhos: forma.caminhos, raiz, ...(env ? { env } : {}), ...(fs ? { fs } : {}), ...(git ? { git } : {}) });
+  return { ok: motivos.length === 0, motivos };
 }

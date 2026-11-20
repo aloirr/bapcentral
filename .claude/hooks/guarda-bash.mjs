@@ -47,6 +47,10 @@
 //    alterado durante comando desta sessão (o PostToolUse registra o que muda em recado do Alexandre durante
 //    comando opaco ou de escrita incerta) e com o conteúdo do índice igual ao do disco. O gh é procurado no
 //    PATH e, no Windows, também em %ProgramFiles%\GitHub CLI e %LOCALAPPDATA%\Programs\GitHub CLI.
+//  - T-0009 (R-20261120-100513-alexandre): "de: alexandre" passa só do po da sessão principal (BAP_AGENTE=po, sem
+//    agent_id) e só com o comando inteiro na lista do que é PERMITIDO (cat/printf > <clone>/recados/<destino>/R-*.md,
+//    >> <clone>/lidos/<agente>.txt e git -C <clone> pull/add/commit/push/fetch/status nas formas exatas, só com &&),
+//    com o clone do aloirr/bapcentral-recados conferido no disco (excecaoDoPo em guarda-merge-lib.mjs). O resto barra.
 //  - ADR 0035 (T-0139): com .coord/recados e .coord/lidos em junção para o clone do bapcentral-recados, o alvo pelo
 //    caminho de verdade do clone segue as regras de .coord/recados, o git que grava no clone é bloqueado e a foto do
 //    PostToolUse inclui o git status do clone (juncoesDeRecados; casos em guarda-juncao.test.mjs).
@@ -66,7 +70,7 @@ import {
 } from './guarda-bash-lib.mjs';
 import {
   conferirMerge, conferirGhApi, consultarPrGh, lerRecadosDoGerente, motivosRecadoFalso, mensagemRecadoFalso,
-  motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados,
+  motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados, excecaoDoPo,
 } from './guarda-merge-lib.mjs';
 
 /** Conteúdo de um arquivo do repositório (rel) ou null. */
@@ -133,15 +137,21 @@ if (evento === 'PreToolUse') {
     process.stderr.write(mensagemPre(agente, violacoes) + '\n');
     process.exit(2);
   }
+  // T-0009 (R-20261120-100513-alexandre): o po da sessão principal grava recado de: alexandre só no clone do
+  // aloirr/bapcentral-recados, e só com o comando inteiro na lista do que é permitido (excecaoDoPo). Fora dela,
+  // as regras de sempre (que barram).
+  const poNoClone = agente === 'po' && excecaoDoPo({
+    comando, agente, origem, subagente: Boolean(String(entrada.agent_id || '').trim()), agentType: entrada.agent_type, raiz: RAIZ,
+  }).ok;
   // Guardião v5: nenhum agente cria recado em nome de outro (sobretudo de: alexandre).
-  const motivos = motivosRecadoFalso({ comando, agente, cwd: entrada.cwd || process.cwd() });
+  const motivos = poNoClone ? [] : motivosRecadoFalso({ comando, agente, cwd: entrada.cwd || process.cwd() });
   if (motivos.length) {
     process.stderr.write(mensagemRecadoFalso(agente, motivos) + '\n');
     process.exit(2);
   }
   // Guardião v6 (T-0050): git add/commit/stash de recado do Alexandre já existente passa se ele estiver intacto
   // (não tocado nesta sessão, índice = disco).
-  if (agente !== 'alexandre') {
+  if (agente !== 'alexandre' && !poNoClone) {
     const indice = motivosIndiceDeRecados({
       comando, cwd: entrada.cwd || process.cwd(), raiz: RAIZ, status: amb.status() || [],
       tocados: Object.keys(lerJson(arquivoRecadosDaSessao(entrada, agente, RAIZ), {})),
