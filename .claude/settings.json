@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/coord.mjs*)",
+      "Bash(python -m compileall*)",
+      "Bash(python3 -m compileall*)",
+      "Bash(python -m pytest*)",
+      "Bash(python3 -m pytest*)",
+      "Bash(pytest*)",
+      "Bash(ruff*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git fetch*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(git push origin gerente-projetos/*)",
+      "Bash(git push -u origin gerente-projetos/*)",
+      "Bash(git push origin nuvem/*)",
+      "Bash(git push -u origin nuvem/*)",
+      "Bash(git push origin agente/*)",
+      "Bash(git push -u origin agente/*)",
+      "mcp__claude-code-remote__send_message"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./**/tomtom_config*)",
+      "Read(./**/google_maps_config*)",
+      "Read(./**/visitas_config.json)",
+      "Read(./**/auth/**)",
+      "Bash(git push*--force*)",
+      "Bash(git push* -f*)",
+      "Bash(git push*--delete*)",
+      "Bash(git push* -d*)",
+      "Bash(git push* :*)",
+      "Bash(git push* +*)",
+      "Bash(git push origin main*)",
+      "Bash(gh pr merge*--admin*)",
+      "Bash(gh pr merge*--auto*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/papel-da-sessao.mjs"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guarda-donos.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guarda-bash.mjs"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guarda-bash.mjs"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guarda-bash.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+# CI do PR (proposta inicial, T-0004). Governança: mudança só com a autorização do Alexandre.
+name: ci
+on:
+  pull_request:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.head_ref }}
+  cancel-in-progress: true
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Donos (cada agente só no que é dele)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/coord.mjs verificar --base "origin/$BASE_REF"
+      - name: Governança (avisa; o merge exige a autorização do Alexandre)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/coord.mjs governanca --base "origin/$BASE_REF" || echo "::warning::PR com caminho de governança: precisa do recado do Alexandre 'autorizo o merge do PR #N no commit <sha>'"
+      - name: Python compila
+        run: python -m compileall -q -x '(RELATORIOS|SISTEMA BAP|BAP Ajuda 2.0|docs)/' .
+      - name: Testes da CLI e dos guardiões
+        run: node --test scripts/coord-recados.test.mjs scripts/coord-verificar.test.mjs .claude/hooks/guarda-agente.test.mjs .claude/hooks/guarda-recado.test.mjs

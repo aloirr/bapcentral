@@ -1,0 +1,364 @@
+{
+ "formato": 1,
+ "gerada_em": "2026-11-19T16:47:56",
+ "carimbo": "1795121276985931300",
+ "maquina": "DT-AMADMBAP-03",
+ "rodada": "rapida",
+ "completa_em": "2026-11-19T09:21:59",
+ "xlsx_base": {
+  "dClientesBap": [
+   2239219670,
+   26133370
+  ],
+  "ftTitulos": [
+   2249986595,
+   398322
+  ],
+  "ftEstoqueBap": [
+   2755459616,
+   1580840
+  ],
+  "ftPedidos": [
+   692748819,
+   18058502
+  ],
+  "ftEstoquePMZ": [
+   625602711,
+   46914043
+  ],
+  "ftNCC": [
+   3873703198,
+   5944
+  ],
+  "ftTabelaPreco": [
+   1708826121,
+   10475352
+  ],
+  "_abas": [
+   "puxa_dev",
+   "Fato_devolução_Bap",
+   "ftTitulos",
+   "dClientesBap",
+   "Planilha1",
+   "Planilha6",
+   "Planilha2",
+   "ftEstoqueBap",
+   "ftPedidos",
+   "ftCondicaoPagamentos",
+   "ProdutosExcluir",
+   "Contatos Gerentes",
+   "FiliaisExcluir",
+   "ProdutosBAP",
+   "Filiais",
+   "ftTabelaPreco",
+   "ftEstoquePMZ",
+   "ftAutorizacaoVenda",
+   "ftNCC"
+  ]
+ },
+ "ordem": [
+  "puxa_dev",
+  "Fato_devolução_Bap",
+  "ftTitulos",
+  "dClientesBap",
+  "Planilha1",
+  "Planilha6",
+  "Planilha2",
+  "ftEstoqueBap",
+  "ftPedidos",
+  "ftCondicaoPagamentos",
+  "ProdutosExcluir",
+  "Contatos Gerentes",
+  "FiliaisExcluir",
+  "ProdutosBAP",
+  "Filiais",
+  "ftTabelaPreco",
+  "ftEstoquePMZ",
+  "ftAutorizacaoVenda",
+  "ftNCC"
+ ],
+ "abas": {
+  "dClientesBap": {
+   "colunas": 259,
+   "calculadas": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "formulas": {
+    "colunas": {
+     "1": [
+      [
+       "=BD#",
+       [
+        [
+         2,
+         4467
+        ]
+       ]
+      ]
+     ],
+     "2": [
+      [
+       "=BD#-(BV#)",
+       [
+        [
+         2,
+         4467
+        ]
+       ]
+      ]
+     ],
+     "3": [
+      [
+       "=CM#",
+       [
+        [
+         2,
+         4467
+        ]
+       ]
+      ]
+     ],
+     "4": [
+      [
+       "=SUMIFS(ftTitulos!$M:$M,ftTitulos!$B:$B,$I#,ftTitulos!$P:$P,\">0\",ftTitulos!$C:$C,$J#)",
+       [
+        [
+         2,
+         4467
+        ]
+       ]
+      ]
+     ],
+     "5": [
+      [
+       "=_xlfn.MAXIFS(ftTitulos!$P:$P,ftTitulos!$B:$B,$I#,ftTitulos!$P:$P,\">0\",ftTitulos!$C:$C,$J#)",
+       [
+        [
+         2,
+         4467
+        ]
+       ]
+      ]
+     ],
+     "6": [
+      [
+       "=COUNTIFS(ftTitulos!$B:$B,$I#,ftTitulos!$P:$P,\">0\",ftTitulos!$C:$C,$J#)",
+       [
+        [
+         2,
+         4467
+        ]
+       ]
+      ]
+     ],
+     "7": [
+      [
+       "=BL#",
+       [
+        [
+         2,
+         4467
+        ]
+       ]
+      ]
+     ]
+    },
+    "excecoes": [],
+    "matriz": []
+   },
+   "datas": {},
+   "arquivo": "dClientesBap.csv.gz",
+   "linhas": 4467,
+   "bytes": 560267,
+   "sha256": "f6c80ecab58c91925d90e02d29e56d64252a534aa58704cf6fd3855819094104",
+   "tipos": "iiiiiiissssssssss-ssssss-s-ssss-ssssssssssis-----sssi-si--iiiisisi-iss-s-i-ii--iiii-ii-is-ii-------is--si---sss-s-ssss---ssssss--iss--s-s-s-isss-sss-i-iss-s-sss----------s------i--------s----is-s-ss-----s--s---------i---s------is-----------s---ss--ii-----isss"
+  },
+  "ftTitulos": {
+   "colunas": 21,
+   "calculadas": [],
+   "formulas": {
+    "colunas": {},
+    "excecoes": [],
+    "matriz": []
+   },
+   "datas": {},
+   "arquivo": "ftTitulos.csv.gz",
+   "linhas": 742,
+   "bytes": 13717,
+   "sha256": "4e92e7d5a1cc9a14327b309f9905f526353862208ec822d09bad9b90673c1dbb",
+   "tipos": "sssssssssssffssi-----"
+  },
+  "ftEstoqueBap": {
+   "colunas": 12,
+   "calculadas": [
+    1,
+    2,
+    3
+   ],
+   "formulas": {
+    "colunas": {
+     "1": [
+      [
+       "=_xlfn.CONCAT(4,D#)",
+       [
+        [
+         2,
+         689
+        ]
+       ]
+      ]
+     ],
+     "2": [
+      [
+       "=IFERROR(_xlfn.XLOOKUP(F#,ProdutosBAP!C:C,ProdutosBAP!A:A,,0),\"\")",
+       [
+        [
+         2,
+         689
+        ]
+       ]
+      ]
+     ],
+     "3": [
+      [
+       "=_xlfn.CONCAT(D#,F#)",
+       [
+        [
+         2,
+         689
+        ]
+       ]
+      ]
+     ]
+    },
+    "excecoes": [],
+    "matriz": []
+   },
+   "datas": {},
+   "arquivo": "ftEstoqueBap.csv.gz",
+   "linhas": 8717,
+   "bytes": 9966,
+   "sha256": "3cac44a395bc59dbf39333bf26507d0f3a267c86e2e8596a3a52be52b1c6ed7b",
+   "tipos": "sssssssiiiii"
+  },
+  "ftPedidos": {
+   "colunas": 45,
+   "calculadas": [],
+   "formulas": {
+    "colunas": {},
+    "excecoes": [],
+    "matriz": []
+   },
+   "datas": {
+    "7": {
+     "d": [
+      [
+       1,
+       1
+      ]
+     ]
+    },
+    "25": {
+     "d": [
+      [
+       1,
+       12799
+      ]
+     ]
+    },
+    "27": {
+     "d": [
+      [
+       2,
+       12799
+      ]
+     ]
+    }
+   },
+   "arquivo": "ftPedidos.csv.gz",
+   "linhas": 12799,
+   "bytes": 454345,
+   "sha256": "f3b39d5a22b350944534d38e8ea2417c98586e0a3f76856d339c3c7785512b71",
+   "tipos": "sssssissssssffiiisssssisssdssfifsssssisiisiii"
+  },
+  "ftEstoquePMZ": {
+   "colunas": 9,
+   "calculadas": [],
+   "formulas": {
+    "colunas": {},
+    "excecoes": [],
+    "matriz": [
+     [
+      2,
+      9,
+      "I2",
+      "=_xludf.TEXT(F2)"
+     ]
+    ]
+   },
+   "datas": {},
+   "arquivo": "ftEstoquePMZ.csv.gz",
+   "linhas": 127549,
+   "bytes": 2338312,
+   "sha256": "284f9a797d5eec362c040988d0524245c1d710d6a8215508ad82bf3ec4b54b8f",
+   "tipos": "iissfsiis"
+  },
+  "ftNCC": {
+   "colunas": 13,
+   "calculadas": [],
+   "formulas": {
+    "colunas": {},
+    "excecoes": [],
+    "matriz": []
+   },
+   "datas": {},
+   "arquivo": "ftNCC.csv.gz",
+   "linhas": 12,
+   "bytes": 492,
+   "sha256": "c25aeed961d89ba45395c5c296c254880f3e44cb12ad8520e3ab5c571a40e98c",
+   "tipos": "sssssssssssff"
+  },
+  "ftTabelaPreco": {
+   "colunas": 6,
+   "calculadas": [
+    1
+   ],
+   "formulas": {
+    "colunas": {
+     "1": [
+      [
+       "=_xlfn.CONCAT(4,B#)",
+       [
+        [
+         2,
+         35784
+        ]
+       ]
+      ]
+     ]
+    },
+    "excecoes": [],
+    "matriz": []
+   },
+   "datas": {},
+   "arquivo": "ftTabelaPreco.csv.gz",
+   "linhas": 35784,
+   "bytes": 390799,
+   "sha256": "a69d36e971f959f5c4b146007b9f21946f995e932636d795415b3caa4bac59ef",
+   "tipos": "sssssf"
+  }
+ },
+ "conferencia_excel": {
+  "celulas": 69103,
+  "diferencas": 0,
+  "exemplos": [],
+  "erro": ""
+ },
+ "excel_recalculou": true
+}

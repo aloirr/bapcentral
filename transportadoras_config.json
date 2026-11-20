@@ -1,0 +1,87 @@
+{
+ "pct_padrao": 5.0,
+ "transportadoras": [
+  {
+   "nome": "N DE SOUSA (RN TRANSPORTES)",
+   "contato": "98987181022",
+   "cnpj": "",
+   "pct_frete": 4.5,
+   "ufs": [
+    "MA"
+   ],
+   "cidades": [],
+   "frete_minimo": 150.0,
+   "minimo_ate": null,
+   "pct_cidades": {}
+  },
+  {
+   "nome": "PRÓPRIA (BAP)",
+   "contato": "",
+   "cnpj": "",
+   "pct_frete": null,
+   "ufs": [],
+   "cidades": [],
+   "frete_minimo": null,
+   "minimo_ate": null,
+   "pct_cidades": {}
+  },
+  {
+   "nome": "RETIRA NO BALCÃO",
+   "contato": "",
+   "cnpj": "",
+   "pct_frete": null,
+   "ufs": [],
+   "cidades": [],
+   "frete_minimo": null,
+   "minimo_ate": null,
+   "pct_cidades": {}
+  },
+  {
+   "nome": "TRANS. TERCERIZADA",
+   "contato": "",
+   "cnpj": "",
+   "pct_frete": 4.0,
+   "ufs": [
+    "AM",
+    "RR",
+    "PA",
+    "AP",
+    "MA",
+    "MT"
+   ],
+   "cidades": [],
+   "frete_minimo": 120.0,
+   "minimo_ate": 3000.0,
+   "pct_cidades": {}
+  }
+ ],
+ "sla": {
+  "filiais": {
+   "MANAUS": {
+    "local": 3,
+    "frete": 5
+   },
+   "BOA VISTA": {
+    "local": 3,
+    "frete": 5
+   },
+   "BELEM": {
+    "local": 3,
+    "frete": 5
+   },
+   "MACAPA": {
+    "local": 3,
+    "frete": 5
+   },
+   "SAO LUIS": {
+    "local": 3,
+    "frete": 5
+   },
+   "MATOGROSSO": {
+    "local": 3,
+    "frete": 5
+   }
+  },
+  "cidades": {}
+ }
+}

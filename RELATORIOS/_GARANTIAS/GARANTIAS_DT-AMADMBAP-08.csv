@@ -1,0 +1,76 @@
+﻿quando;maquina;usuario;ticket;campo;valor
+2026-10-14 17:17:31;DT-AMADMBAP-08;estefanie.pacheco;400204;retorno_cliente;Empresa DM PARTS LTDA não está cadastrada na base de clientes , analisamos que se trata de uma garantia PMZ
+2026-10-14 17:18:49;DT-AMADMBAP-08;estefanie.pacheco;400204;pendencias;Empresa DM PARTS LTDA não está cadastrada na base de clientes , analisamos que se trata de uma garantia PMZ
+2026-10-14 17:19:25;DT-AMADMBAP-08;estefanie.pacheco;400204;status;CANCELADA
+2026-10-14 17:19:25;DT-AMADMBAP-08;estefanie.pacheco;400204;dt_fechamento;14/10/2026
+2026-10-16 09:30:51;DT-AMADMBAP-08;estefanie.pacheco;377279;status;FINALIZADA
+2026-10-16 09:30:51;DT-AMADMBAP-08;estefanie.pacheco;377279;resultado;PROCEDENTE
+2026-10-16 09:30:51;DT-AMADMBAP-08;estefanie.pacheco;377279;descricao;BATERIA
+2026-10-16 09:30:51;DT-AMADMBAP-08;estefanie.pacheco;377279;retorno_cliente;Loja PMZ fez a troca.
+2026-10-16 09:30:51;DT-AMADMBAP-08;estefanie.pacheco;377279;observacao;Status na planilha: FINALIZADO
+2026-10-16 09:30:51;DT-AMADMBAP-08;estefanie.pacheco;377279;dt_fechamento;16/10/2026
+2026-10-16 09:31:30;DT-AMADMBAP-08;estefanie.pacheco;400204;resultado;PROCEDENTE
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;cod_cliente;011045
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;cliente;DOMINIKE AUTO PECAS LTDA
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;dt_solicitacao;22/10/2026
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;status;FINALIZADA
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;resultado;PROCEDENTE
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;cod_produto;60D-MXBF-12
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;descricao;BATERIA 60 AMPERES MXBF60D - 12 MESES ( 60AMP )
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;qtd;DESCARREGADO E AVARIADO
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;contato_nome;DOMINIKE AUTO PECAS
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;contato_fone;65 8141-0032
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;dt_retorno;22/10/2026
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;reclamacao;Cliente relatou que o produto se encontrada avariado e descarregaodo
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;pendencias;Solução imediata
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;retorno_cliente;Satisfeito
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;origem;FAROL DE GARANTIAS
+2026-10-23 09:38:38;DT-AMADMBAP-08;estefanie.pacheco;G-0001;dt_fechamento;23/10/2026
+2026-10-23 09:40:52;DT-AMADMBAP-08;estefanie.pacheco;G-0001;reclamacao;Cliente relatou que o produto se encontrada avariado e descarregaodo-1 bateria 60d-MXBF-12
+2026-10-23 09:57:56;DT-AMADMBAP-08;estefanie.pacheco;408159;cod_cliente;010418
+2026-10-23 09:58:33;DT-AMADMBAP-08;estefanie.pacheco;408159;descricao;Bateria 60 , Bateria 72
+2026-10-23 10:04:56;DT-AMADMBAP-08;estefanie.pacheco;420082;cod_cliente;Cliente final
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;cod_cliente;010986
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;cliente;R G MARTINS LTDA
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;dt_solicitacao;10/08/2026
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;status;EM TRATATIVA
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;resultado;PENDENTE
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;descricao;f
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;qtd;f
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;contato_nome;f
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;reclamacao;Bateria
+2026-10-23 10:56:44;DT-AMADMBAP-08;estefanie.pacheco;G-0002;origem;FAROL DE GARANTIAS
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;status;FINALIZADA
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;resultado;PROCEDENTE
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;descricao;BATERIA
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;qtd;1
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;contato_nome;Renildo
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;contato_fone;(98) 98828-3901
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;dt_retorno;23/10/2026
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;reclamacao;BATERIA AVARIADA E SEM NENHUM RETORNO DO GARANTIA
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;retorno_cliente;AGUARDANDO
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;observacao;FOI FEITA UMA CORTESIA A ESSE CLIENTE POIS O MESMO É TOP30.
+2026-10-26 14:38:39;DT-AMADMBAP-08;estefanie.pacheco;G-0002;dt_fechamento;26/10/2026
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;cod_cliente;011032
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;cliente;FRANCISCO DE A C DE ARAUJO
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;dt_solicitacao;26/10/2026
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;status;EM TRATATIVA
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;resultado;PENDENTE
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;cod_produto;BATERIA MXBF60D
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;descricao;BATERIA
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;qtd;1
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;contato_nome;FRANCISCO
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;reclamacao;AVARIA EM BATERIAL MXBF60D
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;pendencias;60 amperes MXBF60D
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;retorno_cliente;BATERIA JÁ SE ENCONTRA NO CD64
+2026-10-26 14:51:48;DT-AMADMBAP-08;estefanie.pacheco;G-0003;origem;FAROL DE GARANTIAS
+2026-10-26 14:52:38;DT-AMADMBAP-08;estefanie.pacheco;G-0003;dt_solicitacao;15/04/2026
+2026-10-26 14:55:28;DT-AMADMBAP-08;estefanie.pacheco;G-0003;retorno_cliente;"BATERIA JÁ SE ENCONTRA NO CD64
+NORA FISCAL: 283  SERIE 1"
+2026-10-26 15:11:22;DT-AMADMBAP-08;estefanie.pacheco;G-0003;observacao;442742 Ticket
+2026-10-26 15:11:26;DT-AMADMBAP-08;estefanie.pacheco;G-0003;observacao;442742
+2026-11-18 10:59:34;DT-AMADMBAP-08;estefanie.pacheco;G-0002;ticket;445046
+2026-11-19 09:56:41;DT-AMADMBAP-08;estefanie.pacheco;G-0003;ticket;442742
+2026-11-19 09:56:41;DT-AMADMBAP-08;estefanie.pacheco;442742;status;FINALIZADA
+2026-11-19 09:56:41;DT-AMADMBAP-08;estefanie.pacheco;442742;observacao;REEMBOLSO AO CLIENTE - FRANCISCO DE A C  DE ARAUJO
+2026-11-19 09:56:41;DT-AMADMBAP-08;estefanie.pacheco;442742;dt_fechamento;19/11/2026

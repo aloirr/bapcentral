@@ -1,0 +1,487 @@
+{
+  "versao": 1,
+  "descricao": "Mapa de donos do repositório bapcentral. A PRIMEIRA regra que casa com o caminho define o dono. Só o Alexandre altera este arquivo. Exceções universais (no código do guardião): qualquer agente cria recado novo (pelo node scripts/coord.mjs enviar, direto no aloirr/bapcentral-recados) e escreve no próprio .coord/diario/<agente>.md. 'congelado' = ninguém altera (docs/legado, docs/inicio e as bases RELATORIOS, SISTEMA BAP e BAP Ajuda 2.0: dado vem do robô, não de agente); 'sem-dono' = caminho não mapeado (bloqueado). Arquivo .py novo na raiz é sem-dono até o Alexandre mapear.",
+  "somente_leitura": [],
+  "regras": [
+    {
+      "padrao": ".claude/**",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": ".coord/donos.json",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "scripts/coord*.mjs",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "scripts/fixtures/**",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": ".coord/recados/anexos/**",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "scripts/recados/**",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": ".github/**",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "render.yaml",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "tarefa_bap.xml",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "*.json",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": ".gitignore",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "docs/legado/**",
+      "dono": "congelado"
+    },
+    {
+      "padrao": "docs/inicio/**",
+      "dono": "congelado"
+    },
+    {
+      "padrao": "RELATORIOS/**",
+      "dono": "congelado"
+    },
+    {
+      "padrao": "SISTEMA BAP/**",
+      "dono": "congelado"
+    },
+    {
+      "padrao": "BAP Ajuda 2.0/**",
+      "dono": "congelado"
+    },
+    {
+      "padrao": ".coord/contratos/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": ".coord/diario/po.md",
+      "dono": "po"
+    },
+    {
+      "padrao": ".coord/diario/engenheiro-software.md",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": ".coord/diario/engenheiro-dados.md",
+      "dono": "engenheiro-dados"
+    },
+    {
+      "padrao": ".coord/diario/modulo-robo.md",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": ".coord/diario/modulo-farois.md",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": ".coord/diario/modulo-posvenda.md",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": ".coord/diario/modulo-rota.md",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": ".coord/diario/modulo-metas.md",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": ".coord/diario/modulo-web.md",
+      "dono": "modulo-web"
+    },
+    {
+      "padrao": ".coord/diario/testes.md",
+      "dono": "testes"
+    },
+    {
+      "padrao": ".coord/diario/revisor-codigo.md",
+      "dono": "revisor-codigo"
+    },
+    {
+      "padrao": ".coord/**",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "CLAUDE.md",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "docs/produto/specs/**",
+      "dono": "po"
+    },
+    {
+      "padrao": "docs/produto/**",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "docs/status/**",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "docs/backlog.md",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "docs/decisoes/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "docs/desenho/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "docs/dados/**",
+      "dono": "engenheiro-dados"
+    },
+    {
+      "padrao": "docs/testes/**",
+      "dono": "testes"
+    },
+    {
+      "padrao": "docs/revisao/**",
+      "dono": "revisor-codigo"
+    },
+    {
+      "padrao": "docs/web/**",
+      "dono": "modulo-web"
+    },
+    {
+      "padrao": "bap_automation.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "base_cliente.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "solicitacao_bap.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "conferir_solicitacao.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "aviso_arquivo.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "visitas_maxima.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "prospeccao_forms.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "respostas_bap_ajuda.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "cnae_bap.py",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "executar_bap.bat",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "atualizar_visitas.bat",
+      "dono": "modulo-robo"
+    },
+    {
+      "padrao": "bap_dados.py",
+      "dono": "engenheiro-dados"
+    },
+    {
+      "padrao": "dados_bap.py",
+      "dono": "engenheiro-dados"
+    },
+    {
+      "padrao": "xlsx_rapido.py",
+      "dono": "engenheiro-dados"
+    },
+    {
+      "padrao": "catalogo_bap.py",
+      "dono": "engenheiro-dados"
+    },
+    {
+      "padrao": "familia_nucleo.py",
+      "dono": "engenheiro-dados"
+    },
+    {
+      "padrao": "exportar_bi.py",
+      "dono": "engenheiro-dados"
+    },
+    {
+      "padrao": "relatorios_nucleo.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "bap_relatorios.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "bap_visual.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "painel_cartoes.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "painel_diretor.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "painel_farol.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "painel_rrm.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "visao_executiva.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "parcial_imagem.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "email_parcial.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "bap_central.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "bap_janela.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "bap_champions.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "farol_ddr.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "conta_email.py",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "gerar_farol_ddr.bat",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "abrir_bap_central.bat",
+      "dono": "modulo-farois"
+    },
+    {
+      "padrao": "pos_venda.py",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": "garantias.py",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": "ncc_controle.py",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": "transportadoras.py",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": "email_inadimplencia.py",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": "cobranca_whatsapp.py",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": "autorizacoes.py",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": "expositores.py",
+      "dono": "modulo-posvenda"
+    },
+    {
+      "padrao": "planner_nucleo.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "bap_planner.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "rota_lugar.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "geocodificar.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "geografia.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "agenda_cidades.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "zonas_padrao.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "visitas_nucleo.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "email_rota.py",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "atualizar_coordenadas.bat",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "atualizar_coordenadas_google.bat",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "atualizar_coordenadas_tomtom.bat",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "abrir_planner.bat",
+      "dono": "modulo-rota"
+    },
+    {
+      "padrao": "meta_nucleo.py",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "bap_meta.py",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "saldo_meta.py",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "oportunidade_nucleo.py",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "bap_oportunidade.py",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "bap_analista.py",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "abrir_gerador_de_meta.bat",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "abrir_oportunidade.bat",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "abrir_bap_analista.bat",
+      "dono": "modulo-metas"
+    },
+    {
+      "padrao": "smoke_relatorios.py",
+      "dono": "testes"
+    },
+    {
+      "padrao": "smoke_processos.py",
+      "dono": "testes"
+    },
+    {
+      "padrao": "RODAR_TESTE_BAP.bat",
+      "dono": "testes"
+    },
+    {
+      "padrao": "tests/**",
+      "dono": "testes"
+    },
+    {
+      "padrao": "pastas_bap.py",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "verificar_requisitos.py",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "instalar_bap.bat",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "INSTALAR_PDF.bat",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "REPARAR_PYTHON_BAP.bat",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "VERIFICAR_REQUISITOS.bat",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "requirements*.txt",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "README.md",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "pyproject.toml",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "ATUALIZAR_DO_GITHUB.bat",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "web/**",
+      "dono": "modulo-web"
+    },
+    {
+      "padrao": "docs/**",
+      "dono": "gerente-projetos"
+    }
+  ]
+}

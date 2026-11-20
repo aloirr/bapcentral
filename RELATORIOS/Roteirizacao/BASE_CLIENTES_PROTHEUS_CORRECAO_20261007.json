@@ -1,0 +1,672 @@
+[
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010488",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "A .S. LOPES COMERCIO E SERVIÇOS LTDA",
+    "A1_NREDUZ": "REAL PEÇAS & SERVIÇO",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010516",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "ALMIR COMERCIO DE PECAS LTDA",
+    "A1_NREDUZ": "ALMIR AUTOPECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010596",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "J D L DE LIMA",
+    "A1_NREDUZ": "LORO MOTO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010602",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "O J R DE CARVALHO",
+    "A1_NREDUZ": "TOP CAR",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010610",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "FRANCISCO BRANDAO DE OLIVEIRA NETO",
+    "A1_NREDUZ": "NT AUTO PEÇAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010623",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "L DO NASCIMENTO PIEDADE",
+    "A1_NREDUZ": "BRANCO MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010650",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "SALVADOR COMERCIAL LTDA",
+    "A1_NREDUZ": "SALVADOR AUTO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010667",
+    "A1_LOJA": "02",
+    "A1_VEND": "000007",
+    "A1_NOME": "SALVADOR COMERCIAL LTDA",
+    "A1_NREDUZ": "SALVADOR AUTO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010674",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "GIO ELETRICA E MECANICA AUTO SOCORRO LTDA",
+    "A1_NREDUZ": "GIO ELETRICA E MECAN",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010693",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "EDILSON DO NASCIMENTO COSTA 25457888215",
+    "A1_NREDUZ": "CARRINHO DE ROLIMA",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010787",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "COMERCIO E TRANSPORTES MIX BABY SUPER LTDA",
+    "A1_NREDUZ": "MIX BABY",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010840",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "OPEN DIESEL LTDA",
+    "A1_NREDUZ": "OPEN DIESEL",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010843",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "59.268.095 RODRIGO FERREIRA MENDONCA",
+    "A1_NREDUZ": "RM EQUIPADORA",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010848",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "L A MOTO PEÇAS LTDA",
+    "A1_NREDUZ": "L A MOTO PEÇAS LTDA",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010851",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "LUIZ EDNALDO UCHOA DO NASCIMENTO",
+    "A1_NREDUZ": "EDUARDO MOTO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010856",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "E N FREITAS LTDA",
+    "A1_NREDUZ": "CEARÁ AUTO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010865",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "NL AUTO PECAS & ACESSORIOS LTDA",
+    "A1_NREDUZ": "NL AUTO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010883",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "RIBEIRO AUTO PECAS LTDA",
+    "A1_NREDUZ": "RIBEIRO AUTO CENTER",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010885",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "J. TABOSA DA SILVA",
+    "A1_NREDUZ": "CASA DA BATERIA E LB",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010904",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "35.858.680 JOSE RIAN DA SILVA BESSA",
+    "A1_NREDUZ": "RIAN MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010911",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "FABRICIO MORAIS PINTO LTDA",
+    "A1_NREDUZ": "SO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010931",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "CASTANHAL BATERIAS LTDA ME",
+    "A1_NREDUZ": "CASTANHAL BATERIAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010956",
+    "A1_LOJA": "01",
+    "A1_VEND": "000007",
+    "A1_NOME": "R. S. COSTA MATERIAIS DE CONSTRUCAO",
+    "A1_NREDUZ": "ROCHA MOTO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "005849",
+    "A1_LOJA": "01",
+    "A1_VEND": "000015",
+    "A1_NOME": "JR MOTO PECAS LTDA",
+    "A1_NREDUZ": "JR MOTO PECAS",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010464",
+    "A1_LOJA": "01",
+    "A1_VEND": "000015",
+    "A1_NOME": "JZ MOTO PECAS LTDA",
+    "A1_NREDUZ": "JZ MOTO PECAS",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010480",
+    "A1_LOJA": "01",
+    "A1_VEND": "000015",
+    "A1_NOME": "A T DE MELO NETO LTDA",
+    "A1_NREDUZ": "ATACADAO MARYSSOL",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010523",
+    "A1_LOJA": "01",
+    "A1_VEND": "000015",
+    "A1_NOME": "CLAUDIO DOS SANTOS SILVA",
+    "A1_NREDUZ": "GORDURÃO AUTO PEÇAS",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010432",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "JOSE IVONALDO TAVARES NASCIMENTO 564772",
+    "A1_NREDUZ": "GEOVÁ SHAMMAH MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010437",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "48.908.264 JULLIANE CAMILA CHAGAS NARCISO",
+    "A1_NREDUZ": "START RODAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010443",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "ANTONIO L DA SILVA PAIVA",
+    "A1_NREDUZ": "H F MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010510",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "N T PEREIRA LTDA",
+    "A1_NREDUZ": "AUTO PECAS CENTRAL",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010525",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "M DOS S BEZERRA COMERCIO E SERVICOS",
+    "A1_NREDUZ": "R M COMERCIO SERVICO",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010532",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "61.880.230 EVANDRO CORDEIRO FONSECA",
+    "A1_NREDUZ": "DUDU MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010538",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "TACOMITER ACESSORIOS E SERVICOS LTDA",
+    "A1_NREDUZ": "TACOMITER ACESSORIOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010557",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "34.860.449 JOELSON GOES DE SOUZA",
+    "A1_NREDUZ": "JACO MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010558",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "CARLOS ALEXANDRE ROZARIO DA SILVA",
+    "A1_NREDUZ": "CW COMERCIO",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010579",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "FRANCISCO CARLOS MOREIRA TIBURCIO",
+    "A1_NREDUZ": "CHIQUINHO MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010591",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "AUTO MECANICA ESPERANCA LTDA",
+    "A1_NREDUZ": "MECANICA ESPERANCA",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010597",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "JM MOTOS COMERCIO DE PECAS LTDA",
+    "A1_NREDUZ": "JM MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010614",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "62.636.316 ELIZABETE CRISTINA MENDES TAVARES",
+    "A1_NREDUZ": "NORTE MOTO CENTER",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010617",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "59.299.457 CICERO ALVES COSTA",
+    "A1_NREDUZ": "MASTER PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010654",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "JET MOTOS DISTRIBUIDORA LTDA",
+    "A1_NREDUZ": "JET MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010666",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "DIEGO MEIRELES DE SOUZA 97737992200",
+    "A1_NREDUZ": "STOP CAR",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010700",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "56.099.759 MARCOS MATEUS SILVA ALVES",
+    "A1_NREDUZ": "MARCOS MATEUS SILVA",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010715",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "F W DA S FERREIRA LTDA",
+    "A1_NREDUZ": "F W AUTO CENTER",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010723",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "61.212.829 CAIK JUNIOR NEVES DE SOUZA",
+    "A1_NREDUZ": "JR MOTO PECAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010797",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "65.036.166 ELIZABETE CRISTINA MENDES TAVARES",
+    "A1_NREDUZ": "NORTE MOTO CENTER",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010823",
+    "A1_LOJA": "01",
+    "A1_VEND": "000023",
+    "A1_NOME": "36.593.720 JOAO EVANGELISTA LIMA DOS SANTOS",
+    "A1_NREDUZ": "CEARA BATERIAS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010447",
+    "A1_LOJA": "01",
+    "A1_VEND": "000041",
+    "A1_NOME": "BRASIL AUTO CENTER LTDA",
+    "A1_NREDUZ": "BRASIL AUTO CENTER",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010498",
+    "A1_LOJA": "01",
+    "A1_VEND": "000041",
+    "A1_NOME": "BRENDA CRYS DE QUEIROZ COSTA 05232110233",
+    "A1_NREDUZ": "SAMUEL MOTOS",
+    "SUPERVISOR": "000006",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010477",
+    "A1_LOJA": "01",
+    "A1_VEND": "000047",
+    "A1_NOME": "AG CENTRO AUTOMOTIVO LTDA",
+    "A1_NREDUZ": "DRAG RACE MOTORSPORT",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010478",
+    "A1_LOJA": "01",
+    "A1_VEND": "000048",
+    "A1_NOME": "275177600105",
+    "A1_NREDUZ": "SAO LUIZ OXIGENIO",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010511",
+    "A1_LOJA": "01",
+    "A1_VEND": "000048",
+    "A1_NOME": "E B RODRIGUES SERVICOS",
+    "A1_NREDUZ": "LS AUTO CENTER",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010545",
+    "A1_LOJA": "01",
+    "A1_VEND": "000048",
+    "A1_NOME": "A MONTEIRO FILHO COMERCIO",
+    "A1_NREDUZ": "TONY PECAS E ACESSOR",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010546",
+    "A1_LOJA": "01",
+    "A1_VEND": "000048",
+    "A1_NOME": "JEAN G GONCALVES COMERCIO E SERVICOS LTDA",
+    "A1_NREDUZ": "ZERO RISCO",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010553",
+    "A1_LOJA": "01",
+    "A1_VEND": "000048",
+    "A1_NOME": "K V OLIVEIRA SILVA LTDA",
+    "A1_NREDUZ": "BOX AUTO CENTER",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010575",
+    "A1_LOJA": "01",
+    "A1_VEND": "000048",
+    "A1_NOME": "FORMULA 3 LTDA",
+    "A1_NREDUZ": "FORMULA 3",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010601",
+    "A1_LOJA": "01",
+    "A1_VEND": "000048",
+    "A1_NOME": "CENTRO AUTOMOTIVO ARENA GM LTDA",
+    "A1_NREDUZ": "ARENA GM",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010606",
+    "A1_LOJA": "01",
+    "A1_VEND": "000048",
+    "A1_NOME": "GUILHERME JOSIAS MARQIES E SILVA",
+    "A1_NREDUZ": "GUILHERME JOSIAS MAR",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "000001",
+    "A1_LOJA": "01",
+    "A1_VEND": "000049",
+    "A1_NOME": "DELTA MAQUINAS LTDA",
+    "A1_NREDUZ": "DELTA MAQUINAS LTDA",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "000002",
+    "A1_LOJA": "01",
+    "A1_VEND": "000049",
+    "A1_NOME": "RRZ AMAZONAS COMERCIO DE PECAS",
+    "A1_NREDUZ": "RRZ AMAZONAS COMERCI",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "001263",
+    "A1_LOJA": "01",
+    "A1_VEND": "000049",
+    "A1_NOME": "SOPICKUS AUTOPECAS LTDA",
+    "A1_NREDUZ": "SOPICKUS AUTOPECAS",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "001600",
+    "A1_LOJA": "01",
+    "A1_VEND": "000049",
+    "A1_NOME": "MS MAMEDE MARINHO",
+    "A1_NREDUZ": "MS MAMEDE MARINHO",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010476",
+    "A1_LOJA": "01",
+    "A1_VEND": "000049",
+    "A1_NOME": "E. B. N. DA CRUZ PECAS E SERVICOS-ME",
+    "A1_NREDUZ": "Q. G. ESCAPAMENTO",
+    "SUPERVISOR": "000005",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010485",
+    "A1_LOJA": "01",
+    "A1_VEND": "000050",
+    "A1_NOME": "LA C DA SILVA",
+    "A1_NREDUZ": "LUIS CAR SERVICE MAN",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010504",
+    "A1_LOJA": "01",
+    "A1_VEND": "000050",
+    "A1_NOME": "M. BAPTISTA MENDE LTDA",
+    "A1_NREDUZ": "MENDES G. AUTO CENTE",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  },
+  {
+    "A1_FILIAL": "0101",
+    "A1_COD": "010537",
+    "A1_LOJA": "01",
+    "A1_VEND": "000050",
+    "A1_NOME": "A P DA SILVA FRANCO LTDA",
+    "A1_NREDUZ": "POLARY AUTO CENTER",
+    "SUPERVISOR": "000013",
+    "STATUS": "ATIVO"
+  }
+]

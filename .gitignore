@@ -1,0 +1,47 @@
+# BAP Central (BAP Tools) - repositorio com codigo + bases (20/11/2026)
+# Recados e lidos ficam no aloirr/bapcentral-recados (o coord.mjs grava e le pela API do GitHub).
+# NAO tire estas duas linhas: elas ligam o modo GitHub do scripts/coord.mjs.
+/.coord/recados
+/.coord/lidos
+# NUNCA versionar chaves e credenciais
+tomtom_config*.json
+google_maps_config*.json
+visitas_config.json
+**/auth/
+BAP Ajuda 2.0/config.json
+*.pem
+*.key
+.env
+.env.*
+# cache, lixo e o que o programa GERA (relatorios)
+__pycache__/
+*.py[cod]
+*.pkl
+*.tmp
+*.lock
+~$*
+desktop.ini
+Thumbs.db
+.venv/
+venv/
+**/_CACHE_RELATORIOS/
+ultimo_resumo.json
+RELATORIOS/EXPORTADOS/
+RELATORIOS/POWERBI/
+RELATORIOS/CONTATOS_ANDROID_*/
+RELATORIOS/Roteirizacao/ROTA_SEMANA_*/
+RELATORIOS/Roteirizacao/ROTA_DIA_*/
+RELATORIOS/Visitas/_erros/
+RELATORIOS/*.pdf
+RELATORIOS/*.html
+RELATORIOS/Roteirizacao/*.pdf
+RELATORIOS/Roteirizacao/*.html
+SISTEMA BAP/logs/
+SISTEMA BAP/evidencias/
+SISTEMA BAP/cards/
+SISTEMA BAP/Arquivos para Importar/
+SISTEMA BAP/BACKUP_RELATORIOS/*
+!SISTEMA BAP/BACKUP_RELATORIOS/BKP_RELATORIOS_BAPTOOLS/
+DOCUMENTOS BAP/
+ARQUIVO MORTO/
+Treinamentos e materiais de trade/

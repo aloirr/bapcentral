@@ -1,0 +1,1341 @@
+{
+ "equipe": [
+  [
+   "Juliana Almeida",
+   "Assistente de Faturamento",
+   "Faturamento",
+   "SIM"
+  ],
+  [
+   "Mayara Santos",
+   "Assistente de CRM e Pós-venda",
+   "CRM e Pós-venda",
+   "SIM"
+  ],
+  [
+   "Estefanie Pacheco",
+   "Assistente de Logística de Entrega e Qualidade",
+   "Logística de Entrega e Qualidade",
+   "SIM"
+  ],
+  [
+   "Leandro Nunes",
+   "Analista Comercial Pleno",
+   "Análises e Faróis",
+   "SIM"
+  ],
+  [
+   "Enricson Oliveira",
+   "VDE Interno AP/RR",
+   "Venda interna",
+   "NÃO"
+  ],
+  [
+   "Allaiza Menezes",
+   "Analista de Trade Marketing",
+   "Trade e Marketing",
+   "NÃO"
+  ],
+  [
+   "Supervisor Administrativo (em aberto)",
+   "Supervisor Administrativo",
+   "Gestão do administrativo",
+   "NÃO"
+  ],
+  [
+   "Analista Administrativo Pleno (em aberto)",
+   "Analista Administrativo Pleno",
+   "Controles e indicadores",
+   "NÃO"
+  ]
+ ],
+ "rotina": [
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "07:30 - 08:00",
+   "Receber os pedidos do dia: atrasados, crédito, itens faltantes e acima de 15% sem autorização",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Pedidos",
+   "Fila do dia definida",
+   "Mantida (+ autorização)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "08:00 - 08:45",
+   "Conferir e liberar no Protheus: cliente, frete, condição, preço e crédito; à vista só com comprovante",
+   "Alta",
+   "DIÁRIA",
+   "Protheus (MATA410/MATA440)",
+   "Pedidos liberados",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "08:45 - 09:15",
+   "Descontos fora da alçada: solicitar ao gerente e registrar o código de autorização no pedido",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Pedidos (janela do pedido › Autorização de venda)",
+   "Código registrado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "09:15 - 10:00",
+   "Solicitar a coleta nas lojas e acompanhar a separação dos itens para faturar",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Pedidos › Solicitação BAP",
+   "Coletas solicitadas",
+   "Veio da Estefanie (SOLICITACAO_BAP)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "10:00 - 10:10",
+   "Envio do Farol de Pedidos · 10h",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Pedidos (Parcial Pedidos)",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "10:10 - 10:45",
+   "Entrada no estoque FRW dos produtos coletados",
+   "Alta",
+   "DIÁRIA",
+   "Protheus + BAP Central › Farol de Estoque FRW",
+   "Entradas lançadas",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "10:45 - 11:30",
+   "1ª rodada de faturamento, solicitação de QR code e NF-e transmitida",
+   "Alta",
+   "DIÁRIA",
+   "Protheus",
+   "NFs autorizadas",
+   "Mantida (+ QR code)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "13:00 - 13:40",
+   "2ª rodada de faturamento: pedidos liberados pela manhã",
+   "Alta",
+   "DIÁRIA",
+   "Protheus",
+   "NFs geradas",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "13:40 - 14:00",
+   "Enviar NF e boleto ao cliente; segunda via de boleto quando pedida",
+   "Alta",
+   "DIÁRIA",
+   "E-mail",
+   "NF + boleto enviados",
+   "Mantida (+ 2ª via)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "14:00 - 14:10",
+   "Envio do Farol de Pedidos · 14h",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Pedidos (Parcial Pedidos)",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "14:10 - 15:00",
+   "Pedidos cancelados ou devolvidos: devolver os produtos ao estoque PMZ",
+   "Alta",
+   "DIÁRIA",
+   "Protheus + BAP Central › Farol de Pedidos (CANCELADO/DEVOLVIDO)",
+   "Produtos devolvidos à PMZ",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "15:00 - 15:45",
+   "3ª rodada de faturamento: urgentes e complementares",
+   "Alta",
+   "DIÁRIA",
+   "Protheus",
+   "NFs geradas",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "15:45 - 16:00",
+   "SLA de faturamento: atrasados e parciais do dia, avisar o supervisor",
+   "Média",
+   "DIÁRIA",
+   "BAP Central › Painel de indicadores",
+   "Recado enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "16:00 - 16:10",
+   "Envio do Farol de Pedidos · 16h",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Pedidos (Parcial Pedidos)",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "16:10 - 17:15",
+   "Itens faltantes e coletas pendentes: combinar com o vendedor e a loja",
+   "Média",
+   "DIÁRIA",
+   "BAP Central › Farol de Pedidos › Analítico por pedido",
+   "Pendências combinadas",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "17:15 - 17:30",
+   "Fechamento: envio do Farol de Pedidos do dia e marcação do Farol DDR",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Pedidos + Farol DDR",
+   "Farol enviado e DDR marcado",
+   "Mantida (+ envio do fechamento)"
+  ],
+  [
+   "Administrativo BAP",
+   "Juliana Almeida",
+   "Segunda (no fechamento)",
+   "Enviar o painel da semana (SLA, % no prazo, % parcial, base com compra) aos supervisores",
+   "Média",
+   "SEG",
+   "BAP Central › Painel de indicadores (Exportar PDF)",
+   "Painel enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "07:30 - 08:00",
+   "Integração do Máxima: rodar, validar e abrir chamado do que não integrou",
+   "Alta",
+   "DIÁRIA",
+   "Máxima / Protheus",
+   "Pedidos do Máxima no Protheus",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "08:00 - 08:30",
+   "Força de venda no Máxima: vendedores, carteira, tabela de preço e bloqueios",
+   "Alta",
+   "DIÁRIA",
+   "Máxima + BAP Central › Farol Roteirização",
+   "Máxima conferido",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "08:30 - 09:00",
+   "Clientes novos na base do Máxima, com cadastro completo",
+   "Alta",
+   "DIÁRIA",
+   "Máxima + BAP Central › Farol de Clientes",
+   "Clientes na base do Máxima",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "09:00 - 09:10",
+   "Envio do Farol de Visita · 9h",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Visita (Parcial Visitas)",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "09:10 - 10:00",
+   "Indicadores principais x meta (faturamento, positivação, visitas, saldo) aos supervisores",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Metas Equipe",
+   "Recado enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "10:00 - 11:00",
+   "Roteirização: validar a rota do dia e a execução de ontem",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol Roteirização + BAP Central › Farol de Visita (aderência)",
+   "Rota validada",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "11:00 - 11:10",
+   "Envio do Farol de Visita · 11h",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Visita (Parcial Visitas)",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "11:10 - 11:30",
+   "Giro de produtos: parados e ruptura, aviso ao comercial",
+   "Média",
+   "DIÁRIA",
+   "BAP Central › Farol de Giro de Produtos",
+   "Aviso enviado",
+   "Veio da Estefanie"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "13:00 - 13:45",
+   "Suporte ao time de vendas no Máxima: acessos e pedido que não subiu",
+   "Alta",
+   "DIÁRIA",
+   "Máxima / Protheus",
+   "Chamados resolvidos",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "13:45 - 14:00",
+   "CRM e chamados do time comercial atualizados",
+   "Média",
+   "DIÁRIA",
+   "CRM",
+   "CRM atualizado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "14:00 - 14:10",
+   "Envio do Farol de Visita · 14h",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Visita (Parcial Visitas)",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "14:10 - 15:00",
+   "Performance: Top 30 clientes, categoria, família e produto",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Metas Equipe + Farol de Clientes",
+   "Performance enviada",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "15:00 - 16:00",
+   "Clientes: churn, nunca comprou e com limite sem compra; CRM ativo",
+   "Média",
+   "DIÁRIA",
+   "BAP Central › Farol de Clientes + CRM",
+   "Contatos registrados",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "16:00 - 16:10",
+   "Envio do Farol de Visita · 16h",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Visita (Parcial Visitas)",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "16:10 - 17:15",
+   "Suporte às demais assistentes: filas e pendências do dia",
+   "Média",
+   "DIÁRIA",
+   "BAP Central",
+   "Pendências apoiadas",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "17:15 - 17:30",
+   "Fechamento: envio do Farol de Visita do dia e marcação do Farol DDR",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Visita + Farol DDR",
+   "Farol enviado e DDR marcado",
+   "Mantida (+ envio do fechamento)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "Sexta (no fechamento)",
+   "Relatório da semana: visitas, aderência à rota e Top 30",
+   "Média",
+   "SEX",
+   "BAP Central › Farol de Visita + Farol de Metas Equipe (Exportar PDF)",
+   "Relatório enviado ao gerente",
+   "Mantida (conteúdo novo)"
+  ],
+  [
+   "Administrativo BAP",
+   "Mayara Santos",
+   "Virada do mês",
+   "Validar a roteirização do mês no Máxima",
+   "Alta",
+   "MENSAL INÍCIO",
+   "Máxima + BAP Central › Farol Roteirização",
+   "Rota do mês conferida no Máxima",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "07:30 - 08:00",
+   "Entregas: notas novas no acompanhamento e entregas atrasadas",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Entregas",
+   "Fila do dia definida",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "08:00 - 08:45",
+   "Enviar as NFs aos CDs e filiais e programar as coletas com as transportadoras",
+   "Alta",
+   "DIÁRIA",
+   "E-mail + BAP Central › Farol de Entregas",
+   "NFs enviadas e coletas programadas",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "08:45 - 10:00",
+   "Acompanhar as entregas: expedida, entregue, canhoto e ocorrências",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Entregas (edição)",
+   "Situação das entregas atualizada",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "10:00 - 10:10",
+   "Envio do Farol de Entregas · 10h",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Entregas (Parcial Entregas)",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "10:10 - 11:00",
+   "Pesquisa de satisfação em até 72h da entrega: nota de 1 a 10 e comentários",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Entregas (ENTREGUE) + CRM",
+   "Pesquisa registrada",
+   "Nova (14/10; era 10 clientes na sexta)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "11:00 - 11:30",
+   "Inadimplência: ligações para a base de inadimplentes e promessa registrada",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Inadimplência",
+   "Ligações registradas",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "13:00 - 13:45",
+   "Garantias: receber (loja, Portal BAP ou SAC), conferir NF e fotos, registrar e cobrar a fábrica",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Garantias",
+   "Garantias registradas e cobradas",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "13:45 - 14:30",
+   "NCC: notas de compensação de crédito com o Financeiro",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de NCC",
+   "NCC tratadas",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "14:30 - 15:15",
+   "Estoque FRW: o que não foi devolvido e está parado, apontar ao comercial",
+   "Média",
+   "DIÁRIA",
+   "BAP Central › Farol de Estoque FRW",
+   "Itens parados apontados",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "15:15 - 16:00",
+   "Apoio ao Trade: acompanhamento dos expositores e orçamentos de trade",
+   "Média",
+   "DIÁRIA",
+   "BAP Central › Farol de Expositores",
+   "Expositores e orçamentos em dia",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "16:00 - 16:45",
+   "Inadimplência: 2º bloco de ligações; toda a base ligada na semana",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Farol de Inadimplência",
+   "Ligações registradas",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "16:45 - 17:15",
+   "Fretes e atendimento a supervisores e vendedores: entrega, garantia e NCC",
+   "Média",
+   "DIÁRIA",
+   "BAP Central › Farol de Entregas + CRM",
+   "Solicitações respondidas",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "17:15 - 17:30",
+   "Fechamento do dia — Farol DDR",
+   "Média",
+   "DIÁRIA",
+   "Farol DDR",
+   "Farol preenchido",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "Segunda 11:00",
+   "Envio do Farol de Inadimplência",
+   "Alta",
+   "SEG",
+   "BAP Central › Farol de Inadimplência",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "Terça 11:00",
+   "Envio do Farol de Garantias",
+   "Alta",
+   "TER",
+   "BAP Central › Farol de Garantias",
+   "Farol enviado",
+   "Nova (14/10)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "Sexta (no fechamento)",
+   "Toda a base de inadimplentes ligada na semana + relatório da semana (entregas, satisfação, garantias e inadimplência)",
+   "Média",
+   "SEX",
+   "BAP Central › Farol de Entregas + Garantias + Inadimplência (Exportar PDF)",
+   "Relatório enviado ao gerente",
+   "Mantida (conteúdo novo)"
+  ],
+  [
+   "Administrativo BAP",
+   "Estefanie Pacheco",
+   "Quando houver",
+   "Devoluções: classificar, retorno de venda no Protheus e NF de devolução",
+   "Alta",
+   "SOB DEMANDA",
+   "BAP Central › Farol de Devolução e Reembolsos",
+   "Devolução registrada",
+   "[SUPOSIÇÃO] fica como sob demanda (não está no onboarding)"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "07:30 - 08:00",
+   "Validação diária do resultado (Power BI vs. Mapa de Vendas PMZ)",
+   "Alta",
+   "DIÁRIA",
+   "Power BI",
+   "Resultado validado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "08:00 - 08:15",
+   "Acompanhamento e cobrança dos status dos chamados em aberto pelo time comercial",
+   "Alta",
+   "DIÁRIA",
+   "Chamados",
+   "Chamados cobrados",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "08:30 - 09:00",
+   "Farol de pesquisa de mercado (preço e concorrência), com a análise de mercado diária do time",
+   "Alta",
+   "DIÁRIA",
+   "Power BI / e-mail",
+   "Farol enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "09:00 - 09:30",
+   "Farol de Ruptura de estoque à Liderança Comercial",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Giro dos produtos (RUPTURA)",
+   "Farol enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "09:30 - 10:00",
+   "Farol de Performance (Visita e Produtividade) dos Key Accounts",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Meta e RV",
+   "Farol enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "10:00 - 10:15",
+   "Farol de Performance das Contas Especiais",
+   "Alta",
+   "DIÁRIA",
+   "Power BI",
+   "Farol enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "10:15 - 11:30",
+   "Execução das atividades operacionais designadas no Microsoft Planner",
+   "Alta",
+   "DIÁRIA",
+   "Microsoft Planner",
+   "Tarefas concluídas",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "13:30 - 14:00",
+   "Farol de Performance de Categorias e Famílias",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Meta e RV (Por família da peça)",
+   "Farol enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "14:00 - 14:30",
+   "Farol das Top Contas com perda de performance (queda x ano anterior)",
+   "Alta",
+   "DIÁRIA",
+   "Power BI",
+   "Farol enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "14:30 - 15:00",
+   "Farol das Oficinas e Auto Centers com perda de performance",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Base e oportunidades (Por família)",
+   "Farol enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "15:00 - 15:30",
+   "Farol de Metas da Diretoria para o Diretor Comercial",
+   "Alta",
+   "DIÁRIA",
+   "BAP Central › Indicadores executivos",
+   "Farol enviado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "15:30 - 16:00",
+   "Daily — Farol DDR com o gestor",
+   "Média",
+   "DIÁRIA",
+   "Farol DDR",
+   "Daily realizada",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "16:00 - 17:15",
+   "Apoio e manutenção dos acompanhamentos e testes do CRM",
+   "Média",
+   "DIÁRIA",
+   "CRM",
+   "CRM acompanhado",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "17:15 - 17:30",
+   "Fechamento do dia — Farol DDR",
+   "Média",
+   "DIÁRIA",
+   "Farol DDR",
+   "Farol preenchido",
+   "Mantida"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "Segunda (no bloco de análises)",
+   "Montar a sugestão de kits da semana e mandar aos supervisores",
+   "Média",
+   "SEG",
+   "BAP Analista › Oportunidades e kits › 6. Sugestão de kits (PDF)",
+   "Kits enviados",
+   "Veio da Juliana (kits são parâmetro do Analista)"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "Quando mudar",
+   "Cadastros: zonas, vendedor por zona e segmento, metas, faixas de RV e parâmetros",
+   "Alta",
+   "SOB DEMANDA",
+   "BAP Analista",
+   "Cadastros atualizados",
+   "Nova (só o Analista cadastra)"
+  ],
+  [
+   "Administrativo BAP",
+   "Leandro Nunes",
+   "Último dia útil",
+   "Fechamento da RV do mês: conferir e enviar ao RH",
+   "Alta",
+   "MENSAL FIM",
+   "BAP Central › Farol de Metas Equipe (Exportar para o RH)",
+   "RV fechada e enviada",
+   "Veio da Mayara (14/10)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "09:00, 11:00, 14:00 e 16:00",
+   "Acompanhamento de rota pelo Máxima (check-in/check-out) e divulgação",
+   "Média",
+   "DIÁRIA",
+   "Máxima + BAP Central › Resumo do Planner",
+   "Relatórios de rota divulgados",
+   "Mantida"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Conforme rotina",
+   "Apoio no acompanhamento da frota pelo MOB7 (Auditoria e RH)",
+   "Média",
+   "DIÁRIA",
+   "MOB7",
+   "Ocorrências reportadas",
+   "Mantida"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "08:00 - 09:00",
+   "Atualização dos controles de campanhas (mecânicas, participantes, apurações)",
+   "Alta",
+   "SEG,TER,QUI",
+   "Controles de campanha",
+   "Controles atualizados",
+   "Mantida (quarta é a matinal de trade; sexta é rota trade)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "09:00 - 10:30",
+   "Briefings completos para a agência e o time de criação; solicitação de novos materiais",
+   "Alta",
+   "SEG,TER,QUA,QUI",
+   "E-mail / agência",
+   "Briefings formalizados",
+   "Mantida (sexta é rota trade)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "10:30 - 11:30",
+   "Apoio aos supervisores e VDEs: PDVs com maior potencial de exclusividade e materiais",
+   "Média",
+   "SEG,TER,QUA,QUI",
+   "BAP Central › Base e oportunidades",
+   "Oportunidades enviadas",
+   "Mantida (sexta é rota trade)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "13:00 - 14:30",
+   "Apuração e comunicação das parciais de campanhas e premiações",
+   "Alta",
+   "SEG,TER,QUA,QUI",
+   "BAP Central › Meta e RV",
+   "Parciais comunicadas",
+   "Mantida (sexta é rota trade)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "14:30 - 16:00",
+   "Eventos, treinamentos de produto e ações com fornecedores (agenda do mês)",
+   "Média",
+   "SEG,TER,QUA,QUI",
+   "Agenda",
+   "Ações organizadas",
+   "Mantida (sexta é rota trade)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "16:00 - 17:30",
+   "Prestação de contas de verbas e evidências de execução",
+   "Média",
+   "SEG,TER,QUA,QUI",
+   "Controle de verbas",
+   "Documentação arquivada",
+   "Mantida (sexta é rota trade)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Segunda",
+   "Reunião de alinhamento com a agência: demandas, prioridades e prazos",
+   "Alta",
+   "SEG",
+   "Reunião",
+   "Pauta e prazos registrados",
+   "Era diária no Farol — agora semanal"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Terça e quinta",
+   "Controle de brindes, expositores e materiais BAP (quantitativo enviado)",
+   "Média",
+   "TER,QUI",
+   "Controle de materiais",
+   "Relatório de estoque enviado",
+   "Era diária no Farol — agora terça e quinta"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Quarta (depois da matinal)",
+   "Acompanhamento de PDVs com fachada/exclusividade e contratos comerciais",
+   "Alta",
+   "QUA",
+   "Controle de PDVs",
+   "Status dos PDVs e tratativas",
+   "Era diária no Farol — agora semanal"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Quinta",
+   "Suporte à Escola para Mecânicos PMZ: visita e necessidade de reposição",
+   "Média",
+   "QUI",
+   "Visita",
+   "Relatório de visita",
+   "Era diária no Farol — agora semanal"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Quarta 08:00 - 09:00",
+   "Matinal de trade: campanhas em andamento, materiais, ações de PDV e prioridades da semana com o time",
+   "Alta",
+   "QUA",
+   "Reunião + BAP Central › Meta e RV",
+   "Pauta e encaminhamentos registrados",
+   "Nova (out/2026)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Sexta (dia em campo)",
+   "Rota trade: visitar PDVs — execução de materiais e expositores, fachada/exclusividade e fotos de evidência",
+   "Alta",
+   "SEX",
+   "BAP Central › Resumo do Planner + Controle de PDVs",
+   "Relatório da rota com evidências",
+   "Nova (out/2026)"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "A cada 2 semanas (sexta, na volta da rota)",
+   "Relatório de produtos cadastrados na CNP: gerar, conferir e enviar",
+   "Média",
+   "QUINZENAL SEX",
+   "CNP",
+   "Relatório enviado",
+   "Era diária no Farol — agora quinzenal"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Quando houver",
+   "Criação de código de barras e gestão cadastral na CNP",
+   "Alta",
+   "SOB DEMANDA",
+   "CNP",
+   "Produtos cadastrados",
+   "Sob demanda: lança na linha extra quando fizer"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Quando houver",
+   "Análise de documentos, rótulos e produtos BAP",
+   "Alta",
+   "SOB DEMANDA",
+   "Documentos",
+   "Documentos revisados",
+   "Sob demanda: lança na linha extra quando fizer"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Quando houver",
+   "Revisão e validação de materiais de comunicação da agência",
+   "Alta",
+   "SOB DEMANDA",
+   "Agência",
+   "Materiais aprovados/devolvidos",
+   "Sob demanda: lança na linha extra quando fizer"
+  ],
+  [
+   "Trade Marketing",
+   "Allaiza Menezes",
+   "Quando houver",
+   "Solicitação, acompanhamento e revisão de embalagens",
+   "Alta",
+   "SOB DEMANDA",
+   "Fornecedor / agência",
+   "Embalagens revisadas",
+   "Sob demanda: lança na linha extra quando fizer"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "07:30 - 08:00",
+   "Validar o resultado do dia anterior (faturamento x meta por filial)",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "08:00 - 08:30",
+   "Daily com o time administrativo: prioridades, pendências e distribuição do dia",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "08:30 - 09:15",
+   "Acompanhar as filas do dia: faturamento, entregas, devoluções e garantias",
+   "Alta",
+   "DIÁRIA",
+   "ACOMPANHAMENTO_POS_VENDA › PAINEL + Farol DDR",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "09:15 - 10:00",
+   "Autorizar conforme alçada: descontos fora do limite, cancelamentos e devoluções",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "10:00 - 10:45",
+   "Tratar escalonamentos de clientes e ocorrências críticas",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "10:45 - 11:30",
+   "Indicadores operacionais: prazo de faturamento, entregas atrasadas, devoluções e garantias paradas",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "13:00 - 13:45",
+   "Alinhamento com supervisores de vendas: pedidos travados, autorizações e prioridades",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "13:45 - 14:30",
+   "Separações/reversas (SOLICITACAO_BAP) e pendências logísticas do dia",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "14:30 - 15:30",
+   "Revisar o Farol DDR do time e tratar desvios",
+   "Média",
+   "DIÁRIA",
+   "ACOMPANHAMENTO_POS_VENDA › PAINEL + Farol DDR",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "15:30 - 16:00",
+   "Daily — Farol DDR com o Gerente Comercial",
+   "Média",
+   "DIÁRIA",
+   "ACOMPANHAMENTO_POS_VENDA › PAINEL + Farol DDR",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "16:00 - 17:00",
+   "Tratativas administrativas: escalas, chamados, melhorias e pessoas",
+   "Média",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Supervisor Administrativo (em aberto)",
+   "17:15 - 17:30",
+   "Fechamento do dia — consolidação das entregas do time",
+   "Média",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "07:30 - 08:15",
+   "Conferir o faturamento do dia anterior por filial (Protheus x relatórios)",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "08:15 - 09:00",
+   "Atualizar relatórios e controles comerciais",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "09:00 - 09:45",
+   "Controlar pendências financeiras: títulos em aberto, baixas e regularizações",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "09:45 - 10:30",
+   "Apoiar auditoria: justificativas, evidências e históricos",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "10:30 - 11:30",
+   "Analisar indicadores da operação (ruptura, devoluções, prazo de entrega)",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "13:00 - 13:45",
+   "Conferir autorizações do dia contra as alçadas definidas",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "13:45 - 14:30",
+   "Apoiar supervisores com análises e extrações sob demanda",
+   "Média",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "14:30 - 15:30",
+   "Melhoria de processos: padronização de planilhas, e-mails e fluxos",
+   "Média",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "15:30 - 16:15",
+   "Acompanhar chamados de sistemas (Protheus/Máxima) do time",
+   "Média",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "16:15 - 17:15",
+   "Consolidar a parcial do dia (faturamento x meta)",
+   "Alta",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ],
+  [
+   "Administrativo BAP",
+   "Analista Administrativo Pleno (em aberto)",
+   "17:15 - 17:30",
+   "Fechamento do dia — Farol DDR",
+   "Média",
+   "DIÁRIA",
+   "",
+   "",
+   "Vaga"
+  ]
+ ],
+ "feriados": [
+  [
+   "2026-01-01",
+   "Confraternização Universal"
+  ],
+  [
+   "2026-02-16",
+   "Carnaval"
+  ],
+  [
+   "2026-02-17",
+   "Carnaval"
+  ],
+  [
+   "2026-04-03",
+   "Sexta-feira Santa"
+  ],
+  [
+   "2026-04-21",
+   "Tiradentes"
+  ],
+  [
+   "2026-05-01",
+   "Dia do Trabalho"
+  ],
+  [
+   "2026-06-04",
+   "Corpus Christi"
+  ],
+  [
+   "2026-09-05",
+   "Elevação do Amazonas"
+  ],
+  [
+   "2026-09-07",
+   "Independência"
+  ],
+  [
+   "2026-10-12",
+   "N. Sra. Aparecida"
+  ],
+  [
+   "2026-10-24",
+   "Aniversário de Manaus"
+  ],
+  [
+   "2026-11-02",
+   "Finados"
+  ],
+  [
+   "2026-11-15",
+   "Proclamação da República"
+  ],
+  [
+   "2026-11-20",
+   "Consciência Negra"
+  ],
+  [
+   "2026-12-08",
+   "N. Sra. da Conceição"
+  ],
+  [
+   "2026-12-25",
+   "Natal"
+  ]
+ ]
+}

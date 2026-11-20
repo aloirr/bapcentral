@@ -1,0 +1,914 @@
+{
+  "modo": "crescimento",
+  "faixas": [
+    {
+      "cresceu_ate": null,
+      "desde": 10.0,
+      "base": "atual",
+      "acrescimo": 5.0
+    },
+    {
+      "cresceu_ate": 10.0,
+      "desde": 5.0,
+      "base": "atual",
+      "acrescimo": 8.0
+    },
+    {
+      "cresceu_ate": 5.0,
+      "desde": null,
+      "base": "anterior",
+      "acrescimo": 10.0
+    }
+  ],
+  "piso_cliente": 1000.0,
+  "piso_so_com_faturamento": true,
+  "piso_vendedor": 120000.0,
+  "teto_rh_vendedor": 120000.0,
+  "meta_mes_de_casa": [
+    60000.0,
+    80000.0,
+    100000.0,
+    120000.0
+  ],
+  "emails_copia_gerente": [
+    "fernando.fernandes@grupopmz.com.br",
+    "lucas.noronha@grupopmz.com.br",
+    "daniel.vasconcelos@grupopmz.com.br",
+    "leandro.santos@bapautoparts.com.br",
+    "mayara.santos@bapautoparts.com.br"
+  ],
+  "piso_zona": 120000.0,
+  "meta_geral": 1500000.0,
+  "competencia": "2026-11",
+  "pct_visita": 90.0,
+  "meta_visita_por_du": 12,
+  "meta_visita_interior": 6,
+  "metas_travadas": {
+    "2026-10": {
+      "000034": [
+        260000.0,
+        120000.0
+      ],
+      "000031": [
+        120000.0,
+        120000.0
+      ],
+      "000023": [
+        100000.0,
+        100000.0
+      ],
+      "000049": [
+        60000.0,
+        60000.0
+      ],
+      "000015": [
+        120000.0,
+        120000.0
+      ],
+      "000047": [
+        60000.0,
+        60000.0
+      ],
+      "000007": [
+        100000.0,
+        100000.0
+      ],
+      "000041": [
+        120000.0,
+        120000.0
+      ],
+      "000048": [
+        60000.0,
+        60000.0
+      ],
+      "000050": [
+        60000.0,
+        60000.0
+      ]
+    }
+  },
+  "metas_travadas_ind": {
+    "2026-10": {
+      "meta_visita": {
+        "000034": 151.2,
+        "000015": 226.8,
+        "000031": 129.6,
+        "000041": 226.8,
+        "000040": 226.8,
+        "000023": 226.8,
+        "000007": 183.6,
+        "000048": 151.2,
+        "000049": 140.4,
+        "000047": 183.6,
+        "000050": 118.8
+      },
+      "meta_positivacao": {
+        "000034": 37.75,
+        "000015": 23.5,
+        "000031": 15.0,
+        "000041": 22.5,
+        "000040": 32.25,
+        "000023": 20.25,
+        "000007": 10.75,
+        "000048": 16.0,
+        "000049": 20.25,
+        "000047": 28.25,
+        "000050": 16.25
+      }
+    }
+  },
+  "pct_positivacao": 25.0,
+  "meta_cadastro": 20.0,
+  "categorias": {
+    "pecas": 40.0,
+    "bateria": 25.0,
+    "lubrificante": 30.0,
+    "pneu": 15.0
+  },
+  "rv": {
+    "vendedor": {
+      "fat": [
+        {
+          "de": 0.0,
+          "ate": 79.999,
+          "valor": 0.0
+        },
+        {
+          "de": 80.0,
+          "ate": 89.999,
+          "valor": 292.0
+        },
+        {
+          "de": 90.0,
+          "ate": 94.999,
+          "valor": 702.0
+        },
+        {
+          "de": 95.0,
+          "ate": 99.999,
+          "valor": 926.0
+        },
+        {
+          "de": 100.0,
+          "ate": 109.999,
+          "valor": 3120.0
+        },
+        {
+          "de": 110.0,
+          "ate": 119.999,
+          "valor": 3861.0
+        },
+        {
+          "de": 120.0,
+          "ate": 999999.0,
+          "valor": 4680.0
+        }
+      ],
+      "positivacao": [
+        {
+          "de": 0.0,
+          "ate": 79.999,
+          "valor": 0.0
+        },
+        {
+          "de": 80.0,
+          "ate": 89.999,
+          "valor": 390.0
+        },
+        {
+          "de": 90.0,
+          "ate": 94.999,
+          "valor": 702.0
+        },
+        {
+          "de": 95.0,
+          "ate": 99.999,
+          "valor": 741.0
+        },
+        {
+          "de": 100.0,
+          "ate": 109.999,
+          "valor": 780.0
+        },
+        {
+          "de": 110.0,
+          "ate": 119.999,
+          "valor": 858.0
+        },
+        {
+          "de": 120.0,
+          "ate": 999999.0,
+          "valor": 936.0
+        }
+      ],
+      "visita": [
+        {
+          "de": 0.0,
+          "ate": 79.999,
+          "valor": 0.0
+        },
+        {
+          "de": 80.0,
+          "ate": 89.999,
+          "valor": 0.0
+        },
+        {
+          "de": 90.0,
+          "ate": 94.999,
+          "valor": 1053.0
+        },
+        {
+          "de": 95.0,
+          "ate": 99.999,
+          "valor": 1112.0
+        },
+        {
+          "de": 100.0,
+          "ate": 109.999,
+          "valor": 1170.0
+        },
+        {
+          "de": 110.0,
+          "ate": 119.999,
+          "valor": 1286.0
+        },
+        {
+          "de": 120.0,
+          "ate": 999999.0,
+          "valor": 1404.0
+        }
+      ]
+    },
+    "supervisor": {
+      "fat": [
+        {
+          "de": 0.0,
+          "ate": 79.999,
+          "valor": 0.0
+        },
+        {
+          "de": 80.0,
+          "ate": 89.999,
+          "valor": 1125.0
+        },
+        {
+          "de": 90.0,
+          "ate": 99.999,
+          "valor": 2225.0
+        },
+        {
+          "de": 100.0,
+          "ate": 119.99,
+          "valor": 3750.0
+        },
+        {
+          "de": 120.0,
+          "ate": 999999.0,
+          "valor": 4750.0
+        }
+      ],
+      "positivacao": [
+        {
+          "de": 0.0,
+          "ate": 79.999,
+          "valor": 0.0
+        },
+        {
+          "de": 80.0,
+          "ate": 89.999,
+          "valor": 450.0
+        },
+        {
+          "de": 90.0,
+          "ate": 99.999,
+          "valor": 890.0
+        },
+        {
+          "de": 100.0,
+          "ate": 119.999,
+          "valor": 1100.0
+        },
+        {
+          "de": 120.0,
+          "ate": 999999.0,
+          "valor": 1900.0
+        }
+      ],
+      "visita": [
+        {
+          "de": 0.0,
+          "ate": 79.999,
+          "valor": 0.0
+        },
+        {
+          "de": 80.0,
+          "ate": 89.999,
+          "valor": 0.0
+        },
+        {
+          "de": 90.0,
+          "ate": 99.999,
+          "valor": 1335.0
+        },
+        {
+          "de": 100.0,
+          "ate": 109.999,
+          "valor": 1650.0
+        },
+        {
+          "de": 110.0,
+          "ate": 119.999,
+          "valor": 2250.0
+        },
+        {
+          "de": 120.0,
+          "ate": 999999.0,
+          "valor": 2850.0
+        }
+      ]
+    },
+    "gerente": {
+      "fat": [],
+      "positivacao": [],
+      "visita": []
+    }
+  },
+  "por_uf": {},
+  "por_zona": {},
+  "categoria_por_fornecedor": {},
+  "ajustes": {},
+  "executivo": {
+    "indicadores": [
+      {
+        "chave": "faturamento",
+        "rotulo": "FATURAMENTO TOTAL",
+        "peso": 30.0,
+        "fonte": "auto",
+        "invertido": false
+      },
+      {
+        "chave": "positivacao",
+        "rotulo": "POSITIVACAO",
+        "peso": 20.0,
+        "fonte": "auto",
+        "invertido": false
+      },
+      {
+        "chave": "despesas",
+        "rotulo": "DESPESAS",
+        "peso": 15.0,
+        "fonte": "manual",
+        "invertido": true
+      },
+      {
+        "chave": "pecas",
+        "rotulo": "FATURAMENTO DE PECAS",
+        "peso": 20.0,
+        "fonte": "auto",
+        "invertido": false
+      },
+      {
+        "chave": "cadastro_compra",
+        "rotulo": "CADASTRO COM COMPRA",
+        "peso": 15.0,
+        "fonte": "auto",
+        "invertido": false
+      }
+    ],
+    "ano": 2026,
+    "meses": [
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10",
+      "2026-11",
+      "2026-12"
+    ],
+    "metas": {
+      "faturamento": {
+        "2026-01": 0.0,
+        "2026-02": 0.0,
+        "2026-03": 0.0,
+        "2026-04": 0.0,
+        "2026-05": 0.0,
+        "2026-06": 0.0,
+        "2026-07": 600000.0,
+        "2026-08": 1100000.0,
+        "2026-09": 1200000.0,
+        "2026-10": 0.0,
+        "2026-11": 0.0,
+        "2026-12": 0.0
+      },
+      "positivacao": {
+        "2026-01": 0.0,
+        "2026-02": 0.0,
+        "2026-03": 0.0,
+        "2026-04": 0.0,
+        "2026-05": 0.0,
+        "2026-06": 0.0,
+        "2026-07": 100.0,
+        "2026-08": 100.0,
+        "2026-09": 100.0,
+        "2026-10": 0.0,
+        "2026-11": 0.0,
+        "2026-12": 0.0
+      },
+      "despesas": {
+        "2026-01": 0.0,
+        "2026-02": 0.0,
+        "2026-03": 0.0,
+        "2026-04": 0.0,
+        "2026-05": 0.0,
+        "2026-06": 0.0,
+        "2026-07": 410000.0,
+        "2026-08": 388000.0,
+        "2026-09": 396000.0,
+        "2026-10": 0.0,
+        "2026-11": 0.0,
+        "2026-12": 0.0
+      },
+      "pecas": {
+        "2026-01": 0.0,
+        "2026-02": 0.0,
+        "2026-03": 0.0,
+        "2026-04": 0.0,
+        "2026-05": 0.0,
+        "2026-06": 0.0,
+        "2026-07": 93644.0,
+        "2026-08": 113598.0,
+        "2026-09": 132531.0,
+        "2026-10": 0.0,
+        "2026-11": 0.0,
+        "2026-12": 0.0
+      },
+      "cadastro_compra": {
+        "2026-01": 0.0,
+        "2026-02": 0.0,
+        "2026-03": 0.0,
+        "2026-04": 0.0,
+        "2026-05": 0.0,
+        "2026-06": 0.0,
+        "2026-07": 21.0,
+        "2026-08": 21.0,
+        "2026-09": 21.0,
+        "2026-10": 0.0,
+        "2026-11": 0.0,
+        "2026-12": 0.0
+      }
+    },
+    "reais": {
+      "despesas": {
+        "2026-01": null,
+        "2026-02": null,
+        "2026-03": null,
+        "2026-04": null,
+        "2026-05": null,
+        "2026-06": null,
+        "2026-07": 215000.0,
+        "2026-08": 197000.0,
+        "2026-09": 1.0,
+        "2026-10": null,
+        "2026-11": null,
+        "2026-12": null
+      }
+    }
+  },
+  "metas_importadas": {
+    "mapa": {
+      "2026-05": {
+        "MACAPA": {
+          "pecas": 1634.5504765487099,
+          "pneu": 21014.143371914033,
+          "bateria": 5639.257753204502,
+          "lubrificante": 50174.19549118953
+        },
+        "SANTAREM": {
+          "lubrificante": 1687.549887901349,
+          "bateria": 3056.7012488978207,
+          "pecas": 5014.016459560902,
+          "pneu": 13255.286040058223
+        },
+        "BOAVISTA": {
+          "pecas": 8194.49830469668,
+          "lubrificante": 5983.264191053471,
+          "bateria": 12461.188374514006,
+          "pneu": 39009.52334154182
+        },
+        "BELEM": {
+          "pecas": 6158.760945345937,
+          "lubrificante": 34161.977397528106,
+          "pneu": 34266.60264982751,
+          "bateria": 59179.01415533152
+        },
+        "MATOGROSSO": {
+          "pecas": 5094.483773016087,
+          "lubrificante": 4423.054626587156,
+          "pneu": 8959.740868453247,
+          "bateria": 20113.260204930506
+        },
+        "MANAUS": {
+          "lubrificante": 7313.777197948128,
+          "pecas": 12687.52071002181,
+          "pneu": 29658.308999756708,
+          "bateria": 1394.315150700485
+        },
+        "SAOLUIS": {
+          "pecas": 2404.722713544739,
+          "lubrificante": 26918.3144401517,
+          "pneu": 41640.61943704853,
+          "bateria": 38501.35178872691
+        }
+      },
+      "2026-06": {
+        "MACAPA": {
+          "pecas": 2486.7037886244243,
+          "pneu": 31969.61530852929,
+          "bateria": 67759.43731510523,
+          "lubrificante": 79452.51356448999
+        },
+        "SANTAREM": {
+          "lubrificante": 3387.4697087008512,
+          "bateria": 4527.817033099938,
+          "pecas": 7644.499705747749,
+          "pneu": 15871.889250663227
+        },
+        "BOAVISTA": {
+          "pecas": 8746.504384045295,
+          "lubrificante": 11129.97525824206,
+          "bateria": 19950.569856854105,
+          "pneu": 55067.342196801124
+        },
+        "BELEM": {
+          "pecas": 8456.473419204698,
+          "lubrificante": 58232.15230473686,
+          "pneu": 107423.20121025034,
+          "bateria": 236050.73374530632
+        },
+        "MATOGROSSO": {
+          "pecas": 7803.946319676563,
+          "lubrificante": 9755.015978545413,
+          "pneu": 17850.702558192766,
+          "bateria": 106516.31208159644
+        },
+        "MANAUS": {
+          "lubrificante": 8304.709818830164,
+          "pecas": 12888.838179503535,
+          "pneu": 32736.134423767086,
+          "bateria": 73020.85904646473
+        },
+        "SAOLUIS": {
+          "pecas": 10330.43293315531,
+          "lubrificante": 43393.38034236485,
+          "pneu": 59542.62577525717,
+          "bateria": 99700.14449224436
+        }
+      },
+      "2026-07": {
+        "MACAPA": {
+          "pecas": 993.2678516351845,
+          "pneu": 11244.306566006178,
+          "bateria": 14887.99731431665,
+          "lubrificante": 19161.285063540126
+        },
+        "SANTAREM": {
+          "lubrificante": 1631.5082761911408,
+          "bateria": 2942.9711710580073,
+          "pecas": 4430.663809771943,
+          "pneu": 7644.3838316055235
+        },
+        "BOAVISTA": {
+          "pecas": 3410.835409575539,
+          "lubrificante": 4747.794003857278,
+          "bateria": 20275.257011464248,
+          "pneu": 41229.788725556005
+        },
+        "BELEM": {
+          "pecas": 3424.0733337750694,
+          "lubrificante": 21943.5714608832,
+          "pneu": 37087.6020268997,
+          "bateria": 116911.27954932603
+        },
+        "MATOGROSSO": {
+          "pecas": 3432.186275065864,
+          "lubrificante": 4227.924114815073,
+          "pneu": 6271.48999612541,
+          "bateria": 62813.55330502755
+        },
+        "MANAUS": {
+          "lubrificante": 6170.941420637469,
+          "pecas": 6350.224488763717,
+          "pneu": 21980.237459474705,
+          "bateria": 59998.539035378664
+        },
+        "SAOLUIS": {
+          "pecas": 10507.210011935427,
+          "lubrificante": 18316.413039156163,
+          "pneu": 25486.42091698634,
+          "bateria": 62478.274531171715
+        }
+      },
+      "2026-08": {
+        "MACAPA": {
+          "pecas": 1753.3985579185412,
+          "pneu": 19849.379887984716,
+          "bateria": 26281.52414098854,
+          "lubrificante": 33825.08508955272
+        },
+        "SANTAREM": {
+          "lubrificante": 2917.333093345982,
+          "bateria": 5262.386538506806,
+          "pecas": 7548.112418528825,
+          "pneu": 11838.988332060075
+        },
+        "BOAVISTA": {
+          "pecas": 4821.396220251251,
+          "lubrificante": 7332.640007740702,
+          "bateria": 30106.808060628635,
+          "pneu": 68566.7181421834
+        },
+        "BELEM": {
+          "pecas": 5328.515061297512,
+          "lubrificante": 84669.66683739869,
+          "pneu": 58293.03218952809,
+          "bateria": 192120.8750592922
+        },
+        "MATOGROSSO": {
+          "pecas": 5395.046437185729,
+          "lubrificante": 7832.005305889194,
+          "pneu": 9602.510778735164,
+          "bateria": 102940.56837686703
+        },
+        "MANAUS": {
+          "lubrificante": 13275.726840181402,
+          "pecas": 12841.127237611545,
+          "pneu": 42935.61780637053,
+          "bateria": 109920.34976809775
+        },
+        "SAOLUIS": {
+          "pecas": 22206.44639372443,
+          "lubrificante": 33708.90552214916,
+          "pneu": 53796.00205289286,
+          "bateria": 125029.83384308853
+        }
+      },
+      "2026-09": {
+        "MACAPA": {
+          "pecas": 2060.0172151135575,
+          "pneu": 23320.5517168849,
+          "bateria": 30877.402017558972,
+          "lubrificante": 39740.11343426502
+        },
+        "SANTAREM": {
+          "lubrificante": 3427.458698216893,
+          "bateria": 6182.43576648106,
+          "pecas": 8867.255177232242,
+          "pneu": 13909.156835521933
+        },
+        "BOAVISTA": {
+          "pecas": 5487.072899398373,
+          "lubrificante": 8344.859488635453,
+          "bateria": 31228.987217579863,
+          "pneu": 44587.100787197945
+        },
+        "BELEM": {
+          "pecas": 5523.801482983945,
+          "lubrificante": 92521.04383297313,
+          "pneu": 64359.616427000816,
+          "bateria": 200636.8071945873
+        },
+        "MATOGROSSO": {
+          "pecas": 6046.889778019455,
+          "lubrificante": 12047.307467265002,
+          "pneu": 10634.973246534191,
+          "bateria": 87641.20630485714
+        },
+        "MANAUS": {
+          "lubrificante": 16554.64439582636,
+          "pecas": 15595.691903051207,
+          "pneu": 49583.049498880326,
+          "bateria": 113530.38579440441
+        },
+        "SAOLUIS": {
+          "pecas": 55257.97288937417,
+          "lubrificante": 37641.597974424374,
+          "pneu": 72384.779884871,
+          "bateria": 142007.82067086105
+        }
+      },
+      "2026-01": {
+        "MATOGROSSO": {
+          "pecas": 105810.0
+        }
+      },
+      "2026-02": {
+        "MATOGROSSO": {
+          "pecas": 461083.0
+        }
+      },
+      "2026-03": {
+        "MATOGROSSO": {
+          "pecas": 1270000.0
+        }
+      },
+      "2026-04": {
+        "MATOGROSSO": {
+          "pecas": 227546.0
+        }
+      }
+    },
+    "cidades": {
+      "MATOGROSSO": "MATOGROSSO",
+      "MANAUS": "MANAUS",
+      "MACAPA": "MACAPÁ",
+      "BOAVISTA": "BOA VISTA",
+      "BELEM": "BELÉM",
+      "SAOLUIS": "SÃO LUIS",
+      "SANTAREM": "SANTARÉM"
+    },
+    "polos": {
+      "MATOGROSSO": "MATOGROSSO",
+      "MANAUS": "MANAUS",
+      "MACAPA": "MACAPÁ",
+      "BOAVISTA": "BOA VISTA",
+      "BELEM": "BELÉM",
+      "SAOLUIS": "SÃO LUIS",
+      "SANTAREM": "SANTARÉM"
+    },
+    "filiais": {
+      "MATOGROSSO": "40101001",
+      "MANAUS": "40101002",
+      "MACAPA": "40101003",
+      "BOAVISTA": "40101004",
+      "BELEM": "40101005",
+      "SAOLUIS": "40101006",
+      "SANTAREM": "40101007"
+    },
+    "ufs": {
+      "MATOGROSSO": "AM",
+      "MANAUS": "AM",
+      "MACAPA": "AM",
+      "BOAVISTA": "AM",
+      "BELEM": "AM",
+      "SAOLUIS": "AM",
+      "SANTAREM": "AM"
+    },
+    "linhas": 28,
+    "meses": [
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09"
+    ],
+    "avisos": [],
+    "arquivo": "C:\\Users\\alexandre.guerreiro\\OneDrive - PMZ DISTRIBUIDORA SA\\1 - PMZ\\2026\\09 - Setembro\\MODELO META BAP.xlsx",
+    "formato": "modelo",
+    "por_polo": true,
+    "polo_da_cidade": {
+      "BELEM": "BELEM",
+      "MARITUBA": "BELEM",
+      "ANANINDEUA": "BELEM",
+      "CASTANHAL": "BELEM",
+      "BOAVISTA": "BOAVISTA",
+      "MACAPA": "MACAPA",
+      "MANAUS": "MANAUS",
+      "ITACOATIARA": "MANAUS",
+      "MATOGROSSO": "MATOGROSSO",
+      "VARZEAGRANDE": "MATOGROSSO",
+      "CUIABA": "MATOGROSSO",
+      "SORRISO": "MATOGROSSO",
+      "SINOP": "MATOGROSSO",
+      "CAMPOVERDE": "MATOGROSSO",
+      "NOVAMUTUM": "MATOGROSSO",
+      "SANTAREM": "SANTAREM",
+      "NOVOPROGRESSO": "SANTAREM",
+      "RUROPOLIS": "SANTAREM",
+      "ALTAMIRA": "SANTAREM",
+      "URUARA": "SANTAREM",
+      "PARAUAPEBAS": "SANTAREM",
+      "SAOLUIS": "SAOLUIS",
+      "SAOJOSEDERIB": "SAOLUIS"
+    },
+    "cidades_do_polo": {
+      "BELEM": [
+        "BELÉM",
+        "MARITUBA",
+        "ANANINDEUA",
+        "CASTANHAL"
+      ],
+      "BOAVISTA": [
+        "BOA VISTA"
+      ],
+      "MACAPA": [
+        "MACAPÁ"
+      ],
+      "MANAUS": [
+        "MANAUS",
+        "ITACOATIARA"
+      ],
+      "MATOGROSSO": [
+        "VARZEA GRANDE",
+        "CUIABA",
+        "MATOGROSSO",
+        "SORRISO",
+        "SINOP",
+        "CAMPO VERDE",
+        "NOVA MUTUM"
+      ],
+      "SANTAREM": [
+        "SANTARÉM",
+        "NOVO PROGRESSO",
+        "RUROPOLIS",
+        "ALTAMIRA",
+        "URUARA",
+        "PARAUAPEBAS"
+      ],
+      "SAOLUIS": [
+        "SAO LUIS",
+        "SÃO LUIS",
+        "SAO JOSE DE RIB"
+      ]
+    }
+  },
+  "fora_da_meta": {
+    "2026-09": {
+      "vendedor": [
+        "000047",
+        "000048",
+        "000049",
+        "000050",
+        "1001"
+      ],
+      "zona": []
+    }
+  },
+  "folha_colunas": {
+    "ACOMPANHAMENTO": [
+      "codigo",
+      "nome",
+      "clientes",
+      "meta",
+      "realizado",
+      "atingimento",
+      "meta_visita_int",
+      "visitas_realizadas",
+      "atingimento_visita",
+      "meta_positivacao_int",
+      "positivados",
+      "atingimento_positivacao",
+      "rv_fat",
+      "rv_positivacao",
+      "rv_visita",
+      "rv_total"
+    ],
+    "PAINEL DE META": [
+      "codigo",
+      "nome",
+      "meta",
+      "base_visita",
+      "meta_visita",
+      "meta_positivacao",
+      "meta_cadastro",
+      "fat_m3m",
+      "faixa"
+    ]
+  },
+  "folha_colunas_vistas": {},
+  "ajustes_ind": {},
+  "metas_gerais": {
+    "2026-10": 1300000.0,
+    "2026-11": 1500000.0
+  },
+  "ajustes_por_mes": {
+    "2026-09": {
+      "ajustes": {
+        "vendedor|000023": 60000.0,
+        "vendedor|000007": 60000.0,
+        "vendedor|1001": 0.0,
+        "vendedor|000029": 80000.0,
+        "gerente|ALEXANDRE GUERREIRO": 1200000.0,
+        "vendedor|000034": 120000.0,
+        "vendedor|000031": 120000.0,
+        "vendedor|000049": 60000.0,
+        "vendedor|000015": 80000.0,
+        "vendedor|000008": 100000.0,
+        "vendedor|000047": 60000.0,
+        "vendedor|000048": 60000.0,
+        "vendedor|000041": 120000.0,
+        "vendedor|000050": 60000.0
+      },
+      "ajustes_ind": {}
+    }
+  },
+  "ajustes_competencia": "2026-11"
+}

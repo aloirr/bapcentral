@@ -1,0 +1,10 @@
+{
+ "_leia": "Painel do Diretor: textos livres do Alexandre. A leitura do mês sai sozinha dos faróis; aqui ficam ações, compromisso e a ação de preço em aprovação.",
+ "acoes": [
+  {"t": "Metade das visitas nos compráveis", "d": "com Dia Foco e fechamento em 3 etapas."},
+  {"t": "Gerente e diretor nos 20 maiores débitos", "d": "parcelamento + pedido novo."},
+  {"t": "Preço nos itens sem preço, liquidação dos baldes e kit", "d": "decisão do Price e da diretoria."}
+ ],
+ "compromisso": {"t": "R$ 250 mil · 130 positivados", "d": "conta: 2.500 visitas × 50% em compráveis × 1 em 7 × ticket R$ 1,8 mil"},
+ "acao_preco": {"titulo": "Kit de baterias", "valor": "55", "small": "kits", "sub": "≈ <b>R$ 124 mil</b> se saírem · ROI <b>120%</b> · em aprovação"}
+}

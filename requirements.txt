@@ -1,0 +1,10 @@
+# BAP Tools — Python 3.12
+openpyxl
+pandas
+pillow
+reportlab
+requests
+playwright          # robô (site BAP Tools e Máxima) — só na máquina Windows
+keyring             # cofre do Windows para a senha do robô
+msal                # legado, sem uso (o TI não aprova Graph)
+pywin32; sys_platform == "win32"   # Excel/Outlook (COM), área de transferência

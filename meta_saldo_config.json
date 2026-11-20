@@ -1,0 +1,87 @@
+{
+ "2026-10": {
+  "ufs": {
+   "AM": 10000.0,
+   "RR": 5000.0,
+   "PA": 10000.0,
+   "AP": 0.0,
+   "MA": 10000.0,
+   "MT": 5000.0
+  },
+  "divisao": [
+   {
+    "uf": "AM",
+    "supervisor": "FRANCISCO EDSON SOUSA DA CONCEIÇÃO",
+    "vendedor": "000015 - THIAGO LIMA GOMES",
+    "venda3m": 84729.99000000002,
+    "peso": 96.9629191460991,
+    "meta": 9696.29191460991
+   },
+   {
+    "uf": "AM",
+    "supervisor": "SUPERVISOR MT (VAGO)",
+    "vendedor": "000008 - PAULO UBIRATAN CURVO DE LIMA",
+    "venda3m": 2653.92,
+    "peso": 3.0370808539009064,
+    "meta": 303.7080853900906
+   },
+   {
+    "uf": "RR",
+    "supervisor": "(sem venda nos 3 meses)",
+    "vendedor": "(sem venda nos 3 meses)",
+    "venda3m": 0.0,
+    "peso": 100.0,
+    "meta": 5000.0
+   },
+   {
+    "uf": "PA",
+    "supervisor": "LAIS PRISCILA LEAL MACIEL",
+    "vendedor": "000041 - EDSON NEVES DO NASCIMENTO",
+    "venda3m": 48998.950000000004,
+    "peso": 79.33437679163934,
+    "meta": 7933.437679163934
+   },
+   {
+    "uf": "PA",
+    "supervisor": "LAIS PRISCILA LEAL MACIEL",
+    "vendedor": "000023 - FAYGA KETTE CAETANO DE SOUZA",
+    "venda3m": 11008.72,
+    "peso": 17.82425828458887,
+    "meta": 1782.4258284588868
+   },
+   {
+    "uf": "PA",
+    "supervisor": "LAIS PRISCILA LEAL MACIEL",
+    "vendedor": "000007 - RODRIGO RIBEIRO LOPES",
+    "venda3m": 1754.9,
+    "peso": 2.8413649237717924,
+    "meta": 284.1364923771792
+   },
+   {
+    "uf": "MA",
+    "supervisor": "DENYLSON DA SILVA COSTA",
+    "vendedor": "000034 - ANDERSON LIMA SILVA",
+    "venda3m": 337333.07000000007,
+    "peso": 70.42521238489566,
+    "meta": 7042.521238489565
+   },
+   {
+    "uf": "MA",
+    "supervisor": "DENYLSON DA SILVA COSTA",
+    "vendedor": "000031 - JOCIMAR SOARES FRANCA JUNIOR",
+    "venda3m": 141661.68000000002,
+    "peso": 29.574787615104338,
+    "meta": 2957.4787615104337
+   },
+   {
+    "uf": "MT",
+    "supervisor": "SUPERVISOR MT (VAGO)",
+    "vendedor": "000008 - PAULO UBIRATAN CURVO DE LIMA",
+    "venda3m": 100538.63999999998,
+    "peso": 100.0,
+    "meta": 5000.0
+   }
+  ],
+  "gerado_em": "16/10/2026 (redividida só entre a equipe)"
+ }
+}

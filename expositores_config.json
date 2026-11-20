@@ -1,0 +1,178 @@
+{
+ "expositores": [
+  {
+   "nome": "BATERIA",
+   "categoria": "",
+   "qtd": 1,
+   "filial": "BELÉM"
+  },
+  {
+   "nome": "BATERIAS - 3 PRATELEIRAS",
+   "categoria": "BATERIAS",
+   "qtd": 20,
+   "filial": "BELÉM"
+  },
+  {
+   "nome": "BATERIAS - 3 PRATELEIRAS",
+   "categoria": "BATERIAS",
+   "qtd": 7,
+   "filial": "BOA VISTA"
+  },
+  {
+   "nome": "BATERIAS - 3 PRATELEIRAS",
+   "categoria": "BATERIAS",
+   "qtd": 7,
+   "filial": "MACAPÁ"
+  },
+  {
+   "nome": "BATERIAS - 3 PRATELEIRAS",
+   "categoria": "BATERIAS",
+   "qtd": 25,
+   "filial": "MANAUS"
+  },
+  {
+   "nome": "BATERIAS - 3 PRATELEIRAS",
+   "categoria": "BATERIAS",
+   "qtd": 15,
+   "filial": "MATOGROSSO"
+  },
+  {
+   "nome": "BATERIAS - 3 PRATELEIRAS",
+   "categoria": "BATERIAS",
+   "qtd": 16,
+   "filial": "SANTARÉM"
+  },
+  {
+   "nome": "BATERIAS - 3 PRATELEIRAS",
+   "categoria": "BATERIAS",
+   "qtd": 10,
+   "filial": "SÃO LUIS"
+  },
+  {
+   "nome": "EXPOSITOR - CORINGA",
+   "categoria": "PEÇAS",
+   "qtd": 10,
+   "filial": "BELÉM"
+  },
+  {
+   "nome": "EXPOSITOR - CORINGA",
+   "categoria": "PEÇAS",
+   "qtd": 4,
+   "filial": "BOA VISTA"
+  },
+  {
+   "nome": "EXPOSITOR - CORINGA",
+   "categoria": "PEÇAS",
+   "qtd": 7,
+   "filial": "MACAPÁ"
+  },
+  {
+   "nome": "EXPOSITOR - CORINGA",
+   "categoria": "PEÇAS",
+   "qtd": 12,
+   "filial": "MANAUS"
+  },
+  {
+   "nome": "EXPOSITOR - CORINGA",
+   "categoria": "PEÇAS",
+   "qtd": 8,
+   "filial": "MATOGROSSO"
+  },
+  {
+   "nome": "EXPOSITOR - CORINGA",
+   "categoria": "PEÇAS",
+   "qtd": 8,
+   "filial": "SANTARÉM"
+  },
+  {
+   "nome": "EXPOSITOR - CORINGA",
+   "categoria": "PEÇAS",
+   "qtd": 5,
+   "filial": "SÃO LUIS"
+  },
+  {
+   "nome": "LUBRIFICANTES - PÉ",
+   "categoria": "LUBRIFICANTES",
+   "qtd": 20,
+   "filial": "BELÉM"
+  },
+  {
+   "nome": "LUBRIFICANTES - PÉ",
+   "categoria": "LUBRIFICANTES",
+   "qtd": 7,
+   "filial": "BOA VISTA"
+  },
+  {
+   "nome": "LUBRIFICANTES - PÉ",
+   "categoria": "LUBRIFICANTES",
+   "qtd": 7,
+   "filial": "MACAPÁ"
+  },
+  {
+   "nome": "LUBRIFICANTES - PÉ",
+   "categoria": "LUBRIFICANTES",
+   "qtd": 0,
+   "filial": "MANAUS"
+  },
+  {
+   "nome": "LUBRIFICANTES - PÉ",
+   "categoria": "LUBRIFICANTES",
+   "qtd": 15,
+   "filial": "MATOGROSSO"
+  },
+  {
+   "nome": "LUBRIFICANTES - PÉ",
+   "categoria": "LUBRIFICANTES",
+   "qtd": 16,
+   "filial": "SANTARÉM"
+  },
+  {
+   "nome": "LUBRIFICANTES - PÉ",
+   "categoria": "LUBRIFICANTES",
+   "qtd": 10,
+   "filial": "SÃO LUIS"
+  },
+  {
+   "nome": "PNEU DE MOTOCICLETA",
+   "categoria": "PNEUS",
+   "qtd": 20,
+   "filial": "BELÉM"
+  },
+  {
+   "nome": "PNEU DE MOTOCICLETA",
+   "categoria": "PNEUS",
+   "qtd": 7,
+   "filial": "BOA VISTA"
+  },
+  {
+   "nome": "PNEU DE MOTOCICLETA",
+   "categoria": "PNEUS",
+   "qtd": 7,
+   "filial": "MACAPÁ"
+  },
+  {
+   "nome": "PNEU DE MOTOCICLETA",
+   "categoria": "PNEUS",
+   "qtd": 24,
+   "filial": "MANAUS"
+  },
+  {
+   "nome": "PNEU DE MOTOCICLETA",
+   "categoria": "PNEUS",
+   "qtd": 15,
+   "filial": "MATOGROSSO"
+  },
+  {
+   "nome": "PNEU DE MOTOCICLETA",
+   "categoria": "PNEUS",
+   "qtd": 16,
+   "filial": "SANTARÉM"
+  },
+  {
+   "nome": "PNEU DE MOTOCICLETA",
+   "categoria": "PNEUS",
+   "qtd": 10,
+   "filial": "SÃO LUIS"
+  }
+ ]
+}

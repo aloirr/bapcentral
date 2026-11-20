@@ -1,0 +1,85 @@
+{
+ "filiais": {
+  "0101001": "FRW PECAS E PNEUS - VARZEA GRA",
+  "0101002": "FRW PECAS E PNEUS - MANAUS",
+  "0101005": "FRW PECAS E PNEUS - BELEM",
+  "0101006": "FRW PECAS E PNEUS - SAO LUIS"
+ },
+ "supervisores": {
+  "000005": "FRANCISCO EDSON SOUSA",
+  "000006": "LAIS PRISCILA LEAL MACIEL",
+  "000013": "DENYLSON DA SILVA COSTA",
+  "000040": "ALEXANDRE LOHAN CEZAR GUERREIRO"
+ },
+ "representantes": {
+  "142531": {
+   "nome": "Alexandre Lohan Cezar Guerreiro",
+   "supervisor": "000040"
+  },
+  "147509": {
+   "nome": "ANDERSON LIMA SILVA",
+   "supervisor": "000013"
+  },
+  "152806": {
+   "nome": "DENYLSON DA SILVA COSTA",
+   "supervisor": "000013"
+  },
+  "147541": {
+   "nome": "EDSON NEVES DO NASCIMENTO",
+   "supervisor": "000006"
+  },
+  "145887": {
+   "nome": "VENDEDOR PARA TESTES",
+   "supervisor": "000005"
+  },
+  "153357": {
+   "nome": "FAYGA KETTE CAETANO DE SOUZA",
+   "supervisor": "000006"
+  },
+  "152792": {
+   "nome": "FRANCISCO EDSON SOUSA",
+   "supervisor": "000005"
+  },
+  "147527": {
+   "nome": "JOCIMAR SOARES FRANCA JUNIOR",
+   "supervisor": "000013"
+  },
+  "154947": {
+   "nome": "JUGLAISON RODRIGUES DOS PRAZES",
+   "supervisor": "000013"
+  },
+  "145891": {
+   "nome": "LAIS PRISCILA LEAL MACIEL",
+   "supervisor": "000006"
+  },
+  "154905": {
+   "nome": "LEANDRO MORENO DA SILVA",
+   "supervisor": "000013"
+  },
+  "154902": {
+   "nome": "PAULO AUGUSTO MONTEIRO NOVO FILHO",
+   "supervisor": "000005"
+  },
+  "145894": {
+   "nome": "PAULO UBIRATAN CURVO DE LIMA",
+   "supervisor": "000013"
+  },
+  "153356": {
+   "nome": "RODRIGO RIBEIRO LOPES",
+   "supervisor": "000006"
+  },
+  "148996": {
+   "nome": "THIAGO LIMA GOMES",
+   "supervisor": "000005"
+  },
+  "154946": {
+   "nome": "MAYARA SANTOS",
+   "supervisor": "000005"
+  },
+  "158922": {
+   "nome": "ALINE FERREIRA DE ARAUJO",
+   "supervisor": "000006"
+  }
+ },
+ "lido_em": "2026-11-19T17:26:28"
+}
