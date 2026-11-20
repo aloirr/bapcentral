@@ -727,3 +727,42 @@ def test_RN_ROT_001_pedido_exclusao_maxima_sem_dado_pessoal():
     assert not re.search(CNPJ_RE, texto)
     assert not [x["A1_CGC"] for x in linhas if x["A1_CGC"] in texto]
     assert not [x["codcli"] for x in linhas if x["codcli"] in texto]
+
+
+def test_RN_ROT_001_aviso_some_depois_da_primeira_remessa_curta():
+    """RN-ROT-001 (T-0010), R-20261120-111303: o aviso aparece uma vez so.
+    Remessas 3000 de 09/11 e 15/11 e uma curta de 20/11: remessas_a_excluir
+    devolve [] (o aviso nao volta depois do 1o envio curto). Sem
+    codcompromisso na curta, vale a data do par (mtime do arquivo)."""
+    v3000a = _remessa("20261109143705", ["000015", "000016"],
+                      "3000-01-01T00:00:00")
+    v3000b = _remessa("20261115090000", ["000016"], "3000-01-01T00:00:00")
+    curta = _remessa("20261120080000", ["000015", "000016"],
+                     "2026-11-26T00:00:00")
+    assert pn.remessas_a_excluir(
+        [(None, v3000a), (None, v3000b), (None, curta)]) == []
+    # curta sem codcompromisso: a data do par (20/11 08:00) faz o corte
+    sem_comp = _remessa("", ["000015"], "2026-11-26T00:00:00")
+    assert pn.remessas_a_excluir([
+        (dt.datetime(2026, 11, 9, 15, 0), v3000a),
+        (dt.datetime(2026, 11, 15, 10, 0), v3000b),
+        (dt.datetime(2026, 11, 20, 8, 0), sem_comp)]) == []
+
+
+def test_RN_ROT_001_aviso_aparece_com_remessa_3000_mais_nova():
+    """RN-ROT-001 (T-0010), R-20261120-111303: o aviso aparece uma vez so,
+    mas volta se surgir remessa 3000 MAIS NOVA que a ultima curta: com
+    [3000 de 09/11, curta de 20/11, 3000 de 21/11] so a de 21/11 entra.
+    Sem curta nenhuma ([3000 de 09/11]) ela entra: o 1o envio mostra o
+    aviso."""
+    velha = _remessa("20261109143705", ["000015", "000016"],
+                     "3000-01-01T00:00:00")
+    curta = _remessa("20261120080000", ["000015"], "2026-11-26T00:00:00")
+    nova = _remessa("20261121100000", ["000016", "000015", "000016"],
+                    "3000-01-01T00:00:00")
+    out = pn.remessas_a_excluir([(None, velha), (None, curta), (None, nova)])
+    assert out == [
+        {"quando": "21/11/2026 10:00", "vendedores": ["000015", "000016"]}]
+    so_velha = pn.remessas_a_excluir([(None, velha)])
+    assert so_velha == [
+        {"quando": "09/11/2026 14:37", "vendedores": ["000015", "000016"]}]
