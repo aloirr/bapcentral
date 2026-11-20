@@ -4,6 +4,7 @@
 - **Base:** código do `main` em `c96a153` (`relatorios_nucleo.py`, 19.173 linhas). As linhas citadas são desse commit.
 - **Escopo:** o dicionário que `relatorios_nucleo.montar(rid, raiz, hoje=None, log=None, params=None, tela=False)` devolve (`relatorios_nucleo.py:19130`). É a ponte entre os núcleos e qualquer tela: Tkinter (`bap_relatorios.py`) hoje, web amanhã.
 - **Regra de versão:** acrescentar chave opcional = v1 continua. Renomear, mudar tipo ou tirar chave = **v2**, com ADR em `docs/decisoes/` e recado aos consumidores (seção 9).
+- **Como a versão é lida:** hoje o dicionário **não tem** chave de versão. A versão sai da chave de topo opcional `versao_contrato` (`int`): **ausente = 1**. Acrescentar a chave não muda a v1. Ela passa a ser obrigatória na v2: o `montar` grava `rel["versao_contrato"]` a partir de uma constante do núcleo (proposta: `relatorios_nucleo.VERSAO_CONTRATO = 1`; pedido ao modulo-farois na T-0006). A web lê essa chave e recusa, com aviso, versão maior que a que conhece (ADR 0001, §4.6). Não confundir com `bap_dados.VERSAO` (27), que é a versão do cache.
 - Exemplos com **valores fictícios**. Nenhum dado de cliente ou vendedor.
 
 ## 1. Como o dicionário nasce
@@ -15,7 +16,7 @@
 3. `rel = funcao(ctx)`. Quase todas começam com `novo(rid, area, titulo, subtitulo, fonte)` (`:328`), que já traz as chaves-base.
 4. `rel.setdefault("area", area)`.
 5. `_status_nas_tabelas` (`:715`): põe a coluna de status do cliente nas tabelas listadas em `STATUS_NAS_TABELAS`.
-6. **Resumo gerencial padrão.** Se `capa` e sem `painel`, e o id está em `PAINEIS_PADRAO` (`:19060`), monta `painel` por `painel_farol.montar` (`painel_farol.py:278`). Se der erro, vira aviso.
+6. **Resumo gerencial padrão.** Se `capa` e sem `painel`, e o id está em `PAINEIS_PADRAO` (`:19060`), chama `PAINEIS_PADRAO[rid](rel, ctx)`. Essas funções (`_painel_*`, `:18534-19024`) terminam em `painel_farol.montar` (`painel_farol.py:278`), que grava `painel`, `painel_titulo` e `insights_painel`. Se der erro, vira aviso.
 7. Tira `_eventos`. Tira `_equipe` e, com `tela=True`, chama esse callable (aba Equipe do `vc_meta`).
 8. `_so_status` (`:19033`): esconde STATUS PROTHEUS e SITUAÇÃO PLANNER e deixa só STATUS.
 9. `_sinal_nas_colunas` (`:19104`). Fora de `LINHA_PINTADA = ("pv_pedidos", "vc_markup", "vc_saldo")` (`:19080`):
@@ -23,9 +24,18 @@
    - põe `chip` nas colunas de `COLUNAS_SINAL` (`:19087`), com as cores de `CORES_SINAL` (`:19092`).
 10. Grava `params_usados = dict(ctx.params)`.
 11. Completa cada tabela com `tons`, `kpis_de`, `recortes`, `edicao` e `detalhe` (`_colunas_do_pedido`, `:1163`).
-12. Põe `detalhe_pedido`: um callable `(tabela, linha) -> dict` (usa `detalhe_pedido`, `:1020`).
+12. Põe `detalhe_pedido`: um callable `(tabela, linha) -> dict | None` (usa `detalhe_pedido`, `:1020`; ver §11).
 
-> **Efeito colateral (atenção):** `montar("vc_painel")` chama `painel_diretor.calcular(..., gravar_hist=True)`. No mês corrente, essa chamada **grava** `RELATORIOS/painel_diretor_hist.json` (`painel_diretor.py:785-799`). `montar` não é só leitura. Ver o risco R2 em `docs/desenho/T-0002.md`.
+> **Efeito colateral (atenção): `montar` não é só leitura.** Ele grava em duas frentes (risco R2 em `docs/desenho/T-0002.md`):
+> - **Histórico do Painel do Diretor.** `montar("vc_painel")` → `_abas_do_painel` → `pdr.calcular(ctx, ano, mes)` (`relatorios_nucleo.py:9608`), com `gravar_hist=True` por padrão (`painel_diretor.py:196`). Grava `RELATORIOS/painel_diretor_hist.json` quando o corte dos dados é do mês corrente **e** os números mudaram (`painel_diretor.py:788-797`). O `painel_cartoes.py:136` já chama com `gravar_hist=False`.
+> - **Caches em disco** (o `.gitignore` ignora `*.pkl` e `__pycache__/`, então nada aparece no `git status`):
+>   - `RELATORIOS/_CACHE_RELATORIOS/*.pkl`: os blocos do `bap_dados.carregar` (`bap_dados.py:342`, `:363`) e o `custos_legado.pkl` (`bap_dados.py:1255`);
+>   - `<pasta do PLANNER>/_CACHE_RELATORIOS/planner_*.pkl` (`meta_nucleo.ler_planner`, `meta_nucleo.py:644-645`), em geral `RELATORIOS/Roteirizacao/_CACHE_RELATORIOS/`; e o `mix_familia_*.pkl` (`meta_nucleo.py:2010-2011`);
+>   - `<pasta do .xlsx>/_CACHE_RELATORIOS/xlsx/*.pkl` (`xlsx_rapido._arquivo_cache`, `xlsx_rapido.py:571`), só onde a `_CACHE_RELATORIOS/` já existe (`_usa_disco`, `:580`);
+>   - `RELATORIOS/Visitas/ANALITICO/_leitura_analitico.pkl` (`visitas_nucleo._ler_espelhos`, `visitas_nucleo.py:890`, `:935`), **fora** de qualquer `_CACHE_RELATORIOS/`;
+>   - `SISTEMA BAP/cache/` ao lado do código: o bytecode do Python. Sem `LOCALAPPDATA` (Linux, Render), o `sys.pycache_prefix` ligado no import de `farol_ddr.py:48` e `geocodificar.py:76` (e das telas) aponta para lá. Com `PYTHONPYCACHEPREFIX` no ambiente, o prefixo já vem pronto e é mantido.
+>
+> Por isso `gravar_hist=False` sozinho **não** deixa o `montar` em leitura pura (§10.5).
 
 ## 2. Chaves de topo (sempre presentes)
 
@@ -34,7 +44,7 @@ Inventário rodado em 20/11/2026 nos 29 ids (seção 8): estas 12 chaves saíram
 | Chave | Tipo | De onde sai | Exemplo (fictício) |
 |---|---|---|---|
 | `id` | `str` | `novo` (`:328`) | `"pl_frw"` |
-| `area` | `str`: `PRE`, `VEN`, `POS`, `ANA` ou `TRADE` (`:37-41`) | `novo`; `montar` usa `setdefault` com a área do `CATALOGO` | `"Pós-venda e Logística"` |
+| `area` | `str`, o nome longo da área: `"Pré-venda e Faturamento"`, `"Vendas e CRM"`, `"Pós-venda e Logística"`, `"Analista Comercial"` ou `"Trade Marketing"`. `PRE`, `VEN`, `POS`, `ANA` e `TRADE` são só os nomes das constantes no código (`:36-40`), não o valor | `novo`; `montar` usa `setdefault` com a área do `CATALOGO` | `"Pós-venda e Logística"` |
 | `titulo` | `str` | `novo` | `"Farol de Estoque FRW"` |
 | `subtitulo` | `str` | `novo`; o farol acrescenta o filtro (ex.: `:3098`, `:5631`) | `"Posição de 19/11/2026 · 3 filiais"` |
 | `fonte` | `str` | `novo` | `"TABELA_BAP · ESTOQUE_BAP"` |
@@ -44,7 +54,7 @@ Inventário rodado em 20/11/2026 nos 29 ids (seção 8): estas 12 chaves saíram
 | `avisos` | `list[str]` | o farol e o próprio `montar` (falha de painel, status, aba Equipe) | `["Sem custo (P. PEDIDO) para o markup."]` |
 | `editar` | `str \| None`: caminho relativo à raiz, o arquivo do botão EDITAR NO EXCEL | `novo` (`None`); farol (`:1409`, `:1892`, `:6803`, `:7487`, `:11695`, `:12355`) | `"RELATORIOS/ACOMPANHAMENTO_POS_VENDA.xlsx"` |
 | `params_usados` | `dict[str, Any]` | `montar` (`:19156`) | `{"MÊS": 11, "ANO": 2026}` |
-| `detalhe_pedido` | **callable** `(tabela: dict, linha: list) -> dict` | `montar` (`:19162-19172`) | — (não serializável) |
+| `detalhe_pedido` | **callable** `(tabela: dict, linha: list) -> dict \| None` (ação, §11.1) | `montar` (`:19162-19172`) | — (não serializável) |
 
 ## 3. `Tabela` (item de `tabelas`)
 
@@ -58,8 +68,8 @@ Inventário rodado em 20/11/2026 nos 29 ids (seção 8): estas 12 chaves saíram
 | `tons` | `list[str]`, um por linha | `tabela()`; `montar` completa; `_sinal_nas_colunas` zera fora de `LINHA_PINTADA` | `["", "alerta"]` |
 | `filtros` | `list[str \| {"coluna", "padrao", "multi"}]` | `tabela()` | `["FILIAL", {"coluna": "MÊS", "padrao": "NOV/26"}]` |
 | `total` | `list[Celula] \| None`: a linha de total | `tabela()` | `["TOTAL", 3800.0, 40, None]` |
-| `kpis_de` | **callable** `(linhas_visiveis) -> list[Kpi]` ou `None`: os cartões seguem o filtro | `tabela()`; `montar` (`:19159`) | — |
-| `recortes` | `list[(rotulo, callable(linha) -> bool) \| (rotulo, {"top": N, "coluna": i})]` | `tabela()`; `montar` (`:19160`) | `[("Top 10", {"top": 10, "coluna": 2})]` |
+| `kpis_de` | **callable** `(linhas_visiveis) -> list[Kpi]` ou `None`: os cartões seguem o filtro (ação, §11.2) | `tabela()`; `montar` (`:19159`) | — |
+| `recortes` | `list[(rotulo, callable(linha) -> bool) \| (rotulo, {"top": N, "coluna": i, "so_positivo"?: bool})]` (§11.4) | `tabela()`; `montar` (`:19160`) | `[("Top 10", {"top": 10, "coluna": 2})]` |
 | `edicao` | `dict \| None`: o que a assistente pode editar (§3.4) | `tabela()`; `montar` (`:19161`) | ver §3.4 |
 | `detalhe` | `{"filial": int\|None, "pedido": int\|None, "nf": int\|None} \| None` | `montar` → `_colunas_do_pedido` (`:1163`) | `{"filial": 0, "pedido": 1, "nf": None}` |
 
@@ -111,13 +121,15 @@ Vistas no inventário. Todas são opcionais. A tela trata a falta como `False`/`
 | `juntas` | `list[{"tabela": Tabela, "titulo": str, "liga": (col_pai, col_filha, sep) \| None, ...}]` | tabelas ligadas embaixo/em cima da principal. Extras: `mostrar`, `larguras`, `peso`, `com_total`, `altura`, `editavel`, `filtro_texto` | `:1874` (pv_pedidos), `:3235` (`_empilhar`), `:7012` (pl_entregas) |
 | `juntas_em_cima`, `titulo_tabela`, `sem_rolar_lado` | `bool` / `str` / `bool` | o empilhado GERENTE / SUPERVISORES / VENDEDORES | `_empilhar` (`:3195`) |
 | `grupos` | `list[(rotulo, n_colunas)]` | a faixa de cabeçalho agrupado | `vistas_escopo` (`:3534`) |
-| `total_de` | **callable** | total que segue o filtro | farol de metas, visitas |
+| `total_de` | **callable** `(linhas_visiveis) -> list[Celula] \| None` | total que segue o filtro (ação, §11.3) | vc_meta (`:3798`), pl_garantias (`:7258`), pl_giro (`:12199`), vc_visitas (`:13808`) |
+| `totais_por` | `{"coluna": int, "valores": dict[str, list[Celula]]}` | o total pronto de cada valor de uma coluna, usado quando não há `total_de` (§11.3). As chaves são valores da coluna (ex.: nome de vendedor) | `:4743` (vc_planner) |
 | `so_exportar` | `bool` | só no Excel/PDF (fora da tela) | `:9649` (vc_painel) |
 | `compacta`, `enxuta`, `zebra`, `letra`, `divisao`, `filtros_fora` | apresentação | | `:1856-1860` |
 | `pdf`, `nota_pdf`, `pdf_quebra_antes`, `pdf_pagina` | PDF | | vários |
 | `linhas_filtro`, `tons_filtro`, `top_n`, `ordem_top` | o TOP N na tela, todas no filtro | | `:3789` |
 | `ordem_exportar` | **callable** | ordem do Excel | vc_planner |
-| `solicitacao_bap`, `garantia`, `protheus`, `calendario`, `executivo`, `vazio`, `cores_celulas`, `totais_por` | marcas de tela específica | | pv_pedidos (`:1888`), pl_garantias, vc_planner, vc_visitas, vc_painel |
+| `cores_celulas` | `list[dict[int, str]]`, um dict por linha: índice da coluna → cor `"#RRGGBB"` | pinta a célula (não a linha). No JSON, a chave `int` vira `str` (§10) | pl_entregas (`:7003`); no Exportar para o RH, `:4512` e `:10728`. Lido em `bap_visual.py:3325` |
+| `solicitacao_bap`, `garantia`, `protheus`, `calendario`, `executivo`, `vazio` | marcas de tela específica | | pv_pedidos (`:1888`), pl_garantias, vc_planner, vc_visitas, vc_painel |
 | `_por_quem`, `_rot_quem`, `_fotos`, `_testes` | **internas** (começam com `_`) | não fazem parte do contrato | |
 
 ## 4. `Kpi` (item de `kpis`)
@@ -150,6 +162,8 @@ A barra por estado no cartão sai de `estados_do_cartao(rel, k)` (`:172`). Ela u
 | `series` | `list[{"nome": str, "valores": list[float], "cor": "#RRGGBB", "cores"?: list}]` | |
 | `formato` | `"num" \| "moeda" \| "pct" \| "num1"` | |
 | opcionais | `largo: bool`, `meta: float \| list`, `rotulo_meta: str`, `rotular: bool \| "nao" \| "nao_zero"`, `linhas: bool`, `linha`, `subrotulos` | `bap_relatorios.py:416-427` |
+| `variacao_tabela` | `bool`, opcional | marca o gráfico "Variação % do preço de tabela" (`:17025`). Quem lê é o `_painel_preco` (`:18975`), para pôr o bloco no alto do painel; a tela não lê |
+| opcionais de série | `cor_negativo: "#RRGGBB"` (barra com valor < 0, `bap_visual.py:1877`), `rotulos: list[str]` (o texto de cada ponto, ex.: `:17019`) | |
 
 ## 6. Painel: `painel`, `painel_titulo`, `insights_painel`, `paineis`, `painel_pre`
 
@@ -163,7 +177,7 @@ A barra por estado no cartão sai de `estados_do_cartao(rel, k)` (`:172`). Ela u
 ```
 
 - **Quem monta:**
-  - o padrão: `painel_farol.montar` (`painel_farol.py:376`), pela tabela `PAINEIS_PADRAO`;
+  - o padrão: as funções `_painel_*` da tabela `PAINEIS_PADRAO`, que terminam em `painel_farol.montar` (`painel_farol.py:278`);
   - os próprios: `vc_executivo` (`:4149`), `vc_planner` (`_painel_roteirizacao`, `:5017`), `pl_entregas` (`_painel_entregas_exec`, `:7177`), `vc_painel` (`:8752`) e `vc_visitas` (`_painel_visitas`, `:13990`).
 - **Bloco:** `{"tipo", "row", "col", "rowspan"?, "colspan"?, ...}`. O desenho de cada tipo está em `bap_relatorios.py:409-470`.
 
@@ -180,7 +194,7 @@ A barra por estado no cartão sai de `estados_do_cartao(rel, k)` (`:172`). Ela u
 
 ### 6.2 As outras chaves do painel
 
-- **`painel_titulo`** (`str`): o nome da aba. `"Resumo gerencial"` ou `"Painel executivo"`.
+- **`painel_titulo`** (`str`, **opcional**): o nome da aba. `"Resumo gerencial"` (`painel_farol.py:378` e os painéis próprios) ou `"Painel executivo"` (`vc_executivo`, `:4180`). O `vc_painel` não põe. Sem a chave, a tela usa `"Painel executivo"` (`bap_relatorios.py:303-304`); a web faz o mesmo.
 - **`insights_painel`** (`list[(tom, texto)]`): as frases do painel. O e-mail e os testes leem daqui.
 - **`paineis`** (só `vc_painel`, `_abas_do_painel`, `:9002` → `:9647`): `list[{"titulo", "painel", "kpis", "kpis_export"?, "diretor"?}]`. São as abas Painel · resultado / produtividade / por dia útil (RRM), Resumo gerencial, Faturamento etc. Com `paineis`, as tabelas ficam `so_exportar`.
 - **`painel_pre`** (só `vc_painel`, `:8786`): `{"titulo": "Visão executiva", "painel": Painel}`.
@@ -203,7 +217,7 @@ A barra por estado no cartão sai de `estados_do_cartao(rel, k)` (`:172`). Ela u
 | `_champions` | `{"vendedores": [(cod, nome)], "supervisores": [...], ...}` | vc_champions | `:18437` | `bap_relatorios.py:3104`. **Interna e com nome de pessoa** |
 | `garantia` | `{"dados": callable, "produto": callable, "status", "resultados", "cliente_base": callable, "opcoes", "campos_cliente"}` | pl_garantias | `:7472` | tela do ticket |
 | `exportar_sem_coordenada`, `importar_preenchidos`, `exportar_correcao`, `exportar_correcao_json` | **callable** | an_divergencias | `:16078-16084` | botões |
-| `_eventos`, `_equipe`, `_preco` | interna | — | `:443`, `:3144`, `:17350` | **removidas** pelo `montar` (`_preco` no `_painel_preco`, `:18916`) |
+| `_eventos`, `_equipe`, `_preco` | interna | — | `:453`, `:3144`, `:17350` | **removidas** pelo `montar` (`_preco` no `_painel_preco`, `:18916`) |
 
 **Fora do `montar`, o mesmo formato:** `exportar_rh` (`:10540`) e `exportar_rh_executivo` (`:4364`) devolvem um relatório com estas chaves a mais:
 - `competencia`, `posicao`, `resultado_ate`, `excel_rv`, `periodo`, `uma_pagina`;
@@ -214,7 +228,10 @@ Elas pertencem ao contrato do "Exportar para o RH" (fora desta v1). Quem lê: `b
 
 ## 8. Inventário de 20/11/2026 (bases do repositório; sem dado pessoal)
 
-Rodado com `montar(rid, raiz)` padrão e `hoje` = 20/11/2026.
+Rodado com `montar(rid, raiz)` padrão e `hoje` = 20/11/2026, num worktree descartável.
+
+- A coluna "blocos do painel" soma os blocos de `painel`, `paineis[].painel` e `painel_pre.painel`.
+- **O tempo é da máquina da rodada** (o contêiner Linux da sessão, não o PC das assistentes). Varia com a máquina, com o cache frio ou quente (§1, efeito colateral) e com o tamanho das bases. Serve para comparar os ids entre si, não como meta de tempo do PC nem do Render.
 
 | id | tabelas | kpis | gráficos | blocos do painel | chaves extras | tempo |
 |---|---|---|---|---|---|---|
@@ -223,7 +240,7 @@ Rodado com `montar(rid, raiz)` padrão e `hoje` = 20/11/2026.
 | farol_pv / farol_vc / farol_pl | 0 | 0 | 3 | insights, barras | capa, parametros, painel | 0,1 s |
 | vc_meta | 11 | 6 | 4 | insights, barras, hbarras | capa, parametros, painel, estilo, faixa, eyebrow, titulo_curto, _por_filial | 6,3 s |
 | vc_planner | 8 | 6 | 3 | insights, barras, hbarras | capa, parametros, painel, insights_rota, exportar_* | 0,3 s |
-| vc_painel | 17 | 7 | 4 | insights, barras, hbarras, pizza, placar, rrm, tabela | capa, parametros, painel, paineis, painel_pre, exec_tri | **26,1 s** |
+| vc_painel | 17 | 7 | 4 | insights, barras, hbarras, pizza, placar, rrm, tabela (soma de `painel`, `paineis` e `painel_pre`; o `painel` sozinho só tem barras e pizza, `:8752-8761`) | capa, parametros, painel, paineis, painel_pre, exec_tri | **26,1 s** |
 | vc_base | 8 | 6 | 3 | insights, barras, hbarras | capa, parametros, painel | 2,2 s |
 | vc_visitas | 7 | 10 | 3 | barras | capa, parametros, painel, abrir | 0,6 s |
 | vc_champions | 7 | 4 | 3 | — | parametros, campanha_export, _champions | 0,2 s |
@@ -257,14 +274,102 @@ Rodado com `montar(rid, raiz)` padrão e `hoje` = 20/11/2026.
 
 ## 10. Regras do contrato para a web (v1)
 
-1. **Serializável:** só as chaves das §2 a §7 que não estão marcadas como callable ou interna. São callables:
+O contrato tem duas partes (ADR 0001, §4.6):
+- a **parte dado**: tudo o que é serializável. Vai ao navegador como JSON;
+- a **parte ação**: os callables. Ficam no servidor. A §11 diz, para cada um, a assinatura, o retorno e o que a web v1 faz.
+
+1. **Serializável:** só as chaves das §2 a §7 que não estão marcadas como callable ou interna. São callables (a parte ação, §11):
    - `detalhe_pedido`, `kpis_de`, `total_de`, `recortes[][1]` (quando função), `ordem_exportar`;
    - `edicao.ao_mudar`, `edicao.campos[].opcoes_de` e `so_se`;
    - `garantia.dados`, `garantia.produto`, `garantia.cliente_base`;
    - `exportar_*` e `importar_preenchidos`.
 
-   A web chama o núcleo no servidor e manda ao navegador só a parte serializável. `date` vira ISO `AAAA-MM-DD`; tupla vira lista.
+   A web chama o núcleo no servidor e manda ao navegador só a parte serializável. Na conversão:
+   - `date`/`datetime` viram ISO (`AAAA-MM-DD`);
+   - tupla vira lista;
+   - **chave `int` de dict vira `str`** (o `json.dumps` faz isso sozinho): em `cores_celulas`, `{10: "#B3261E"}` chega como `{"10": "#B3261E"}`. O navegador converte de volta para o índice da coluna;
+   - o recorte por função vira só o rótulo (§11.4).
 2. **Chaves com `_`** são internas: nunca vão para a web.
 3. **`kpis[].valor` já vem formatado.** As células vêm cruas e o `tipo` da coluna diz o formato (§3.2).
-4. **Dado pessoal:** as linhas e o `_champions` trazem nomes e códigos de clientes e vendedores. A web aplica a regra 6 do `CLAUDE.md` (sem dado pessoal em log ou print). Quem vê o quê é decisão da T-0006.
-5. **Leitura pura:** a web deve chamar `montar` sem gravar (ver o risco R2). Até a correção, a web não chama `vc_painel`.
+4. **Dado pessoal:** as linhas, o `_champions`, as chaves de `totais_por` e os `campos`/`subtitulo` do `detalhe_pedido` trazem nomes e códigos de clientes e vendedores. A web aplica a regra 6 do `CLAUDE.md` (sem dado pessoal em log ou print). Quem vê o quê é decisão da T-0006.
+5. **Leitura pura:** a web deve chamar `montar` sem gravar nas bases (risco R2). Duas frentes, e as duas precisam estar resolvidas:
+   - **o histórico do Diretor** (`painel_diretor_hist.json`): pedido ao modulo-farois para a T-0006, com `gravar_hist=False` levado do `montar` até a chamada de `relatorios_nucleo.py:9608` (ou só o robô grava). **Até a correção, a web não chama `vc_painel`;**
+   - **os caches** (lista na §1): a T-0006 escolhe entre
+     - **raiz gravável só nas pastas de cache**: a exceção `atual/**/_CACHE_RELATORIOS/**` da ADR 0001 (§4.1), até chegar a pasta configurável (`BAP_CACHE_DIR`). O `_leitura_analitico.pkl` fica **fora** dessa exceção (está em `RELATORIOS/Visitas/ANALITICO/`) e precisa entrar no mesmo pedido, ao modulo-rota (`visitas_nucleo.py`);
+     - **cache pré-montado na própria web**: um aquecimento (`montar` dos ids da onda) logo depois de o pacote ser validado, antes de trocar o ponteiro `atual`. Cache montado no PC e enviado **não** vale: a web nunca abre pickle vindo de fora (ADR 0001, §4.1);
+     - o bytecode (`SISTEMA BAP/cache/`): `PYTHONPYCACHEPREFIX` apontado para fora do código e do pacote, sem mudar código.
+
+## 11. Parte ação: os callables e a web v1
+
+Regras gerais:
+- **Nenhum callable vai ao navegador.** O servidor guarda o `rel` montado (com os callables) num cache em memória por `(rid, params_usados, pacote)`, e as rotas de ação usam esse `rel` (ou montam de novo, com o mesmo `raiz`, `hoje` e `params`).
+- **O filtro roda no servidor.** O navegador manda o estado do filtro (`filtros`, recorte, busca) e recebe as linhas visíveis, o total e os cartões já calculados. Assim, um código só decide o que é "linha visível", e o número da web é o mesmo do Tkinter.
+- Para isso, a regra de filtro da tela (`bap_relatorios.Vista._filtradas`, `bap_relatorios.py:2651`: filtros, recorte, busca, TOP N) precisa virar **função pura no núcleo**, usada pela tela e pela web, com teste que compare as duas. Pedido ao modulo-farois na T-0006.
+- [SUPOSIÇÃO] As rotas citadas abaixo (`/r/<rid>/...`) são nomes de exemplo. Quem fixa os nomes é o desenho da onda 1 (modulo-web).
+
+| Callable | Assinatura e retorno | Web v1 |
+|---|---|---|
+| `detalhe_pedido` | §11.1 | **rota no servidor** |
+| `kpis_de` | `(linhas_visiveis: list[list[Celula]]) -> list[Kpi]` | **recálculo no servidor** (§11.2) |
+| `total_de` | `(linhas_visiveis) -> list[Celula] \| None` | **recálculo no servidor** (§11.3) |
+| `recortes[][1]` (função) | `(linha: list[Celula]) -> bool` | **recálculo no servidor** (§11.4) |
+| `ordem_exportar` | `(linha) -> chave de ordenação` (`sort(key=...)`, `bap_relatorios.py:1067-1070`) | fora da v1 (a v1 não exporta Excel) |
+| `edicao.ao_mudar`, `campos[].opcoes_de`, `campos[].so_se` | callables da tela de edição (ex.: `so_se(linha) -> bool`, `:12542`) | fora da v1: a web não grava (§3.4). O serializador tira a chave `edicao` inteira |
+| `garantia.dados`, `.produto`, `.cliente_base` | `dados_da_garantia(ticket)` (`:7444`), `produto(cod)` (`:7464`), `cliente_base(cod)` (`:7302`) | fora da v1 (a tela do ticket grava) |
+| `exportar_protheus`, `exportar_base_protheus` | `montar(t=None, linhas=None)` (`:5233`, `:5046`) | fora da v1 (gera arquivo) |
+| `exportar_sem_coordenada`, `exportar_correcao` | `(destino, chaves=None)` (`:16078`, `:16082`) | fora da v1 (grava Excel) |
+| `exportar_correcao_json` | `(chaves=None)` (`:16084`) | fora da v1 |
+| `importar_preenchidos` | `(arquivo)` (`:16080`) | fora da v1 (lê arquivo enviado e grava) |
+
+### 11.1 `detalhe_pedido` (o "Ver pedido")
+
+- **No dicionário:** `rel["detalhe_pedido"](tabela, linha)`. Ele lê os índices de `tabela["detalhe"]` (`{"filial", "pedido", "nf"}`, §3.1) e chama `relatorios_nucleo.detalhe_pedido(ctx, filial, pedido, nf)` (`:1020`), com o `ctx` do `montar` (`:19164-19172`). Índice `None` ou fora da linha = `""`.
+- **Na web:** rota no servidor (ex.: `/r/<rid>/detalhe?filial=&pedido=&nf=`). O navegador manda os **valores** das três células, tirados da linha pelos índices de `tabela.detalhe`. O servidor chama `detalhe_pedido(ctx, filial, pedido, nf)` direto, com o `ctx` do mesmo pacote e do mesmo `hoje`. Só a tabela com `detalhe` diferente de `None` mostra o botão.
+- **Retorno:** `None` quando não acha (a tela mostra "Pedido não encontrado na TABELA_BAP.", `bap_relatorios.py:2838-2842`; a web faz o mesmo). Senão, um dict (`:1157-1160`):
+
+| Chave | Tipo |
+|---|---|
+| `titulo` | `str`: `"Pedido <nº>"` ou `"Devolução NF <nº>"` |
+| `subtitulo` | `str`: `"<filial> · <cliente>"` (**dado pessoal**) |
+| `campos` | `list[(rotulo, valor)]`, os dois `str`: Cliente, Cidade, Vendedor, Supervisor, Filial, datas, nota, prazo, situação e os opcionais (Pedido Máxima, Dias úteis até faturar, Observação). **Dado pessoal** |
+| `kpis` | `list[Kpi]` (§4): Itens, Total tabela, Total venda, Desconto comercial, Saldo 15% e, às vezes, Saldo do frete |
+| `colunas` | `list[Coluna]` (§3.2), 12 colunas; SITUAÇÃO e NF ficam `oculta` quando não mudam entre os itens |
+| `linhas` | `list[list[Celula]]`, um item por linha |
+| `tons` | `list[str]`, um por linha (§3.3) |
+| `total` | `list[Celula]` |
+| `autorizacao` | `{"chave", "codigo", "por", "precisa": bool, "grave": bool, "aviso": str} \| None` |
+
+- **Web v1:** só mostra. A gravação da autorização (`autorizacao`) fica fora da v1 (§3.4).
+
+```python
+{"titulo": "Pedido 123456", "subtitulo": "MANAUS · CLIENTE FICTÍCIO",
+ "campos": [("Filial", "MANAUS"), ("Prazo de pagamento", "28 DIAS")],
+ "kpis": [{"rotulo": "Itens", "valor": "3", "cor": "neutro",
+           "detalhe": "12 unidades"}],
+ "colunas": [...], "linhas": [...], "tons": ["", "", "alerta"],
+ "total": ["TOTAL", "", "3 itens", "", 12, None, None, 14.2, ...],
+ "autorizacao": None}
+```
+
+### 11.2 `kpis_de`: os cartões seguem o filtro
+
+- **Na tela** (`bap_relatorios.kpis_atuais`, `bap_relatorios.py:705-718`), os cartões de cima saem, nesta ordem:
+  1. aba de painel com `kpis` próprios (`paineis[i].kpis`, `:289-290`): esses;
+  2. aba de tabela com `kpis_de`: `kpis_de(linhas visíveis)`, **mesmo sem filtro nenhum**;
+  3. se não, ou se `kpis_de` der erro: `rel["kpis"]`.
+- **Na web:** a mesma ordem, no servidor. Ao abrir a aba e a cada mudança de filtro, o servidor chama `kpis_de` com as linhas visíveis e devolve os `Kpi` prontos. **A web não mostra `rel["kpis"]` numa aba que tem `kpis_de`**: o número divergiria do Tkinter.
+- No Excel/PDF a tela grava `kpis_visiveis` com o mesmo cálculo (`bap_relatorios.py:1074-1076`). Exportação fica fora da v1.
+
+### 11.3 `total_de` e `totais_por`: o total segue o filtro
+
+- **Na tela** (`Vista.total_de`, `bap_relatorios.py:2700-2721`):
+  1. com `total_de`: `total_de(linhas visíveis)`; erro = sem total;
+  2. sem `total_de` e **sem filtro**: `tabela["total"]`;
+  3. sem `total_de`, com filtro: o `totais_por` só quando todas as linhas visíveis têm o mesmo valor na coluna e são **todas** as linhas desse valor; senão, sem total.
+- **Na web:** a mesma regra, no servidor (o `totais_por` é serializável, mas a regra fica junto da do filtro, num lugar só). Com filtro e sem `total_de`, a web **não** mostra o `total` da tabela inteira.
+
+### 11.4 `recortes`
+
+- **Na tela** (`Vista._filtradas`, `bap_relatorios.py:2651-2698`): o recorte é uma caixa com os rótulos (some na tabela `enxuta`, `bap_relatorios.py:2442-2444`). O recorte por função tira a linha que dá `False`, junto com os filtros e a busca. O recorte `{"top", "coluna", "so_positivo"?}` vem depois: ordena pela coluna (maior primeiro), corta em `top` e, com `so_positivo`, fica só com valor > 0.
+- **Na web:** o navegador recebe só a lista de rótulos (`[rotulo, ...]`) e manda o rótulo escolhido. O servidor aplica os dois tipos. O de `top` é serializável, mas segue o mesmo caminho, para a ordem e o corte serem os da tela.
+- O recorte entra no `kpis_de` e no `total_de` (§11.2 e §11.3), porque eles recebem as linhas visíveis já recortadas.
