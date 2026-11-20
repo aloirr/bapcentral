@@ -39,7 +39,7 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .rc-faixa .fv{font-weight:800;font-size:1.05rem;color:#1e2722;margin-top:.2rem}.rc-faixa b{font-weight:800}
 .t-ok{color:var(--ok)}.t-atencao{color:var(--at)}.t-alerta{color:var(--al)}
 .rc-filete{height:4px;background:#62bb47}
-.rc-barras{flex:1;display:grid;grid-template-columns:repeat(4,1fr);padding:10px 12px 0;min-height:300px}
+.rc-barras{flex:1;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:10px 12px 0;min-height:300px}
 .rc-barras .col{display:flex;flex-direction:column}
 .rc-barras .area{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-height:250px}
 .rc-barras .barra{background:#8fa79a;width:56%;border-radius:5px 5px 0 0;display:flex;justify-content:center;align-items:flex-start;padding-top:3px;min-height:26px}

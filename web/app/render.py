@@ -13,7 +13,6 @@ R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
 TITULOS = {"res": "Painel do Diretor · resultado",
            "prod": "Painel do Diretor · produtividade"}
-VISOES = ("res", "prod")
 
 
 def br(v, d=0) -> str:
@@ -76,7 +75,7 @@ def cartao(c: dict) -> dict:
             "estados": _barras(c.get("estados")), "ajuda": c.get("ajuda") or ""}
 
 
-CHAVES_ABAS = (("resultado", "res"), ("produtividade", "prod"))   # painel_rrm.VISOES
+CHAVES_ABAS = (("resultado", "res"), ("produtividade", "prod"))   # = painel_rrm.VISOES; fonte única (pacotes.ABAS usa esta)
 
 
 def localizar_abas(rel: dict) -> list[dict]:

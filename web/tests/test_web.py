@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from pathlib import Path
 
 from conftest import ADMIN, SENHA0, TOKEN, entrar, pacote_ficticio, postar, token_form
 
@@ -114,9 +115,13 @@ def test_pacote_ok_grava_atomico_e_mantem_15(cli, amb):
 
 def test_pacote_gerado_em_saneado(cli, amb):
     assert postar(cli, pacote_ficticio("2026-11-20T08:30:00-04:00")).status_code == 200
-    assert (amb / "pacotes" / "20261120T0830000400.json").exists()
+    assert (amb / "pacotes" / "20261120T083000.json").exists()
     assert postar(cli, pacote_ficticio("../../etc/passwd")).status_code == 422
-    assert pacotes.nome_arquivo("2026-11-20T08:30:00/../x") == "20261120T083000x"
+    # nome pela hora de Manaus (UTC-4): 23:30-04:00 e 03:30Z do dia seguinte dão o mesmo nome
+    assert pacotes.nome_arquivo("2026-11-20T23:30:00-04:00") == "20261120T233000"
+    assert pacotes.nome_arquivo("2026-11-21T03:30:00+00:00") == "20261120T233000"
+    with __import__("pytest").raises(ValueError):
+        pacotes.nome_arquivo("2026-11-20T08:30:00/../x")
 
 
 def test_pacote_grande_413(cli, amb):
@@ -167,7 +172,7 @@ def test_render_painel_abas_aneis_barras_rodapes(admin):
               "visão absoluta · novembro até 19/11 (13 de 19 dias úteis)",
               "FATURAMENTO LÍQUIDO · PROJ.", "R$ 165 mil", "projeção do mês 66", "POSITIVAÇÃO",
               "PEDIDOS FATURADOS · PROJ.", "jul (bench.)", "−74%", "R$ 626 mil",
-              "atingimento da meta do mês (projeção ÷ meta)", "Como ler fictício."):
+              "atingimento da meta do mês (projeção ÷ meta)", "Como ler de exemplo."):
         assert t in r, t
     assert r.count("<article") == 3 and r.count('class="arco"') == 4
     assert "11%" in r and "1,03 mi" in r and "100%" in r
@@ -224,16 +229,148 @@ def test_formatos_e_tom_do_anel():
 def test_saude_e_tz(cli, monkeypatch):
     r = cli.get("/saude").json()
     assert r["status"] == "ok" and r["tz_ok"] is True and r["ultimo_pacote"] is None
-    assert r["versao"] and len(r["hora_manaus"]) == 19
+    assert r["versao"] and len(r["hora_manaus"]) == 19 and r["motivo"] is None
     postar(cli, pacote_ficticio())
     assert cli.get("/saude").json()["ultimo_pacote"] == "2026-11-20T08:30:00-04:00"
     monkeypatch.setenv("TZ", "UTC")
-    r = cli.get("/saude").json()
-    assert r["tz_ok"] is False and r["tz"] == "UTC"
+    r = cli.get("/saude")
+    assert r.status_code == 200
+    r = r.json()
+    assert r["tz_ok"] is False and r["tz"] == "UTC" and r["telas_bloqueadas"] is True
+    assert "America/Manaus" in r["motivo"]
 
 
-def test_home_avisa_tz_errado(admin, monkeypatch):
+def test_tz_errado_telas_503_saude_e_robo_seguem(admin, monkeypatch):
+    assert admin.get("/").status_code == 200
     monkeypatch.setenv("TZ", "UTC")
-    assert "Fuso do servidor fora do padrão" in admin.get("/").text
+    for url in ("/", "/painel", "/login", "/usuarios"):
+        assert admin.get(url).status_code == 503
+    assert admin.post("/login", data={}).status_code == 503
+    assert postar(admin).status_code == 200            # o robô não depende do fuso da tela
     monkeypatch.setenv("TZ", "America/Manaus")
-    assert "Fuso do servidor fora do padrão" not in admin.get("/").text
+    assert admin.get("/").status_code == 200
+
+
+def test_data_do_servidor_diferente_de_manaus_503(admin, monkeypatch):
+    from datetime import date, timedelta, datetime
+    from app import main
+    amanha = datetime.now(main.MANAUS).date() + timedelta(days=1)
+    monkeypatch.setattr(main, "hoje_local", lambda: amanha)
+    assert admin.get("/").status_code == 503
+    r = admin.get("/saude").json()
+    assert r["tz_ok"] is False and "data" in r["motivo"]
+
+
+def test_subprocesso_com_tz_errado_responde_503(tmp_path):
+    import subprocess
+    import sys
+    import secrets
+    from pathlib import Path
+    env = {"PATH": os.environ.get("PATH", ""), "TZ": "UTC",
+           "SESSION_SECRET": secrets.token_urlsafe(32), "BAP_WEB_TOKEN": secrets.token_urlsafe(32),
+           "BAP_WEB_DADOS": str(tmp_path), "BAP_ADMIN_USUARIO": "admin.teste",
+           "BAP_ADMIN_SENHA_INICIAL": secrets.token_urlsafe(16)}
+    codigo = ("from fastapi.testclient import TestClient\n"
+              "from app.main import criar_app\n"
+              "c = TestClient(criar_app(), base_url='https://testserver')\n"
+              "print(c.get('/login').status_code, c.get('/saude').json()['tz_ok'])\n")
+    raiz = Path(__file__).resolve().parents[1]
+    r = subprocess.run([sys.executable, "-c", codigo], cwd=raiz, env=env, capture_output=True,
+                       text=True, timeout=60)
+    assert r.stdout.split() == ["503", "False"], r.stderr[-500:]
+
+
+# ---------------------------------------------------------------- sessão no servidor
+def _logar_outro(admin, login, senha):
+    from fastapi.testclient import TestClient
+    c = TestClient(admin.app, base_url="https://testserver")
+    assert entrar(c, login, senha).status_code == 303
+    return c
+
+
+def test_cookie_antigo_depois_do_sair_nao_entra(admin):
+    cookie = admin.cookies.get("bap_sessao")
+    assert admin.get("/", follow_redirects=False).status_code == 200
+    r = admin.post("/sair", data={"csrf": token_form(admin, "/")}, follow_redirects=False)
+    assert r.status_code == 303
+    from fastapi.testclient import TestClient
+    with TestClient(admin.app, base_url="https://testserver") as velho:
+        velho.cookies.set("bap_sessao", cookie)
+        r = velho.get("/", follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == "/login"
+        assert velho.get("/painel", follow_redirects=False).headers["location"] == "/login"
+
+
+def test_troca_de_senha_derruba_outra_sessao(admin):
+    nova = "nova-senha-forte-1"
+    outra = _logar_outro(admin, ADMIN, nova)
+    assert outra.get("/", follow_redirects=False).status_code == 200
+    novissima = "senha-ainda-mais-forte-2"
+    r = admin.post("/senha", data={"atual": nova, "nova": novissima, "confirma": novissima,
+                                   "csrf": token_form(admin, "/senha")}, follow_redirects=False)
+    assert r.status_code == 303
+    assert admin.get("/", follow_redirects=False).status_code == 200       # quem trocou segue
+    r = outra.get("/", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login"
+
+
+def test_desativar_derruba_sessao_aberta(admin):
+    def acao(**d):
+        return admin.post("/usuarios", data={**d, "csrf": token_form(admin, "/usuarios")})
+    senha = "senha-do-diretor-1"
+    acao(acao="criar", login="diretor.um", perfil="diretor", senha=senha)
+    outro = _logar_outro(admin, "diretor.um", senha)
+    assert outro.get("/senha", follow_redirects=False).status_code == 200
+    acao(acao="desativar", login="diretor.um")
+    assert outro.get("/senha", follow_redirects=False).status_code == 303
+
+
+# ---------------------------------------------------------------- acertos do parecer
+def test_csrf_nao_ascii_nao_da_500(cli):
+    r = cli.post("/login", data={"usuario": "x", "senha": "y", "csrf": "ção-não-ascii"})
+    assert r.status_code == 400
+
+
+def test_login_mesma_mensagem_para_inexistente_e_bloqueado(cli):
+    for _ in range(5):
+        entrar(cli, ADMIN, "errada-errada-1")
+    bloq = entrar(cli, ADMIN, "errada-errada-1")
+    nao = entrar(cli, "ninguem.aqui", "errada-errada-1")
+    assert bloq.status_code == nao.status_code == 401
+    import re
+    cap = lambda r: re.search(r'class="[^"]*erro[^"]*"[^>]*>(.*?)<', r.text, re.S)
+    assert (cap(bloq) and cap(bloq).group(1)) == (cap(nao) and cap(nao).group(1))
+
+
+def test_usuarios_get_ignora_msg_e_erro(admin):
+    assert "TEXTO-INJETADO" not in admin.get("/usuarios?msg=TEXTO-INJETADO&erro=TEXTO-INJETADO").text
+
+
+def test_pacote_tipos_errados_422_e_nao_500(cli):
+    def com(mexe):
+        p = pacote_ficticio()
+        mexe(p["relatorios"]["vc_painel"]["abas"]["resultado"]["painel"]["blocos"][0]["dados"])
+        return postar(cli, p)
+    assert com(lambda d: d["res"][0].update(aneis=5)).status_code == 422
+    assert com(lambda d: d["res"][0].update(faixa="abc")).status_code == 422
+    assert com(lambda d: d["res"][0].update(aneis={"a": 1})).status_code == 422
+    assert com(lambda d: d["res"][0].update(estados={"barras": 7})).status_code == 422
+    assert com(lambda d: d.update(sub=["x"])).status_code == 422
+    assert com(lambda d: d.update(sub="texto")).status_code == 422
+    assert com(lambda d: None).status_code == 200
+
+
+def test_config_token_curto_nao_sobe_e_limite_padrao(amb, monkeypatch):
+    import pytest
+    monkeypatch.setenv("BAP_WEB_TOKEN", "curto")
+    with pytest.raises(config.ConfigErro, match="BAP_WEB_TOKEN") as e:
+        criar_app()
+    assert "curto" not in str(e.value).replace("curto (", "")
+    monkeypatch.setenv("BAP_WEB_TOKEN", TOKEN)
+    monkeypatch.delenv("BAP_WEB_PACOTE_MAX_MB")
+    assert config.carregar().pacote_max == 2 * 1024 * 1024
+
+
+def test_css_barras_sem_colunas_fixas():
+    css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
+    assert "repeat(4,1fr)" not in css and "grid-auto-columns:1fr" in css

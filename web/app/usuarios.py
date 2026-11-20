@@ -59,13 +59,14 @@ class Usuarios:
         h, s = hash_senha(senha)
         self._dados["usuarios"][login] = {
             "hash": h, "sal": s, "perfil": perfil, "ativo": True,
-            "trocar_senha": trocar, "erros": 0, "bloqueado_ate": 0}
+            "trocar_senha": trocar, "erros": 0, "bloqueado_ate": 0, "sessao": 0}
 
     # ---- consulta
     def obter(self, login: str) -> dict | None:
         u = self._dados["usuarios"].get((login or "").lower())
         return None if u is None else {"login": login.lower(), **{
-            k: u[k] for k in ("perfil", "ativo", "trocar_senha", "bloqueado_ate", "erros")}}
+            k: u[k] for k in ("perfil", "ativo", "trocar_senha", "bloqueado_ate", "erros")},
+            "sessao": u.get("sessao", 0)}
 
     def listar(self) -> list[dict]:
         return [self.obter(l) for l in sorted(self._dados["usuarios"])]
@@ -81,6 +82,7 @@ class Usuarios:
                 hash_senha(senha or "")           # gasta o mesmo tempo
                 return None, "invalido"
             if u["bloqueado_ate"] > agora:
+                hash_senha(senha or "")           # não revela quem existe pelo tempo
                 return None, "bloqueado"
             if confere_senha(senha or "", u["hash"], u["sal"]):
                 u["erros"], u["bloqueado_ate"] = 0, 0
@@ -124,6 +126,8 @@ class Usuarios:
                     if x["perfil"] == "admin" and x["ativo"]) <= 1:
                 raise Erro("Não dá para desativar o último admin ativo.")
             u["ativo"] = ativo
+            if not ativo:
+                u["sessao"] = u.get("sessao", 0) + 1
             self._salvar()
 
     def trocar_senha(self, login: str, senha: str, *, exigir_troca: bool):
@@ -136,4 +140,13 @@ class Usuarios:
             u["hash"], u["sal"] = hash_senha(senha)
             u["trocar_senha"] = exigir_troca
             u["erros"], u["bloqueado_ate"] = 0, 0
+            u["sessao"] = u.get("sessao", 0) + 1
             self._salvar()
+
+    def encerrar_sessoes(self, login: str):
+        """Logout no servidor: invalida todo cookie emitido antes (contador da sessão)."""
+        with self.trava:
+            u = self._dados["usuarios"].get((login or "").lower())
+            if u is not None:
+                u["sessao"] = u.get("sessao", 0) + 1
+                self._salvar()

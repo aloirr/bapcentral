@@ -1,4 +1,5 @@
-"""Fixtures: dados 100% fictícios; segredos só por monkeypatch."""
+"""Fixtures: dados de exemplo (agregados por UF), nada de pessoa ou cliente; segredos só por monkeypatch."""
+import secrets
 import sys
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import criar_app  # noqa: E402
 
-TOKEN = "token-de-teste-0123456789"
+TOKEN = secrets.token_urlsafe(32)
 ADMIN = "admin.teste"
 SENHA0 = "senha-inicial-123"
 
@@ -25,7 +26,7 @@ def _cartao(titulo, valor, leg="", aneis=(), uf_bars=None, ant=True):
                                               ["AM", 49100.0, "R$ 49,1 mil", "95%", "atencao"],
                                               ["RR", 0.0, "R$ 0", "", ""]],
                         "legenda": "atingimento da meta do mês (projeção ÷ meta)"},
-            "ajuda": "texto de ajuda fictício"}
+            "ajuda": "texto de ajuda de exemplo"}
 
 
 def _aba(visao, titulo, cartoes):
@@ -34,7 +35,7 @@ def _aba(visao, titulo, cartoes):
                                    "dados": {"comp": "2026-11", "ano": 2026, "mes": 11,
                                              visao: cartoes,
                                              "sub": {visao: "visão absoluta · novembro até 19/11 (13 de 19 dias úteis) · variação × mês fechado"},
-                                             "como_ler": "Como ler fictício.", "dados_ate": "2026-11-19",
+                                             "como_ler": "Como ler de exemplo.", "dados_ate": "2026-11-19",
                                              "avisos": []}}]}}
 
 

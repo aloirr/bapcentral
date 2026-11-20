@@ -28,11 +28,14 @@ def carregar() -> Config:
     if len(segredo) < 16:
         raise ConfigErro("SESSION_SECRET ausente ou curto (mínimo 16 caracteres): "
                          "o app não sobe sem ele. Crie-o no painel do Render.")
+    if len(os.environ.get("BAP_WEB_TOKEN", "")) < 32:
+        raise ConfigErro("BAP_WEB_TOKEN ausente ou curto (mínimo 32 caracteres): "
+                         "o app não sobe sem ele. Crie-o no painel do Render.")
     dados = os.environ.get("BAP_WEB_DADOS", "")
     if not dados:
         raise ConfigErro("BAP_WEB_DADOS ausente (pasta do disco, ex.: /var/data).")
     try:
-        mb = float(os.environ.get("BAP_WEB_PACOTE_MAX_MB", "25"))
+        mb = float(os.environ.get("BAP_WEB_PACOTE_MAX_MB", "2"))
     except ValueError as e:
         raise ConfigErro("BAP_WEB_PACOTE_MAX_MB inválido.") from e
     return Config(

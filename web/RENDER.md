@@ -33,7 +33,7 @@ services:
       - key: BAP_WEB_DADOS
         value: /var/data
       - key: BAP_WEB_PACOTE_MAX_MB
-        value: "25"
+        value: "2"
       - key: SESSION_SECRET
         sync: false          # o Alexandre cria no painel
       - key: BAP_WEB_TOKEN
@@ -53,7 +53,7 @@ services:
 | Variável | O que é | Como gerar |
 |---|---|---|
 | `SESSION_SECRET` | assina o cookie de sessão | texto aleatório longo (mínimo 16; use 48 hex) |
-| `BAP_WEB_TOKEN` | o robô usa em `Authorization: Bearer ...` no `POST /api/pacote` | texto aleatório longo; a mesma chave vai no cofre do Windows do PC do robô |
+| `BAP_WEB_TOKEN` | o robô usa em `Authorization: Bearer ...` no `POST /api/pacote` | texto aleatório de no mínimo 32 caracteres (o app não sobe com menos); a mesma chave vai no cofre do Windows do PC do robô |
 | `BAP_ADMIN_USUARIO` | login do primeiro admin | ex.: `alexandre` (a-z, 0-9, `.`, `_`, `-`) |
 | `BAP_ADMIN_SENHA_INICIAL` | senha provisória do primeiro admin | só vale se `usuarios.json` não existir; a troca é obrigatória no primeiro acesso |
 
@@ -62,7 +62,7 @@ Depois do primeiro acesso, `BAP_ADMIN_SENHA_INICIAL` pode ser apagada do painel.
 ## 4. Contrato do `POST /api/pacote` (para o modulo-robo)
 
 - Cabeçalho `Authorization: Bearer $BAP_WEB_TOKEN` (401 se ausente ou errado) e `Content-Type: application/json` (outro tipo, multipart ou `.pkl` = 415).
-- Limite `BAP_WEB_PACOTE_MAX_MB` (padrão 25): 413 pelo `Content-Length` ou durante a leitura.
+- Limite `BAP_WEB_PACOTE_MAX_MB` (padrão 2): 413 pelo `Content-Length` ou durante a leitura.
 - Escopo da T-0013 (R-20261120-120939): só **Painel · resultado** e **Painel · produtividade** do `vc_painel`. Não há mais Inadimplência nem a aba "por dia útil".
 - Corpo (as chaves que a tela lê):
 
@@ -87,20 +87,20 @@ Medida local (Python 3.13, uvicorn, 1 processo) por `VmHWM` de `/proc/<pid>/stat
 | Momento | VmHWM |
 |---|---|
 | App recém-subido, sem pacote | 60,6 MB |
-| Pacote fictício esperado (2 abas × 10 cartões, 12 KB) recebido e as 2 telas abertas | **62,8 MB** |
+| Pacote de exemplo esperado (2 abas × 10 cartões, 12 KB) recebido e as 2 telas abertas | **62,8 MB** |
 | Estresse: 2 abas × 500 cartões (565 KB, 50 vezes o esperado), 2 telas abertas | 69,7 MB |
 
 O pacote do painel é pequeno (cartões e textos prontos, sem tabelas). Folga de mais de 7 vezes sobre os 512 MB. O tamanho real é estimado pelo contrato [SUPOSIÇÃO].
 
 ## 6. Como testar em 5 passos (local, sem Render)
 
-1. `pip install -r web/requirements-dev.txt` e, na raiz, `pytest web/tests` (todos com dado fictício).
+1. `pip install -r web/requirements-dev.txt` e, na raiz, `pytest web/tests` (todos com dado de exemplo, agregado por UF).
 2. Defina no terminal, só para esta sessão: `SESSION_SECRET`, `BAP_WEB_TOKEN`, `BAP_ADMIN_USUARIO`, `BAP_ADMIN_SENHA_INICIAL`, `BAP_WEB_DADOS=./dados_local`, `TZ=America/Manaus`, `BAP_WEB_COOKIE_SEGURO=0` (só em http local).
 3. Em `web/`: `uvicorn app.main:criar_app --factory --port 8099` e abra `http://127.0.0.1:8099/saude` (mostra versão, hora de Manaus, `tz_ok` e `ultimo_pacote`).
 4. Envie um pacote: `curl -X POST localhost:8099/api/pacote -H "Authorization: Bearer $BAP_WEB_TOKEN" -H "Content-Type: application/json" --data-binary @pacote.json` (resposta 200).
 5. Entre em `/login` com o admin, troque a senha (obrigatório), abra "Painel Executivo" (abas Painel · resultado e Painel · produtividade); em "Usuários" crie um gerente e confira que ele não vê `/usuarios`.
 
-Simulação visual: `web/docs/simulacao_onda1.png` (dados fictícios).
+Simulação visual: `web/docs/simulacao_onda1.png` (dados de exemplo, agregados por UF; o rótulo da imagem ainda diz "fictícios").
 
 ## 7. Limites desta onda
 

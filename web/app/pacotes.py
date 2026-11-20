@@ -5,16 +5,22 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
+from . import render
 from .arquivos import gravar_json
 
 ACEITOS = ("vc_painel",)
-ABAS = (("resultado", "res"), ("produtividade", "prod"))
+ABAS = render.CHAVES_ABAS                      # fonte única
+MANAUS = ZoneInfo("America/Manaus")
 GUARDAR = 15
 
 
 def nome_arquivo(gerado_em: str) -> str:
-    return re.sub(r"[^0-9A-Za-z]", "", gerado_em)[:32]
+    """Nome pela hora de Manaus (sem fuso no texto = já Manaus); ValueError se não for ISO."""
+    d = datetime.fromisoformat(gerado_em)
+    d = d.replace(tzinfo=MANAUS) if d.tzinfo is None else d.astimezone(MANAUS)
+    return re.sub(r"[^0-9A-Za-z]", "", d.strftime("%Y%m%dT%H%M%S"))
 
 
 def _int(v, lo, hi):
@@ -24,13 +30,19 @@ def _int(v, lo, hi):
 def _cartao_ok(c) -> bool:
     if not (isinstance(c, dict) and isinstance(c.get("titulo"), str) and isinstance(c.get("valor"), str)):
         return False
-    if not all(isinstance(a, list) and len(a) == 3 for a in c.get("aneis") or []):
+    aneis, faixa = c.get("aneis"), c.get("faixa")
+    if aneis is not None and not (isinstance(aneis, list) and all(
+            isinstance(a, list) and len(a) == 3 for a in aneis)):
         return False
-    if not all(isinstance(f, list) and len(f) == 4 for f in c.get("faixa") or []):
+    if faixa is not None and not (isinstance(faixa, list) and all(
+            isinstance(f, list) and len(f) == 4 for f in faixa)):
         return False
     e = c.get("estados")
-    return e is None or (isinstance(e, dict) and all(
-        isinstance(b, list) and len(b) == 5 for b in e.get("barras") or []))
+    if e is None:
+        return True
+    barras = e.get("barras") if isinstance(e, dict) else False
+    return barras is None or (isinstance(barras, list) and all(
+        isinstance(b, list) and len(b) == 5 for b in barras))
 
 
 def validar(c) -> list[str]:
@@ -76,6 +88,9 @@ def validar(c) -> list[str]:
             d = b.get("dados")
             if b.get("tipo") != "rrm" or b.get("visao") != visao or not isinstance(d, dict):
                 erros.append(f"{k}.abas.{chave}: painel.blocos[0] precisa ser rrm/{visao} com dados")
+                continue
+            if d.get("sub") is not None and not isinstance(d.get("sub"), dict):
+                erros.append(f"{k}.abas.{chave}: sub precisa ser objeto")
                 continue
             cs = d.get(visao)
             if not isinstance(cs, list) or not cs or not all(_cartao_ok(c) for c in cs):

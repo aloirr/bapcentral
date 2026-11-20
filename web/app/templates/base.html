@@ -17,7 +17,6 @@
   </form>
   {% endif %}
 </header>
-{% if aviso_tz %}<div class="aviso alerta">{{ aviso_tz }}</div>{% endif %}
 {% if usuario %}
   {% if gerado_em %}<div class="aviso info">Dados de {{ gerado_em|manaus }} (horário de Manaus)</div>
   {% else %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}

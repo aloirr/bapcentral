@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import secrets
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import parse_qs
 from zoneinfo import ZoneInfo
@@ -26,6 +26,21 @@ MANAUS = ZoneInfo("America/Manaus")
 VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
 RELATORIO = ("vc_painel", "Painel Executivo")
 FORM_MAX = 16 * 1024
+ISENTAS_FUSO = ("/saude", "/static", "/api/pacote")   # saúde e robô seguem; as telas param
+
+
+def hoje_local() -> date:
+    return date.today()
+
+
+def fuso_motivo() -> str | None:
+    """ADR 0001 §4.1: com o fuso errado o dia útil e a projeção saem errados; telas 503."""
+    tz = os.environ.get("TZ")
+    if tz != config.TZ_ALVO:
+        return f"TZ={tz or 'não definido'}; esperado {config.TZ_ALVO}"
+    if hoje_local() != datetime.now(MANAUS).date():
+        return "a data do servidor difere da data de Manaus"
+    return None
 
 
 class Redireciona(Exception):
@@ -59,7 +74,14 @@ def criar_app() -> FastAPI:
 
     @app.middleware("http")
     async def cabecalhos(request: Request, call_next):
-        r = await call_next(request)
+        motivo = fuso_motivo()
+        if motivo and not request.url.path.startswith(ISENTAS_FUSO):
+            r = HTMLResponse(
+                "<!doctype html><meta charset=utf-8><title>Indisponível</title>"
+                "<h1>Indisponível</h1><p>Fuso do servidor fora do padrão "
+                "(America/Manaus). Avise o administrador.</p>", status_code=503)
+        else:
+            r = await call_next(request)
         r.headers["X-Content-Type-Options"] = "nosniff"
         r.headers["X-Frame-Options"] = "DENY"
         r.headers["Referrer-Policy"] = "same-origin"
@@ -73,12 +95,6 @@ def criar_app() -> FastAPI:
         return RedirectResponse(exc.para, status_code=303)
 
     # ------------------------------------------------------------ helpers
-    def tz_aviso() -> str | None:
-        tz = os.environ.get("TZ")
-        if tz != config.TZ_ALVO:
-            return f"Fuso do servidor fora do padrão (TZ={tz or 'não definido'}; esperado {config.TZ_ALVO})."
-        return None
-
     def csrf(request: Request) -> str:
         t = request.session.get("csrf")
         if not t:
@@ -87,7 +103,7 @@ def criar_app() -> FastAPI:
 
     def usuario(request: Request, perfis=None, livre_troca=False) -> dict:
         u = usuarios.obter(request.session.get("u", ""))
-        if not u or not u["ativo"]:
+        if not u or not u["ativo"] or request.session.get("s") != u["sessao"]:
             request.session.pop("u", None)
             raise Redireciona("/login")
         if u["trocar_senha"] and not livre_troca:
@@ -105,7 +121,7 @@ def criar_app() -> FastAPI:
         if u == "auto":
             u = usuarios.obter(request.session.get("u", ""))
         info = ultimo.get()
-        ctx.update(usuario=u, csrf=csrf(request), aviso_tz=tz_aviso(), versao=VERSAO,
+        ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO,
                    gerado_em=info["gerado_em"] if info else None)
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
 
@@ -117,7 +133,7 @@ def criar_app() -> FastAPI:
                 break
         d = {k: v[0] for k, v in parse_qs(corpo[:FORM_MAX].decode("utf-8", "replace"),
                                            keep_blank_values=True).items()}
-        if not hmac.compare_digest(d.get("csrf", ""), request.session.get("csrf", "x")):
+        if not hmac.compare_digest(d.get("csrf", "").encode(), str(request.session.get("csrf", "x")).encode()):
             raise PermissionError
         return d
 
@@ -126,9 +142,11 @@ def criar_app() -> FastAPI:
     async def saude():
         info = ultimo.get()
         tz = os.environ.get("TZ")
+        motivo = fuso_motivo()
         return {"status": "ok", "versao": VERSAO,
                 "hora_manaus": datetime.now(MANAUS).strftime("%Y-%m-%d %H:%M:%S"),
-                "tz": tz, "tz_ok": tz == config.TZ_ALVO,
+                "tz": tz, "tz_ok": motivo is None, "telas_bloqueadas": motivo is not None,
+                "motivo": motivo,
                 "ultimo_pacote": info["gerado_em"] if info else None}
 
     # ------------------------------------------------------------ login
@@ -146,16 +164,20 @@ def criar_app() -> FastAPI:
         if u:
             request.session.clear()
             request.session["u"] = u["login"]
+            request.session["s"] = u["sessao"]
             csrf(request)
             return RedirectResponse("/", status_code=303)
-        msg = ("Acesso bloqueado por %d tentativas erradas. Tente em 15 minutos ou peça ao administrador."
-               % MAX_ERROS if motivo == "bloqueado" else "Usuário ou senha inválidos.")
+        msg = ("Usuário ou senha inválidos, ou acesso bloqueado após %d tentativas erradas. "
+               "Tente em 15 minutos ou peça ao administrador." % MAX_ERROS)
         return pagina(request, "login.html", status=401, erro=msg)
 
     @app.post("/sair")
     async def sair(request: Request):
         try:
             await formulario(request)
+            login = request.session.get("u")
+            if login:
+                usuarios.encerrar_sessoes(login)      # cookie copiado deixa de valer
         except PermissionError:
             pass
         request.session.clear()
@@ -185,6 +207,7 @@ def criar_app() -> FastAPI:
                 erro = str(e)
         if erro:
             return pagina(request, "senha.html", status=400, erro=erro, obrigatoria=u["trocar_senha"])
+        request.session["s"] = usuarios.obter(u["login"])["sessao"]   # esta sessão segue; as outras caem
         return RedirectResponse("/", status_code=303)
 
     # ------------------------------------------------------------ home e relatórios
@@ -211,10 +234,10 @@ def criar_app() -> FastAPI:
 
     # ------------------------------------------------------------ usuários (admin)
     @app.get("/usuarios", response_class=HTMLResponse)
-    async def usuarios_get(request: Request, msg: str = "", erro: str = ""):
+    async def usuarios_get(request: Request):
         usuario(request, ("admin",))
         return pagina(request, "usuarios.html", lista=usuarios.listar(), perfis=PERFIS,
-                      msg=msg[:120], erro=erro[:160])
+                      msg="", erro="")
 
     @app.post("/usuarios")
     async def usuarios_post(request: Request):
@@ -230,6 +253,8 @@ def criar_app() -> FastAPI:
                 usuarios.definir_ativo(alvo, acao == "ativar")
             elif acao == "senha":
                 usuarios.trocar_senha(alvo, f.get("senha", ""), exigir_troca=True)
+                if alvo == request.session.get("u"):
+                    request.session["s"] = usuarios.obter(alvo)["sessao"]
             else:
                 raise Erro("Ação desconhecida.")
         except Erro as e:
