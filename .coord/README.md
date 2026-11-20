@@ -30,7 +30,7 @@
 
 ## Sessões no claude.ai/code
 - **BapCentral-PO** (`BAP_AGENTE=po`): é onde o Alexandre conversa. Abra quando quiser pedir, corrigir, aprovar ou saber o status.
-- **BapCentral-GP** (`BAP_AGENTE=gerente-projetos`): sessão fixa do gerente, com ronda a cada 15–20 min.
+- **BapCentral-GP** (`BAP_AGENTE=gerente-projetos`): sessão fixa do gerente ("BapCentral - Gerente Projeto"), com ronda a cada 20 min; a do po é a cada 10 min (R-20261120-093725-alexandre).
   - Ela chama os outros agentes como subagentes.
   - Quando a tarefa pede, abre outras sessões com `BAP_AGENTE=<agente>`.
 - Nos dois ambientes vai também o **`BAP_RECADOS_TOKEN`** (token fine-grained só com "Contents: read and write" no `aloirr/bapcentral-recados`).
