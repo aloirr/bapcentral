@@ -10,7 +10,7 @@ Atualizado em 20/11/2026 (montagem do time). Dono: gerente-projetos.
 | T-0004 | CI: `compileall` + `verificar` + `smoke_processos` no PR | aberta | engenheiro-software (proposta; governança) | — | — |
 | T-0005 | Pendências herdadas do Maestro Sistemas (recado `20261109-1015`, Git na DT-AMADMBAP-03, robô de visitas) | aberta | gerente-projetos | — | — |
 | T-0006 | Plano da BAP Central na web (ADR: Render, login, renderizador do contrato) | aberta | engenheiro-software + modulo-web | — | `docs/decisoes/**`, `web/**` |
-| T-0007 | Modo git no `coord.mjs` (proxy barra a API de escrita) e fuso de Manaus nos ids | aberta (melhoria; hoje grava com `git` à mão) | engenheiro-software (proposta; governança) | BapCentral-GP | `docs/desenho/T-0007*` |
+| T-0007 | Modo git no `coord.mjs` (proxy barra a API de escrita) e fuso de Manaus nos ids | aguardando_alexandre (desenho pronto; D1–D3) | engenheiro-software (proposta; governança) | BapCentral-GP | `docs/desenho/T-0007*` |
 | T-0008 | Como o time fala com o Alexandre: 4 blocos, recado ao po de tudo, po sem editar nada | em_andamento | gerente-projetos (governança: texto ao Alexandre) | BapCentral-GP | `docs/produto/07-time-e-coordenacao.md` |
 
 **Reservas:** a próxima tarefa é a T-0009. A próxima ADR é a 0001.
