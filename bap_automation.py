@@ -6578,16 +6578,16 @@ def gerar_dados_relatorios(simular: bool = False) -> dict:
 # PACOTE WEB (passo 4f, T-0013): o PC monta, a web so le a parte dado
 # =============================================================================
 # Decisao de 20/11: a web (Render, 512 MB) nao roda o montar. O PC monta o
-# Painel do Diretor e o Farol de Inadimplencia e manda so a parte dado do
-# contrato (.coord/contratos/relatorio.md, secao 10): sem callables, sem chave
-# com "_", chave sempre texto. Segredo: BAP_WEB_URL e BAP_WEB_TOKEN em variavel
-# de ambiente ou no cofre do Windows (servico BAP_WEB). Nunca no log.
+# vc_painel e manda so as abas "Painel · resultado" e "Painel · produtividade"
+# (parte dado do contrato, .coord/contratos/relatorio.md, secao 10): sem
+# callables, sem chave com "_", chave sempre texto. Segredo: BAP_WEB_URL e
+# BAP_WEB_TOKEN em variavel de ambiente ou no cofre do Windows (servico
+# BAP_WEB). Nunca no log.
 
 SERVICO_KEYRING_WEB = "BAP_WEB"
-PACOTE_WEB_RELATORIOS = {              # nome no pacote -> id no relatorios_nucleo
-    "vc_painel_diretor": "vc_painel",
-    "pl_inadimplencia": "pl_inadimplencia",
-}
+_ABAS_WEB = {"res": "resultado", "prod": "produtividade"}   # visao -> chave
+_TITULOS_ABAS_WEB = {"Painel · resultado": "resultado",
+                     "Painel · produtividade": "produtividade"}
 _PACOTE_WEB_CHAVES_ACAO = frozenset({
     "detalhe_pedido", "kpis_de", "total_de", "ordem_exportar", "edicao",
     "garantia", "importar_preenchidos"})
@@ -6661,9 +6661,50 @@ def _agora_manaus() -> datetime:
         return datetime.now(timezone(timedelta(hours=-4)))   # sem horario de verao
 
 
+def selecionar_abas_web(r: dict) -> dict:
+    """Funcao pura: do vc_painel montado, so as abas resultado e produtividade
+    ({"titulo", "abas": {...}, "avisos"?}). A tela RRM le so dados[visao],
+    sub[visao] e como_ler; o "diretor" (dd) nao e lido por ela e fica fora."""
+    abas, avisos = {}, []
+    for p in (r or {}).get("paineis") or []:
+        if not isinstance(p, dict):
+            continue
+        bloco = next((b for b in ((p.get("painel") or {}).get("blocos") or [])
+                      if isinstance(b, dict) and b.get("tipo") == "rrm"), None)
+        vis = (bloco or {}).get("visao")
+        chave = _ABAS_WEB.get(vis) or _TITULOS_ABAS_WEB.get(p.get("titulo"))
+        if not chave or chave in abas or bloco is None:
+            continue
+        vis = vis or next(v for v, c in _ABAS_WEB.items() if c == chave)
+        d = bloco.get("dados") or {}
+        dados = {k: d.get(k) for k in ("comp", "ano", "mes", "como_ler",
+                                       "dados_ate", "avisos")}
+        dados[vis] = d.get(vis)
+        dados["sub"] = {vis: (d.get("sub") or {}).get(vis)}
+        abas[chave] = {
+            "titulo": p.get("titulo"),
+            "kpis_export": p.get("kpis_export"),
+            "painel": {"blocos": [{"tipo": "rrm", "visao": vis,
+                                   "dados": dados,
+                                   "row": bloco.get("row", 0),
+                                   "col": bloco.get("col", 0),
+                                   "colspan": bloco.get("colspan", 3)}],
+                       "altura_min": (p.get("painel") or {}).get("altura_min")},
+            "altura_min": (p.get("painel") or {}).get("altura_min"),
+        }
+    for chave in _ABAS_WEB.values():
+        if chave not in abas:
+            avisos.append(f"Aba {chave} ausente do Painel neste pacote.")
+    saida = {"titulo": (r or {}).get("titulo"), "abas": abas}
+    if avisos:
+        saida["avisos"] = avisos
+    return saida
+
+
 def montar_pacote_web(resultados: dict, ano: int, mes: int,
                       agora=None) -> dict:
-    """Funcao pura: so a parte dado dos relatorios ja montados."""
+    """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
+    resultado e produtividade, limpas para JSON."""
     try:
         import relatorios_nucleo as _rn                 # noqa: PLC0415
         versao = int(getattr(_rn, "VERSAO_CONTRATO", 1))
@@ -6674,24 +6715,21 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         from datetime import timedelta, timezone        # noqa: PLC0415
         agora = agora.replace(tzinfo=timezone(timedelta(hours=-4)))
     limpos = {}
-    for nome, rel in (resultados or {}).items():
-        if not isinstance(rel, dict):
-            continue
-        val = _para_json(rel)
+    rel = (resultados or {}).get("vc_painel")
+    if isinstance(rel, dict):
+        val = _para_json(selecionar_abas_web(rel))
         if isinstance(val, dict):
-            limpos[str(nome)] = val
+            limpos["vc_painel"] = val
     return {"versao_contrato": versao, "gerado_em": agora.isoformat(),
             "ano": int(ano), "mes": int(mes), "relatorios": limpos}
 
 
 def coletar_relatorios_web(ano: int, mes: int) -> dict:
-    """Monta no PC os relatorios do pacote (mes corrente)."""
+    """Monta no PC o vc_painel do mes (o montar grava o historico do Diretor)."""
     import relatorios_nucleo as _rn                     # noqa: PLC0415
-    saida = {}
-    for nome, rid in PACOTE_WEB_RELATORIOS.items():
-        p = {"ANO": str(ano), "MÊS": str(mes)} if rid == "vc_painel" else None
-        saida[nome] = _rn.montar(rid, PASTA_LOCAL, params=p)
-    return saida
+    return {"vc_painel": _rn.montar(
+        "vc_painel", PASTA_LOCAL,
+        params={"ANO": str(ano), "MÊS": str(mes)})}
 
 
 def _segredo_web(env: str, usuario: str):
@@ -8314,8 +8352,7 @@ def _executar_rodada(args, armazenamento, selecionados, inicio) -> int:
                 bap_ajuda = {"erro": str(erro)}
 
         # ---- 4f. o pacote da web (T-0013) ------------------------------------
-        # Monta o Painel do Diretor e o Farol de Inadimplencia e manda so a
-        # parte dado. --pacote-web-simular grava em arquivo local sem enviar.
+        # Monta o vc_painel e manda so as abas resultado e produtividade. --pacote-web-simular grava em arquivo local sem enviar.
         # Falha aqui nunca derruba a rodada.
         if not args.simular or args.pacote_web_simular:
             try:
