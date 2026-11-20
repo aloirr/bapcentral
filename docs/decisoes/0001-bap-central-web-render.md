@@ -279,3 +279,31 @@ Alternativas descartadas, para comparação [SUPOSIÇÃO]: Postgres desde já (~
 7. **Alexandre:** confirmar os custos (seção 6), criar os secrets no Render, aceitar esta ADR. **Aceitar esta ADR põe no Render** (no disco `/var/data`, atrás do login; nada disso vai para o GitHub):
    - **CNPJ e nome de cliente**, nas bases do pacote, como o BAP Ajuda 2.0 já faz hoje;
    - **uma cópia do dado digitado protegido** (regra 7): o diário de edições do pós-venda (`RELATORIOS/_EDICOES_POS_VENDA/EDICOES_*.csv`), o diário das autorizações de venda (`RELATORIOS/_AUTORIZACOES/AUTORIZACOES_*.csv`, com o código e quem autorizou cada pedido) e o cadastro de transportadoras (`transportadoras_config.json`, com contato e CNPJ das transportadoras). A web só lê essa cópia; o original continua só no PC, e editar na web é a onda 3 (ADR 0002).
+
+## Adendo 1 (20/11/2026): plano de US$ 7 e entrega no mesmo dia
+
+- **Decisões do Alexandre**, R-20261120-114944-alexandre (11:49 Manaus), texto literal: "1) voce ta maluco com esses prazos? quero tudo para hoje. 2) OK 3) OK 4) Vai ser no render por enquanto. 5) entregue hoje 6) vammos deixar do jetio que ta no plano de 7 dolares. depois vejo o que fazer. 7) OK pode seguir"
+- **Leitura (do gerente-projetos):** ondas 0 e 1 hoje; dado de cliente e cópia do dado digitado no Render, atrás do login (§8, item 7); login próprio (§2.4); disco no Render, sem Postgres (§2.2); a primeira entrega é o Painel do Diretor + a Inadimplência, e a conferência de 5 dias úteis (§5) vira acompanhamento depois da entrega; plano de US$ 7 do Render; deploy só com "aprovo deploy vX.Y.Z" (§4.7).
+- **Decisão do gerente** (regra C do R-20261120-093725): com 512 MB [SUPOSIÇÃO: memória do plano de US$ 7, não conferida em render.com/pricing], a web não roda o `montar`.
+
+**A mudança (troca M1 por M2 nesta fase, §2.1)**
+- O robô, no PC, roda `relatorios_nucleo.montar` do `vc_painel` (com `MÊS` e `ANO` explícitos, §4.6) e do `pl_inadimplencia` e envia **só a parte dado** do contrato (`.coord/contratos/relatorio.md`, §10): JSON, sem callable, sem chave `_`, com a conversão do §10 item 1. Pode ir zipado no mesmo `POST /api/pacote` com token (§4.3, "Envio" e "Recebimento" passos 1 a 4 e 6).
+- A web **não roda o `montar`, não tem `bap_dados`** nem pandas nesta fase: só guarda o JSON no disco e desenha pelo renderizador genérico (§4.6).
+- Parte ação (§11 do contrato) sem servidor que a execute: `detalhe_pedido`, `kpis_de`, `total_de` e recortes por função ficam **fora** desta fase. Sem filtro na web, ela mostra as tabelas inteiras com `rel["kpis"]`/`paineis[i].kpis` e `tabela["total"]`, que é o que a tela do PC mostra sem filtro (§11.2 e §11.3). Aba com `kpis_de` nunca mostra `rel["kpis"]` (§11.2 do contrato): o PC manda pronto o `kpis_de(todas as linhas)` dessa aba [SUPOSIÇÃO: o nome da chave sai do desenho da onda 1].
+
+**Deixa de valer nesta fase**
+- §2.1 (M1) e §3 itens 1 e 5 na parte "mesmo `montar` na web".
+- §4.1: o modo leitura do `montar`/`painel_diretor.calcular` e a semente do `transportadoras` na web, a exceção `atual/**/_CACHE_RELATORIOS/**`, o `BAP_CACHE_DIR` e as dependências pandas/openpyxl na web (o `painel_diretor_hist.json` volta a ser gravado só no PC, como hoje).
+- §4.2: `acumulado/` e `cache/`; `pacotes/` guarda o JSON do dia.
+- §4.3: o pacote de bases, a lista gerada do `_fontes` + lista fixa, "Fotos e estoques" e o passo 5 do recebimento.
+- §5 item 2 da onda 1 como critério de pronto (vira acompanhamento); §6 (custo do Standard); §8 itens 2, 3 e 4 (pedidos ao modulo-farois, engenheiro-dados, modulo-metas e modulo-posvenda).
+
+**Continua valendo:** login próprio e perfis (§4.5), `TZ=America/Manaus` com teste e trava na partida (§4.1), deploy manual com `autoDeploy: false` e secrets só pelo Alexandre (§4.7), só saída HTTPS do PC (§2.3), a lista "nunca entra" (§4.3) e a produção do PC inalterada.
+
+**Riscos**
+- **A tela só atualiza quando o robô roda.** Sem rodada (PC desligado, falha no 4f), a web mostra o último JSON: o rodapé traz data e hora da rodada (Manaus) e a versão do PC (§4.4). O envio manual pelo BAP Central (§4.3, "Opcional") ganha peso.
+- **Tamanho do JSON:** a Inadimplência leva as linhas dos títulos (dado pessoal, §10 item 4). Medir na onda 1 [SUPOSIÇÃO: poucos MB, bem menor que o pacote de 60 a 100 MB]; limite de recebimento no servidor e zip no envio.
+- **Regra de negócio só no PC:** é bom para o número. Há uma fonte só (o `montar` do PC), e o número da web é o do PC por construção, inclusive o do Diretor, que bate com o farol de origem. A conferência PC × web (§5) passa a ser checar que o JSON mostrado é o recebido (SHA-256 do manifesto).
+- Filtros por supervisor e vendedor (onda 2) não cabem neste desenho sem pré-cálculo por combinação (o "contra" do M2, §2.1).
+
+**Volta ao desenho original** quando o Alexandre subir de plano (recado com o custo, §7): novo adendo; entram os pedidos do §8 itens 2 a 4; o robô passa a mandar as bases (§4.3) além do JSON; a web roda o `montar` e compara o dela com o JSON do PC por 5 dias úteis (§5) antes de deixar de usar o JSON. O renderizador e o contrato não mudam.
