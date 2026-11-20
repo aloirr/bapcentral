@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block corpo %}
+<h1>{{ titulo }}</h1>
+{% if not rel %}
+<p class="aviso atencao">Sem dados deste relatório no último pacote.</p>
+{% else %}
+{% if rel.subtitulo %}<p class="sub">{{ rel.subtitulo }}</p>{% endif %}
+{% for a in rel.avisos or [] %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
+{% if abas %}
+<nav class="abas">
+  {% for nome in abas %}<a href="?aba={{ loop.index0 }}" class="{{ 'ativa' if loop.index0 == aba }}">{{ nome }}</a>{% endfor %}
+</nav>
+{% endif %}
+<section class="cartoes">
+{% for k in kpis %}
+  <article class="cartao c-{{ cor_kpi(k) }}">
+    <h3>{{ k.rotulo }}</h3>
+    <div class="valor">{{ k.valor }}</div>
+    {% if k.detalhe %}<div class="detalhe">{{ k.detalhe }}</div>{% endif %}
+    {% if k.linhas %}<ul>{% for l in k.linhas %}<li class="t-{{ l[2] if l|length > 2 else '' }}"><span>{{ l[0] }}</span><b>{{ l[1] }}</b></li>{% endfor %}</ul>{% endif %}
+  </article>
+{% endfor %}
+</section>
+{% for t in tabelas %}
+<details class="bloco" {% if t.ativa or (loop.first and not request.query_params.get("t")) %}open{% endif %}>
+  <summary>{{ t.titulo }} <small>({{ t.n_visiveis }}{% if t.n_visiveis != t.n_total %} de {{ t.n_total }}{% endif %} linhas)</small></summary>
+  <form method="get" class="filtros">
+    {% if abas %}<input type="hidden" name="aba" value="{{ aba }}">{% endif %}
+    <input type="hidden" name="t" value="{{ t.idx }}">
+    <input type="search" name="q" value="{{ t.q }}" placeholder="Buscar na tabela">
+    {% for f in t.filtros %}
+    <select name="f{{ f.ci }}"><option value="">{{ f.nome }}: todos</option>
+      {% for o in f.opcoes %}<option {{ 'selected' if o == f.valor }}>{{ o }}</option>{% endfor %}
+    </select>
+    {% endfor %}
+    <button type="submit">Filtrar</button>
+    {% if t.ativa %}<a href="?{% if abas %}aba={{ aba }}{% endif %}">Limpar</a>{% endif %}
+  </form>
+  <div class="rolagem"><table class="tab">
+    <thead><tr>
+    {% for c in t.cabecalho %}
+      <th><a href="?{% if abas %}aba={{ aba }}&amp;{% endif %}t={{ t.idx }}&amp;o={{ c.ci }}&amp;d={{ c.prox_desc }}{% if t.q %}&amp;q={{ t.q|urlencode }}{% endif %}">{{ c.nome }} {{ c.seta }}</a></th>
+    {% endfor %}
+    </tr></thead>
+    <tbody>
+    {% for l in t.linhas %}
+      <tr class="tom-{{ l.tom }}">{% for c in l.cel %}<td class="{{ 'n' if c.num }}"{% if c.cor %} style="background:{{ c.cor }};color:#fff"{% endif %}>{{ c.t }}</td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+    {% if t.total %}<tfoot><tr>{% for c in t.total %}<td class="n">{{ c }}</td>{% endfor %}</tr></tfoot>{% endif %}
+  </table></div>
+  {% if t.cortada %}<p class="aviso atencao">Mostrando as primeiras {{ t.limite }} linhas de {{ t.n_visiveis }}. Use a busca, os filtros ou a ordem para achar as demais.</p>{% endif %}
+</details>
+{% endfor %}
+{% endif %}
+{% endblock %}

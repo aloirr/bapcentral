@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Usuários{% endblock %}
+{% block corpo %}
+<h1>Usuários</h1>
+{% if msg %}<p class="ok">{{ msg }}</p>{% endif %}
+{% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
+<div class="rolagem"><table class="tab">
+<thead><tr><th>Usuário</th><th>Perfil</th><th>Situação</th><th>Ações</th></tr></thead>
+<tbody>
+{% for x in lista %}
+<tr>
+  <td>{{ x.login }}</td><td>{{ x.perfil }}</td>
+  <td>{{ "ativo" if x.ativo else "desativado" }}{% if x.trocar_senha %} · troca de senha pendente{% endif %}</td>
+  <td>
+    <form method="post" action="/usuarios" class="linha">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="login" value="{{ x.login }}">
+      <button name="acao" value="{{ 'desativar' if x.ativo else 'ativar' }}">{{ "Desativar" if x.ativo else "Ativar" }}</button>
+    </form>
+    <form method="post" action="/usuarios" class="linha">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="login" value="{{ x.login }}">
+      <input name="senha" type="password" placeholder="nova senha" autocomplete="new-password" required>
+      <button name="acao" value="senha">Trocar senha</button>
+    </form>
+  </td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+<form method="post" action="/usuarios" class="caixa">
+  <h2>Novo usuário</h2>
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="criar">
+  <label>Usuário <input name="login" required></label>
+  <label>Perfil <select name="perfil">{% for p in perfis %}<option>{{ p }}</option>{% endfor %}</select></label>
+  <label>Senha inicial (será trocada no 1º acesso) <input name="senha" type="password" autocomplete="new-password" required></label>
+  <button type="submit">Criar</button>
+</form>
+{% endblock %}
