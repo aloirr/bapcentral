@@ -5252,7 +5252,12 @@ def _exportar_protheus_da_rota(ctx):
                  "CURVA_RECEITA": v["curva"] or "Z",
                  "LATITUDE": ponto.get(v.get("chave"), (None, None))[0],
                  "LONGITUDE": ponto.get(v.get("chave"), (None, None))[1],
-                 "SEMANA": v["semana"]} for v in escolhidas if v["data"]]
+                 "SEMANA": v["semana"],
+                 # (20/11) o gerador filtra INTERNO pelo nome; gerador
+                 # antigo ignora
+                 "NOME_CLIENTE": v.get("nome") or "",
+                 "NOME_FANTASIA": v.get("fantasia") or ""}
+                for v in escolhidas if v["data"]]
         return nu.linhas_protheus({}, [], linhas=rota)
     return montar
 
