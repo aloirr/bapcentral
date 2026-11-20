@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "descricao": "Mapa de donos do repositório bapcentral. A PRIMEIRA regra que casa com o caminho define o dono. Só o Alexandre altera este arquivo. Exceções universais (no código do guardião): qualquer agente cria recado novo (pelo node scripts/coord.mjs enviar, direto no aloirr/bapcentral-recados) e escreve no próprio .coord/diario/<agente>.md. 'congelado' = ninguém altera (docs/legado, docs/inicio e as bases RELATORIOS, SISTEMA BAP e BAP Ajuda 2.0: dado vem do robô, não de agente); 'sem-dono' = caminho não mapeado (bloqueado). Arquivo .py novo na raiz é sem-dono até o Alexandre mapear.",
+  "descricao": "Mapa de donos do repositório bapcentral. A PRIMEIRA regra que casa com o caminho define o dono. Só o Alexandre altera este arquivo. Exceções universais (no código do guardião): qualquer agente cria recado novo, direto no aloirr/bapcentral-recados (na nuvem, gravado por git no clone dos recados anexado à sessão, com push no main desse repositório) e escreve no próprio .coord/diario/<agente>.md. 'congelado' = ninguém altera (docs/legado, docs/inicio e as bases RELATORIOS, SISTEMA BAP e BAP Ajuda 2.0: dado vem do robô, não de agente); 'sem-dono' = caminho não mapeado (bloqueado). Arquivo .py novo na raiz é sem-dono até o Alexandre mapear.",
   "somente_leitura": [],
   "regras": [
     {
@@ -125,7 +125,7 @@
     },
     {
       "padrao": "docs/produto/specs/**",
-      "dono": "po"
+      "dono": "gerente-projetos"
     },
     {
       "padrao": "docs/produto/**",
