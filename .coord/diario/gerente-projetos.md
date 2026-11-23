@@ -18,3 +18,5 @@
 - 2026-11-23 — T-0010 — simulação na produção; recomendação aprovada; falta o "instale"
 - 2026-11-23 — T-0013 — merges #15, #16, #25 (no lugar do #19), #17 e #18 (com o "autorizo" do Alexandre); aguardando o Render
 - 2026-11-23 — T-0015 — criada (`.bat` com CRLF)
+- 2026-11-23 — T-0004 — #27 (pytest bloqueante, smoke informativo) com o "autorizo" do Alexandre
+- 2026-11-23 — T-0015 — #28 (.gitattributes) e #29 (teste); concluída
