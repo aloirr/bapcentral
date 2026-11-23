@@ -956,10 +956,19 @@ const OPCOES_GIT_COM_VALOR = new Set(['-C', '-c', '--git-dir', '--work-tree', '-
 /** git add/stage/commit/stash (push/save) no comando, inclusive em $(...): [{sub, args, outraPasta}]. */
 export function comandosDeIndice(comando) {
   const res = [];
-  visitarComandos(comando, ({ nome, args }) => {
-    if (!nome || nome.incerto || nomeBase(nome.valor) !== 'git') return;
+  visitarComandos(comando, ({ nome, args, estranho, palavras }) => {
+    let embrulhado = !!estranho;
+    if (!nome || nome.incerto || nomeBase(nome.valor) !== 'git') {
+      // T-0011 (furo 3): git embrulhado em outro comando (env -C <pasta> git commit, xargs -I{} git -C {} commit,
+      // sudo -u x git add...): o git vale como se estivesse em outra pasta. Na dúvida, conta.
+      const j = palavras.findIndex((w, k) => k > 0 && !w.incerto && nomeBase(w.valor) === 'git');
+      if (j < 0) return;
+      nome = palavras[j];
+      args = palavras.slice(j + 1);
+      embrulhado = true;
+    }
     let i = 0;
-    let outraPasta = false;
+    let outraPasta = embrulhado;
     while (i < args.length && args[i].valor.startsWith('-')) {
       if (OPCOES_GIT_COM_VALOR.has(args[i].valor)) { if (args[i].valor !== '-c') outraPasta = true; i += 2; } else i++;
     }
