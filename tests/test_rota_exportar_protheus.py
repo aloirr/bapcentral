@@ -14,10 +14,7 @@ Carteira 100% ficticia: codigos 999xxx, nomes inventados, sem CNPJ, telefone
 nem e-mail. "BAP AUTOPARTS LTDA" e o nome da propria empresa (o caso interno).
 """
 import datetime as dt
-import inspect
 from types import SimpleNamespace
-
-import pytest
 
 import bap_dados
 import planner_nucleo
@@ -83,11 +80,29 @@ def test_RN_ROT_001_interno_pelo_nome_fica_fora():
     assert set(codcli) == {"99900201", "99900301"}
 
 
+def test_RN_ROT_001_farol_repassa_visita_semanal_com_7():
+    # a visita semanal (bap_dados marca b5) chega ao gerador pelo Farol:
+    # periodicidade 7 e data final = proxima visita + 7 - 1
+    carteira = _carteira()
+    carteira[1]["visita_semanal"] = "SIM"       # 999002, curva C
+    carteira[2]["visita_semanal"] = ""          # 999003, curva C
+    saida = relatorios_nucleo._exportar_protheus_da_rota(_ctx(carteira))()
+    codcli = _por_codcli(saida)
+
+    semanal, normal = codcli["99900201"], codcli["99900301"]
+    assert semanal["periodicidade"] == "7"
+    assert semanal["dtfinal"] == planner_nucleo.dtfinal_protheus(SEGUNDA, 7)
+    assert semanal["dtfinal"].startswith("2026-12-13")
+    # a curva C sem a marca segue a periodicidade da curva
+    per_c = planner_nucleo.periodicidade_maxima(
+        planner_nucleo.periodicidade_da_curva("C"))
+    assert per_c != 7
+    assert normal["periodicidade"] == str(per_c)
+
+
 # --------------------------------------------------------------------------
 # VISITA_SEMANAL no bloco base do bap_dados (PR #14, marca b5)
 # --------------------------------------------------------------------------
-_TEM_MARCA_B5 = "VISITA_SEMANAL" in inspect.getsource(bap_dados._bloco_base)
-
 # os campos de cada visita do bloco base ANTES da marca b5 (bap_dados no
 # main de 20/11/2026): a b5 so acrescenta "visita_semanal"
 CAMPOS_ANTES_B5 = {
@@ -122,9 +137,6 @@ def _linha_rota(cod, nome, semanal):
     }
 
 
-@pytest.mark.skipif(not _TEM_MARCA_B5,
-                    reason="bap_dados sem a marca b5 (VISITA_SEMANAL): "
-                           "entra com o PR #14")
 def test_RN_ROT_001_visita_semanal_chega_ao_bloco(tmp_path, monkeypatch):
     # base minima ficticia: so o arquivo precisa existir (a leitura e falsa)
     (tmp_path / bap_dados.RELATORIOS).mkdir(parents=True)
