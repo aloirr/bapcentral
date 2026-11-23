@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}BAP Central{% endblock %} · BAP AUTOPARTS</title>
+<link rel="stylesheet" href="/static/estilo.css">
+</head>
+<body>
+<header class="topo">
+  <a class="marca" href="/">BAP Central <small>BAP AUTOPARTS</small></a>
+  {% if usuario %}
+  <form method="post" action="/sair" class="sair">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <span>{{ usuario.login }} · {{ usuario.perfil }}</span>
+    <button type="submit">Sair</button>
+  </form>
+  {% endif %}
+</header>
+{% if usuario %}
+  {% if gerado_em %}<div class="aviso info">Dados de {{ gerado_em|manaus }} (horário de Manaus)</div>
+  {% else %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
+{% endif %}
+<main>{% block corpo %}{% endblock %}</main>
+<footer>BAP AUTOPARTS · BAP Central web v{{ versao }}</footer>
+</body>
+</html>

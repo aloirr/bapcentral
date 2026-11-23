@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block titulo %}Menu{% endblock %}
+{% block corpo %}
+<nav class="menu">
+  {% for m in menu %}<a class="quadro" href="{{ m.href }}">{{ m.nome }}</a>{% endfor %}
+</nav>
+{% endblock %}
