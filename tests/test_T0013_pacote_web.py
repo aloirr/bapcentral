@@ -339,7 +339,9 @@ def test_T0013_escopo_selecionar_abas_resultado_e_produtividade():
                             ("produtividade", "prod",
                              "Painel · produtividade")):
         aba = sel["abas"][chave]
-        assert set(aba) == {"titulo", "kpis_export", "painel", "altura_min"}
+        # "recortes" (T-0014) é opcional aqui; quem confere é o test_T0014
+        assert set(aba) - {"recortes"} == {"titulo", "kpis_export", "painel",
+                                           "altura_min"}
         assert aba["titulo"] == tit
         assert aba["altura_min"] == 720
         assert aba["painel"]["altura_min"] == 720
