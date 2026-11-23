@@ -374,3 +374,66 @@ def test_config_token_curto_nao_sobe_e_limite_padrao(amb, monkeypatch):
 def test_css_barras_sem_colunas_fixas():
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
     assert "repeat(4,1fr)" not in css and "grid-auto-columns:1fr" in css
+
+
+# ------------------------------------------------------------ T-0014: visões prontas por estado
+def _recortes():
+    from conftest import _cartao
+    pa = [_cartao("Faturamento líquido · proj.", "R$ 28,6 mil", "9%",
+                  uf_bars=[["PA", 28600.0, "R$ 28,6 mil", "9%", "alerta"]])]
+    ma = [_cartao("Faturamento líquido · proj.", "R$ 87,0 mil", "110%",
+                  uf_bars=[["MA", 87000.0, "R$ 87,0 mil", "110%", "ok"]])]
+    for c in pa + ma:
+        c["aneis"], c["faixa"] = [], []
+    return {"uf": {"PA": {"cartoes": pa}, "MA": {"cartoes": ma}}}
+
+
+def _pacote_com_recortes():
+    from conftest import pacote_ficticio
+    p = pacote_ficticio()
+    for a in p["relatorios"]["vc_painel"]["abas"].values():
+        a["recortes"] = _recortes()
+    return p
+
+
+def test_T0014_pacote_com_recortes_aceito_e_guardado(cli, amb):
+    from conftest import postar
+    assert postar(cli, _pacote_com_recortes()).status_code == 200
+    import json
+    arq = sorted((amb / "pacotes").glob("*.json"))[-1]
+    g = json.loads(arq.read_text(encoding="utf-8"))
+    assert set(g["relatorios"]["vc_painel"]["abas"]["resultado"]["recortes"]["uf"]) == {"PA", "MA"}
+
+
+def test_T0014_recortes_invalidos_422(cli):
+    from conftest import postar
+    p = _pacote_com_recortes()
+    p["relatorios"]["vc_painel"]["abas"]["resultado"]["recortes"]["supervisor"] = {"X": "PA"}
+    assert postar(cli, p).status_code == 422                         # só filtro por estado
+    p = _pacote_com_recortes()
+    p["relatorios"]["vc_painel"]["abas"]["resultado"]["recortes"]["uf"]["pa"] = {"cartoes": []}
+    assert postar(cli, p).status_code == 422
+
+
+def test_T0014_filtro_mostra_a_visao_pronta_sem_calcular(admin):
+    from conftest import postar
+    assert postar(admin, _pacote_com_recortes()).status_code == 200
+    html = admin.get("/painel?aba=resultado").text
+    assert "BAP inteira" in html and "R$ 165 mil" in html          # sem filtro: o total
+    html = admin.get("/painel?aba=resultado&uf=MA").text
+    assert "R$ 87,0 mil" in html and "R$ 165 mil" not in html       # a barra do MA, como veio
+    assert "rrm-recorte" in html                                     # cartão compacto no recorte
+    assert "Número do estado como na barra dele" in html             # "como ler" próprio da visão do estado
+    assert "Faixa:" not in html                                      # sem o texto de anel/faixa da BAP inteira
+    html = admin.get("/painel?aba=resultado&uf=pa").text
+    assert "R$ 28,6 mil" in html and "PA · estado = filial da nota" in html
+    assert "Supervisor" not in html                                  # sem filtro por supervisor
+    html = admin.get("/painel?aba=resultado&uf=ZZ").text           # estado sem visão = BAP inteira
+    assert "R$ 165 mil" in html
+
+
+def test_T0014_sem_recortes_sem_filtro(admin):
+    from conftest import postar
+    assert postar(admin).status_code == 200
+    html = admin.get("/painel?aba=resultado").text
+    assert 'class="filtros"' not in html
