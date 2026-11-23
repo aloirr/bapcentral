@@ -1,0 +1,3 @@
+# T-0015: os .bat saem com CRLF (padrao do Windows) no checkout e no zip do main
+# que o ATUALIZAR_DO_GITHUB baixa; no repositorio ficam com LF.
+*.bat text eol=crlf
