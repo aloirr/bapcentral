@@ -20,7 +20,7 @@ Atualizado em 23/11/2026 (Manaus). Dono: gerente-projetos.
 | T-0012 | Agentes corretor-redundancias, design-de-marca e designer-ux | aberta (autorizada no R-20261120-113248-alexandre; não começada) | alexandre (governança) + gerente-projetos | — | `.claude/agents/**`, `.coord/donos.json`, `CLAUDE.md`, `docs/produto/07-time-e-coordenacao.md` | retomada em 22/11 (R-20261122-182900-alexandre) |
 | T-0013 | Web: onda 0 e primeira entrega (Painel · resultado e Painel · produtividade) | aguardando_alexandre (código no main: #15 `66aacf4`, #16 `e8a9e5d`, #25 `5251f93`, #17 `9b72edf`, #18 `7dc4022`; #19 fechado, substituído pelo #25; testes da web no CI; nada no Render) | modulo-web + modulo-robo + engenheiro-software + testes + alexandre (governança) | — | — | Render: o Alexandre cria os 4 segredos e dá o "aprovo deploy v0.1.0"; passo 4f no PC só com o "instale" e o BAP_WEB_URL/TOKEN no cofre do robô |
 | T-0014 | Web: visões prontas por UF e por supervisor para os filtros | aberta (autorizada no R-20261120-122437-alexandre; não começada) | modulo-robo + modulo-web | — | — | retomada em 22/11 (R-20261122-182900-alexandre); depois da entrega da T-0013 |
-| T-0015 | `.bat` com o final de linha do Windows (CRLF) no repositório | concluida (#28 `19c5110`, `.gitattributes`; #29 teste) | alexandre (governança) + testes | — | — | concluída em 23/11 |
+| T-0015 | `.bat` com o final de linha do Windows (CRLF) no repositório | concluida (#28 `19c5110`, `.gitattributes`; #29 teste; #31 `8f31c54`, `ATUALIZAR_DO_GITHUB.bat` guardado em LF) | alexandre (governança) + testes | — | — | concluída em 23/11 |
 
 **Previsões:** a hora é a do último status do gerente ao po, e cada "Status HHhMM" do po leva a hora nova e o motivo quando ela muda (R-20261120-092924-alexandre).
 
