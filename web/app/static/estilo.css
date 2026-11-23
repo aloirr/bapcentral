@@ -54,3 +54,9 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .tab{border-collapse:collapse;width:100%;font-size:.85rem}
 .tab th,.tab td{padding:.35rem .5rem;border-bottom:1px solid #e9ecef;text-align:left}
 .tab th{background:#e7edf5}
+.filtros{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin:.2rem 0 .8rem}
+.filtros .f-rot{font-size:.75rem;font-weight:700;color:#5e6b62;margin:0 .2rem 0 .4rem}
+.filtros a{white-space:nowrap;padding:.3rem .7rem;border-radius:16px;border:1px solid #cfdccb;background:#fff;color:#1b2430;text-decoration:none;font-size:.85rem;min-height:28px}
+.filtros a.ativa{background:#2f7d32;border-color:#2f7d32;color:#fff}
+.rrm-recorte .rc{min-height:0}
+.rrm-recorte .rc-topo{flex:1}
