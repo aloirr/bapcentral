@@ -12,3 +12,6 @@
 - 2026-11-20 — T-0001 — concluída; merges dos PRs #1 e #2; T-0005 ao po (R-20261120-100628-gerente-projetos); sessões filhas da T-0002, T-0003 e T-0006; governança da T-0007 e da T-0008
 - 2026-11-20 — T-0010 — merges do dia: #3, #1 (recados), #1, #2, #5, #7, #8; T-0002, T-0005, T-0006 e T-0007 concluídas; RN-ROT-001 registrada; T-0010 e T-0011 criadas; T-0009 separada no PR #11
 - 2026-11-20 — T-0013 — web: PRs #15, #16 e #17; T-0012 e T-0013 no quadro; horários tirados do histórico (só data e SHA)
+- 2026-11-22 — retomada no Cowork (R-20261122-182900-alexandre e R-20261122-183000-alexandre); GitHub pelo site
+- 2026-11-23 — T-0010 — merges #14, #23 (novo, modulo-farois) e #13; aguardando o "instale"
+- 2026-11-23 — T-0003 — merges #20 (com o desenho) e #21; concluída
