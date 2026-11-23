@@ -88,12 +88,38 @@ def localizar_abas(rel: dict) -> list[dict]:
             continue
         b = ((a.get("painel") or {}).get("blocos") or [{}])[0]
         abas.append({"chave": chave, "titulo": a.get("titulo", ""), "visao": visao,
-                     "dados": b.get("dados") or {}})
+                     "dados": b.get("dados") or {}, "recortes": a.get("recortes") or {}})
     return abas
 
 
-def aba_para_tela(aba: dict) -> dict:
+COMO_LER_ESTADO = ("Número do estado como na barra dele no Painel do Diretor do PC; "
+                   "% = atingimento da meta do estado, ou variação × mês anterior sem meta. "
+                   "Cartão com — não tem número por estado.")
+
+
+def filtros(aba: dict) -> dict:
+    """T-0014: as visões prontas que o PC mandou para esta aba (nada é calculado aqui)."""
+    rec = aba.get("recortes") or {}
+    return {"ufs": list((rec.get("uf") or {}).keys())}
+
+
+def escolher_uf(aba: dict, uf: str | None = None) -> str | None:
+    """O estado escolhido; fora da lista = BAP inteira."""
+    f = filtros(aba)
+    uf = (uf or "").upper() or None
+    return uf if uf in f["ufs"] else None
+
+
+def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
     d, v = aba["dados"], aba["visao"]
-    return {"titulo": TITULOS[v], "sub": (d.get("sub") or {}).get(v, ""),
-            "cartoes": [cartao(c) for c in d.get(v) or []],
-            "como_ler": d.get("como_ler") or "", "avisos": d.get("avisos") or []}
+    sub = (d.get("sub") or {}).get(v, "")
+    cartoes = d.get(v) or []
+    como_ler = d.get("como_ler") or ""
+    if uf:
+        # o "como ler" da BAP inteira fala de anel, faixa e barras, que a visão do estado não tem
+        como_ler = COMO_LER_ESTADO
+        cartoes = ((aba.get("recortes") or {}).get("uf") or {}).get(uf, {}).get("cartoes") or []
+        sub = f"{uf} · estado = filial da nota · {sub}" if sub else f"{uf} · estado = filial da nota"
+    return {"titulo": TITULOS[v], "sub": sub, "uf": uf,
+            "cartoes": [cartao(c) for c in cartoes],
+            "como_ler": como_ler, "avisos": d.get("avisos") or []}
