@@ -6,11 +6,18 @@
 <p class="aviso atencao">Sem dados do painel no último pacote.</p>
 {% else %}
 <nav class="abas">
-  {% for a in abas %}<a href="/painel?aba={{ a.chave }}" class="{{ 'ativa' if a.chave == aba }}">{{ a.titulo }}</a>{% endfor %}
+  {% for a in abas %}<a href="/painel?aba={{ a.chave }}{% if uf %}&uf={{ uf }}{% endif %}" class="{{ 'ativa' if a.chave == aba }}">{{ a.titulo }}</a>{% endfor %}
 </nav>
+{% if filtros and filtros.ufs %}
+<nav class="filtros" aria-label="Filtro por estado">
+  <span class="f-rot">Estado</span>
+  <a href="/painel?aba={{ aba }}" class="{{ 'ativa' if not uf }}">BAP inteira</a>
+  {% for u in filtros.ufs %}<a href="/painel?aba={{ aba }}&uf={{ u }}" class="{{ 'ativa' if u == uf }}">{{ u }}</a>{% endfor %}
+</nav>
+{% endif %}
 <header class="cab-painel"><h1>{{ tela.titulo }}</h1><span>{{ tela.sub }}</span></header>
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
-<section class="rrm">
+<section class="rrm{{ ' rrm-recorte' if tela.uf }}">
 {% for c in tela.cartoes %}
 <article class="rc">
   <div class="rc-topo">
@@ -42,7 +49,7 @@
     {% endfor %}
   </div>
   {% endif %}
-  <div class="rc-filete"></div>
+  {% if not tela.uf %}<div class="rc-filete"></div>{% endif %}
   {% if c.estados %}
   <div class="rc-barras">
     {% for b in c.estados.barras %}
