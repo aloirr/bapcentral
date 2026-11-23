@@ -31,6 +31,21 @@ jobs:
           node scripts/coord.mjs governanca --base "origin/$BASE_REF" || echo "::warning::PR com caminho de governança: precisa do recado do Alexandre 'autorizo o merge do PR #N no commit <sha>'"
       - name: Python compila
         run: python -m compileall -q -x '(RELATORIOS|SISTEMA BAP|BAP Ajuda 2.0|docs)/' .
+      - name: Testes pytest da raiz (tests/)
+        run: |
+          python -m pip install -q pytest openpyxl pandas requests
+          python -m pytest tests -q
+      - name: Smoke dos processos (só quando muda .py ou o ci.yml; informativo enquanto houver falha fora da lista do agente testes)
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if git diff --name-only "origin/$BASE_REF...HEAD" | grep -qE '\.py$|^\.github/workflows/ci\.yml$'; then
+            sudo apt-get install -y -q xvfb > /dev/null
+            xvfb-run -a python smoke_processos.py
+          else
+            echo "Nenhum .py mudou, smoke pulado."
+          fi
       - name: Testes da CLI e dos guardiões
         run: node --test scripts/coord-recados.test.mjs scripts/coord-verificar.test.mjs .claude/hooks/guarda-agente.test.mjs .claude/hooks/guarda-recado.test.mjs
       - name: Testes da web (T-0013)
