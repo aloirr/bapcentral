@@ -6574,6 +6574,258 @@ def gerar_dados_relatorios(simular: bool = False) -> dict:
 
 
 
+# =============================================================================
+# PACOTE WEB (passo 4f, T-0013): o PC monta, a web so le a parte dado
+# =============================================================================
+# Decisao de 20/11: a web (Render, 512 MB) nao roda o montar. O PC monta o
+# vc_painel e manda so as abas "Painel · resultado" e "Painel · produtividade"
+# (parte dado do contrato, .coord/contratos/relatorio.md, secao 10): sem
+# callables, sem chave com "_", chave sempre texto. Segredo: BAP_WEB_URL e
+# BAP_WEB_TOKEN em variavel de ambiente ou no cofre do Windows (servico
+# BAP_WEB). Nunca no log.
+
+SERVICO_KEYRING_WEB = "BAP_WEB"
+_ABAS_WEB = {"res": "resultado", "prod": "produtividade"}   # visao -> chave
+_TITULOS_ABAS_WEB = {"Painel · resultado": "resultado",
+                     "Painel · produtividade": "produtividade"}
+_PACOTE_WEB_CHAVES_ACAO = frozenset({
+    "detalhe_pedido", "kpis_de", "total_de", "ordem_exportar", "edicao",
+    "garantia", "importar_preenchidos"})
+_DESCARTAR = object()
+
+
+def _para_json(obj, _nivel: int = 0):
+    """Converte para tipos JSON; devolve _DESCARTAR para o que nao vai."""
+    if _nivel > 40:
+        return _DESCARTAR
+    if obj is None or isinstance(obj, (bool, int)):
+        return obj
+    if isinstance(obj, float):
+        return obj if obj == obj and obj not in (float("inf"), float("-inf")) \
+            else None
+    if isinstance(obj, str):
+        baixo = obj.lower().strip()
+        return _DESCARTAR if baixo.endswith((".pkl", ".pickle")) else obj
+    if isinstance(obj, (bytes, bytearray, Path)) or callable(obj):
+        return _DESCARTAR
+    if obj is pd.NaT:
+        return None
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, date):
+        return obj.isoformat()
+    if isinstance(obj, pd.DataFrame):
+        return _para_json(obj.to_dict("records"), _nivel + 1)
+    if isinstance(obj, pd.Series):
+        return _para_json(obj.tolist(), _nivel + 1)
+    try:
+        import decimal                                  # noqa: PLC0415
+        if isinstance(obj, decimal.Decimal):
+            return _para_json(float(obj), _nivel + 1)
+    except Exception:                                   # noqa: BLE001
+        pass
+    if isinstance(obj, dict):
+        saida = {}
+        for k, v in obj.items():
+            ch = k if isinstance(k, str) else str(k)
+            if ch.startswith("_") or ch in _PACOTE_WEB_CHAVES_ACAO:
+                continue
+            val = _para_json(v, _nivel + 1)
+            if val is not _DESCARTAR:
+                saida[ch] = val
+        return saida
+    if isinstance(obj, (list, tuple, set, frozenset)):
+        itens = sorted(obj, key=str) if isinstance(obj, (set, frozenset)) \
+            else obj
+        saida = []
+        for v in itens:
+            val = _para_json(v, _nivel + 1)
+            if val is not _DESCARTAR:
+                saida.append(val)
+        return saida
+    for metodo in ("item", "tolist"):                   # numpy
+        if callable(getattr(obj, metodo, None)):
+            try:
+                return _para_json(getattr(obj, metodo)(), _nivel + 1)
+            except Exception:                           # noqa: BLE001
+                pass
+    return _DESCARTAR
+
+
+def _agora_manaus() -> datetime:
+    try:
+        from zoneinfo import ZoneInfo                   # noqa: PLC0415
+        return datetime.now(ZoneInfo("America/Manaus"))
+    except Exception:                                   # noqa: BLE001
+        from datetime import timedelta, timezone        # noqa: PLC0415
+        return datetime.now(timezone(timedelta(hours=-4)))   # sem horario de verao
+
+
+def selecionar_abas_web(r: dict) -> dict:
+    """Funcao pura: do vc_painel montado, so as abas resultado e produtividade
+    ({"titulo", "abas": {...}, "avisos"?}). A tela RRM le so dados[visao],
+    sub[visao] e como_ler; o "diretor" (dd) nao e lido por ela e fica fora."""
+    abas, avisos = {}, []
+    for p in (r or {}).get("paineis") or []:
+        if not isinstance(p, dict):
+            continue
+        bloco = next((b for b in ((p.get("painel") or {}).get("blocos") or [])
+                      if isinstance(b, dict) and b.get("tipo") == "rrm"), None)
+        vis = (bloco or {}).get("visao")
+        chave = (_ABAS_WEB.get(vis) if vis
+                 else _TITULOS_ABAS_WEB.get(p.get("titulo")))
+        if not chave or chave in abas or bloco is None:
+            continue
+        vis = vis or next(v for v, c in _ABAS_WEB.items() if c == chave)
+        d = bloco.get("dados") or {}
+        dados = {k: d.get(k) for k in ("comp", "ano", "mes", "como_ler",
+                                       "dados_ate", "avisos")}
+        dados[vis] = d.get(vis)
+        dados["sub"] = {vis: (d.get("sub") or {}).get(vis)}
+        abas[chave] = {
+            "titulo": p.get("titulo"),
+            "kpis_export": p.get("kpis_export"),
+            "painel": {"blocos": [{"tipo": "rrm", "visao": vis,
+                                   "dados": dados,
+                                   "row": bloco.get("row", 0),
+                                   "col": bloco.get("col", 0),
+                                   "colspan": bloco.get("colspan", 3)}],
+                       "altura_min": (p.get("painel") or {}).get("altura_min")},
+            "altura_min": (p.get("painel") or {}).get("altura_min"),
+        }
+    for chave in _ABAS_WEB.values():
+        if chave not in abas:
+            avisos.append(f"Aba {chave} ausente do Painel neste pacote.")
+    saida = {"titulo": (r or {}).get("titulo"), "abas": abas}
+    if avisos:
+        saida["avisos"] = avisos
+    return saida
+
+
+def montar_pacote_web(resultados: dict, ano: int, mes: int,
+                      agora=None) -> dict:
+    """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
+    resultado e produtividade, limpas para JSON."""
+    try:
+        import relatorios_nucleo as _rn                 # noqa: PLC0415
+        versao = int(getattr(_rn, "VERSAO_CONTRATO", 1))
+    except Exception:                                   # noqa: BLE001
+        versao = 1                                      # ausente = 1 (contrato)
+    agora = agora or _agora_manaus()
+    if getattr(agora, "tzinfo", None) is None:
+        from datetime import timedelta, timezone        # noqa: PLC0415
+        agora = agora.replace(tzinfo=timezone(timedelta(hours=-4)))
+    limpos = {}
+    rel = (resultados or {}).get("vc_painel")
+    if isinstance(rel, dict):
+        val = _para_json(selecionar_abas_web(rel))
+        if isinstance(val, dict):
+            limpos["vc_painel"] = val
+    return {"versao_contrato": versao, "gerado_em": agora.isoformat(),
+            "ano": int(ano), "mes": int(mes), "relatorios": limpos}
+
+
+def coletar_relatorios_web(ano: int, mes: int) -> dict:
+    """Monta no PC o vc_painel do mes (o montar grava o historico do Diretor)."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    return {"vc_painel": _rn.montar(
+        "vc_painel", PASTA_LOCAL,
+        params={"ANO": str(ano), "MÊS": str(mes)})}
+
+
+def _segredo_web(env: str, usuario: str):
+    valor = (os.environ.get(env) or "").strip()
+    if valor:
+        return valor
+    if keyring is not None:
+        try:
+            return (keyring.get_password(SERVICO_KEYRING_WEB, usuario)
+                    or "").strip() or None
+        except Exception:                               # noqa: BLE001
+            return None
+    return None
+
+
+def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
+    """POST <url>/api/pacote (Bearer), 30 s, 3 tentativas, so https:443."""
+    from urllib.parse import urlparse                   # noqa: PLC0415
+    url = (url or _segredo_web("BAP_WEB_URL", "url") or "").strip()
+    token = (token or _segredo_web("BAP_WEB_TOKEN", "token") or "").strip()
+    if not url or not token:
+        log("Pacote web: BAP_WEB_URL/BAP_WEB_TOKEN nao configurados; "
+            "envio pulado.")
+        return False
+
+    def limpa(txt) -> str:
+        return str(txt).replace(token, "***")
+
+    try:
+        p = urlparse(url)
+        porta = p.port
+    except Exception:                                   # noqa: BLE001
+        log("Pacote web: BAP_WEB_URL invalida; envio pulado.")
+        return False
+    if p.scheme != "https" or not p.hostname or porta not in (None, 443):
+        log("Pacote web: so https na porta 443; envio recusado.")
+        return False
+    destino = f"https://{p.hostname}{p.path.rstrip('/')}/api/pacote"
+    try:
+        corpo = json.dumps(pacote, ensure_ascii=False,
+                           allow_nan=False).encode("utf-8")
+        import requests                                 # noqa: PLC0415
+    except Exception as erro:                           # noqa: BLE001
+        log(f"Pacote web: nao deu para preparar o envio ({limpa(erro)}).")
+        return False
+    cab = {"Authorization": f"Bearer {token}",
+           "Content-Type": "application/json; charset=utf-8"}
+    for tentativa in range(1, 4):
+        try:
+            r = requests.post(destino, data=corpo, headers=cab, timeout=30)
+            if 200 <= r.status_code < 300:
+                log(f"Pacote web enviado ({len(corpo) / 1024:.0f} KB).")
+                return True
+            log(f"Pacote web: o servidor respondeu {r.status_code} "
+                f"(tentativa {tentativa}/3).")
+        except Exception as erro:                       # noqa: BLE001
+            log(f"Pacote web: falha de rede, {type(erro).__name__}: "
+                f"{limpa(erro)[:200]} (tentativa {tentativa}/3).")
+        if tentativa < 3:
+            time.sleep(2 * tentativa)
+    return False
+
+
+def passo_pacote_web(simular_pacote: bool = False) -> dict:
+    """4f: monta, e envia (ou so grava o simulado). Nunca levanta."""
+    try:
+        # (23/11, revisao do PR #16) sem URL/token da web, nem monta: a rodada
+        # do robo fica como antes do 4f (sem montar o Painel a toa)
+        if not simular_pacote and not (
+                _segredo_web("BAP_WEB_URL", "url")
+                and _segredo_web("BAP_WEB_TOKEN", "token")):
+            log.info("Pacote web: BAP_WEB_URL/BAP_WEB_TOKEN nao configurados; "
+                     "passo 4f pulado (o Painel nao e montado).")
+            return {"enviado": False, "pulado": True}
+        hoje = _agora_manaus()
+        pacote = montar_pacote_web(
+            coletar_relatorios_web(hoje.year, hoje.month),
+            hoje.year, hoje.month, hoje)
+        tam = len(json.dumps(pacote, ensure_ascii=False).encode("utf-8"))
+        if simular_pacote:
+            pasta = Path(tempfile.gettempdir()) / "BAP_PACOTE_WEB"
+            pasta.mkdir(parents=True, exist_ok=True)
+            arq = pasta / f"pacote_web_{hoje.year}{hoje.month:02d}.json"
+            arq.write_text(json.dumps(pacote, ensure_ascii=False),
+                           encoding="utf-8")
+            log.info("Pacote web simulado gravado em %s (%d KB).", arq,
+                     tam // 1024)
+            return {"simulado": str(arq), "kb": tam // 1024}
+        ok = enviar_pacote_web(pacote, log=log.info)
+        return {"enviado": ok, "kb": tam // 1024}
+    except Exception as erro:                           # noqa: BLE001
+        log.warning("Pacote web (4f): %s", erro)
+        return {"erro": str(erro)}
+
+
 def gerar_acompanhamento_pos_venda(caminho_planilha: Path,
                                    simular: bool = False) -> dict:
     """
@@ -8108,6 +8360,15 @@ def _executar_rodada(args, armazenamento, selecionados, inicio) -> int:
                 log.warning("BAP Ajuda: %s", erro)
                 bap_ajuda = {"erro": str(erro)}
 
+        # ---- 4f. o pacote da web (T-0013) ------------------------------------
+        # Monta o vc_painel e manda so as abas resultado e produtividade. --pacote-web-simular grava em arquivo local sem enviar.
+        # Falha aqui nunca derruba a rodada.
+        if not args.simular or args.pacote_web_simular:
+            try:
+                passo_pacote_web(args.pacote_web_simular)
+            except Exception as erro:                   # noqa: BLE001
+                log.warning("Pacote web (4f): %s", erro)
+
         falhas = len(selecionados) - len(dados)
         duracao = time.time() - inicio
         log.info("=" * 70)
@@ -8172,6 +8433,9 @@ def main() -> int:
                         help="mostra o navegador (para testes)")
     parser.add_argument("--simular", action="store_true",
                         help="processa tudo, mas NAO altera nada na nuvem")
+    parser.add_argument("--pacote-web-simular", action="store_true",
+                        help="passo 4f: monta o pacote da web e grava em "
+                             "arquivo local (pasta temporaria), sem enviar")
     parser.add_argument("--relatorio", metavar="IDS",
                         help="roda so estes ids (clientes,titulos,estoque,pedidos,precos)")
     parser.add_argument("--sem-baixar", action="store_true",
