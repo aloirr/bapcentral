@@ -1,6 +1,6 @@
 # ADR 0001 — BAP Central na web (Render)
 
-- **Status:** aprovada (R-20261120-114944-alexandre, item 7: "OK pode seguir"), com o adendo 1 no fim, que manda sobre o texto original
+- **Status:** aprovada (R-20261120-114944-alexandre, itens 2 a 6, sobre as decisões do R-20261120-114608-gerente-projetos), com o adendo 1 no fim, que manda sobre o texto original
 - **Data:** 2026-11-20
 - **Tarefa:** T-0006 · **Autor:** engenheiro-software
 - **Depende de:** T-0002 (contrato do relatório), T-0003 (`ATUALIZAR_DO_GITHUB.bat`), T-0007 (recados por git)
@@ -286,7 +286,7 @@ O texto original (§1 a §8) fica como foi aprovado. **Onde este adendo diverge 
 
 ### Decisões do Alexandre (texto literal)
 - **R-20261120-114944-alexandre** (11:49 Manaus): "1) voce ta maluco com esses prazos? quero tudo para hoje. 2) OK 3) OK 4) Vai ser no render por enquanto. 5) entregue hoje 6) vammos deixar do jetio que ta no plano de 7 dolares. depois vejo o que fazer. 7) OK pode seguir"
-  - O item 7 aprova esta ADR (status na linha 3).
+  - Os itens 2 a 6 decidem os pontos desta ADR (status na linha 3). O item 7 aprova o ambiente BapCentral-Dados (`BAP_AGENTE=engenheiro-dados`), não a ADR.
   - A leitura dos itens está no próprio R-20261120-114944-alexandre (a leitura do gerente-projetos registrada no recado): ondas 0 e 1 hoje; login próprio (§2.4); disco no Render, sem Postgres (§2.2); plano de US$ 7 do Render; deploy só com "aprovo deploy vX.Y.Z" (§4.7); a conferência de 5 dias úteis (§5) vira acompanhamento depois da entrega.
 - **R-20261120-120939-alexandre:** a primeira entrega é **só** "Painel · resultado" e "Painel · produtividade" (as visões `res` e `prod` de `painel_rrm.VISOES`, `painel_rrm.py:48`), do relatório `vc_painel`. A aba "Painel · por dia útil" e o Farol de Inadimplência (`pl_inadimplencia`) **ficaram fora** desta fase.
 - **R-20261120-121026-alexandre:** disco de **1 GB** (cerca de US$ 0,25/mês a mais).
