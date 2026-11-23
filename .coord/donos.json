@@ -48,6 +48,10 @@
       "dono": "alexandre"
     },
     {
+      "padrao": ".gitattributes",
+      "dono": "alexandre"
+    },
+    {
       "padrao": "docs/legado/**",
       "dono": "congelado"
     },
