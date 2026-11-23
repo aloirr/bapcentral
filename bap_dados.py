@@ -266,8 +266,9 @@ def _fontes(raiz, bloco) -> tuple[list, str]:
         # "b3" (14/10): lat/lon de cada cliente (o .json da base)
         # "b4" (21/10): a RECEITA_PERIODO (3M) - o COMPRADOR (SIM/NAO) do
         # Farol Roteirizacao
+        # "b5" (20/11, T-0010): a VISITA_SEMANAL nas visitas (RN-ROT-001)
         return [base, _cfg_planner(raiz),
-                rel / "COORDENADAS_CLIENTES.json"], "b4"
+                rel / "COORDENADAS_CLIENTES.json"], "b5"
     if bloco == "posvenda":
         # (09/10) o diario de edicoes tambem: editou no BAP, o farol refaz
         # (10/10) e o SLA de entrega cadastrado (BAP Analista › Entrega)
@@ -879,6 +880,9 @@ def _bloco_base(raiz) -> dict:
                 "numero": texto(r.get("NUMERO")),
                 "contato": nu.contato_do_cliente(r),
                 "dias_sem_compra": r.get("DIAS_SEM_COMPRA"),
+                # (20/11, T-0010) a VISITA_SEMANAL da rota, como texto: o
+                # JSON da rota da Maxima (RN-ROT-001)
+                "visita_semanal": texto(r.get("VISITA_SEMANAL")),
             })
     except Exception:                                   # noqa: BLE001
         visitas = []
