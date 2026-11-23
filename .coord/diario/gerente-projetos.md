@@ -15,3 +15,6 @@
 - 2026-11-22 — retomada no Cowork (R-20261122-182900-alexandre e R-20261122-183000-alexandre); GitHub pelo site
 - 2026-11-23 — T-0010 — merges #14, #23 (novo, modulo-farois) e #13; aguardando o "instale"
 - 2026-11-23 — T-0003 — merges #20 (com o desenho) e #21; concluída
+- 2026-11-23 — T-0010 — simulação na produção; recomendação aprovada; falta o "instale"
+- 2026-11-23 — T-0013 — merges #15, #16, #25 (no lugar do #19), #17 e #18 (com o "autorizo" do Alexandre); aguardando o Render
+- 2026-11-23 — T-0015 — criada (`.bat` com CRLF)
