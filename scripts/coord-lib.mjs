@@ -25,6 +25,9 @@ export const AGENTES = [
   'modulo-web',
   'testes',
   'revisor-codigo',
+  'corretor-redundancias',
+  'design-de-marca',
+  'designer-ux',
 ];
 /** Pode responder pelo próprio diário/lidos e aparecer como dono em `verificar`. */
 export const PESSOAS = [...AGENTES, 'alexandre'];

@@ -120,6 +120,18 @@
       "dono": "revisor-codigo"
     },
     {
+      "padrao": ".coord/diario/corretor-redundancias.md",
+      "dono": "corretor-redundancias"
+    },
+    {
+      "padrao": ".coord/diario/design-de-marca.md",
+      "dono": "design-de-marca"
+    },
+    {
+      "padrao": ".coord/diario/designer-ux.md",
+      "dono": "designer-ux"
+    },
+    {
       "padrao": ".coord/**",
       "dono": "gerente-projetos"
     },
@@ -166,6 +178,18 @@
     {
       "padrao": "docs/web/**",
       "dono": "modulo-web"
+    },
+    {
+      "padrao": "docs/redundancias/**",
+      "dono": "corretor-redundancias"
+    },
+    {
+      "padrao": "docs/marca/**",
+      "dono": "design-de-marca"
+    },
+    {
+      "padrao": "docs/ux/**",
+      "dono": "designer-ux"
     },
     {
       "padrao": "bap_automation.py",
