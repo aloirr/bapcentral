@@ -6797,6 +6797,14 @@ def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
 def passo_pacote_web(simular_pacote: bool = False) -> dict:
     """4f: monta, e envia (ou so grava o simulado). Nunca levanta."""
     try:
+        # (23/11, revisao do PR #16) sem URL/token da web, nem monta: a rodada
+        # do robo fica como antes do 4f (sem montar o Painel a toa)
+        if not simular_pacote and not (
+                _segredo_web("BAP_WEB_URL", "url")
+                and _segredo_web("BAP_WEB_TOKEN", "token")):
+            log.info("Pacote web: BAP_WEB_URL/BAP_WEB_TOKEN nao configurados; "
+                     "passo 4f pulado (o Painel nao e montado).")
+            return {"enviado": False, "pulado": True}
         hoje = _agora_manaus()
         pacote = montar_pacote_web(
             coletar_relatorios_web(hoje.year, hoje.month),
