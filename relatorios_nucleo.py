@@ -5256,7 +5256,10 @@ def _exportar_protheus_da_rota(ctx):
                  # (20/11) o gerador filtra INTERNO pelo nome; gerador
                  # antigo ignora
                  "NOME_CLIENTE": v.get("nome") or "",
-                 "NOME_FANTASIA": v.get("fantasia") or ""}
+                 "NOME_FANTASIA": v.get("fantasia") or "",
+                 # (23/11, T-0010) a visita semanal (bap_dados marca b5):
+                 # o gerador usa periodicidade 7 (RN-ROT-001)
+                 "VISITA_SEMANAL": v.get("visita_semanal") or ""}
                 for v in escolhidas if v["data"]]
         return nu.linhas_protheus({}, [], linhas=rota)
     return montar
