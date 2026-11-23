@@ -565,8 +565,9 @@ export function alvosDoComando(cmd, ctx) {
       const pastaDestino = t == null ? null : { valor: t, incerto: false };
       if (!pastaDestino && o.pos.length < 2) break;
       const fontes = pastaDestino ? o.pos : o.pos.slice(0, -1);
-      // T-0011 (furo 2): cp -l/--link cria hard link; gravar no link (fora do repo) grava na fonte.
-      if (nome === 'cp' && o.tem('-l', '--link')) hardLinkDe(fontes, res);
+      // T-0011 (furo 2): cp -l/--link (o GNU aceita também --l, --li, --lin) cria hard link; gravar no link
+      // (fora do repo) grava na fonte.
+      if (nome === 'cp' && (o.tem('-l') || args.some((a) => /^--l(i(nk?)?)?$/.test(a.valor)))) hardLinkDe(fontes, res);
       const destino = pastaDestino ? null : o.pos[o.pos.length - 1];
       copiarMover(fontes, destino, pastaDestino, o.tem('-T', '--no-target-directory'), nome === 'mv', ctx, res);
       break;
