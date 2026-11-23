@@ -80,6 +80,7 @@ test('T-0011 furo 2: hard link para arquivo de outro dono é barrado já no ln (
     'cp -l relatorios_nucleo.py /tmp/h',
     'cp -al relatorios_nucleo.py /tmp/h',
     'cp --link relatorios_nucleo.py /tmp/h',
+    'cp --lin relatorios_nucleo.py /tmp/h',
     'link relatorios_nucleo.py /tmp/h',
   ]) assert.deepEqual(relsDe(analisar(c)), ['relatorios_nucleo.py'], c);
   // pasta inteira (cp -al web /tmp/w) pelo dono de outra pasta
