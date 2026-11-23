@@ -47,7 +47,7 @@ jobs:
             echo "Nenhum .py mudou, smoke pulado."
           fi
       - name: Testes da CLI e dos guardiões
-        run: node --test scripts/coord-recados.test.mjs scripts/coord-verificar.test.mjs .claude/hooks/guarda-agente.test.mjs .claude/hooks/guarda-recado.test.mjs
+        run: node --test scripts/coord-recados.test.mjs scripts/coord-verificar.test.mjs .claude/hooks/guarda-agente.test.mjs .claude/hooks/guarda-recado.test.mjs .claude/hooks/guarda-furos.test.mjs
       - name: Testes da web (T-0013)
         if: hashFiles('web/requirements-dev.txt') != ''
         run: |

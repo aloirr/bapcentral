@@ -340,6 +340,14 @@ function alvosGit(args, ctx, res) {
   const sub = args[i]?.valor;
   if (!sub || args[i].incerto) return;
   res.gitSub = sub;
+  // T-0011 (furo 1): log/diff/show... com --output=<arquivo> gravam arquivo. "--out", "--outp" e "--outpu" também
+  // contam (abreviação, em alguma versão do git); --output-indicator-* não grava. Na dúvida, é alvo.
+  const saidas = saidasDoGit(args.slice(i + 1));
+  if (saidas.length) {
+    res.soLeitura = false;
+    for (const s of saidas) res.alvos.push({ alvo: s.alvo, acao: 'escrever', recursivo: s.pasta });
+    if (GIT_SO_LEITURA.has(sub)) return;
+  }
   if (GIT_SO_LEITURA.has(sub)) { res.soLeitura = !res.temRedir; return; }
   const resto = args.slice(i + 1);
   const iSep = resto.findIndex((a) => a.valor === '--');
@@ -422,6 +430,21 @@ function alvosGit(args, ctx, res) {
 
 const numero = (v, padrao) => (v != null && /^\d+$/.test(v) ? Number(v) : padrao);
 
+/** T-0011: arquivos que o git grava por --output / --output-directory (e abreviações) antes do "--". */
+export function saidasDoGit(resto) {
+  const saidas = [];
+  for (let k = 0; k < resto.length; k++) {
+    const a = resto[k];
+    if (a.valor === '--') break;
+    const m = a.valor.match(/^--(out(?:p(?:u(?:t)?)?)?|output-d(?:i(?:r(?:e(?:c(?:t(?:o(?:r(?:y)?)?)?)?)?)?)?)?)(=(.*))?$/s);
+    if (!m) continue;
+    const pasta = m[1].startsWith('output-d');
+    if (m[2] !== undefined) saidas.push({ alvo: { valor: m[3], incerto: a.incerto }, pasta });
+    else if (resto[k + 1]) { saidas.push({ alvo: resto[k + 1], pasta }); k++; }
+  }
+  return saidas;
+}
+
 /**
  * Arquivos que um patch (diff unificado ou do git, mbox do git am) altera, pelos cabeçalhos
  * "--- a/x", "+++ b/x" e "diff --git a/x b/y". `strip` = -pN. Nomes /dev/null são ignorados.
@@ -459,6 +482,11 @@ function alvosDePatches(arquivos, entrada, ctx, res, { strip, prefixo }) {
       res.alvos.push({ alvo: { valor, incerto: false }, acao: 'escrever', recursivo: false });
     }
   }
+}
+
+/** T-0011 (furo 2): a fonte de um hard link é alvo de escrita (o link dá acesso ao mesmo conteúdo). Na dúvida, barra. */
+function hardLinkDe(fontes, res) {
+  for (const f of fontes) res.alvos.push({ alvo: f, acao: 'escrever', recursivo: true, hardLink: true });
 }
 
 /** cp/mv/install: destino (arquivo ou pasta) e, no mv, as origens (somem). */
@@ -537,6 +565,9 @@ export function alvosDoComando(cmd, ctx) {
       const pastaDestino = t == null ? null : { valor: t, incerto: false };
       if (!pastaDestino && o.pos.length < 2) break;
       const fontes = pastaDestino ? o.pos : o.pos.slice(0, -1);
+      // T-0011 (furo 2): cp -l/--link (o GNU aceita também --l, --li, --lin) cria hard link; gravar no link
+      // (fora do repo) grava na fonte.
+      if (nome === 'cp' && (o.tem('-l') || args.some((a) => /^--l(i(nk?)?)?$/.test(a.valor)))) hardLinkDe(fontes, res);
       const destino = pastaDestino ? null : o.pos[o.pos.length - 1];
       copiarMover(fontes, destino, pastaDestino, o.tem('-T', '--no-target-directory'), nome === 'mv', ctx, res);
       break;
@@ -553,7 +584,15 @@ export function alvosDoComando(cmd, ctx) {
       const pastaDestino = t == null ? (o.pos.length === 1 ? { valor: '.', incerto: false } : null) : { valor: t, incerto: false };
       if (!pastaDestino && o.pos.length < 2) break;
       const fontes = pastaDestino ? o.pos : o.pos.slice(0, -1);
+      // T-0011 (furo 2): ln sem -s cria hard link; gravar no link (fora do repo) grava na fonte.
+      if (!o.tem('-s', '--symbolic')) hardLinkDe(fontes, res);
       copiarMover(fontes, pastaDestino ? null : o.pos[o.pos.length - 1], pastaDestino, o.tem('-T', '--no-target-directory'), false, ctx, res);
+      break;
+    }
+    case 'link': { // link ARQUIVO NOVO_NOME (hard link)
+      const pos = args.filter((a) => a.incerto || !a.valor.startsWith('-'));
+      hardLinkDe(pos.slice(0, 1), res);
+      escrever(pos.slice(1, 2));
       break;
     }
     case 'chmod': case 'chown': case 'chgrp': {
