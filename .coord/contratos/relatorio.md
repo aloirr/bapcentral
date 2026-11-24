@@ -301,6 +301,57 @@ O contrato tem duas partes (ADR 0001, §4.6):
      - **cache pré-montado na própria web**: um aquecimento (`montar` dos ids da onda) logo depois de o pacote ser validado, antes de trocar o ponteiro `atual`. Cache montado no PC e enviado **não** vale: a web nunca abre pickle vindo de fora (ADR 0001, §4.1);
      - o bytecode (`SISTEMA BAP/cache/`): `PYTHONPYCACHEPREFIX` apontado para fora do código e do pacote, sem mudar código.
 
+### 10.1 Forma "farol" no pacote web (modelo M2, T-0017)
+
+Acrescentada em 24/11/2026 (T-0017; spec R-20261124-174526-po; desenho R-20261124-174958-gerente-projetos; autorização R-20261124-175008-alexandre). No M2 (ADR 0001, Adendo 1) o PC monta e manda o JSON pronto; a web não roda o `montar` nem callable nenhum. **Mudança compatível: o contrato continua na v1** (`versao_contrato = 1`).
+
+**Onde fica:** no pacote do 4f (`bap_automation.montar_pacote_web`), em `relatorios[rid]`, ao lado do `vc_painel`. O topo do pacote não muda (`versao_contrato`, `gerado_em`, `ano`, `mes`, `relatorios`). Sem a chave `forma`, o relatório segue a forma "abas" do `vc_painel` (T-0014: `{"titulo", "abas", "avisos"?}`), que não muda.
+
+```python
+relatorios["pl_inadimplencia"] = {
+    "forma": "farol",
+    "titulo": "Farol de Inadimplência",
+    "kpis": [{"rotulo": "Em atraso", "valor": "R$ 12.345", "cor": "alerta",
+              "detalhe": "18 títulos"}],
+    "painel": {"blocos": [
+        {"tipo": "insights", "titulo": "O que o farol diz", "row": 0, "col": 0,
+         "linhas": [["alerta", "3 títulos com mais de 90 dias."]]},
+        {"tipo": "barras", "row": 0, "col": 1, "grafico": {...}},
+        {"tipo": "hbarras", "titulo": "Em atraso por estado", "row": 1, "col": 0,
+         "rotulos": ["AM", "PA"], "valores": [9000.0, 3345.0], "formato": "moeda"}]},
+    "insights_painel": [["alerta", "3 títulos com mais de 90 dias."]],
+    "avisos": [],
+    "recortes": {"AM": {"kpis": [...]}, "PA": {"kpis": [...]}},
+    "baixado_em": "2026-11-24T07:12:00-04:00",
+}
+```
+
+| Chave | Tipo | Regra |
+|---|---|---|
+| `forma` | `"farol"` | obrigatória; marca esta forma |
+| `titulo` | `str` | o `rel["titulo"]` do PC |
+| `kpis` | `list[Kpi]` (§4) | os cartões de cima **sem filtro**, iguais ao `rel["kpis"]` do PC (BAP inteira) |
+| `painel` | `{"blocos": list[Bloco]}` (§6.1) | os blocos do `rel["painel"]` do PC, no mesmo formato, só filtrados (abaixo). `colunas` e `altura_min` podem ir; a web pode ignorar |
+| `insights_painel` | `list[[tom, texto]]` (§6.2) | igual ao PC |
+| `avisos` | `list[str]` (§2) | os do PC; o robô pode acrescentar (ex.: bloco tirado) |
+| `recortes` | `{"<UF>": {"kpis": list[Kpi]}}` | opcional. UF = 2 letras maiúsculas. **Só os kpis** por estado (abaixo). Atenção: é chaveado direto pela UF, sem o `{"uf": ...}` da forma "abas" |
+| `baixado_em` | `str` ISO 8601 com fuso de Manaus (`-04:00`) ou `null` | quando a base do farol foi baixada do ERP. Não confundir com o `gerado_em` do pacote. A tela mostra os dois |
+
+**Filtro (o que sai do `rel` do PC):**
+- só as chaves da tabela acima. Fora: `tabelas`, `juntas`, `graficos` (os gráficos que a web mostra vêm dentro dos blocos do painel), `paineis`, `painel_pre`, `parametros`, `capa`, `params_usados`, `fonte`, `subtitulo`;
+- nenhum callable (§10, item 1; §11);
+- nenhuma chave que comece com `_`, em qualquer nível;
+- nunca `edicao`, `editar` nem `abrir`, em qualquer nível. **A web recusa o pacote** que trouxer uma delas (dado digitado intocável, regra 7 do `CLAUDE.md`);
+- conversão de tipos do §10, item 1 (tupla vira lista; data vira ISO).
+
+**Blocos do painel nesta entrega:** a web desenha `insights`, `barras` e `hbarras`; os cartões vêm da chave `kpis` (não há bloco `tipo: "kpis"` no §6.1). Bloco de outro tipo (`tabela`, `pizza`, `grupo`, `placar`...) é aceito no pacote e a web mostra no lugar dele "ainda não disponível na web". O `tabela` entra na entrega do Farol de Entregas (acréscimo compatível, v1).
+
+**Nome de pessoa (decisão D1 pendente):** enquanto o Alexandre não decidir a D1 (R-20261124-174958-gerente-projetos), bloco cujo eixo traz nome de vendedor ou supervisor (ex.: hbarras "Em atraso por vendedor") **fica fora do pacote**, inteiro, sem trocar por código. A chave do robô é `bap_automation.WEB_GRAFICOS_COM_NOME = False`. O mesmo vale para frase de `insights`/`insights_painel` que cite vendedor ou supervisor pelo nome. Nome de cliente e CNPJ **nunca** vão, com ou sem D1 (regra 6 do `CLAUDE.md`).
+
+**Filtro por estado (RN-GER-006, estado = filial da nota):** muda **só os kpis**. O PC calcula `recortes[UF].kpis` com o `kpis_de` da tabela do farol sobre as linhas da filial daquele estado (o mesmo cálculo da tela, §11.2), e a web só troca os cartões. Os blocos do painel ficam da BAP inteira, e a tela avisa: "Cartões por estado; gráficos da BAP inteira." Estado sem recorte: a web mostra "—" nos cartões, nunca o número da BAP inteira.
+
+**Versão e ordem de publicação:** a web antiga recusa `rid` fora do `ACEITOS` (`web/app/pacotes.py`). Por isso a **web publica antes** (aceita o `rid` novo e a forma "farol") e o **robô depois** (passa a mandar o farol). A versão fica em 1. Chave nova nesta forma = acréscimo compatível; renomear ou tirar chave = v2 com ADR.
+
 ## 11. Parte ação: os callables e a web v1
 
 Regras gerais:

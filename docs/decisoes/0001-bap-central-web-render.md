@@ -1,6 +1,6 @@
 # ADR 0001 — BAP Central na web (Render)
 
-- **Status:** aprovada (R-20261120-114944-alexandre, itens 2 a 6, sobre as decisões do R-20261120-114608-gerente-projetos), com o adendo 1 no fim, que manda sobre o texto original
+- **Status:** aprovada (R-20261120-114944-alexandre, itens 2 a 6, sobre as decisões do R-20261120-114608-gerente-projetos), com os adendos 1 e 2 no fim, que mandam sobre o texto original
 - **Data:** 2026-11-20
 - **Tarefa:** T-0006 · **Autor:** engenheiro-software
 - **Depende de:** T-0002 (contrato do relatório), T-0003 (`ATUALIZAR_DO_GITHUB.bat`), T-0007 (recados por git)
@@ -357,3 +357,29 @@ Quando o Alexandre subir de plano (recado com o custo, §7), entra um novo adend
 - a web roda o `montar` e compara o dela com o JSON do PC por 5 dias úteis (§5) antes de deixar de usar o JSON.
 
 O renderizador e o contrato não mudam.
+
+## Adendo 2 (24/11/2026): os faróis no pacote web, forma "farol" (T-0017)
+
+Vale sobre o adendo 1 onde diverge. Fontes: autorização R-20261124-175008-alexandre; spec R-20261124-174526-po; desenho R-20261124-174958-gerente-projetos.
+
+### A mudança
+- **O pacote do 4f passa a levar faróis, além do `vc_painel`.** Os 4 faróis do PC (Inadimplência, Pedidos, Entregas e Visita), um por entrega. A entrega 1 é o Farol de Inadimplência (`pl_inadimplencia`) com a base comum. Continua o M2: o PC roda o `montar`, a web só guarda e desenha o JSON, só leitura.
+- **Forma "farol"** (`.coord/contratos/relatorio.md`, §10.1): `relatorios[rid] = {"forma": "farol", "titulo", "kpis", "painel": {"blocos"}, "insights_painel", "avisos", "recortes": {"<UF>": {"kpis"}}, "baixado_em"}`. Cartões e blocos no mesmo formato do `montar` do PC, só filtrados: sem `tabelas`, `juntas`, callable, chave `_`, `edicao`, `editar` e `abrir`. Nesta entrega a web desenha `insights`, `barras` e `hbarras`; outro tipo de bloco mostra "ainda não disponível na web".
+- **Filtro por estado** (RN-GER-006): muda só os cartões, que vêm prontos do PC por UF. Os gráficos são da BAP inteira, e a tela avisa.
+- **O contrato continua na v1** (mudança compatível).
+
+### Ordem de publicação: web antes do robô
+- A web em produção recusa `rid` fora do `pacotes.ACEITOS`. Se o robô mandasse o farol antes, o pacote inteiro seria recusado, e o `vc_painel` também pararia de atualizar.
+- Por isso: 1) deploy da web que aceita e desenha a forma "farol" (com "aprovo deploy vX.Y.Z", §4.7); 2) só depois o "instale" do robô no PC (regra 11 do `CLAUDE.md`).
+- Falha de um farol no PC não derruba o pacote: cada `montar` roda isolado, e o `vc_painel` segue.
+
+### Dado pessoal no Render
+- O "sem dado pessoal no Render nesta fase" do adendo 1 **continua valendo** até a decisão D1 do Alexandre (nome de vendedor e supervisor nos gráficos, R-20261124-174958-gerente-projetos).
+- Até lá, bloco com nome de vendedor ou supervisor fica fora do pacote (`bap_automation.WEB_GRAFICOS_COM_NOME = False`). Se a D1 aprovar o nome, entra um adendo novo que registra a decisão, e só então a chave muda.
+- Tabela linha a linha (cliente, CNPJ) fica fora. Tabela com cliente na web só com as bases no Render e ADR própria (D2).
+- Nada que grava no PC vai à web: autorização de venda, edição de entrega (`_EDICOES_POS_VENDA`), e-mail e WhatsApp da inadimplência, "Atualizar visitas". O validador da web recusa `edicao`, `editar` e `abrir`.
+
+### Consequências
+- O pacote cresce alguns KB por farol, e o 4f leva cerca de 4 s a mais no PC (inventário do contrato, §8).
+- Visita depende do "Atualizar visitas" manual no PC: o `baixado_em` do farol fica à vista na tela.
+- Os perfis novos da web (`pos_venda`, `pre_venda`, `vendas`) são do desenho do modulo-web, com teste de acesso negado por perfil (§4.5).
