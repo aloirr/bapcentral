@@ -360,12 +360,13 @@ O renderizador e o contrato não mudam.
 
 ## Adendo 2 (24/11/2026): os faróis no pacote web, forma "farol" (T-0017)
 
-Vale sobre o adendo 1 onde diverge. Fontes: autorização R-20261124-175008-alexandre; spec R-20261124-174526-po; desenho R-20261124-174958-gerente-projetos.
+Vale sobre o adendo 1 onde diverge. Fontes: autorização R-20261124-175008-alexandre; spec R-20261124-174526-po; desenho R-20261124-174958-gerente-projetos; decisões 2, 3 e 4 (D1, D2 e filtro por estado) no R-20261124-175838-alexandre ("2 A / 3 A / 4 A").
 
 ### A mudança
 - **O pacote do 4f passa a levar faróis, além do `vc_painel`.** Os 4 faróis do PC (Inadimplência, Pedidos, Entregas e Visita), um por entrega. A entrega 1 é o Farol de Inadimplência (`pl_inadimplencia`) com a base comum. Continua o M2: o PC roda o `montar`, a web só guarda e desenha o JSON, só leitura.
 - **Forma "farol"** (`.coord/contratos/relatorio.md`, §10.1): `relatorios[rid] = {"forma": "farol", "titulo", "kpis", "painel": {"blocos"}, "insights_painel", "avisos", "recortes": {"<UF>": {"kpis"}}, "baixado_em"}`. Cartões e blocos no mesmo formato do `montar` do PC, só filtrados: sem `tabelas`, `juntas`, callable, chave `_`, `edicao`, `editar` e `abrir`. Nesta entrega a web desenha `insights`, `barras` e `hbarras`; outro tipo de bloco mostra "ainda não disponível na web".
-- **Filtro por estado** (RN-GER-006): muda só os cartões, que vêm prontos do PC por UF. Os gráficos são da BAP inteira, e a tela avisa.
+- **Filtro por estado** (RN-GER-006; "4 A"): muda só os cartões, que vêm prontos do PC por UF. Os gráficos são da BAP inteira, e a tela avisa.
+- **Mini-gráficos por estado dos cartões** vão no pacote, em `kpis[i]["estados"] = {"barras": [[UF, número, "texto", "% na barra", "tom"], ...], "legenda": ""}`, só nos cartões que o PC desenha assim.
 - **O contrato continua na v1** (mudança compatível).
 
 ### Ordem de publicação: web antes do robô
@@ -374,9 +375,9 @@ Vale sobre o adendo 1 onde diverge. Fontes: autorização R-20261124-175008-alex
 - Falha de um farol no PC não derruba o pacote: cada `montar` roda isolado, e o `vc_painel` segue.
 
 ### Dado pessoal no Render
-- O "sem dado pessoal no Render nesta fase" do adendo 1 **continua valendo** até a decisão D1 do Alexandre (nome de vendedor e supervisor nos gráficos, R-20261124-174958-gerente-projetos).
-- Até lá, bloco com nome de vendedor ou supervisor fica fora do pacote (`bap_automation.WEB_GRAFICOS_COM_NOME = False`). Se a D1 aprovar o nome, entra um adendo novo que registra a decisão, e só então a chave muda.
-- Tabela linha a linha (cliente, CNPJ) fica fora. Tabela com cliente na web só com as bases no Render e ADR própria (D2).
+- **Muda o "sem dado pessoal no Render nesta fase" do adendo 1** (D1, "2 A", R-20261124-175838-alexandre): nome de vendedor e de supervisor **pode** ir nos gráficos (Pedidos, Inadimplência e Visita), como o gerente vê no PC. O robô liga `bap_automation.WEB_GRAFICOS_COM_NOME = True`.
+- **Nunca vão ao Render nesta fase:** nome de cliente, CNPJ, a frase "Maiores devedores" do `_painel_inadimplencia` (lista clientes; sai dos `insights` e do `insights_painel` no PC) e as tabelas.
+- Tabela linha a linha (cliente, CNPJ) fica fora (D2, "3 A"): cada farol leva cartões, resumo gerencial e gráficos. Tabela com cliente na web só numa onda futura, com as bases no Render e ADR própria.
 - Nada que grava no PC vai à web: autorização de venda, edição de entrega (`_EDICOES_POS_VENDA`), e-mail e WhatsApp da inadimplência, "Atualizar visitas". O validador da web recusa `edicao`, `editar` e `abrir`.
 
 ### Consequências

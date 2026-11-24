@@ -330,7 +330,7 @@ relatorios["pl_inadimplencia"] = {
 |---|---|---|
 | `forma` | `"farol"` | obrigatória; marca esta forma |
 | `titulo` | `str` | o `rel["titulo"]` do PC |
-| `kpis` | `list[Kpi]` (§4) | os cartões de cima **sem filtro**, iguais ao `rel["kpis"]` do PC (BAP inteira) |
+| `kpis` | `list[Kpi]` (§4) | os cartões de cima **sem filtro**, iguais ao `rel["kpis"]` do PC (BAP inteira), com o mini-gráfico por estado em `estados` quando o PC o desenha (abaixo) |
 | `painel` | `{"blocos": list[Bloco]}` (§6.1) | os blocos do `rel["painel"]` do PC, no mesmo formato, só filtrados (abaixo). `colunas` e `altura_min` podem ir; a web pode ignorar |
 | `insights_painel` | `list[[tom, texto]]` (§6.2) | igual ao PC |
 | `avisos` | `list[str]` (§2) | os do PC; o robô pode acrescentar (ex.: bloco tirado) |
@@ -346,7 +346,12 @@ relatorios["pl_inadimplencia"] = {
 
 **Blocos do painel nesta entrega:** a web desenha `insights`, `barras` e `hbarras`; os cartões vêm da chave `kpis` (não há bloco `tipo: "kpis"` no §6.1). Bloco de outro tipo (`tabela`, `pizza`, `grupo`, `placar`...) é aceito no pacote e a web mostra no lugar dele "ainda não disponível na web". O `tabela` entra na entrega do Farol de Entregas (acréscimo compatível, v1).
 
-**Nome de pessoa (decisão D1 pendente):** enquanto o Alexandre não decidir a D1 (R-20261124-174958-gerente-projetos), bloco cujo eixo traz nome de vendedor ou supervisor (ex.: hbarras "Em atraso por vendedor") **fica fora do pacote**, inteiro, sem trocar por código. A chave do robô é `bap_automation.WEB_GRAFICOS_COM_NOME = False`. O mesmo vale para frase de `insights`/`insights_painel` que cite vendedor ou supervisor pelo nome. Nome de cliente e CNPJ **nunca** vão, com ou sem D1 (regra 6 do `CLAUDE.md`).
+**Nome de pessoa (D1 decidida, R-20261124-175838-alexandre, "2 A"):**
+- nome de vendedor e de supervisor **vai** nos gráficos (ex.: hbarras "Em atraso por vendedor"), como o gerente vê no PC. A chave do robô fica `bap_automation.WEB_GRAFICOS_COM_NOME = True`;
+- nome de cliente e CNPJ **nunca** vão ao Render nesta fase (regra 6 do `CLAUDE.md`), em nenhum nível: nem em bloco, nem em `kpis[].detalhe`/`linhas`, nem em frase de `insights`/`insights_painel`. A frase "Maiores devedores: ..." do `_painel_inadimplencia` (lista clientes) sai das duas listas no PC, antes do envio;
+- as tabelas (`tabelas`, `juntas` e o bloco `tabela` com cliente) ficam fora ("3 A"). Tabela com cliente na web só numa onda futura, com ADR própria.
+
+**Mini-gráficos por estado dos cartões:** vão no pacote, em `kpis[i]["estados"] = {"barras": [[UF, numero, "texto", "% na barra", "tom"], ...], "legenda": ""}`, **só** nos cartões que o PC desenha assim (`estados_do_cartao`, §4). `numero` é `float` (ou `null` sem dado), `texto` é o valor já formatado, `"% na barra"` é o texto da barra (pode ser `""`) e `tom` segue o §4 (`"ok"`, `"atencao"`, `"alerta"` ou `""`). Cartão sem mini-gráfico não leva a chave `estados` (ou leva `null`). É a mesma forma das barras que a T-0014 já lê (`bap_automation.recortes_por_uf`).
 
 **Filtro por estado (RN-GER-006, estado = filial da nota):** muda **só os kpis**. O PC calcula `recortes[UF].kpis` com o `kpis_de` da tabela do farol sobre as linhas da filial daquele estado (o mesmo cálculo da tela, §11.2), e a web só troca os cartões. Os blocos do painel ficam da BAP inteira, e a tela avisa: "Cartões por estado; gráficos da BAP inteira." Estado sem recorte: a web mostra "—" nos cartões, nunca o número da BAP inteira.
 
