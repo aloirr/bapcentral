@@ -4855,9 +4855,10 @@ def _reorganizar_por_lugar(cfg, linhas, vend, por_vendedor, zonas, dias,
                                                      for r in carry})))
             if avisos is not None:
                 avisos.append(txt)
-    if dep is not None:
+    if dep is not None and dep[0] >= desde:
         # (24/11, Alexandre, RN-ROT-002) o sabado do excedente nao repete
-        # cliente que ja tem visita de segunda a sexta na semana dele
+        # cliente que ja tem visita de segunda a sexta na semana dele (o
+        # sabado que ja passou nao e reescrito)
         iso_d = dep[0].isocalendar()[:2]
         na_sem = {(r["COD_VENDEDOR"], r["CHAVE_CLIENTE"]) for r in saida
                   if r["COD_VENDEDOR"] in por_cod and r["DATA"].weekday() < 5
