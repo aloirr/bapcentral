@@ -237,6 +237,116 @@ def situacao(hist: dict, cod: str, hoje=None) -> str:
     return ""
 
 
+# ------------------------------------------------------------- o site (T-0017)
+CAMPOS_WEB = CAMPOS_CSV + ("id",)
+ARQ_WEB = "COBRANCA_WEB.csv"
+
+
+def _iso(v) -> str:
+    if hasattr(v, "strftime"):
+        return f"{v:%Y-%m-%d}"
+    return texto(v)
+
+
+def historico_origem(raiz) -> dict:
+    """{cliente: (quando, acao, maquina)}: como historico(), mas com a
+    maquina do registro (WEB = feito no site). historico() nao muda."""
+    ult = {}
+    p_ = pasta(raiz)
+    if not p_.exists():
+        return ult
+    for arq in sorted(p_.glob("COBRANCA_*.csv")):
+        try:
+            with open(arq, encoding="utf-8-sig", newline="") as f:
+                for r in csv.DictReader(f, delimiter=";"):
+                    c = texto(r.get("cliente"))
+                    q = texto(r.get("quando"))
+                    if c and q >= ult.get(c, ("",))[0]:
+                        ult[c] = (q, texto(r.get("acao")),
+                                  texto(r.get("maquina")))
+        except (OSError, ValueError, UnicodeDecodeError):
+            continue
+    return ult
+
+
+def _gerado_em(hoje) -> str:
+    from datetime import timedelta, timezone               # noqa: PLC0415
+    tz = timezone(timedelta(hours=-4))                     # Manaus
+    if isinstance(hoje, datetime):
+        d = hoje.astimezone(tz) if hoje.tzinfo else hoje.replace(tzinfo=tz)
+    else:
+        d = datetime.now(tz)
+    return d.isoformat(timespec="seconds")
+
+
+def pacote_web(farol: dict, nomes, hist: dict, hoje=None, *,
+               web_ate_seq: int = 0, gerado_em: str = "") -> dict:
+    """Bloco `cobranca` do contrato (§10.2.3), sem telefone cadastral.
+    hist: historico_origem() (tuplas de 3) ou historico() (tuplas de 2,
+    origem PC). gerado_em e web_ate_seq vem do robo (a hora da rodada e o
+    ate_seq confirmado); sem gerado_em, usa `hoje` (datetime) ou agora."""
+    itens = []
+    for it in fila(farol, nomes):
+        msg = mensagem(it)
+        h = (hist or {}).get(it["cod"])
+        ult = None
+        if h and h[0]:
+            org = "WEB" if len(h) > 2 and h[2].upper() == "WEB" else "PC"
+            ult = {"quando": h[0], "acao": h[1], "origem": org}
+        itens.append({
+            "cod": it["cod"], "nome": it["nome"], "nome_msg": it["nome_msg"],
+            "cidade": it["cidade"], "uf": it["uf"],
+            "vendedor": it["vendedor"], "supervisor": it["supervisor"],
+            "em_atraso": float(it["em_atraso"]), "maior": int(it["maior"]),
+            "whatsapp": it["whatsapp"], "aviso": it["aviso"],
+            "titulos": [{"nf": x["nf"], "parc": x["parc"],
+                         "venc": _iso(x["venc"]), "dias": int(x["dias"]),
+                         "saldo": float(x["saldo"])}
+                        for x in it["titulos"]],
+            "mensagem": msg, "ultimo": ult})
+    return {"gerado_em": gerado_em or _gerado_em(hoje),
+            "web_ate_seq": int(web_ate_seq), "dias_recente": DIAS_RECENTE,
+            "modelo": MODELO, "fila": itens}
+
+
+def importar_web(raiz, linhas, nomes=None) -> int:
+    """Acrescenta ao COBRANCA_WEB.csv os registros do diario do site (§10.2.7).
+    Pula `id` ja gravado (idempotente). Erro de disco levanta excecao."""
+    p_ = pasta(raiz)
+    arq = p_ / ARQ_WEB
+    vistos = set()
+    if arq.exists():
+        with open(arq, encoding="utf-8-sig", newline="") as f:
+            vistos = {texto(r.get("id")) for r in
+                      csv.DictReader(f, delimiter=";")}
+    novas = []
+    for r in linhas or []:
+        i = texto(r.get("id"))
+        if not i or i in vistos:
+            continue
+        vistos.add(i)
+        cod = texto(r.get("cliente"))
+        novas.append({
+            "quando": texto(r.get("quando")), "maquina": "WEB",
+            "usuario": texto(r.get("usuario")), "cliente": cod,
+            "nome": (nomes or {}).get(cod, ""),
+            "telefone": texto(r.get("telefone")),
+            "em_atraso": f"{float(r.get('em_atraso') or 0):.2f}",
+            "titulos": int(r.get("titulos") or 0),
+            "acao": texto(r.get("acao")), "id": i})
+    if not novas:
+        return 0
+    p_.mkdir(parents=True, exist_ok=True)
+    novo = not arq.exists()
+    with open(arq, "a", encoding="utf-8-sig" if novo else "utf-8",
+              newline="") as f:
+        w = csv.DictWriter(f, fieldnames=CAMPOS_WEB, delimiter=";")
+        if novo:
+            w.writeheader()
+        w.writerows(novas)
+    return len(novas)
+
+
 # ------------------------------------------------------------- a janela
 def janela(pai, farol: dict, raiz, nomes=None):
     """A janela da cobranca, cliente a cliente."""
