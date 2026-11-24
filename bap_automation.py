@@ -6599,8 +6599,9 @@ _DESCARTAR = object()
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
 # o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
 FAROIS_WEB = ("pl_inadimplencia",)
-# D1 do Alexandre pendente: grafico com nome de pessoa (vendedor, supervisor)
-# fica FORA do pacote enquanto for False. Liga em 1 linha.
+# D1 do Alexandre ("2 A", 24/11): grafico e frase com nome de vendedor ou
+# supervisor VAO no pacote (True). Cliente e CNPJ nunca vao. Com False, o
+# grafico e as frases com nome de pessoa saem (1 linha).
 WEB_GRAFICOS_COM_NOME = True
 _TIPOS_BLOCO_FAROL_WEB = ("insights", "barras", "hbarras")   # kpis vao no topo
 # o que no titulo (ou na frase) denuncia nome de pessoa
@@ -6691,8 +6692,7 @@ def _com_fuso_manaus(quando=None) -> datetime:
 # que o robo baixou do ERP; vale o de nome mais novo). Os proximos farois
 # (Pedidos, Entregas, Visita) ganham a propria fonte aqui.
 _FONTE_BAIXADO_WEB = {
-    "pl_inadimplencia": (Path("SISTEMA BAP") / "BACKUP_RELATORIOS"
-                         / "BKP_RELATORIOS_BAPTOOLS",
+    "pl_inadimplencia": (Path(BKP_BAPTOOLS),
                          "Relatorio_Titulos_em_Abertos_*.xlsx")}
 
 
@@ -6849,7 +6849,7 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     edicao. Blocos do painel mantidos: insights, barras, hbarras (os cartoes vao
     em "kpis", no topo). hbarras (ou
     frase) com nome de pessoa sai enquanto WEB_GRAFICOS_COM_NOME for False;
-    cliente e CNPJ nunca vao. Testes: tests/test_T0017_farol_web_robo.py."""
+    cliente e CNPJ nunca vao."""
     if grafico_com_nome is None:
         grafico_com_nome = WEB_GRAFICOS_COM_NOME
     r = r or {}
