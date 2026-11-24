@@ -3,8 +3,10 @@
 Critérios:
 1. o pacote só tem tipos JSON; gerado_em ISO com offset -04:00 (Manaus);
 2. nenhum callable, .pkl ou caminho sobra no pacote;
-   escopo (R-20261120-120939): só vc_painel, abas resultado e produtividade,
-   sem a aba "du", sem o "diretor" e sem pl_inadimplencia;
+   escopo (R-20261120-120939): vc_painel, abas resultado e produtividade,
+   sem a aba "du" e sem o "diretor"; (T-0017, contrato §10.1) mais os faróis
+   de bap_automation.FAROIS_WEB, só na forma "farol" (sem tabelas/linhas);
+   sem FAROIS_WEB (main antes da T-0017) o escopo é só vc_painel;
 3. sem URL/token o envio pula (False, aviso no log, nenhuma requisição);
 4. envio com Bearer, corpo = pacote, timeout 30, só https:443, 3 tentativas;
 5. o token nunca aparece no log.
@@ -204,6 +206,16 @@ def _vc_painel_ficticio(visoes=("res", "prod", "du"), outras=True):
             "cache": "base.pkl"}
 
 
+def _farois_web():
+    """Faróis que o robô leva ao pacote (T-0017); vazio antes dela."""
+    return set(getattr(ba, "FAROIS_WEB", ()))
+
+
+def _escopo_esperado(resultados):
+    """vc_painel ∪ os faróis de FAROIS_WEB que vieram montados."""
+    return {"vc_painel"} | (_farois_web() & set(resultados))
+
+
 def _resultados_ficticios():
     return {"vc_painel": _vc_painel_ficticio(),
             "pl_inadimplencia": {"linhas": [{"cliente": "NAO-VAI-INAD"}]}}
@@ -218,7 +230,8 @@ def test_T0013_criterio1_pacote_so_tem_tipos_json():
                            "relatorios"}
     assert pacote["ano"] == 2026 and pacote["mes"] == 11
     assert isinstance(pacote["versao_contrato"], int)
-    assert set(pacote["relatorios"]) == {"vc_painel"}
+    assert set(pacote["relatorios"]) == _escopo_esperado(
+        _resultados_ficticios())
     assert set(pacote["relatorios"]["vc_painel"]["abas"]) == {
         "resultado", "produtividade"}
 
@@ -320,9 +333,16 @@ def test_T0013_criterio2_pacote_sem_callable_pkl_nem_caminho():
 
 
 # ------------------------- escopo novo (R-20261120-120939): só 2 abas do Painel
-def test_T0013_escopo_so_vc_painel_sem_inadimplencia():
+# (T-0017) + os faróis de FAROIS_WEB, só na forma "farol": as linhas cruas
+# (cliente) nunca entram.
+def test_T0013_escopo_vc_painel_e_farois_web_sem_linhas_cruas():
     pacote = ba.montar_pacote_web(_resultados_ficticios(), 2026, 11, AGORA)
-    assert set(pacote["relatorios"]) == {"vc_painel"}
+    assert set(pacote["relatorios"]) == _escopo_esperado(
+        _resultados_ficticios())
+    for rid in _farois_web() & set(pacote["relatorios"]):
+        farol = pacote["relatorios"][rid]
+        assert farol.get("forma") == "farol"
+        assert "linhas" not in farol and "tabelas" not in farol
     texto = json.dumps(pacote, ensure_ascii=False)
     assert "NAO-VAI-INAD" not in texto
     assert "NAO-VAI-TABELA" not in texto            # tabelas do vc_painel
@@ -500,7 +520,7 @@ def test_T0013_criterio3_sem_url_nem_token_nem_monta(monkeypatch, caplog):
     assert "pulado" in caplog.text
 
 
-def test_T0013_coletar_so_chama_montar_vc_painel(monkeypatch):
+def test_T0013_coletar_chama_montar_vc_painel_e_farois_web(monkeypatch):
     import relatorios_nucleo
     chamadas = []
 
@@ -509,8 +529,11 @@ def test_T0013_coletar_so_chama_montar_vc_painel(monkeypatch):
         return {"id": rid}
     monkeypatch.setattr(relatorios_nucleo, "montar", _montar)
     saida = ba.coletar_relatorios_web(2026, 11)
-    assert set(saida) == {"vc_painel"}
-    assert chamadas == [("vc_painel", {"ANO": "2026", "MÊS": "11"})]
+    params = {"ANO": "2026", "MÊS": "11"}
+    farois = tuple(getattr(ba, "FAROIS_WEB", ()))
+    assert set(saida) == {"vc_painel", *farois}
+    assert chamadas == [("vc_painel", params)] + [(rid, params)
+                                                   for rid in farois]
 
 
 def test_T0013_passo_pacote_web_simulado_grava_sem_enviar(monkeypatch,
