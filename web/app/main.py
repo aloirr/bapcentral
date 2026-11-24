@@ -221,7 +221,7 @@ def criar_app() -> FastAPI:
         return pagina(request, "home.html", menu=menu)
 
     @app.get("/painel", response_class=HTMLResponse)
-    async def painel(request: Request, aba: str = "resultado"):
+    async def painel(request: Request, aba: str = "resultado", uf: str = ""):
         usuario(request, VERES)
         info = ultimo.get()
         rel = (info or {}).get("relatorios", {}).get(RELATORIO[0])
@@ -229,8 +229,11 @@ def criar_app() -> FastAPI:
         if not abas:
             return pagina(request, "painel.html", abas=[], tela=None, aba=aba)
         atual = next((a for a in abas if a["chave"] == aba), abas[0])
+        # T-0014: o filtro só escolhe a visão pronta do PC (por estado)
+        escolhido = render.escolher_uf(atual, uf[:4] or None)
         return pagina(request, "painel.html", abas=abas, aba=atual["chave"],
-                      tela=render.aba_para_tela(atual))
+                      tela=render.aba_para_tela(atual, escolhido),
+                      filtros=render.filtros(atual), uf=escolhido or "")
 
     # ------------------------------------------------------------ usuários (admin)
     @app.get("/usuarios", response_class=HTMLResponse)

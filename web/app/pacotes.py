@@ -45,6 +45,28 @@ def _cartao_ok(c) -> bool:
         isinstance(b, list) and len(b) == 5 for b in barras))
 
 
+RE_UF = re.compile(r"^[A-Z]{2}$")
+MAX_RECORTES = 30
+
+
+def _recortes_erros(rec) -> str | None:
+    """T-0014: visões prontas por estado (opcional). Só formato: o número vem pronto do PC."""
+    if rec is None:
+        return None
+    if not isinstance(rec, dict):
+        return "recortes precisa ser objeto"
+    ufs = rec.get("uf") or {}
+    if not isinstance(ufs, dict) or set(rec) - {"uf"}:
+        return "recortes precisa ser {\"uf\": {...}}"
+    if len(ufs) > MAX_RECORTES:
+        return "recortes demais"
+    for uf, v in ufs.items():
+        cs = v.get("cartoes") if isinstance(v, dict) else None
+        if not RE_UF.match(str(uf)) or not isinstance(cs, list) or not all(_cartao_ok(c) for c in cs):
+            return f"recorte {str(uf)[:4]} inválido"
+    return None
+
+
 def validar(c) -> list[str]:
     erros: list[str] = []
     if not isinstance(c, dict):
@@ -95,6 +117,10 @@ def validar(c) -> list[str]:
             cs = d.get(visao)
             if not isinstance(cs, list) or not cs or not all(_cartao_ok(c) for c in cs):
                 erros.append(f"{k}.abas.{chave}: cartões inválidos")
+                continue
+            er = _recortes_erros(a.get("recortes"))
+            if er:
+                erros.append(f"{k}.abas.{chave}: {er}")
     return erros[:10]
 
 
