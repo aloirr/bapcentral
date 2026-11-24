@@ -29,6 +29,13 @@ Fontes: R-20261120-091115-po, R-20261120-092851-gerente-projetos (texto literal 
 
 O token é fine-grained, só com "Contents: read and write" no `aloirr/bapcentral-recados`. Quem cria e cola é o Alexandre: ele nunca vai para arquivo, recado ou log.
 
+**Modelo das sessões** (Alexandre, R-20261124-173114 e R-20261124-173350-gerente-projetos):
+- sessões fixas (gerente-projetos e po), quando criadas ou recriadas: Opus 5.5, esforço alto;
+- sessões de tarefa que o gerente abre e os subagentes: Opus 5.5, esforço médio.
+
+**Pareceres de subagente:** o `coord.mjs` só aceita `--de` igual à `BAP_AGENTE` da sessão. O revisor-codigo, o corretor-redundancias e o designer-ux, rodando como subagentes do gerente, escrevem o parecer num arquivo e o gerente grava o recado `revisao` com a nota de origem, sem alterar o texto (decisão 3 A do R-20261124-181912-alexandre).
+
+
 ## Recados
 - Repositório `aloirr/bapcentral-recados`:
   - `recados/<destino>/R-AAAAMMDD-HHMMSS-<remetente>.md`;
