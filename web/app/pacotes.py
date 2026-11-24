@@ -92,7 +92,13 @@ def _kpi_ok(k) -> bool:
     if not (isinstance(k, dict) and isinstance(k.get("rotulo"), str) and isinstance(k.get("valor"), str)):
         return False
     ln = k.get("linhas")
-    return ln is None or (isinstance(ln, list) and all(isinstance(x, list) and len(x) >= 2 for x in ln))
+    if not (ln is None or (isinstance(ln, list) and all(isinstance(x, list) and len(x) >= 2 for x in ln))):
+        return False
+    e = k.get("estados")                         # barrinhas por estado no cartão (como o PC)
+    if e is None:
+        return True
+    bs = e.get("barras") if isinstance(e, dict) else False
+    return isinstance(bs, list) and len(bs) <= 30 and all(isinstance(b, list) and len(b) == 5 for b in bs)
 
 
 def _kpis_ok(ks) -> bool:

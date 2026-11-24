@@ -17,10 +17,11 @@
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
 <section class="kpis">
 {% for k in tela.kpis %}
-<article class="kpi c-{{ k.cor }}">
+<article class="kpi c-{{ k.cor }}{{ ' kpi-est' if k.estados }}">
   <div class="kpi-rot">{{ k.rot }}</div>
   <div class="kpi-valor">{{ k.valor }}</div>
   {% if k.detalhe %}<div class="kpi-det">{{ k.detalhe }}</div>{% endif %}
+  {% if k.estados %}<div class="mini">{% for b in k.estados.barras %}<div class="mini-c"><div class="mini-a">{% if not b.vazio %}<span class="mini-t">{{ b.txt }}</span>{% if not b.sem_barra %}<i style="height:{{ b.alt }}%"></i>{% endif %}{% endif %}</div><div class="mini-uf">{{ b.uf }}</div></div>{% endfor %}</div>{% endif %}
   {% for l in k.linhas %}<div class="kpi-lin"><span>{{ l.rot }}</span><b class="t-{{ l.tom }}">{{ l.valor }}</b></div>{% endfor %}
 </article>
 {% else %}<p class="aviso atencao">Sem cartões neste recorte.</p>
@@ -37,11 +38,11 @@
   {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
   {% if b.tipo == "barras" %}
     {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
-    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}">
+    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}{{ ' gb-vert' if b.vert }}{{ ' gb-rotv' if b.rotv }}">
       {% for c in b.cols %}
       <div class="gb-col">
-        <div class="gb-area">{% for x in c.barras %}<div class="gb-b"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
-        <div class="gb-rot">{{ c.rot }}</div>
+        <div class="gb-area">{% for x in c.barras %}<div class="gb-b" title="{{ x.titulo }}"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
+        <div class="gb-rot">{{ c.rot if (not b.denso or loop.index0 % 2 == 0) else '' }}</div>
       </div>
       {% endfor %}
     </div>

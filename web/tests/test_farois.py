@@ -73,6 +73,38 @@ def test_farol_malformado_nao_quebra(admin):
     assert r.status_code == 200 and r.text.count("ainda não disponível na web") >= 2
 
 
+def _com_estados(p):
+    k = p["relatorios"]["pl_inadimplencia"]["kpis"][0]
+    k["estados"] = {"barras": [["PA", 107832.5, "R$ 107,8 mil", "", ""], ["AM", 92893.1, "R$ 92,9 mil", "", ""],
+                               ["AP", 630.0, "R$ 630", "", ""]], "legenda": ""}
+    return p
+
+
+def test_cartao_com_mini_barras_por_estado(admin):
+    assert postar(admin, _com_estados(pacote_farol())).status_code == 200
+    h = admin.get("/farol/pl_inadimplencia").text
+    assert h.count('class="mini-c"') == 3 and "R$ 107,8 mil" in h
+    assert h.count('class="mini"') == 1                   # só o cartão que trouxe `estados`
+
+
+def test_estados_no_cartao_invalido_422(cli):
+    p = _com_estados(pacote_farol())
+    p["relatorios"]["pl_inadimplencia"]["kpis"][0]["estados"]["barras"][0] = ["PA", 1]
+    assert postar(cli, p).status_code == 422
+
+
+def test_estado_sem_recorte_de_um_cartao_mostra_traco_e_dica(admin):
+    postar(admin, pacote_farol())
+    h = admin.get("/farol/pl_inadimplencia?uf=AM").text
+    assert h.count("sem recorte por estado") >= 4          # cartões da BAP que o estado não tem
+    assert '<div class="kpi-valor">R$ 980 mil' not in h   # nunca o número da BAP inteira no cartão
+
+
+def test_rotulo_nao_quebra_no_meio_do_numero():
+    from app.render import junta
+    assert junta("R$ 348,8 mil") == "R$ 348,8 mil" and junta("R$ 1,02 mi") == "R$ 1,02 mi"
+
+
 def test_menu_4_itens_e_indisponivel(admin):
     postar(admin, pacote_farol())
     h = admin.get("/").text

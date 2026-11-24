@@ -137,6 +137,7 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
 }
 TONS = ("ok", "atencao", "alerta", "info")
 AVISO_UF = "Cartões por estado; gráficos da BAP inteira"
+SEM_RECORTE = "sem recorte por estado"
 INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -177,6 +178,28 @@ def fmt_valor(v, formato) -> str:
     return br(v)
 
 
+NBSP = "\u00a0"
+
+
+def junta(txt) -> str:
+    """Não quebra o rótulo no meio do número: só entre o número e 'mil'/'mi'."""
+    t = str(txt or "")
+    corpo, _, fim = t.rpartition(" ")
+    if fim in ("mil", "mi") and corpo:
+        return corpo.replace(" ", NBSP) + " " + fim
+    return t.replace(" ", NBSP)
+
+
+def _mini(est) -> dict | None:
+    """Barrinhas por estado dentro do cartão (as mesmas do PC): `estados.barras` pronto."""
+    b = _barras(est)
+    if not b:
+        return None
+    for x in b["barras"]:
+        x["txt"] = junta(x["txt"])
+    return b
+
+
 def _kpi(k) -> dict | None:
     if not isinstance(k, dict):
         return None
@@ -186,7 +209,8 @@ def _kpi(k) -> dict | None:
             linhas.append({"rot": str(ln[0]), "valor": str(ln[1]),
                            "tom": _tom(ln[2] if len(ln) > 2 else "")})
     return {"rot": str(k.get("rotulo", "")), "valor": str(k.get("valor", "—")),
-            "cor": _tom(k.get("cor")), "detalhe": str(k.get("detalhe") or ""), "linhas": linhas}
+            "cor": _tom(k.get("cor")), "detalhe": str(k.get("detalhe") or ""), "linhas": linhas,
+            "estados": _mini(k.get("estados"))}
 
 
 def _insights(linhas) -> list[dict]:
@@ -221,14 +245,19 @@ def _bloco_barras(b) -> dict:
         for s in series:
             v = s["vals"][i] if i < len(s["vals"]) else None
             txt = s["txt"][i] if i < len(s["txt"]) else fmt_valor(v, formato)
-            bs.append({"txt": "" if not v else txt,
+            bs.append({"txt": "" if not v else junta(txt), "titulo": f"{rot}: {txt}" if v else "",
                        "alt": 0 if not v else round(max(3.0, 100 * abs(v) / mx), 1),
                        "cor": s["cor_neg"] if (v or 0) < 0 else s["cor"]})
         cols.append({"rot": rot, "barras": bs})
+    nbarras = len(cols) * max(len(series), 1)
+    maxrot = max([len(c["rot"]) for c in cols] or [0])
+    denso = len(cols) > 14
     return {"tipo": "barras", "titulo": str(g.get("titulo", "")), "cols": cols,
+            "denso": denso, "vert": 8 < nbarras and not denso,       # valor em pé: não se sobrepõe
+            "rotv": (len(cols) > 5 and maxrot > 5) or (len(cols) > 8 and maxrot > (3 if denso else 4)),   # data/nome comprido em pé
             "legenda": [{"nome": s["nome"], "cor": s["cor"]} for s in series if s["nome"]] if len(series) > 1 else [],
             "meta": {"pos": round(100 * abs(meta) / mx, 1), "txt": fmt_valor(meta, formato)} if meta else None,
-            "largo": len(cols) > 8, "denso": len(cols) > 14}
+            "largo": len(cols) > 8}
 
 
 def _bloco_hbarras(b) -> dict:
@@ -280,10 +309,16 @@ def farol_para_tela(rel: dict, uf: str | None = None) -> dict:
     ufs = recortes_farol(rel)
     uf = (uf or "").upper()
     if uf in ufs:
-        kpis = rel["recortes"][uf].get("kpis")
+        rec = [r for r in _lista(rel["recortes"][uf].get("kpis")) if isinstance(r, dict)]
+        todos = [k for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
+        # cartão da BAP inteira que o estado não tem (ex.: fotos sem filial): "—" e a dica
+        kpis = [next((r for r in rec if r.get("rotulo") == k.get("rotulo")), None)
+                or {"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro", "detalhe": SEM_RECORTE}
+                for k in todos]
+        kpis += [r for r in rec if r.get("rotulo") not in {k.get("rotulo") for k in todos}]
     elif re.match(r"^[A-Z]{2}$", uf):
         # estado sem recorte: "—" nos cartões, nunca o número da BAP inteira
-        kpis = [{"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro"}
+        kpis = [{"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro", "detalhe": SEM_RECORTE}
                 for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
     else:
         uf, kpis = None, rel.get("kpis")
