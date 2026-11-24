@@ -4496,6 +4496,9 @@ def _reorganizar_por_lugar(cfg, linhas, vend, por_vendedor, zonas, dias,
         t_int = int(par.get("teto_interior", 6) or 0)
     except (TypeError, ValueError):
         t_int = 6
+    # (24/11, Alexandre, RN-ROT-003) a cidade base vale mais que a
+    # roteirizacao por lugar nos N primeiros dias uteis
+    restr_mes = dias_da_cidade_base(dias, par)
     por_cod, saida = defaultdict(list), []
     for r in linhas:
         if r["DATA"] in datas_rota and (so_vendedores is None
@@ -4513,6 +4516,14 @@ def _reorganizar_por_lugar(cfg, linhas, vend, por_vendedor, zonas, dias,
         base = norm_(v.get("cidade_base", ""))
         uf = v.get("uf_base", "")
         cal = rota_cidade_do_vendedor(cfg, cod)
+        nb_ = regiao_da_base(v, par)
+        restr = set() if (nb_ is None or base_seg_ter(cfg, cod)) else {
+            x for x in restr_mes
+            if x.isoformat() not in liberadas_do_vendedor(cfg, cod)}
+
+        def na_reg(u):          # a cidade da unidade e da regiao da base
+            return u[0] == base or bool(nb_ and nb_(
+                {"UF": uf, "CIDADE": u[0]}))
         zid_de, cart, cli_de = {}, defaultdict(list), {}
         for zid, cs in pz.items():
             if zona_so_excedente(zonas.get(zid)):
@@ -4723,6 +4734,7 @@ def _reorganizar_por_lugar(cfg, linhas, vend, por_vendedor, zonas, dias,
                       and d[0].weekday() == 4]:
                 u = next((u for u in unidades
                           if u[3] <= teto(d[0], u[0])
+                          and (d[0] not in restr or na_reg(u))
                           and not any(x is u for x, _ in plano)), None)
                 if u:
                     plano.append((u, [d]))
@@ -4730,14 +4742,27 @@ def _reorganizar_por_lugar(cfg, linhas, vend, por_vendedor, zonas, dias,
             for u in unidades:
                 if bst or any(x is u for x, _ in plano):
                     continue
-                k = min(max(1, -(-u[2] // cap)), len(livres))
+                # (RN-ROT-003) fora da regiao da base: so dias fora dos N
+                # primeiros uteis; da regiao: os dias da base primeiro
+                cand = sorted(livres, key=lambda d: (d[0] not in restr,
+                                                     d[0])) if na_reg(u) \
+                    else [d for d in livres if d[0] not in restr]
+                k = min(max(1, -(-u[2] // cap)), len(cand))
                 if k <= 0:
                     carry += [r for b in u[1] for r in b[2]]
                     continue
-                plano.append((u, livres[:k]))
-                livres = livres[k:]
+                plano.append((u, cand[:k]))
+                livres = [d for d in livres if d not in cand[:k]]
             while livres and plano:
-                u = next((x for x, _ in plano if x[0] == base), plano[0][0])
+                d_ = livres[0]
+                ok_ = [x for x, _ in plano
+                       if d_[0] not in restr or na_reg(x)]
+                if not ok_:
+                    # dia da base sem cidade da regiao no plano: o dia vai
+                    # para a cidade base (a vaga sai da carteira dela)
+                    plano.append(([base, [], 0, 0, 0], []))
+                    ok_ = [plano[-1][0]]
+                u = next((x for x in ok_ if x[0] == base), ok_[0])
                 for x, dsx in plano:
                     if x is u:
                         dsx.append(livres.pop(0))
@@ -4830,6 +4855,26 @@ def _reorganizar_por_lugar(cfg, linhas, vend, por_vendedor, zonas, dias,
                                                      for r in carry})))
             if avisos is not None:
                 avisos.append(txt)
+    if dep is not None:
+        # (24/11, Alexandre, RN-ROT-002) o sabado do excedente nao repete
+        # cliente que ja tem visita de segunda a sexta na semana dele
+        iso_d = dep[0].isocalendar()[:2]
+        na_sem = {(r["COD_VENDEDOR"], r["CHAVE_CLIENTE"]) for r in saida
+                  if r["COD_VENDEDOR"] in por_cod and r["DATA"].weekday() < 5
+                  and r["DATA"].isocalendar()[:2] == iso_d}
+        tirados = Counter(r["COD_VENDEDOR"] for r in saida
+                          if r["DATA"] == dep[0] and (
+                              r["COD_VENDEDOR"], r["CHAVE_CLIENTE"]) in na_sem)
+        if tirados:
+            saida = [r for r in saida if not (
+                r["DATA"] == dep[0]
+                and (r["COD_VENDEDOR"], r["CHAVE_CLIENTE"]) in na_sem)]
+            for cod, n in sorted(tirados.items()):
+                if avisos is not None:
+                    avisos.append(
+                        f"{n} visita(s) de {(vend.get(cod) or {}).get('nome', cod)} "
+                        f"sairam do sabado {dep[0]:%d/%m}: o cliente ja tem "
+                        f"visita nessa semana")
     _renumerar_visitas([r for r in saida
                         if r["COD_VENDEDOR"] in por_cod])
     return saida
