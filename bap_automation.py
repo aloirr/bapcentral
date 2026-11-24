@@ -6593,6 +6593,20 @@ _PACOTE_WEB_CHAVES_ACAO = frozenset({
     "garantia", "importar_preenchidos"})
 _DESCARTAR = object()
 
+# (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
+# o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
+FAROIS_WEB = ("pl_inadimplencia",)
+# D1 do Alexandre pendente: grafico com nome de pessoa (vendedor, supervisor)
+# fica FORA do pacote enquanto for False. Liga em 1 linha.
+WEB_GRAFICOS_COM_NOME = False
+_TIPOS_BLOCO_FAROL_WEB = ("insights", "barras", "hbarras")   # kpis vao no topo
+_CHAVES_FORA_FAROL_WEB = frozenset({
+    "tabelas", "juntas", "edicao", "editar", "abrir"})
+# o que no titulo (ou na frase) denuncia nome de pessoa
+_TERMOS_PESSOA_WEB = ("vendedor", "supervisor")
+# cliente e CNPJ nunca vao (regra 6), com ou sem a constante
+_TERMOS_CLIENTE_WEB = ("cliente", "devedor", "cnpj")
+
 
 def _para_json(obj, _nivel: int = 0):
     """Converte para tipos JSON; devolve _DESCARTAR para o que nao vai."""
@@ -6743,6 +6757,125 @@ def selecionar_abas_web(r: dict) -> dict:
     return saida
 
 
+def _sem_chaves_de_acao(obj):
+    """Tira (recursivo) as chaves de edicao/tabela; o resto o _para_json limpa."""
+    if isinstance(obj, dict):
+        return {k: _sem_chaves_de_acao(v) for k, v in obj.items()
+                if str(k) not in _CHAVES_FORA_FAROL_WEB}
+    if isinstance(obj, (list, tuple)):
+        return [_sem_chaves_de_acao(v) for v in obj]
+    return obj
+
+
+def _texto_com_pessoa(txt, grafico_com_nome) -> bool:
+    baixo = str(txt or "").lower()
+    termos = _TERMOS_CLIENTE_WEB + (() if grafico_com_nome
+                                    else _TERMOS_PESSOA_WEB)
+    return any(t in baixo for t in termos)
+
+
+def _linhas_insight(linhas, titulos_fora, grafico_com_nome) -> list:
+    """Insights [(tom, texto)] sem a frase que cita cliente ou o grafico que
+    saiu (a frase do ranking comeca pelo titulo do bloco)."""
+    saida = []
+    for ln in linhas or []:
+        txt = ln[1] if isinstance(ln, (list, tuple)) and len(ln) > 1 else ln
+        if _texto_com_pessoa(txt, grafico_com_nome) or any(
+                str(txt).startswith(t) for t in titulos_fora):
+            continue
+        saida.append(ln)
+    return saida
+
+
+def selecionar_farol_web(rid: str, r: dict, agora=None,
+                         grafico_com_nome=None) -> dict:
+    """Funcao pura (T-0017): do farol montado, so a parte dado da forma "farol"
+    (contrato, secao 10): {"forma", "titulo", "kpis", "painel": {"blocos"},
+    "insights_painel", "avisos", "recortes", "baixado_em"}. Fica de fora: as
+    tabelas (tem cliente/CNPJ), juntas, callables, chaves com "_" e as de
+    edicao. Blocos do painel mantidos: insights, barras, hbarras (os cartoes vao
+    em "kpis", no topo). hbarras (ou
+    frase) com nome de pessoa sai enquanto WEB_GRAFICOS_COM_NOME for False;
+    cliente e CNPJ nunca vao. Testes: tests/test_T0017_farol_web_robo.py."""
+    if grafico_com_nome is None:
+        grafico_com_nome = WEB_GRAFICOS_COM_NOME
+    r = r or {}
+    agora = agora or _agora_manaus()
+    if getattr(agora, "tzinfo", None) is None:
+        from datetime import timedelta, timezone        # noqa: PLC0415
+        agora = agora.replace(tzinfo=timezone(timedelta(hours=-4)))
+    blocos, titulos_fora = [], []
+    for b in ((r.get("painel") or {}).get("blocos") or []):
+        if not isinstance(b, dict) or b.get("tipo") not in _TIPOS_BLOCO_FAROL_WEB:
+            continue
+        if b.get("tipo") == "hbarras" and _texto_com_pessoa(
+                b.get("titulo"), grafico_com_nome):
+            titulos_fora.append(str(b.get("titulo") or ""))
+            continue
+        if b.get("tipo") == "insights":
+            b = dict(b)           # as frases so depois de saber os titulos fora
+        blocos.append(b)
+    for i, b in enumerate(blocos):
+        if b.get("tipo") == "insights":
+            blocos[i] = dict(b, linhas=_linhas_insight(
+                b.get("linhas"), titulos_fora, grafico_com_nome))
+    saida = {
+        "forma": "farol",
+        "titulo": r.get("titulo"),
+        "kpis": r.get("kpis") or [],
+        "painel": {"blocos": blocos},
+        "insights_painel": _linhas_insight(
+            r.get("insights_painel"), titulos_fora, grafico_com_nome),
+        "avisos": [str(a) for a in (r.get("avisos") or [])] + (
+            [f"{len(titulos_fora)} gráfico(s) com nome de pessoa não "
+             "aparece(m) na web."] if titulos_fora else []),
+        "recortes": recortes_farol_por_uf(r),
+        "baixado_em": agora.isoformat()}
+    val = _para_json(_sem_chaves_de_acao(saida))
+    return val if isinstance(val, dict) else {}
+
+
+def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
+                          coluna_filial: str = "FILIAL", uf_de=None) -> dict:
+    """Funcao pura (T-0017, RN-GER-006: estado = filial da nota): os cartoes
+    do farol por estado, prontos. Chama o kpis_de da tabela com as linhas
+    daquela filial, como o filtro da tela do PC. Sem kpis_de, sem a tabela
+    ou sem a coluna: {}. Filial que nao e de um estado conhecido fica fora
+    (o total do farol segue inteiro em "kpis"). uf_de: nome/codigo da filial
+    -> UF (padrao: relatorios_nucleo.uf_do_nome_da_filial).
+    Devolve {"<UF>": {"kpis": [...]}}."""
+    tab = next((t for t in (r or {}).get("tabelas") or []
+                if isinstance(t, dict) and t.get("titulo") == titulo_tabela),
+               None)
+    kpis_de = (tab or {}).get("kpis_de")
+    if not callable(kpis_de):
+        return {}
+    nomes = [c.get("nome") if isinstance(c, dict) else c
+             for c in tab.get("colunas") or []]
+    if coluna_filial not in nomes:
+        return {}
+    ix = nomes.index(coluna_filial)
+    if uf_de is None:
+        import relatorios_nucleo as _rn                 # noqa: PLC0415
+        uf_de = _rn.uf_do_nome_da_filial
+    por_uf = {}
+    for ln in tab.get("linhas") or []:
+        try:
+            uf = uf_de(ln[ix])
+        except Exception:                               # noqa: BLE001
+            uf = ""
+        if uf:
+            por_uf.setdefault(uf, []).append(ln)
+    saida = {}
+    for uf in sorted(por_uf):
+        try:
+            ks = kpis_de(por_uf[uf])
+        except Exception:                               # noqa: BLE001
+            continue
+        saida[uf] = {"kpis": ks or []}
+    return saida
+
+
 def montar_pacote_web(resultados: dict, ano: int, mes: int,
                       agora=None) -> dict:
     """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
@@ -6762,16 +6895,53 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         val = _para_json(selecionar_abas_web(rel))
         if isinstance(val, dict):
             limpos["vc_painel"] = val
+    for rid in FAROIS_WEB:                  # (T-0017) cada farol isolado
+        rel = (resultados or {}).get(rid)
+        if not isinstance(rel, dict) or rel.get("erro_montagem"):
+            continue
+        try:
+            val = selecionar_farol_web(rid, rel, agora)
+        except Exception as erro:                       # noqa: BLE001
+            log.warning("Pacote web: farol %s fora do pacote (%s).", rid,
+                        type(erro).__name__)
+            continue
+        if val:
+            limpos[rid] = val
     return {"versao_contrato": versao, "gerado_em": agora.isoformat(),
             "ano": int(ano), "mes": int(mes), "relatorios": limpos}
 
 
-def coletar_relatorios_web(ano: int, mes: int) -> dict:
-    """Monta no PC o vc_painel do mes (o montar grava o historico do Diretor)."""
+def simular_pacote_farol(rid: str, raiz, destino, ano: int, mes: int,
+                         hoje=None) -> dict:
+    """Apoio da SIMULACAO (T-0017): monta o farol a partir das bases da pasta
+    `raiz` (as congeladas do repositorio) e grava o pacote em `destino`.
+    O JSON pode ter dado pessoal (nome de vendedor com a D1 ligada): nao vai
+    para o repositorio. Devolve o pacote."""
     import relatorios_nucleo as _rn                     # noqa: PLC0415
-    return {"vc_painel": _rn.montar(
-        "vc_painel", PASTA_LOCAL,
-        params={"ANO": str(ano), "MÊS": str(mes)})}
+    rel = _rn.montar(rid, Path(raiz), hoje=hoje,
+                     params={"ANO": str(ano), "MÊS": str(mes)})
+    pacote = montar_pacote_web({rid: rel}, ano, mes)
+    Path(destino).write_text(json.dumps(pacote, ensure_ascii=False,
+                                        indent=1), encoding="utf-8")
+    return pacote
+
+
+def coletar_relatorios_web(ano: int, mes: int) -> dict:
+    """Monta no PC o vc_painel do mes (o montar grava o historico do Diretor)
+    e os faroes de FAROIS_WEB. Cada farol num try proprio: se um falhar, vira
+    {"erro_montagem": ...} (aviso no log) e o pacote segue sem ele."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    params = {"ANO": str(ano), "MÊS": str(mes)}
+    saida = {"vc_painel": _rn.montar("vc_painel", PASTA_LOCAL,
+                                     params=dict(params))}
+    for rid in FAROIS_WEB:
+        try:
+            saida[rid] = _rn.montar(rid, PASTA_LOCAL, params=dict(params))
+        except Exception as erro:                       # noqa: BLE001
+            log.warning("Pacote web: o farol %s nao montou (%s); segue sem "
+                        "ele.", rid, type(erro).__name__)
+            saida[rid] = {"erro_montagem": type(erro).__name__}
+    return saida
 
 
 def _segredo_web(env: str, usuario: str):
