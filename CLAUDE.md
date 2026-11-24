@@ -83,5 +83,6 @@ Python 3.12; as telas atuais são Tkinter (Windows). Tudo em **português do Bra
 - `compileall` e testes verdes. Smokes só com as falhas conhecidas (lista no agente `testes`).
 - Critérios da tarefa demonstrados pelo `testes`, com valor × regra em todo número; **número do Diretor bate com o farol de origem**.
 - Parecer do `revisor-codigo` sem 🔴 nem 🟡 em aberto, no head SHA do PR.
+- Parecer do `corretor-redundancias` sem achado em aberto (toda tarefa) e, quando couber, do `designer-ux` (tela, PDF, e-mail) e do `design-de-marca` (identidade visual), no head SHA do PR.
 - `node scripts/coord.mjs verificar --base origin/main` sem violação.
 - Quadro, backlog e docs atualizados. Recado `entrega` ao `po` (cc `alexandre`) com "como testar em 5 passos".

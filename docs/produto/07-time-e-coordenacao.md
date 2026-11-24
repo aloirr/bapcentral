@@ -12,7 +12,7 @@
 3. O **gerente-projetos** (sessão fixa "BapCentral - Gerente Projeto", ronda a cada 20 min, com reserva de hora em hora):
    - cria a tarefa (backlog só com autorização escrita do Alexandre) e delega a subagentes ou a sessões filhas, uma por dono;
    - repassa o texto **completo** de cada recado às sessões filhas, no prompt inicial, e marca o recado como lido;
-   - cobra e valida com o `testes` e o `revisor-codigo`; faz o PR e o merge;
+   - cobra e valida com o `testes` e o `revisor-codigo`; passa toda tarefa pelo `corretor-redundancias` antes do fechamento e, quando couber, pelo `designer-ux` (tela, PDF, e-mail ou texto de interface) e pelo `design-de-marca` (identidade visual); merge só sem achado em aberto deles (R-20261120-113248-alexandre); faz o PR e o merge;
    - manda **tudo** ao po por `send_message` (relatório, ronda, pergunta, pendência, previsão) e deixa recado ao po a cada movimento: tarefa criada ou repriorizada, delegação, bloqueio e desbloqueio, PR, revisão, merge, entrega e pedido de decisão (T-0008);
    - arquiva as sessões filhas finalizadas do BapCentral (as que têm `parent_session_id` = a sessão do gerente); nunca as duas fixas nem sessões de outros projetos.
 4. Todo resumo ao Alexandre sai em 4 blocos, nesta ordem: **Entregue** · **Em andamento** · **O que o time pede a você** · **Próximo passo** (bloco vazio = "nada"). O relatório de ronda termina com "Decisões que você precisa tomar", que é a mesma lista do bloco "O que o time pede a você". Ao Alexandre só vai decisão que muda algo agora; item com recomendação clara e sem efeito no prazo segue a recomendação e é informado no relatório.
@@ -34,7 +34,7 @@ O token é fine-grained, só com "Contents: read and write" no `aloirr/bapcentra
   - `recados/<destino>/R-AAAAMMDD-HHMMSS-<remetente>.md`;
   - `lidos/<agente>.txt`;
   - `recados/anexos/`.
-- Destinos: os 12 agentes, `alexandre` e `todos`. Tipos: pedido, pergunta, resposta, aviso, bloqueio, entrega, revisao.
+- Destinos: os 15 agentes, `alexandre` e `todos`. Tipos: pedido, pergunta, resposta, aviso, bloqueio, entrega, revisao.
 - Aberto = pedido, pergunta, bloqueio ou revisao sem resposta `encerra: true`.
 - Na nuvem, recado e lido são gravados com `git` no clone do `aloirr/bapcentral-recados` anexado à sessão, com push direto no `main` (o proxy barra a gravação pela API). A CLI lê (`caixa`, `pendencias`, `ler`, `fio`); o modo git dela é a T-0007. Recado é imutável. Nos arquivos do repositório de código, o guardião barra recado em nome de outro (`de: alexandre` só pelo formulário de issue da conta do Alexandre ou por sessão com `BAP_AGENTE=alexandre`). Pela decisão do Alexandre (R-20261120-092924-alexandre), o po grava cada decisão dele como recado `de: alexandre`, com o texto literal. O guardião (`guarda-bash.mjs`, v5 e v6) barra gravar `de: alexandre` fora da sessão do Alexandre também no clone dos recados. Conciliar o guardião com essa regra é pendência de governança da T-0008 (critério 1a).
 
