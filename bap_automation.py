@@ -6598,7 +6598,7 @@ _DESCARTAR = object()
 FAROIS_WEB = ("pl_inadimplencia",)
 # D1 do Alexandre pendente: grafico com nome de pessoa (vendedor, supervisor)
 # fica FORA do pacote enquanto for False. Liga em 1 linha.
-WEB_GRAFICOS_COM_NOME = False
+WEB_GRAFICOS_COM_NOME = True
 _TIPOS_BLOCO_FAROL_WEB = ("insights", "barras", "hbarras")   # kpis vao no topo
 _CHAVES_FORA_FAROL_WEB = frozenset({
     "tabelas", "juntas", "edicao", "editar", "abrir"})
