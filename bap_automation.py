@@ -6605,7 +6605,9 @@ _CHAVES_FORA_FAROL_WEB = frozenset({
 # o que no titulo (ou na frase) denuncia nome de pessoa
 _TERMOS_PESSOA_WEB = ("vendedor", "supervisor")
 # cliente e CNPJ nunca vao (regra 6), com ou sem a constante
-_TERMOS_CLIENTE_WEB = ("cliente", "devedor", "cnpj")
+# (frase "136 clientes" e contagem, nao nome: so o grafico por cliente sai)
+_TERMOS_CLIENTE_WEB = ("devedor", "cnpj")
+_TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
 
 
 def _para_json(obj, _nivel: int = 0):
@@ -6767,10 +6769,12 @@ def _sem_chaves_de_acao(obj):
     return obj
 
 
-def _texto_com_pessoa(txt, grafico_com_nome) -> bool:
+def _texto_com_pessoa(txt, grafico_com_nome, titulo=False) -> bool:
     baixo = str(txt or "").lower()
     termos = _TERMOS_CLIENTE_WEB + (() if grafico_com_nome
                                     else _TERMOS_PESSOA_WEB)
+    if titulo:                          # titulo de grafico: por cliente sai
+        termos += _TERMOS_TITULO_CLIENTE_WEB
     return any(t in baixo for t in termos)
 
 
@@ -6784,6 +6788,28 @@ def _linhas_insight(linhas, titulos_fora, grafico_com_nome) -> list:
                 str(txt).startswith(t) for t in titulos_fora):
             continue
         saida.append(ln)
+    return saida
+
+
+def _kpis_com_estados(r: dict) -> list:
+    """Os cartoes do farol; cada um com "estados" ({"barras": [[UF, numero,
+    texto, "% na barra", tom]], "legenda"}) quando o PC desenha as mini-barras
+    por estado (relatorios_nucleo.estados_do_cartao, filial da nota). So
+    numero por estado, sem pessoa."""
+    saida = []
+    for k in (r or {}).get("kpis") or []:
+        if not isinstance(k, dict):
+            continue
+        k = dict(k)
+        try:
+            import relatorios_nucleo as _rn             # noqa: PLC0415
+            est = _rn.estados_do_cartao(r, k) or {}
+        except Exception:                               # noqa: BLE001
+            est = {}
+        if est.get("barras"):
+            k["estados"] = {"barras": est["barras"],
+                            "legenda": est.get("legenda", "")}
+        saida.append(k)
     return saida
 
 
@@ -6809,7 +6835,7 @@ def selecionar_farol_web(rid: str, r: dict, agora=None,
         if not isinstance(b, dict) or b.get("tipo") not in _TIPOS_BLOCO_FAROL_WEB:
             continue
         if b.get("tipo") == "hbarras" and _texto_com_pessoa(
-                b.get("titulo"), grafico_com_nome):
+                b.get("titulo"), grafico_com_nome, titulo=True):
             titulos_fora.append(str(b.get("titulo") or ""))
             continue
         if b.get("tipo") == "insights":
@@ -6822,7 +6848,7 @@ def selecionar_farol_web(rid: str, r: dict, agora=None,
     saida = {
         "forma": "farol",
         "titulo": r.get("titulo"),
-        "kpis": r.get("kpis") or [],
+        "kpis": _kpis_com_estados(r),
         "painel": {"blocos": blocos},
         "insights_painel": _linhas_insight(
             r.get("insights_painel"), titulos_fora, grafico_com_nome),
