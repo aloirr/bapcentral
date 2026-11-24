@@ -37,7 +37,7 @@
   {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
   {% if b.tipo == "barras" %}
     {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
-    <div class="gb{{ ' gb-largo' if b.largo }}">
+    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}">
       {% for c in b.cols %}
       <div class="gb-col">
         <div class="gb-area">{% for x in c.barras %}<div class="gb-b"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>

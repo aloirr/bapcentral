@@ -43,7 +43,7 @@ def main(argv: list[str]) -> int:
             tk = re.search(r'name="csrf" value="([^"]+)"', c.get("/senha").text).group(1)
             c.post("/senha", data={"atual": "senha-simulacao-1", "nova": "senha-simulacao-2",
                                    "confirma": "senha-simulacao-2", "csrf": tk})
-            html = c.get(f"/farol/{rid}").text
+            html = c.get(f"/farol/{rid}" + (f"?uf={argv[4]}" if len(argv) > 4 else "")).text
     css = (AQUI / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
     html = html.replace('<link rel="stylesheet" href="/static/estilo.css">', f"<style>{css}</style>")
     saida.write_text(html, encoding="utf-8")

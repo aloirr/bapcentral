@@ -80,13 +80,13 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .graf h3{font-size:.9rem;margin:0 0 .6rem}
 .leg{display:flex;flex-wrap:wrap;gap:.2rem .8rem;font-size:.75rem;margin-bottom:.4rem}.leg i{display:inline-block;width:10px;height:10px;margin-right:.3rem}
 .gb{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;height:230px;align-items:stretch;overflow-x:auto}
-.gb-largo{grid-auto-columns:minmax(34px,1fr)}
+.gb-largo{grid-auto-columns:minmax(22px,1fr)}.gb-denso{grid-auto-columns:minmax(13px,1fr)}.gb-denso .gb-txt{display:none}.gb-denso .gb-rot{font-size:.55rem}
 .gb-col{display:flex;flex-direction:column;min-width:0}
 .gb-area{flex:1;display:flex;align-items:stretch;justify-content:center;gap:2px;min-height:0}
 .gb-b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;max-width:36px}
 .gb-b i{display:block;width:100%;border-radius:3px 3px 0 0}
 .gb-txt{font-size:.62rem;font-weight:700;text-align:center;overflow-wrap:anywhere;line-height:1.1}
-.gb-rot{text-align:center;font-size:.7rem;font-weight:700;padding-top:4px}
+.gb-rot{text-align:center;font-size:.7rem;font-weight:700;padding-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gb-largo .gb-rot{font-size:.6rem}
 .hb{display:grid;gap:.45rem}
 .hb-l{display:grid;grid-template-columns:minmax(70px,30%) 1fr auto;gap:.5rem;align-items:center;font-size:.8rem}
 .hb-rot{overflow-wrap:anywhere}.hb-trilho{background:#e9ecef;height:14px;display:block}.hb-trilho i{display:block;height:100%}

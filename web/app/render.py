@@ -221,14 +221,14 @@ def _bloco_barras(b) -> dict:
         for s in series:
             v = s["vals"][i] if i < len(s["vals"]) else None
             txt = s["txt"][i] if i < len(s["txt"]) else fmt_valor(v, formato)
-            bs.append({"txt": "" if v is None else txt,
+            bs.append({"txt": "" if not v else txt,
                        "alt": 0 if not v else round(max(3.0, 100 * abs(v) / mx), 1),
                        "cor": s["cor_neg"] if (v or 0) < 0 else s["cor"]})
         cols.append({"rot": rot, "barras": bs})
     return {"tipo": "barras", "titulo": str(g.get("titulo", "")), "cols": cols,
             "legenda": [{"nome": s["nome"], "cor": s["cor"]} for s in series if s["nome"]] if len(series) > 1 else [],
             "meta": {"pos": round(100 * abs(meta) / mx, 1), "txt": fmt_valor(meta, formato)} if meta else None,
-            "largo": len(cols) > 8}
+            "largo": len(cols) > 8, "denso": len(cols) > 14}
 
 
 def _bloco_hbarras(b) -> dict:
