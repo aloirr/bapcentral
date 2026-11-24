@@ -6687,13 +6687,26 @@ def _com_fuso_manaus(quando=None) -> datetime:
     return quando
 
 
-def _baixado_em_da_base(arquivo=None):
+# de onde vem o "baixado em" de cada farol: (subpasta da raiz, padrao do arquivo
+# que o robo baixou do ERP; vale o de nome mais novo). Os proximos farois
+# (Pedidos, Entregas, Visita) ganham a propria fonte aqui.
+_FONTE_BAIXADO_WEB = {
+    "pl_inadimplencia": (Path("SISTEMA BAP") / "BACKUP_RELATORIOS"
+                         / "BKP_RELATORIOS_BAPTOOLS",
+                         "Relatorio_Titulos_em_Abertos_*.xlsx")}
+
+
+def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
     """Quando a base do farol foi baixada do ERP: a data de gravacao do
-    TABELA_BAP.xlsx (a saida do robo; ftTitulos mora nele), em Manaus. Sem o
-    arquivo: None (o site mostra que nao sabe, nao a hora de hoje)."""
+    arquivo de origem do rid (_FONTE_BAIXADO_WEB; inadimplencia = o relatorio
+    Titulos em Abertos mais novo), em Manaus. `arquivo` forca o arquivo.
+    Sem arquivo: None (o site diz que nao sabe, nao mostra a hora de hoje)."""
     try:
-        arq = Path(arquivo) if arquivo else PASTA_RELATORIOS / "TABELA_BAP.xlsx"
-        return datetime.fromtimestamp(arq.stat().st_mtime,
+        if arquivo is None:
+            pasta, padrao = _FONTE_BAIXADO_WEB[rid]
+            arquivo = sorted((Path(raiz or PASTA_LOCAL) / pasta)
+                             .glob(padrao))[-1]
+        return datetime.fromtimestamp(Path(arquivo).stat().st_mtime,
                                       _agora_manaus().tzinfo)
     except Exception:                                   # noqa: BLE001
         return None
@@ -6913,7 +6926,7 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
 
 
 def montar_pacote_web(resultados: dict, ano: int, mes: int,
-                      agora=None, arquivo_base=None) -> dict:
+                      agora=None, raiz=None, arquivos_base=None) -> dict:
     """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
     resultado e produtividade, limpas para JSON."""
     try:
@@ -6923,7 +6936,6 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         versao = 1                                      # ausente = 1 (contrato)
     agora = _com_fuso_manaus(agora)
     limpos = {}
-    baixado_em = _baixado_em_da_base(arquivo_base)
     rel = (resultados or {}).get("vc_painel")
     if isinstance(rel, dict):
         val = _para_json(selecionar_abas_web(rel))
@@ -6934,7 +6946,8 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         if not isinstance(rel, dict) or rel.get("erro_montagem"):
             continue
         try:
-            val = selecionar_farol_web(rid, rel, baixado_em)
+            val = selecionar_farol_web(rid, rel, _baixado_em_da_base(
+                rid, raiz, (arquivos_base or {}).get(rid)))
         except Exception as erro:                       # noqa: BLE001
             log.warning("Pacote web: farol %s fora do pacote (%s).", rid,
                         type(erro).__name__)
@@ -6956,7 +6969,7 @@ def simular_pacote_farol(rid: str, raiz, destino, ano: int, mes: int,
                      params={"ANO": str(ano), "MÊS": str(mes)})
     pacote = montar_pacote_web(
         {rid: rel}, ano, mes,
-        arquivo_base=Path(raiz) / SUBPASTA_RELATORIOS / "TABELA_BAP.xlsx")
+        raiz=raiz)
     Path(destino).write_text(json.dumps(pacote, ensure_ascii=False,
                                         indent=1), encoding="utf-8")
     return pacote
