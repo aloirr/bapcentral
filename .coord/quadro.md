@@ -1,10 +1,12 @@
 # Quadro — BAP Tools
 
-Atualizado em 23/11/2026, 21h45 (Manaus). Dono: gerente-projetos.
+Atualizado em 24/11/2026, 19h10 (Manaus). Dono: gerente-projetos.
 
-**23/11, noite:** web v0.1.0 no Render (Starter + disco de 1 GB, criada com o ok do Alexandre, R-20261123-210500-alexandre); T-0010 e o robô da T-0014 instalados na produção. Próximo passo do Alexandre: instalar o robô no notebook que vai rodá-lo (o cofre do Windows não vai pelo OneDrive).
+**24/11, noite — volta ao Claude Code na nuvem:** gerente fixo no ambiente BapCentral-GP (BAP_AGENTE=gerente-projetos), PO fixo no BapCentral-PO, guardiões e ronda de 20 min de volta. Sessões fixas em Opus 5.5 alto; tarefas e subagentes em Opus 5.5 médio (R-20261124-173350-gerente-projetos). O robô rodou no notebook do Alexandre: primeiro pacote no site às 18h07 (T-0013/T-0014 esperam a conferência dele).
 
-**RETOMADA:** a pausa de 20/11 acabou. O Alexandre retomou o BapCentral numa sessão do Cowork em 22/11/2026 (R-20261122-182900-alexandre e R-20261122-183000-alexandre): sem os guardiões do Claude Code, sem agendamento, ronda ou timer; GitHub operado pelo site; merge de governança pela delegação de 20/11. Nada vai ao PC sem o "instale"; nada no Render sem o ok dele.
+**T-0017 (alta):** detalhes na linha da tabela e em `.coord/tarefas/T-0017.md`.
+
+**Histórico — 22 e 23/11 no Cowork:** o Alexandre trabalhou numa sessão do Cowork (R-20261122-182900-alexandre e R-20261122-183000-alexandre), sem guardiões nem ronda; os 31 commits do período (646ff3c..b69fda7) foram conferidos commit a commit com o `verificar`: nenhuma violação de dono.
 
 | Tarefa | Título | Status | Dono | Onde | Caminhos travados | Previsão (Manaus) |
 |---|---|---|---|---|---|---|
@@ -24,9 +26,10 @@ Atualizado em 23/11/2026, 21h45 (Manaus). Dono: gerente-projetos.
 | T-0014 | Web: visões prontas por estado para o filtro (supervisor fica para depois) | em_teste (no main: #36 `0169ceb`, #35 `356b90d`, #37 `3623986`, #38 `df697f3`; simulação aprovada no R-20261123-195144-alexandre; bap_automation.py instalado na produção, R-20261123-213700-gerente-projetos) | modulo-robo + modulo-web + testes | — | — | junto com a T-0013: conferir o filtro por estado com o primeiro pacote |
 | T-0015 | `.bat` com o final de linha do Windows (CRLF) no repositório | concluida (#28 `19c5110`, `.gitattributes`; #29 teste; #31 `8f31c54`, `ATUALIZAR_DO_GITHUB.bat` guardado em LF) | alexandre (governança) + testes | — | — | concluída em 23/11 |
 | T-0016 | Rota por lugar respeita o sábado sem repetição (RN-ROT-002) e a cidade base (RN-ROT-003); smoke da rota limpo | concluida (#41 `a0f1ec2`, #40 `af3b8cf`, #42 `dd7e85d`; `planner_nucleo.py` instalado na produção com backup ANTES_T0016_NOV2026, byte a byte) | modulo-rota + testes + gerente-projetos | — | — | concluída em 24/11 |
+| T-0017 | Os 4 faróis do PC no site: Inadimplência (entrega 1), depois Pedidos, Entregas e Visita | em_teste (entrega 1 no main: #46 `4793fd1`, #47 `89eb4ca`, #48 `a08ab86`, #49 `ec31d36`, #51 `0605f8b`, #50 `e56fe45`, #52 `73a8b4a` v0.2.0, #53 `94ac56d`; números PC × pacote batem, valor × regra) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + engenheiro-dados + testes | — | — | deploy v0.2.0 e "instale" com o Alexandre; 2ª entrega (WhatsApp) 30/11 simulação, 02/12 entrega, após as decisões; Farol de Pedidos 26/11 |
 
 **Previsões:** a hora é a do último status do gerente ao po, e cada "Status HHhMM" do po leva a hora nova e o motivo quando ela muda (R-20261120-092924-alexandre).
 
-**Reservas:** a próxima tarefa é a T-0017. A próxima ADR livre é a 0002 (a 0001 é a da T-0006).
+**Reservas:** a próxima tarefa é a T-0018. A próxima ADR livre é a 0002 (a 0001 é a da T-0006).
 
 **Legenda de status:** aberta · em_andamento · em_teste · em_revisao · aguardando_alexandre · concluida · bloqueada.
