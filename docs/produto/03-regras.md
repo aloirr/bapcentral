@@ -21,6 +21,8 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 - Fayga e Rodrigo: base seg/ter, interior de quarta em diante.
 - Roteirização por lugar, com dia compacto de 5 km.
 - 1º sábado = depósito do excedente; o recálculo não reescreve o passado.
+- RN-ROT-002 · O sábado do excedente (depósito) não repete cliente que já tem visita de segunda a sexta na mesma semana com o mesmo vendedor; a visita repetida sai do sábado, com aviso (R-20261124, T-0016).
+- RN-ROT-003 · Nos 10 primeiros dias úteis (`dias_cidade_base`) só a região da base (cidade base + até `raio_base_km`), também na roteirização por lugar; exceções: agenda importada e Fayga/Rodrigo (base seg/ter) (R-20261124, T-0016).
 - Cliente INATIVO no Protheus sai da rota.
 - RN-ROT-001 · JSON da rota para a Máxima: data final de cada linha = próxima visita + periodicidade − 1 (em vez de 3000-01-01); inativo, CNPJ interno (pelo nome, como o `meta_nucleo`) e conta 000040 fora; o sábado-depósito entra com a mesma data final (20/11; R-20261120-102022, -104729 e -111303-alexandre; T-0010).
 

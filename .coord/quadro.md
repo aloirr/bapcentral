@@ -23,9 +23,10 @@ Atualizado em 23/11/2026, 21h45 (Manaus). Dono: gerente-projetos.
 | T-0013 | Web: onda 0 e primeira entrega (Painel · resultado e Painel · produtividade) | em_teste (v0.1.0 no ar em https://bap-central.onrender.com desde 23/11 21h19, R-20261123-212300-gerente-projetos; passo 4f instalado na produção com o bap_automation.py de 3623986) | modulo-web + modulo-robo + testes | — | — | falta o primeiro pacote do robô: instalação no notebook que roda o robô (instalar_bap.bat, cofre BAP_TOOLS e BAP_WEB) e o número da web igual ao do farol |
 | T-0014 | Web: visões prontas por estado para o filtro (supervisor fica para depois) | em_teste (no main: #36 `0169ceb`, #35 `356b90d`, #37 `3623986`, #38 `df697f3`; simulação aprovada no R-20261123-195144-alexandre; bap_automation.py instalado na produção, R-20261123-213700-gerente-projetos) | modulo-robo + modulo-web + testes | — | — | junto com a T-0013: conferir o filtro por estado com o primeiro pacote |
 | T-0015 | `.bat` com o final de linha do Windows (CRLF) no repositório | concluida (#28 `19c5110`, `.gitattributes`; #29 teste; #31 `8f31c54`, `ATUALIZAR_DO_GITHUB.bat` guardado em LF) | alexandre (governança) + testes | — | — | concluída em 23/11 |
+| T-0016 | Rota por lugar respeita o sábado sem repetição (RN-ROT-002) e a cidade base (RN-ROT-003); smoke da rota limpo | em_andamento (decisões e simulação aprovadas pelo Alexandre em 24/11; PRs do modulo-rota, do testes e das regras) | modulo-rota + testes + gerente-projetos | — | `planner_nucleo.py`, `smoke_processos.py` | merge dos 3 PRs e "instale" do `planner_nucleo.py` (já dado, com backup ANTES_T0016_NOV2026); depois o T-0004 |
 
 **Previsões:** a hora é a do último status do gerente ao po, e cada "Status HHhMM" do po leva a hora nova e o motivo quando ela muda (R-20261120-092924-alexandre).
 
-**Reservas:** a próxima tarefa é a T-0016. A próxima ADR livre é a 0002 (a 0001 é a da T-0006).
+**Reservas:** a próxima tarefa é a T-0017. A próxima ADR livre é a 0002 (a 0001 é a da T-0006).
 
 **Legenda de status:** aberta · em_andamento · em_teste · em_revisao · aguardando_alexandre · concluida · bloqueada.
