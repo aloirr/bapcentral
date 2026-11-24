@@ -50,7 +50,7 @@ def test_farol_desenha_kpis_resumo_barras_e_bloco_desconhecido(admin):
     assert "R$ 1,20 mi" in h and "Resumo gerencial" in h and "Atraso acima de 90 dias" in h
     assert "Recebido (R$) · mês a mês" in h and 'class="hb"' in h and "Vendedor 01" in h
     assert "ainda não disponível na web" in h            # bloco tabela
-    assert "Baixado em 24/11/2026 08:10" in h
+    assert "Baixado do ERP em 24/11/2026 08:10" in h
     assert "Resumo e gráficos: BAP inteira" not in h
     assert "<form" not in h.split("<main>")[1]            # nenhum botão de gravar
 
@@ -59,7 +59,7 @@ def test_farol_filtro_por_estado_troca_so_os_cartoes(admin):
     postar(admin, pacote_farol())
     h = admin.get("/farol/pl_inadimplencia?uf=AM").text
     assert "R$ 700 mil" in h and "R$ 1,20 mi" not in h
-    assert "Cartões: AM. Resumo e gráficos: BAP inteira." in h and "· BAP inteira" in h
+    assert "Resumo e gráficos: BAP inteira." in h and "· BAP inteira" not in h
     assert "Recebido (R$) · mês a mês" in h              # gráficos seguem da BAP inteira
     h = admin.get("/farol/pl_inadimplencia?uf=RR").text  # sem recorte: traço, nunca o total
     assert "R$ 1,20 mi" not in h and "—" in h
@@ -83,8 +83,8 @@ def _com_estados(p):
 def test_cartao_com_mini_barras_por_estado(admin):
     assert postar(admin, _com_estados(pacote_farol())).status_code == 200
     h = admin.get("/farol/pl_inadimplencia").text
-    assert h.count('class="mini-c"') == 3 and "R$ 107,8 mil" in h
-    assert h.count('class="mini"') == 1                   # só o cartão que trouxe `estados`
+    assert h.count('class="col"') == 3 and "R$ 107,8 mil" in h
+    assert h.count('class="rc-barras"') == 1                   # só o cartão que trouxe `estados`
 
 
 def test_estados_no_cartao_invalido_422(cli):

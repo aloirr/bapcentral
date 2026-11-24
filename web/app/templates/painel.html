@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block titulo %}Painel Executivo{% endblock %}
+{% from "_estados.html" import barras_estados %}
 {% block corpo %}
 {% if not tela %}
 <h1>Painel Executivo</h1>
@@ -50,26 +51,7 @@
   </div>
   {% endif %}
   {% if not tela.uf %}<div class="rc-filete"></div>{% endif %}
-  {% if c.estados %}
-  <div class="rc-barras">
-    {% for b in c.estados.barras %}
-    <div class="col">
-      <div class="area">
-        {% if not b.vazio %}
-          {% if b.sem_barra %}
-            <div class="rot-b t-{{ b.tom }}">{{ b.rot }}</div><div class="txt-b">{{ b.txt }}</div>
-          {% else %}
-            <div class="txt-b">{{ b.txt }}</div>
-            <div class="barra" style="height:{{ b.alt }}%"><span class="rot-b t-{{ b.tom }}">{{ b.rot }}</span></div>
-          {% endif %}
-        {% endif %}
-      </div>
-      <div class="uf">{{ b.uf }}</div>
-    </div>
-    {% endfor %}
-  </div>
-  {% if c.estados.legenda %}<div class="rc-legb">● {{ c.estados.legenda }}</div>{% endif %}
-  {% endif %}
+  {{ barras_estados(c.estados) }}
 </article>
 {% endfor %}
 </section>

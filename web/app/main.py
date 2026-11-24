@@ -121,7 +121,7 @@ def criar_app() -> FastAPI:
         if u == "auto":
             u = usuarios.obter(request.session.get("u", ""))
         info = ultimo.get()
-        ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO,
+        ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, indisponivel=render.INDISPONIVEL,
                    gerado_em=info["gerado_em"] if info else None)
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
 

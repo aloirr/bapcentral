@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% block titulo %}{{ farol_nome }}{% endblock %}
+{% from "_estados.html" import barras_estados %}
 {% block corpo %}
 {% if not tela %}
 <h1>{{ farol_nome }}</h1>
-<p class="aviso atencao">Ainda não disponível: este farol não veio no último pacote do PC.</p>
+<p class="aviso atencao">{{ indisponivel|capitalize }}.</p>
 {% else %}
-<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em %}<span>Baixado em {{ tela.baixado_em|manaus }} (Manaus)</span>{% endif %}</header>
+<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
 {% if tela.ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
   <span class="f-rot">Estado</span>
@@ -21,14 +22,14 @@
   <div class="kpi-rot">{{ k.rot }}</div>
   <div class="kpi-valor">{{ k.valor }}</div>
   {% if k.detalhe %}<div class="kpi-det">{{ k.detalhe }}</div>{% endif %}
-  {% if k.estados %}<div class="mini">{% for b in k.estados.barras %}<div class="mini-c"><div class="mini-a">{% if not b.vazio %}<span class="mini-t">{{ b.txt }}</span>{% if not b.sem_barra %}<i style="height:{{ b.alt }}%"></i>{% endif %}{% endif %}</div><div class="mini-uf">{{ b.uf }}</div></div>{% endfor %}</div>{% endif %}
+  {{ barras_estados(k.estados) }}
   {% for l in k.linhas %}<div class="kpi-lin"><span>{{ l.rot }}</span><b class="t-{{ l.tom }}">{{ l.valor }}</b></div>{% endfor %}
 </article>
 {% else %}<p class="aviso atencao">Sem cartões neste recorte.</p>
 {% endfor %}
 </section>
 {% if tela.insights %}
-<section class="resumo"><h2>Resumo gerencial{% if tela.uf %} <small>· BAP inteira</small>{% endif %}</h2>
+<section class="resumo"><h2>Resumo gerencial</h2>
   <ul>{% for i in tela.insights %}<li class="ins t-{{ i.tom }}"><span>{{ i.texto }}</span></li>{% endfor %}</ul>
 </section>
 {% endif %}
@@ -55,7 +56,7 @@
     </div>
     {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
   {% else %}
-    <p class="indisp-bloco">ainda não disponível na web</p>
+    <p class="indisp-bloco">{{ indisponivel }}</p>
   {% endif %}
 </article>
 {% endfor %}

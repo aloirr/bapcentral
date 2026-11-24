@@ -136,7 +136,8 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
-AVISO_UF = "Cartões: {uf}. Resumo e gráficos: BAP inteira."
+AVISO_UF = "Resumo e gráficos: BAP inteira."
+SEM_DADO_UF = "Sem números de {uf} neste pacote."
 SEM_RECORTE = "só na BAP inteira"
 INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -308,6 +309,7 @@ def recortes_farol(rel: dict) -> list[str]:
 def farol_para_tela(rel: dict, uf: str | None = None) -> dict:
     ufs = recortes_farol(rel)
     uf = (uf or "").upper()
+    sem_dado = False
     if uf in ufs:
         rec = [r for r in _lista(rel["recortes"][uf].get("kpis")) if isinstance(r, dict)]
         todos = [k for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
@@ -317,8 +319,9 @@ def farol_para_tela(rel: dict, uf: str | None = None) -> dict:
                 for k in todos]
         kpis += [r for r in rec if r.get("rotulo") not in {k.get("rotulo") for k in todos}]
     elif re.match(r"^[A-Z]{2}$", uf):
+        sem_dado = True
         # estado sem recorte: "—" nos cartões, nunca o número da BAP inteira
-        kpis = [{"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro", "detalhe": SEM_RECORTE}
+        kpis = [{"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro"}
                 for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
     else:
         uf, kpis = None, rel.get("kpis")
@@ -327,4 +330,4 @@ def farol_para_tela(rel: dict, uf: str | None = None) -> dict:
             "kpis": [k for k in map(_kpi, _lista(kpis)) if k],
             "insights": _insights(rel.get("insights_painel")) or ins_blocos, "blocos": blocos,
             "avisos": [str(a) for a in _lista(rel.get("avisos"))],
-            "aviso_uf": AVISO_UF.format(uf=uf) if uf else "", "baixado_em": rel.get("baixado_em")}
+            "aviso_uf": ((SEM_DADO_UF.format(uf=uf) + " ") if sem_dado else "") + AVISO_UF if uf else "", "baixado_em": rel.get("baixado_em")}

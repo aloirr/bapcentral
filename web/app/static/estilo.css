@@ -85,7 +85,7 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .gb-area{flex:1;display:flex;align-items:stretch;justify-content:center;gap:2px;min-height:0}
 .gb-b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;max-width:36px}
 .gb-b i{display:block;width:100%;border-radius:3px 3px 0 0}
-.gb-txt{font-size:.62rem;font-weight:700;text-align:center;overflow-wrap:anywhere;line-height:1.1}
+.gb-txt{font-size:.62rem;font-weight:700;text-align:center;line-height:1.1;white-space:normal;overflow-wrap:normal}
 .gb-rot{text-align:center;font-size:.7rem;font-weight:700;padding-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:1.4em}.gb-largo .gb-rot{font-size:.6rem}
 .hb{display:grid;gap:.45rem}
 .hb-l{display:grid;grid-template-columns:minmax(70px,30%) 1fr auto;gap:.5rem;align-items:center;font-size:.8rem}
@@ -94,13 +94,7 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 @media(max-width:600px){.kpis{grid-template-columns:1fr 1fr;gap:8px}.kpi-valor{font-size:1.3rem}.graficos{grid-template-columns:1fr}.hb-l{grid-template-columns:minmax(60px,34%) 1fr auto}}
 /* faróis: mini-barras no cartão e legibilidade dos gráficos */
 .kpi-est{grid-column:span 2}
-.mini{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;margin-top:.5rem;height:110px}
-.mini-c{display:flex;flex-direction:column;min-width:0}
-.mini-a{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
-.mini-a i{display:block;width:60%;max-width:28px;background:#8fa79a;border-radius:3px 3px 0 0}
-.mini-t{font-size:.62rem;font-weight:700;text-align:center;line-height:1.05;padding-bottom:2px}
-.mini-uf{text-align:center;font-size:.72rem;font-weight:800;padding-top:3px}
-.gb-txt{white-space:normal;overflow-wrap:normal}
+.kpi-est .rc-barras{min-height:0;height:150px;padding:6px 0 0}.kpi-est .rc-barras .area{min-height:0}
 .gb-vert .gb-area{padding-top:72px}
 .gb-vert .gb-txt{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;font-size:.58rem;padding-top:2px}
 .gb-rotv{height:310px}.gb-rotv .gb-rot{height:76px;overflow:visible;writing-mode:vertical-rl;transform:rotate(180deg);text-overflow:clip;padding:0 0 4px;font-size:.6rem;text-align:right;align-self:center}
