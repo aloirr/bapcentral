@@ -206,19 +206,41 @@ def _vc_painel_ficticio(visoes=("res", "prod", "du"), outras=True):
             "cache": "base.pkl"}
 
 
+# Lista branca fixa (R-20261124-175008-alexandre): os 4 faróis do PC que podem
+# ir para a web. Qualquer outro id em FAROIS_WEB é defeito.
+LISTA_FAROIS_WEB = frozenset({"pv_pedidos", "vc_visitas", "pl_entregas",
+                              "pl_inadimplencia"})
+# relatório montado no PC que nunca vai para a web (fora da lista branca)
+FORA_DA_LISTA = "pl_garantias"
+
+
 def _farois_web():
-    """Faróis que o robô leva ao pacote (T-0017); vazio antes dela."""
-    return set(getattr(ba, "FAROIS_WEB", ()))
+    """Faróis que o robô leva ao pacote (T-0017), na ordem; vazio antes dela."""
+    return tuple(getattr(ba, "FAROIS_WEB", ()))
+
+
+def _chaves_aninhadas(obj):
+    """Todas as chaves de dict, em qualquer nível."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield k
+            yield from _chaves_aninhadas(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _chaves_aninhadas(v)
 
 
 def _escopo_esperado(resultados):
     """vc_painel ∪ os faróis de FAROIS_WEB que vieram montados."""
-    return {"vc_painel"} | (_farois_web() & set(resultados))
+    return {"vc_painel"} | (set(_farois_web()) & set(resultados))
 
 
 def _resultados_ficticios():
     return {"vc_painel": _vc_painel_ficticio(),
-            "pl_inadimplencia": {"linhas": [{"cliente": "NAO-VAI-INAD"}]}}
+            "pl_inadimplencia": {"linhas": [{"cliente": "NAO-VAI-INAD"}]},
+            FORA_DA_LISTA: {"titulo": "NAO-VAI-FORA-DA-LISTA",
+                            "kpis": [{"rotulo": "NAO-VAI-FORA-DA-LISTA",
+                                      "valor": 1}]}}
 
 
 # ------------------------------------------------------- critério 1: só JSON
@@ -230,8 +252,6 @@ def test_T0013_criterio1_pacote_so_tem_tipos_json():
                            "relatorios"}
     assert pacote["ano"] == 2026 and pacote["mes"] == 11
     assert isinstance(pacote["versao_contrato"], int)
-    assert set(pacote["relatorios"]) == _escopo_esperado(
-        _resultados_ficticios())
     assert set(pacote["relatorios"]["vc_painel"]["abas"]) == {
         "resultado", "produtividade"}
 
@@ -337,13 +357,18 @@ def test_T0013_criterio2_pacote_sem_callable_pkl_nem_caminho():
 # (cliente) nunca entram.
 def test_T0013_escopo_vc_painel_e_farois_web_sem_linhas_cruas():
     pacote = ba.montar_pacote_web(_resultados_ficticios(), 2026, 11, AGORA)
+    assert set(_farois_web()) <= LISTA_FAROIS_WEB      # trava do escopo
     assert set(pacote["relatorios"]) == _escopo_esperado(
         _resultados_ficticios())
-    for rid in _farois_web() & set(pacote["relatorios"]):
+    assert FORA_DA_LISTA not in pacote["relatorios"]
+    for rid in set(_farois_web()) & set(pacote["relatorios"]):
         farol = pacote["relatorios"][rid]
         assert farol.get("forma") == "farol"
-        assert "linhas" not in farol and "tabelas" not in farol
+        # "linhas" só no 1º nível: o bloco "insights" usa "linhas" (frases)
+        assert "linhas" not in farol
+        assert "tabelas" not in set(_chaves_aninhadas(farol))
     texto = json.dumps(pacote, ensure_ascii=False)
+    assert "NAO-VAI-FORA-DA-LISTA" not in texto
     assert "NAO-VAI-INAD" not in texto
     assert "NAO-VAI-TABELA" not in texto            # tabelas do vc_painel
     vc = pacote["relatorios"]["vc_painel"]
@@ -530,7 +555,7 @@ def test_T0013_coletar_chama_montar_vc_painel_e_farois_web(monkeypatch):
     monkeypatch.setattr(relatorios_nucleo, "montar", _montar)
     saida = ba.coletar_relatorios_web(2026, 11)
     params = {"ANO": "2026", "MÊS": "11"}
-    farois = tuple(getattr(ba, "FAROIS_WEB", ()))
+    farois = _farois_web()
     assert set(saida) == {"vc_painel", *farois}
     assert chamadas == [("vc_painel", params)] + [(rid, params)
                                                    for rid in farois]
