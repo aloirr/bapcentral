@@ -724,15 +724,12 @@ def _status_nas_tabelas(ctx, rel):
                         f"Status do cliente fora da tabela {titulo}: {erro}")
 
 
-CONTA_TESTE = "000040"      # RN-GER-005: conta de testes, fora de tudo
-
-
 def titulos_sem_internos(titulos):
-    """RN-GER-004/005 (funcao pura): tira dos titulos em aberto os de CNPJ
-    interno (BAP AUTOPARTS / FRW / PMZ DISTRIBUIDORA) e os da conta 000040."""
+    """RN-GER-004 (funcao pura): tira dos titulos em aberto os de CNPJ
+    interno (BAP AUTOPARTS / FRW / PMZ DISTRIBUIDORA). O 000040 e o vendedor
+    de teste, nao cliente: a RN-GER-005 nao tira divida do saldo a receber."""
     return [t for t in titulos or []
-            if str(t.get("cod") or "").strip() != CONTA_TESTE
-            and not bd._interno(t.get("nome"), t.get("fantasia"))]  # noqa: SLF001
+            if not bd._interno(t.get("nome"), t.get("fantasia"))]  # noqa: SLF001
 
 
 def _sem_internos(nome, bloco):
