@@ -2,6 +2,6 @@
 {% block titulo %}Menu{% endblock %}
 {% block corpo %}
 <nav class="menu">
-  {% for m in menu %}<a class="quadro" href="{{ m.href }}">{{ m.nome }}</a>{% endfor %}
+  {% for m in menu %}{% if m.href %}<a class="quadro" href="{{ m.href }}">{{ m.nome }}</a>{% else %}<span class="quadro indisp">{{ m.nome }}<small>ainda não disponível</small></span>{% endif %}{% endfor %}
 </nav>
 {% endblock %}

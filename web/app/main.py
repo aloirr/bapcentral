@@ -215,6 +215,9 @@ def criar_app() -> FastAPI:
     async def home(request: Request):
         u = usuario(request)
         menu = [{"href": "/painel", "nome": RELATORIO[1]}] if u["perfil"] in VERES else []
+        no_pacote = ((ultimo.get() or {}).get("relatorios")) or {}
+        for rid, nome in render.farois_do_perfil(u["perfil"]):
+            menu.append({"href": f"/farol/{rid}" if rid in no_pacote else "", "nome": nome})
         if u["perfil"] == "admin":
             menu.append({"href": "/usuarios", "nome": "Usuários"})
         menu.append({"href": "/senha", "nome": "Trocar senha"})
@@ -234,6 +237,18 @@ def criar_app() -> FastAPI:
         return pagina(request, "painel.html", abas=abas, aba=atual["chave"],
                       tela=render.aba_para_tela(atual, escolhido),
                       filtros=render.filtros(atual), uf=escolhido or "")
+
+    @app.get("/farol/{rid}", response_class=HTMLResponse)
+    async def farol(request: Request, rid: str, uf: str = ""):
+        u = usuario(request)
+        if rid not in render.FAROIS or u["perfil"] not in render.FAROIS[rid][1]:
+            raise PermissionError                       # perfil conferido no servidor
+        nome = render.FAROIS[rid][0]
+        rel = ((ultimo.get() or {}).get("relatorios") or {}).get(rid)
+        if not isinstance(rel, dict) or rel.get("forma") != "farol":
+            return pagina(request, "farol.html", farol_nome=nome, rid=rid, tela=None)
+        return pagina(request, "farol.html", farol_nome=nome, rid=rid,
+                      tela=render.farol_para_tela(rel, uf[:4] or None))
 
     # ------------------------------------------------------------ usuários (admin)
     @app.get("/usuarios", response_class=HTMLResponse)

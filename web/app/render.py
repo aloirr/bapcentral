@@ -8,6 +8,7 @@ geometria do anel (SVG) e altura relativa da barra, como o desenho do PC
 from __future__ import annotations
 
 import math
+import re
 
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
@@ -123,3 +124,172 @@ def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
     return {"titulo": TITULOS[v], "sub": sub, "uf": uf,
             "cartoes": [cartao(c) for c in cartoes],
             "como_ler": como_ler, "avisos": d.get("avisos") or []}
+
+
+# ---------------------------------------------------------------- faróis (T-0017)
+# Forma "farol" do pacote (contrato §10): o PC manda kpis, insights e blocos do painel
+# prontos. Aqui só se desenha (barras em HTML/CSS); nada é recalculado.
+FAROIS = {  # rid -> (nome no PC, perfis que veem)
+    "pv_pedidos": ("Farol de Pedidos", ("admin", "diretor", "gerente", "pre_venda")),
+    "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
+    "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
+    "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+}
+TONS = ("ok", "atencao", "alerta", "info")
+AVISO_UF = "Cartões por estado; gráficos da BAP inteira"
+INDISPONIVEL = "ainda não disponível na web"
+_COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def farois_do_perfil(perfil: str) -> list[tuple[str, str]]:
+    return [(rid, nome) for rid, (nome, perfis) in FAROIS.items() if perfil in perfis]
+
+
+def _tom(t) -> str:
+    return t if t in TONS else ""
+
+
+def _lista(v) -> list:
+    return v if isinstance(v, list) else []
+
+
+def moeda(v) -> str:
+    a, sinal = abs(v), "−" if v < 0 else ""
+    if a >= 1e6:
+        return f"{sinal}R$ {br(a / 1e6, 2)} mi"
+    if a >= 1e4:
+        return f"{sinal}R$ {br(a / 1e3, 0 if round(a / 1e3, 1) % 1 == 0 else 1)} mil"
+    return f"{sinal}R$ {br(a)}"
+
+
+def fmt_valor(v, formato) -> str:
+    v = _num(v)
+    if v is None:
+        return "—"
+    if formato == "moeda":
+        return moeda(v)
+    if formato in ("pct", "pct1"):
+        return br(v, 1) + "%"
+    if formato == "dias":
+        return br(v, 1) + " dia(s)"
+    if formato == "num1" or (isinstance(v, float) and abs(v) < 100 and v % 1):
+        return br(v, 1)
+    return br(v)
+
+
+def _kpi(k) -> dict | None:
+    if not isinstance(k, dict):
+        return None
+    linhas = []
+    for ln in _lista(k.get("linhas")):
+        if isinstance(ln, (list, tuple)) and len(ln) >= 2:
+            linhas.append({"rot": str(ln[0]), "valor": str(ln[1]),
+                           "tom": _tom(ln[2] if len(ln) > 2 else "")})
+    return {"rot": str(k.get("rotulo", "")), "valor": str(k.get("valor", "—")),
+            "cor": _tom(k.get("cor")), "detalhe": str(k.get("detalhe") or ""), "linhas": linhas}
+
+
+def _insights(linhas) -> list[dict]:
+    out = []
+    for ln in _lista(linhas):
+        if isinstance(ln, (list, tuple)) and len(ln) >= 2:
+            out.append({"tom": _tom(ln[0]), "texto": str(ln[1])})
+    return out
+
+
+def _cor(c, padrao) -> str:
+    return c if isinstance(c, str) and _COR.match(c) else padrao
+
+
+def _bloco_barras(b) -> dict:
+    g = b.get("grafico")
+    if not isinstance(g, dict):
+        raise ValueError("sem gráfico")
+    rotulos = [str(x) for x in _lista(g.get("rotulos"))]
+    formato = g.get("formato", "num")
+    series = []
+    for s in _lista(g.get("series")):
+        series.append({"nome": str(s.get("nome", "")), "cor": _cor(s.get("cor"), "#8fa79a"),
+                       "cor_neg": _cor(s.get("cor_negativo"), "#b3261e"),
+                       "vals": [_num(v) for v in _lista(s.get("valores"))],
+                       "txt": [str(t) for t in _lista(s.get("rotulos"))]})
+    meta = _num(g.get("meta"))
+    mx = max([abs(v) for s in series for v in s["vals"] if v] + ([abs(meta)] if meta else []) or [1])
+    cols = []
+    for i, rot in enumerate(rotulos):
+        bs = []
+        for s in series:
+            v = s["vals"][i] if i < len(s["vals"]) else None
+            txt = s["txt"][i] if i < len(s["txt"]) else fmt_valor(v, formato)
+            bs.append({"txt": "" if v is None else txt,
+                       "alt": 0 if not v else round(max(3.0, 100 * abs(v) / mx), 1),
+                       "cor": s["cor_neg"] if (v or 0) < 0 else s["cor"]})
+        cols.append({"rot": rot, "barras": bs})
+    return {"tipo": "barras", "titulo": str(g.get("titulo", "")), "cols": cols,
+            "legenda": [{"nome": s["nome"], "cor": s["cor"]} for s in series if s["nome"]] if len(series) > 1 else [],
+            "meta": {"pos": round(100 * abs(meta) / mx, 1), "txt": fmt_valor(meta, formato)} if meta else None,
+            "largo": len(cols) > 8}
+
+
+def _bloco_hbarras(b) -> dict:
+    rot = [str(x) for x in _lista(b.get("rotulos"))]
+    vals = [_num(v) for v in _lista(b.get("valores"))]
+    cores = _lista(b.get("cores"))
+    formato = b.get("formato", "num")
+    ref = _num(b.get("referencia"))
+    mx = max([abs(v) for v in vals if v] + ([abs(ref)] if ref else []) or [1])
+    linhas = []
+    for i, r_ in enumerate(rot):
+        v = vals[i] if i < len(vals) else None
+        linhas.append({"rot": r_, "txt": fmt_valor(v, formato),
+                       "larg": 0 if not v else round(max(2.0, 100 * abs(v) / mx), 1),
+                       "cor": _cor(cores[i] if i < len(cores) else None, "#8fa79a")})
+    return {"tipo": "hbarras", "titulo": str(b.get("titulo", "")), "linhas": linhas,
+            "ref": {"pos": round(100 * abs(ref) / mx, 1), "txt": fmt_valor(ref, formato)} if ref else None}
+
+
+def _blocos(painel) -> tuple[list[dict], list[dict]]:
+    """(insights do painel, blocos desenháveis). Tipo que não sabemos desenhar, ou bloco
+    malformado, vira cartão 'ainda não disponível na web' sem quebrar a página."""
+    ins, out = [], []
+    blocos = [b for b in _lista((painel or {}).get("blocos")) if isinstance(b, dict)]
+    blocos.sort(key=lambda b: (_num(b.get("row")) or 0, _num(b.get("col")) or 0))
+    for b in blocos:
+        try:
+            if b.get("tipo") == "insights":
+                ins += _insights(b.get("linhas"))
+            elif b.get("tipo") == "barras":
+                out.append(_bloco_barras(b))
+            elif b.get("tipo") == "hbarras":
+                out.append(_bloco_hbarras(b))
+            else:
+                raise ValueError("tipo desconhecido")
+        except (ValueError, TypeError, AttributeError):
+            g = b.get("grafico")
+            titulo = b.get("titulo") or (g.get("titulo") if isinstance(g, dict) else "")
+            out.append({"tipo": "indisponivel", "titulo": str(titulo or "")})
+    return ins, out
+
+
+def recortes_farol(rel: dict) -> list[str]:
+    rec = rel.get("recortes")
+    return sorted(rec) if isinstance(rec, dict) else []
+
+
+def farol_para_tela(rel: dict, uf: str | None = None) -> dict:
+    ufs = recortes_farol(rel)
+    uf = (uf or "").upper()
+    if uf in ufs:
+        kpis = rel["recortes"][uf].get("kpis")
+    elif re.match(r"^[A-Z]{2}$", uf):
+        # estado sem recorte: "—" nos cartões, nunca o número da BAP inteira
+        kpis = [{"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro"}
+                for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
+    else:
+        uf, kpis = None, rel.get("kpis")
+    ins_blocos, blocos = _blocos(rel.get("painel"))
+    return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
+            "kpis": [k for k in map(_kpi, _lista(kpis)) if k],
+            "insights": _insights(rel.get("insights_painel")) or ins_blocos, "blocos": blocos,
+            "avisos": [str(a) for a in _lista(rel.get("avisos"))],
+            "aviso_uf": AVISO_UF if uf else "", "baixado_em": rel.get("baixado_em")}

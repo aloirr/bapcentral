@@ -10,7 +10,9 @@ from zoneinfo import ZoneInfo
 from . import render
 from .arquivos import gravar_json
 
-ACEITOS = ("vc_painel",)
+FAROIS = tuple(render.FAROIS)                   # T-0017: forma "farol"
+ACEITOS = ("vc_painel",) + FAROIS
+PROIBIDAS = ("tabelas", "juntas", "edicao", "editar", "abrir")   # a web é só leitura
 ABAS = render.CHAVES_ABAS                      # fonte única
 MANAUS = ZoneInfo("America/Manaus")
 GUARDAR = 15
@@ -67,6 +69,69 @@ def _recortes_erros(rec) -> str | None:
     return None
 
 
+def _chave_proibida(o, nivel=0) -> str | None:
+    """Chave de edição/tabela ou interna (_): o farol da web não carrega nada disso."""
+    if nivel > 12:
+        return "aninhado demais"
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if isinstance(k, str) and (k in PROIBIDAS or k.startswith("_")):
+                return k[:20]
+            achou = _chave_proibida(v, nivel + 1)
+            if achou:
+                return achou
+    elif isinstance(o, list):
+        for v in o:
+            achou = _chave_proibida(v, nivel + 1)
+            if achou:
+                return achou
+    return None
+
+
+def _kpi_ok(k) -> bool:
+    if not (isinstance(k, dict) and isinstance(k.get("rotulo"), str) and isinstance(k.get("valor"), str)):
+        return False
+    ln = k.get("linhas")
+    return ln is None or (isinstance(ln, list) and all(isinstance(x, list) and len(x) >= 2 for x in ln))
+
+
+def _kpis_ok(ks) -> bool:
+    return isinstance(ks, list) and len(ks) <= 40 and all(_kpi_ok(k) for k in ks)
+
+
+def validar_farol(rid: str, r) -> list[str]:
+    """Forma "farol" (T-0017): só formato; kpis e blocos vêm prontos do PC (contrato §8)."""
+    if not isinstance(r, dict) or r.get("forma") != "farol":
+        return [f"{rid}: forma precisa ser farol"]
+    achou = _chave_proibida(r)
+    if achou:
+        return [f"{rid}: chave não aceita na web: {achou}"]
+    if not isinstance(r.get("titulo"), str):
+        return [f"{rid}: titulo ausente"]
+    if not _kpis_ok(r.get("kpis")):
+        return [f"{rid}: kpis inválidos"]
+    bl = (r.get("painel") or {}).get("blocos") if isinstance(r.get("painel"), dict) else None
+    if not (isinstance(bl, list) and len(bl) <= 30 and all(isinstance(b, dict) and isinstance(b.get("tipo"), str) for b in bl)):
+        return [f"{rid}: painel.blocos inválido"]
+    ins = r.get("insights_painel")
+    if ins is not None and not (isinstance(ins, list) and len(ins) <= 40 and all(
+            isinstance(x, list) and len(x) >= 2 and isinstance(x[1], str) for x in ins)):
+        return [f"{rid}: insights_painel inválido"]
+    av = r.get("avisos")
+    if av is not None and not (isinstance(av, list) and all(isinstance(a, str) for a in av)):
+        return [f"{rid}: avisos inválidos"]
+    if r.get("baixado_em") is not None and not isinstance(r["baixado_em"], str):
+        return [f"{rid}: baixado_em inválido"]
+    rec = r.get("recortes")
+    if rec is not None:
+        if not isinstance(rec, dict) or len(rec) > MAX_RECORTES:
+            return [f"{rid}: recortes inválidos"]
+        for uf, v in rec.items():
+            if not RE_UF.match(str(uf)) or not isinstance(v, dict) or not _kpis_ok(v.get("kpis")):
+                return [f"{rid}: recorte {str(uf)[:4]} inválido"]
+    return []
+
+
 def validar(c) -> list[str]:
     erros: list[str] = []
     if not isinstance(c, dict):
@@ -92,6 +157,9 @@ def validar(c) -> list[str]:
     for k, r in rels.items():
         if k not in ACEITOS:
             erros.append(f"relatório não aceito: {str(k)[:40]}")
+            continue
+        if k in FAROIS:
+            erros += validar_farol(k, r)
             continue
         if not isinstance(r, dict) or not isinstance(r.get("titulo"), str):
             erros.append(f"{k}: titulo ausente")
@@ -137,6 +205,8 @@ def _sem_internas(o):
 def _enxuto(corpo: dict) -> dict:
     """Guarda só o que a tela lê: por aba, os cartões da visão, `sub`, `como_ler`, avisos."""
     for rel in corpo["relatorios"].values():
+        if rel.get("forma") == "farol":
+            continue                                   # farol já vem enxuto do PC
         for chave, visao in ABAS:
             a = rel["abas"][chave]
             d = a["painel"]["blocos"][0]["dados"]

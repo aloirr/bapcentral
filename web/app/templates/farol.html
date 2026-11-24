@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block titulo %}{{ farol_nome }}{% endblock %}
+{% block corpo %}
+{% if not tela %}
+<h1>{{ farol_nome }}</h1>
+<p class="aviso atencao">Ainda não disponível: este farol não veio no último pacote do PC.</p>
+{% else %}
+<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em %}<span>Baixado em {{ tela.baixado_em|manaus }} (Manaus)</span>{% endif %}</header>
+{% if tela.ufs %}
+<nav class="filtros" aria-label="Filtro por estado">
+  <span class="f-rot">Estado</span>
+  <a href="/farol/{{ rid }}" class="{{ 'ativa' if not tela.uf }}">BAP inteira</a>
+  {% for u in tela.ufs %}<a href="/farol/{{ rid }}?uf={{ u }}" class="{{ 'ativa' if u == tela.uf }}">{{ u }}</a>{% endfor %}
+</nav>
+{% endif %}
+{% if tela.aviso_uf %}<p class="aviso info">{{ tela.aviso_uf }}</p>{% endif %}
+{% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
+<section class="kpis">
+{% for k in tela.kpis %}
+<article class="kpi c-{{ k.cor }}">
+  <div class="kpi-rot">{{ k.rot }}</div>
+  <div class="kpi-valor">{{ k.valor }}</div>
+  {% if k.detalhe %}<div class="kpi-det">{{ k.detalhe }}</div>{% endif %}
+  {% for l in k.linhas %}<div class="kpi-lin"><span>{{ l.rot }}</span><b class="t-{{ l.tom }}">{{ l.valor }}</b></div>{% endfor %}
+</article>
+{% else %}<p class="aviso atencao">Sem cartões neste recorte.</p>
+{% endfor %}
+</section>
+{% if tela.insights %}
+<section class="resumo"><h2>Resumo gerencial</h2>
+  <ul>{% for i in tela.insights %}<li class="ins t-{{ i.tom }}"><span>{{ i.texto }}</span></li>{% endfor %}</ul>
+</section>
+{% endif %}
+<section class="graficos">
+{% for b in tela.blocos %}
+<article class="graf">
+  {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
+  {% if b.tipo == "barras" %}
+    {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
+    <div class="gb{{ ' gb-largo' if b.largo }}">
+      {% for c in b.cols %}
+      <div class="gb-col">
+        <div class="gb-area">{% for x in c.barras %}<div class="gb-b"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
+        <div class="gb-rot">{{ c.rot }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if b.meta %}<p class="como">Meta: {{ b.meta.txt }}</p>{% endif %}
+  {% elif b.tipo == "hbarras" %}
+    <div class="hb">
+      {% for l in b.linhas %}
+      <div class="hb-l"><span class="hb-rot">{{ l.rot }}</span><span class="hb-trilho"><i style="width:{{ l.larg }}%;background:{{ l.cor }}"></i></span><b>{{ l.txt }}</b></div>
+      {% endfor %}
+    </div>
+    {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
+  {% else %}
+    <p class="indisp-bloco">ainda não disponível na web</p>
+  {% endif %}
+</article>
+{% endfor %}
+</section>
+{% endif %}
+{% endblock %}

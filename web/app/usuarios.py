@@ -13,7 +13,7 @@ from pathlib import Path
 from .arquivos import gravar_json
 from .config import Config, ConfigErro
 
-PERFIS = ("admin", "diretor", "gerente")
+PERFIS = ("admin", "diretor", "gerente", "pos_venda", "pre_venda", "vendas")   # T-0017: 3 novos, só faróis
 MAX_ERROS = 5
 BLOQUEIO_S = 15 * 60
 SENHA_MIN = 10
