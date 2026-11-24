@@ -37,7 +37,7 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 - Garantia: DT. FECHAMENTO = solicitação + 15 dias úteis.
 - NCC: SLA de 3 dias úteis.
 - Frete: o mínimo vale quando o % da nota dá menos.
-- RN-POS-001 · Cobrança no WhatsApp (PC e site): a fila é o cliente INADIMPLENTE da aba "Por cliente" com títulos VENCIDOS, ordenada pelo valor em atraso; a mensagem e o número (55 + DDD + 9 dígitos) são montados pelo PC; a pessoa envia pelo link (sem disparo automático).
+- RN-POS-001 · Cobrança no WhatsApp (PC e site): a fila é o cliente INADIMPLENTE da aba "Por cliente" com títulos VENCIDOS, ordenada pelo valor em atraso; a mensagem e o número são montados pelo PC (celular: 55 + DDD + 9 dígitos; fixo sai com aviso; número repetido ou ausente fica vazio, com aviso); a pessoa envia pelo link (sem disparo automático).
 - RN-POS-002 · Situação da cobrança: ENVIADO HOJE, ENVIADO dd/mm (menos de 7 dias) ou PULADO HOJE, pelo último registro do cliente em qualquer diário.
 - RN-POS-003 · Diário da cobrança só acrescenta (dado digitado, regra 7). O registro feito no site volta ao PC nas rodadas de 08h e 14h, num arquivo próprio (COBRANCA_WEB.csv), sem repetir registro (chave `id`); o site avisa "situação do PC até hh:mm". Telefone corrigido no site vale só para aquele envio e fica no diário. O diário do site é apagado 30 dias depois de confirmado pelo robô; o Render guarda os 7 últimos pacotes (R-20261124-192008-alexandre, 3 A, 4 A, 5 A).
 - RN-POS-004 · Quem vê no site o Farol de Inadimplência: admin e pós-venda veem Títulos e Por cliente e cobram; gerente vê as tabelas sem telefone e sem o botão; diretor vê só cartões e gráficos. CNPJ não vai ao site (cliente pelo código). Sem exportar tabelas no site nesta entrega (1 A, 2 A, 6 A).
