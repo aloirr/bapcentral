@@ -20,3 +20,9 @@
 - 2026-11-23 — T-0015 — criada (`.bat` com CRLF)
 - 2026-11-23 — T-0004 — #27 (pytest bloqueante, smoke informativo) com o "autorizo" do Alexandre
 - 2026-11-23 — T-0015 — #28 (.gitattributes) e #29 (teste); concluída
+- 2026-11-23 — T-0011 — #32 com o "autorizo" do Alexandre; concluída
+- 2026-11-23 — T-0012 — #33 com o "autorizo" do Alexandre e #34; concluída
+- 2026-11-23 — T-0010 — "instale": 7 arquivos na produção, byte a byte; concluída
+- 2026-11-23 — T-0014 — #36, #35, #37 e #38 (autonomia de merge, R-20261123-201156-alexandre)
+- 2026-11-23 — T-0013 — Render: bap-central criado pelo navegador; v0.1.0 no ar; segredos trocados depois de um print
+- 2026-11-23 — T-0014 — bap_automation.py na produção com backup; falta o robô no notebook novo
