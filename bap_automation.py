@@ -6591,6 +6591,9 @@ _TITULOS_ABAS_WEB = {"Painel · resultado": "resultado",
 _PACOTE_WEB_CHAVES_ACAO = frozenset({
     "detalhe_pedido", "kpis_de", "total_de", "ordem_exportar", "edicao",
     "garantia", "importar_preenchidos"})
+# o farol (T-0017) tira tambem tabelas (tem cliente/CNPJ), juntas e o que edita
+_CHAVES_FORA_FAROL_WEB = _PACOTE_WEB_CHAVES_ACAO | {
+    "tabelas", "juntas", "editar", "abrir"}
 _DESCARTAR = object()
 
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
@@ -6600,8 +6603,6 @@ FAROIS_WEB = ("pl_inadimplencia",)
 # fica FORA do pacote enquanto for False. Liga em 1 linha.
 WEB_GRAFICOS_COM_NOME = True
 _TIPOS_BLOCO_FAROL_WEB = ("insights", "barras", "hbarras")   # kpis vao no topo
-_CHAVES_FORA_FAROL_WEB = frozenset({
-    "tabelas", "juntas", "edicao", "editar", "abrir"})
 # o que no titulo (ou na frase) denuncia nome de pessoa
 _TERMOS_PESSOA_WEB = ("vendedor", "supervisor")
 # cliente e CNPJ nunca vao (regra 6), com ou sem a constante
@@ -6610,7 +6611,7 @@ _TERMOS_CLIENTE_WEB = ("devedor", "cnpj")
 _TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
 
 
-def _para_json(obj, _nivel: int = 0):
+def _para_json(obj, _nivel: int = 0, fora=_PACOTE_WEB_CHAVES_ACAO):
     """Converte para tipos JSON; devolve _DESCARTAR para o que nao vai."""
     if _nivel > 40:
         return _DESCARTAR
@@ -6631,22 +6632,22 @@ def _para_json(obj, _nivel: int = 0):
     if isinstance(obj, date):
         return obj.isoformat()
     if isinstance(obj, pd.DataFrame):
-        return _para_json(obj.to_dict("records"), _nivel + 1)
+        return _para_json(obj.to_dict("records"), _nivel + 1, fora)
     if isinstance(obj, pd.Series):
-        return _para_json(obj.tolist(), _nivel + 1)
+        return _para_json(obj.tolist(), _nivel + 1, fora)
     try:
         import decimal                                  # noqa: PLC0415
         if isinstance(obj, decimal.Decimal):
-            return _para_json(float(obj), _nivel + 1)
+            return _para_json(float(obj), _nivel + 1, fora)
     except Exception:                                   # noqa: BLE001
         pass
     if isinstance(obj, dict):
         saida = {}
         for k, v in obj.items():
             ch = k if isinstance(k, str) else str(k)
-            if ch.startswith("_") or ch in _PACOTE_WEB_CHAVES_ACAO:
+            if ch.startswith("_") or ch in fora:
                 continue
-            val = _para_json(v, _nivel + 1)
+            val = _para_json(v, _nivel + 1, fora)
             if val is not _DESCARTAR:
                 saida[ch] = val
         return saida
@@ -6655,14 +6656,14 @@ def _para_json(obj, _nivel: int = 0):
             else obj
         saida = []
         for v in itens:
-            val = _para_json(v, _nivel + 1)
+            val = _para_json(v, _nivel + 1, fora)
             if val is not _DESCARTAR:
                 saida.append(val)
         return saida
     for metodo in ("item", "tolist"):                   # numpy
         if callable(getattr(obj, metodo, None)):
             try:
-                return _para_json(getattr(obj, metodo)(), _nivel + 1)
+                return _para_json(getattr(obj, metodo)(), _nivel + 1, fora)
             except Exception:                           # noqa: BLE001
                 pass
     return _DESCARTAR
@@ -6675,6 +6676,27 @@ def _agora_manaus() -> datetime:
     except Exception:                                   # noqa: BLE001
         from datetime import timedelta, timezone        # noqa: PLC0415
         return datetime.now(timezone(timedelta(hours=-4)))   # sem horario de verao
+
+
+def _com_fuso_manaus(quando=None) -> datetime:
+    """Funcao pura: `quando` (ou agora) com fuso; sem fuso vale Manaus (-04:00)."""
+    quando = quando or _agora_manaus()
+    if getattr(quando, "tzinfo", None) is None:
+        from datetime import timedelta, timezone        # noqa: PLC0415
+        quando = quando.replace(tzinfo=timezone(timedelta(hours=-4)))
+    return quando
+
+
+def _baixado_em_da_base(arquivo=None):
+    """Quando a base do farol foi baixada do ERP: a data de gravacao do
+    TABELA_BAP.xlsx (a saida do robo; ftTitulos mora nele), em Manaus. Sem o
+    arquivo: None (o site mostra que nao sabe, nao a hora de hoje)."""
+    try:
+        arq = Path(arquivo) if arquivo else PASTA_RELATORIOS / "TABELA_BAP.xlsx"
+        return datetime.fromtimestamp(arq.stat().st_mtime,
+                                      _agora_manaus().tzinfo)
+    except Exception:                                   # noqa: BLE001
+        return None
 
 
 def recortes_por_uf(cartoes) -> dict:
@@ -6759,16 +6781,6 @@ def selecionar_abas_web(r: dict) -> dict:
     return saida
 
 
-def _sem_chaves_de_acao(obj):
-    """Tira (recursivo) as chaves de edicao/tabela; o resto o _para_json limpa."""
-    if isinstance(obj, dict):
-        return {k: _sem_chaves_de_acao(v) for k, v in obj.items()
-                if str(k) not in _CHAVES_FORA_FAROL_WEB}
-    if isinstance(obj, (list, tuple)):
-        return [_sem_chaves_de_acao(v) for v in obj]
-    return obj
-
-
 def _texto_com_pessoa(txt, grafico_com_nome, titulo=False) -> bool:
     baixo = str(txt or "").lower()
     termos = _TERMOS_CLIENTE_WEB + (() if grafico_com_nome
@@ -6813,11 +6825,13 @@ def _kpis_com_estados(r: dict) -> list:
     return saida
 
 
-def selecionar_farol_web(rid: str, r: dict, agora=None,
+def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
                          grafico_com_nome=None) -> dict:
     """Funcao pura (T-0017): do farol montado, so a parte dado da forma "farol"
     (contrato, secao 10): {"forma", "titulo", "kpis", "painel": {"blocos"},
-    "insights_painel", "avisos", "recortes", "baixado_em"}. Fica de fora: as
+    "insights_painel", "avisos", "recortes", "baixado_em"}. baixado_em = a
+    hora em que a base foi baixada do ERP (parametro; None se nao se sabe),
+    nao a da montagem. Fica de fora: as
     tabelas (tem cliente/CNPJ), juntas, callables, chaves com "_" e as de
     edicao. Blocos do painel mantidos: insights, barras, hbarras (os cartoes vao
     em "kpis", no topo). hbarras (ou
@@ -6826,10 +6840,6 @@ def selecionar_farol_web(rid: str, r: dict, agora=None,
     if grafico_com_nome is None:
         grafico_com_nome = WEB_GRAFICOS_COM_NOME
     r = r or {}
-    agora = agora or _agora_manaus()
-    if getattr(agora, "tzinfo", None) is None:
-        from datetime import timedelta, timezone        # noqa: PLC0415
-        agora = agora.replace(tzinfo=timezone(timedelta(hours=-4)))
     blocos, titulos_fora = [], []
     for b in ((r.get("painel") or {}).get("blocos") or []):
         if not isinstance(b, dict) or b.get("tipo") not in _TIPOS_BLOCO_FAROL_WEB:
@@ -6852,12 +6862,12 @@ def selecionar_farol_web(rid: str, r: dict, agora=None,
         "painel": {"blocos": blocos},
         "insights_painel": _linhas_insight(
             r.get("insights_painel"), titulos_fora, grafico_com_nome),
-        "avisos": [str(a) for a in (r.get("avisos") or [])] + (
-            [f"{len(titulos_fora)} gráfico(s) com nome de pessoa não "
-             "aparece(m) na web."] if titulos_fora else []),
+        "avisos": [str(a) for a in (r.get("avisos") or [])],
         "recortes": recortes_farol_por_uf(r),
-        "baixado_em": agora.isoformat()}
-    val = _para_json(_sem_chaves_de_acao(saida))
+        # quando a base foi baixada do ERP (nao a hora da montagem); None = nao sei
+        "baixado_em": (_com_fuso_manaus(baixado_em).isoformat()
+                       if baixado_em else None)}
+    val = _para_json(saida, fora=_CHAVES_FORA_FAROL_WEB)
     return val if isinstance(val, dict) else {}
 
 
@@ -6903,7 +6913,7 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
 
 
 def montar_pacote_web(resultados: dict, ano: int, mes: int,
-                      agora=None) -> dict:
+                      agora=None, arquivo_base=None) -> dict:
     """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
     resultado e produtividade, limpas para JSON."""
     try:
@@ -6911,11 +6921,9 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         versao = int(getattr(_rn, "VERSAO_CONTRATO", 1))
     except Exception:                                   # noqa: BLE001
         versao = 1                                      # ausente = 1 (contrato)
-    agora = agora or _agora_manaus()
-    if getattr(agora, "tzinfo", None) is None:
-        from datetime import timedelta, timezone        # noqa: PLC0415
-        agora = agora.replace(tzinfo=timezone(timedelta(hours=-4)))
+    agora = _com_fuso_manaus(agora)
     limpos = {}
+    baixado_em = _baixado_em_da_base(arquivo_base)
     rel = (resultados or {}).get("vc_painel")
     if isinstance(rel, dict):
         val = _para_json(selecionar_abas_web(rel))
@@ -6926,7 +6934,7 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         if not isinstance(rel, dict) or rel.get("erro_montagem"):
             continue
         try:
-            val = selecionar_farol_web(rid, rel, agora)
+            val = selecionar_farol_web(rid, rel, baixado_em)
         except Exception as erro:                       # noqa: BLE001
             log.warning("Pacote web: farol %s fora do pacote (%s).", rid,
                         type(erro).__name__)
@@ -6946,7 +6954,9 @@ def simular_pacote_farol(rid: str, raiz, destino, ano: int, mes: int,
     import relatorios_nucleo as _rn                     # noqa: PLC0415
     rel = _rn.montar(rid, Path(raiz), hoje=hoje,
                      params={"ANO": str(ano), "MÊS": str(mes)})
-    pacote = montar_pacote_web({rid: rel}, ano, mes)
+    pacote = montar_pacote_web(
+        {rid: rel}, ano, mes,
+        arquivo_base=Path(raiz) / SUBPASTA_RELATORIOS / "TABELA_BAP.xlsx")
     Path(destino).write_text(json.dumps(pacote, ensure_ascii=False,
                                         indent=1), encoding="utf-8")
     return pacote
