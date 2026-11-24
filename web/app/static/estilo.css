@@ -60,3 +60,4 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .filtros a.ativa{background:#2f7d32;border-color:#2f7d32;color:#fff}
 .rrm-recorte .rc{min-height:0}
 .rrm-recorte .rc-topo{flex:1}
+@media(max-width:600px){.filtros a{min-height:44px;display:inline-flex;align-items:center}}
