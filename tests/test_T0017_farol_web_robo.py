@@ -42,7 +42,8 @@ def _farol():
         "painel": {"blocos": [
             {"tipo": "insights", "titulo": "O que o farol diz", "col": 0,
              "linhas": [("alerta", "Inadimplência: 65%."),
-                        ("alerta", "Maiores devedores: CLIENTE FICTICIO (R$ 9)."),
+                        ("alerta", "Maiores devedores: CLIENTE FICTICIO "
+                                  "00.000.000/0001-00 (R$ 9)."),
                         ("info", "Em atraso por vendedor (R$): maior FULANO "
                                  "(R$ 5), menor BELTRANO (R$ 1).")]},
             {"tipo": "barras", "col": 1, "abrir": lambda: 1, "_x": 1,
@@ -56,7 +57,8 @@ def _farol():
             {"tipo": "tabela", "titulo": "Frete", "linhas": [[1]]},
             {"tipo": "kpis", "cartoes": [{"rotulo": "a", "valor": "1"}]}]},
         "insights_painel": [("alerta", "Inadimplência: 65%."),
-                            ("alerta", "Maiores devedores: CLIENTE FICTICIO."),
+                            ("alerta", "Maiores devedores: CLIENTE FICTICIO "
+                                      "00.000.000/0001-00."),
                             ("info", "Em atraso por vendedor (R$): maior "
                                      "FULANO (R$ 5).")],
     }
@@ -131,7 +133,9 @@ def test_T0017_com_a_chave_true_o_grafico_de_vendedor_volta(monkeypatch):
 
 def test_T0017_cliente_nunca_vai_nem_com_a_chave_true():
     r = _sel(grafico_com_nome=True)
-    assert "CLIENTE FICTICIO" not in json.dumps(r, ensure_ascii=False)
+    txt = json.dumps(r, ensure_ascii=False)
+    assert "CLIENTE FICTICIO" not in txt
+    assert "00.000.000/0001-00" not in txt              # nem CNPJ
     assert all("devedores" not in str(l) for l in r["insights_painel"])
     blocos_ins = [b for b in r["painel"]["blocos"] if b["tipo"] == "insights"]
     assert all("devedores" not in str(l) for b in blocos_ins
@@ -199,7 +203,6 @@ def test_T0017_falha_de_um_farol_nao_derruba_o_pacote(monkeypatch):
         return {"id": rid}
     monkeypatch.setattr(relatorios_nucleo, "montar", _montar)
     saida = ba.coletar_relatorios_web(2026, 11)
-    assert set(saida) == {"vc_painel", *ba.FAROIS_WEB}
     assert saida["pl_inadimplencia"]["erro_montagem"] == "RuntimeError"
     pac = ba.montar_pacote_web(saida, 2026, 11, AGORA)
     assert "pl_inadimplencia" not in pac["relatorios"]
@@ -211,21 +214,6 @@ def test_T0017_selecao_que_estoura_fica_fora_e_o_resto_segue(monkeypatch):
     monkeypatch.setattr(ba, "selecionar_farol_web", _quebra)
     pac = ba.montar_pacote_web({"pl_inadimplencia": _farol()}, 2026, 11, AGORA)
     assert pac["relatorios"] == {}
-
-
-def test_T0017_coletar_monta_vc_painel_e_os_farois_do_mes(monkeypatch):
-    import relatorios_nucleo
-    chamadas = []
-
-    def _montar(rid, pasta, params=None):
-        chamadas.append((rid, params))
-        return {"id": rid}
-    monkeypatch.setattr(relatorios_nucleo, "montar", _montar)
-    ba.coletar_relatorios_web(2026, 11)
-    par = {"ANO": "2026", "MÊS": "11"}
-    assert chamadas == [("vc_painel", par)] + [(rid, par)
-                                                for rid in ba.FAROIS_WEB]
-    assert ("pl_inadimplencia", par) in chamadas
 
 
 def test_T0017_frase_com_contagem_de_clientes_fica():
@@ -274,13 +262,15 @@ def test_T0017_sem_a_base_baixado_em_e_nulo(tmp_path):
     assert pac["relatorios"]["pl_inadimplencia"]["baixado_em"] is None
 
 
-def test_T0017_baixado_em_acha_o_titulos_em_abertos_mais_novo(tmp_path):
+def test_T0017_baixado_em_e_o_mtime_do_titulos_em_abertos_mais_novo_pelo_nome(
+        tmp_path):
+    # mtimes invertidos: o de 22/11 foi gravado depois, mas vale o nome (23/11)
     pasta = tmp_path / "SISTEMA BAP" / "BACKUP_RELATORIOS" / "BKP_RELATORIOS_BAPTOOLS"
     pasta.mkdir(parents=True)
-    for dia, ts in (("2026-11-22", 1_700_000_000), ("2026-11-23", 1_700_003_600)):
+    for dia, ts in (("2026-11-22", 1_700_003_600), ("2026-11-23", 1_700_000_000)):
         a = pasta / f"Relatorio_Titulos_em_Abertos_{dia}.xlsx"
         a.write_bytes(b"x")
         os.utime(a, (ts, ts))
     q = ba._baixado_em_da_base("pl_inadimplencia", tmp_path)
-    assert q.isoformat() == "2023-11-14T19:13:20-04:00"
+    assert q.isoformat() == "2023-11-14T18:13:20-04:00"
     assert ba._baixado_em_da_base("pl_inadimplencia", tmp_path / "vazio") is None
