@@ -35,14 +35,15 @@ jobs:
         run: |
           python -m pip install -q pytest openpyxl pandas requests
           python -m pytest tests -q
-      - name: Smoke dos processos (só quando muda .py ou o ci.yml; informativo enquanto houver falha fora da lista do agente testes)
-        continue-on-error: true
+      - name: Smoke dos processos (só quando muda .py ou o ci.yml; bloqueia falha fora da lista do agente testes, tests/conferir_smoke.py)
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if git diff --name-only "origin/$BASE_REF...HEAD" | grep -qE '\.py$|^\.github/workflows/ci\.yml$'; then
             sudo apt-get install -y -q xvfb > /dev/null
-            xvfb-run -a python smoke_processos.py
+            xvfb-run -a python smoke_processos.py > smoke.log 2>&1 || true
+            cat smoke.log
+            python tests/conferir_smoke.py smoke.log
           else
             echo "Nenhum .py mudou, smoke pulado."
           fi
