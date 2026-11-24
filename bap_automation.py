@@ -6661,6 +6661,45 @@ def _agora_manaus() -> datetime:
         return datetime.now(timezone(timedelta(hours=-4)))   # sem horario de verao
 
 
+def recortes_por_uf(cartoes) -> dict:
+    """Funcao pura (T-0014, RN-GER-006): as visoes prontas por estado, para o
+    filtro da web. Nada e calculado: cada cartao da visao de um estado mostra
+    a barra que o PC ja desenha para esse estado (texto e % ou variacao, com
+    a legenda da barra); estado = filial da nota, como no PC.
+    Cartao sem barra do estado fica com "—". Sem filtro por supervisor
+    (R-20261123-191448-alexandre: so o filtro por estado).
+    Devolve {"uf": {UF: {"cartoes": [...]}}}. Testes: tests/test_T0014_recortes_web.py."""
+    ordem, por_uf = [], {}
+    for c in cartoes or []:
+        if not isinstance(c, dict):
+            continue
+        for b in ((c.get("estados") or {}).get("barras") or []):
+            if (isinstance(b, (list, tuple)) and len(b) >= 5 and b[0]
+                    and b[1] is not None and b[0] not in ordem):
+                ordem.append(b[0])
+    for uf in ordem:
+        lista = []
+        for c in cartoes or []:
+            if not isinstance(c, dict):
+                continue
+            est = c.get("estados") or {}
+            b = next((x for x in (est.get("barras") or [])
+                      if isinstance(x, (list, tuple)) and len(x) >= 5
+                      and x[0] == uf and x[1] is not None), None)
+            # uma informacao, um lugar: sem a barra unica (repetiria o
+            # numero); o % ou a variacao vai na legenda, com o que significa
+            leg = " · ".join(x for x in ((b[3] if b else ""),
+                                         (est.get("legenda") or "") if b
+                                         and b[3] else "") if x)
+            lista.append({
+                "chave": c.get("chave"), "titulo": c.get("titulo", ""),
+                "valor": (b[2] or "—") if b else "—", "legenda": leg,
+                "aneis": [], "faixa": [], "estados": None,
+                "ajuda": c.get("ajuda") or ""})
+        por_uf[uf] = {"cartoes": lista}
+    return {"uf": por_uf}
+
+
 def selecionar_abas_web(r: dict) -> dict:
     """Funcao pura: do vc_painel montado, so as abas resultado e produtividade
     ({"titulo", "abas": {...}, "avisos"?}). A tela RRM le so dados[visao],
@@ -6692,6 +6731,8 @@ def selecionar_abas_web(r: dict) -> dict:
                                    "colspan": bloco.get("colspan", 3)}],
                        "altura_min": (p.get("painel") or {}).get("altura_min")},
             "altura_min": (p.get("painel") or {}).get("altura_min"),
+            # (T-0014) visoes prontas por estado (filtro da web)
+            "recortes": recortes_por_uf(d.get(vis)),
         }
     for chave in _ABAS_WEB.values():
         if chave not in abas:
