@@ -335,7 +335,7 @@ relatorios["pl_inadimplencia"] = {
 | `insights_painel` | `list[[tom, texto]]` (§6.2) | igual ao PC |
 | `avisos` | `list[str]` (§2) | os do PC; o robô pode acrescentar (ex.: bloco tirado) |
 | `recortes` | `{"<UF>": {"kpis": list[Kpi]}}` | opcional. UF = 2 letras maiúsculas. **Só os kpis** por estado (abaixo). Atenção: é chaveado direto pela UF, sem o `{"uf": ...}` da forma "abas" |
-| `baixado_em` | `str` ISO 8601 com fuso de Manaus (`-04:00`) ou `null` | quando a base do farol foi baixada do ERP. Não confundir com o `gerado_em` do pacote. A tela mostra os dois |
+| `baixado_em` | `str` ISO 8601 com fuso de Manaus (`-04:00`) ou `null` | a hora em que a base do farol foi baixada do ERP, **não** a hora em que o pacote foi montado (essa é o `gerado_em` do topo do pacote). A tela mostra os dois |
 
 **Filtro (o que sai do `rel` do PC):**
 - só as chaves da tabela acima. Fora: `tabelas`, `juntas`, `graficos` (os gráficos que a web mostra vêm dentro dos blocos do painel), `paineis`, `painel_pre`, `parametros`, `capa`, `params_usados`, `fonte`, `subtitulo`;
@@ -353,7 +353,7 @@ relatorios["pl_inadimplencia"] = {
 
 **Mini-gráficos por estado dos cartões:** vão no pacote, em `kpis[i]["estados"] = {"barras": [[UF, numero, "texto", "% na barra", "tom"], ...], "legenda": ""}`, **só** nos cartões que o PC desenha assim (`estados_do_cartao`, §4). `numero` é `float` (ou `null` sem dado), `texto` é o valor já formatado, `"% na barra"` é o texto da barra (pode ser `""`) e `tom` segue o §4 (`"ok"`, `"atencao"`, `"alerta"` ou `""`). Cartão sem mini-gráfico não leva a chave `estados` (ou leva `null`). É a mesma forma das barras que a T-0014 já lê (`bap_automation.recortes_por_uf`).
 
-**Filtro por estado (RN-GER-006, estado = filial da nota):** muda **só os kpis**. O PC calcula `recortes[UF].kpis` com o `kpis_de` da tabela do farol sobre as linhas da filial daquele estado (o mesmo cálculo da tela, §11.2), e a web só troca os cartões. Os blocos do painel ficam da BAP inteira, e a tela avisa: "Cartões por estado; gráficos da BAP inteira." Estado sem recorte: a web mostra "—" nos cartões, nunca o número da BAP inteira.
+**Filtro por estado (RN-GER-006, estado = filial da nota):** muda **só os kpis**. O PC calcula `recortes[UF].kpis` com o `kpis_de` da tabela do farol sobre as linhas da filial daquele estado (o mesmo cálculo da tela, §11.2), e a web só troca os cartões. Os blocos do painel ficam da BAP inteira, e a tela avisa, com o estado escolhido, que só os cartões seguem o filtro (o texto é da web: `web/app/render.py`, `AVISO_UF`). Estado sem recorte: a web mostra "—" nos cartões, nunca o número da BAP inteira.
 
 **Versão e ordem de publicação:** a web antiga recusa `rid` fora do `ACEITOS` (`web/app/pacotes.py`). Por isso a **web publica antes** (aceita o `rid` novo e a forma "farol") e o **robô depois** (passa a mandar o farol). A versão fica em 1. Chave nova nesta forma = acréscimo compatível; renomear ou tirar chave = v2 com ADR.
 

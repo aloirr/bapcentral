@@ -366,7 +366,7 @@ Vale sobre o adendo 1 onde diverge. Fontes: autorização R-20261124-175008-alex
 - **O pacote do 4f passa a levar faróis, além do `vc_painel`.** Os 4 faróis do PC (Inadimplência, Pedidos, Entregas e Visita), um por entrega. A entrega 1 é o Farol de Inadimplência (`pl_inadimplencia`) com a base comum. Continua o M2: o PC roda o `montar`, a web só guarda e desenha o JSON, só leitura.
 - **Forma "farol"** (`.coord/contratos/relatorio.md`, §10.1): `relatorios[rid] = {"forma": "farol", "titulo", "kpis", "painel": {"blocos"}, "insights_painel", "avisos", "recortes": {"<UF>": {"kpis"}}, "baixado_em"}`. Cartões e blocos no mesmo formato do `montar` do PC, só filtrados: sem `tabelas`, `juntas`, callable, chave `_`, `edicao`, `editar` e `abrir`. Nesta entrega a web desenha `insights`, `barras` e `hbarras`; outro tipo de bloco mostra "ainda não disponível na web".
 - **Filtro por estado** (RN-GER-006; "4 A"): muda só os cartões, que vêm prontos do PC por UF. Os gráficos são da BAP inteira, e a tela avisa.
-- **Mini-gráficos por estado dos cartões** vão no pacote, em `kpis[i]["estados"] = {"barras": [[UF, número, "texto", "% na barra", "tom"], ...], "legenda": ""}`, só nos cartões que o PC desenha assim.
+- **Mini-gráficos por estado dos cartões** vão no pacote, em `kpis[i]["estados"]`, só nos cartões que o PC desenha assim (formato no contrato, §10.1).
 - **O contrato continua na v1** (mudança compatível).
 
 ### Ordem de publicação: web antes do robô
