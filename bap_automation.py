@@ -6668,7 +6668,7 @@ def recortes_por_uf(cartoes) -> dict:
     a legenda da barra); estado = filial da nota, como no PC.
     Cartao sem barra do estado fica com "—". Sem filtro por supervisor
     (R-20261123-191448-alexandre: so o filtro por estado).
-    Devolve {"uf": {UF: {"cartoes": [...]}}}."""
+    Devolve {"uf": {UF: {"cartoes": [...]}}}. Testes: tests/test_T0014_recortes_web.py."""
     ordem, por_uf = [], {}
     for c in cartoes or []:
         if not isinstance(c, dict):
