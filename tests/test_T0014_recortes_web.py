@@ -5,7 +5,7 @@ A visão de um estado é cópia da barra que o PC já desenha para esse estado e
 cada cartão (RN-GER-006: estado = filial da nota); nada é recalculado. Sem
 filtro por supervisor (R-20261123-191448-alexandre).
 
-Dados 100% fictícios.
+Dados 100% fictícios. PRs: #35 (testes) e #37 (modulo-robo).
 """
 import json
 
