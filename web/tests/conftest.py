@@ -1,6 +1,7 @@
 """Fixtures: dados de exemplo (agregados por UF), nada de pessoa ou cliente; segredos só por monkeypatch."""
 import secrets
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -60,7 +61,12 @@ def amb(tmp_path, monkeypatch):
     monkeypatch.setenv("BAP_ADMIN_SENHA_INICIAL", SENHA0)
     monkeypatch.setenv("BAP_WEB_PACOTE_MAX_MB", "1")
     monkeypatch.setenv("TZ", "America/Manaus")
-    return tmp_path
+    # o processo precisa ler o TZ novo: sem isso, das 20h à meia-noite de Manaus a data
+    # local (UTC no runner do CI) difere da de Manaus e a trava do fuso dá 503
+    time.tzset()
+    yield tmp_path
+    monkeypatch.undo()
+    time.tzset()
 
 
 @pytest.fixture
