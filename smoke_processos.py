@@ -532,18 +532,30 @@ if TABELA.exists() and (AQUI / "SISTEMA BAP" / "Consulta CNAE" / "cache_cnae.jso
     _cabx = list(next(_wb["EXCLUIDOS"].iter_rows(values_only=True)))
     checar(_cabx[-2:] == ["MOTIVO_EXCLUSAO", "SEGMENTO_SUGERIDO"],
            "a aba EXCLUIDOS traz o MOTIVO e a SUGESTAO")
-    _n_base = _wb["BASE_CLIENTE"].max_row - 1
-    _n_exc = _wb["EXCLUIDOS"].max_row - 1
+    # (24/11, Alexandre) "ninguem some" = todo cliente da TABELA esta na
+    # base OU nos excluidos, e ninguem fica nos dois (a base pode ter
+    # cliente que nao esta na dClientesBap: a conta de igualdade era rigida)
+    def _chaves(ws):
+        _it_ = ws.iter_rows(values_only=True)
+        _c_ = list(next(_it_))
+        _i_, _j_ = _c_.index("COD_CLIENTE"), _c_.index("LOJA")
+        return {(bcli.texto(r[_i_]).zfill(6), bcli.texto(r[_j_]))
+                for r in _it_ if r[_i_] is not None}
+    _k_base, _k_exc = _chaves(_wb["BASE_CLIENTE"]), _chaves(_wb["EXCLUIDOS"])
+    _n_base, _n_exc = len(_k_base), len(_k_exc)
     _wb.close()
     _wt = openpyxl.load_workbook(TABELA, read_only=True)
     _it = _wt["dClientesBap"].iter_rows(values_only=True)
     _ct = list(next(_it))
     _ic, _il = _ct.index("A1_COD"), _ct.index("A1_LOJA")
-    _n_tab = len({(bcli.texto(r[_ic]).zfill(6), bcli.texto(r[_il])) for r in _it
-                  if r[_ic] is not None})
+    _k_tab = {(bcli.texto(r[_ic]).zfill(6), bcli.texto(r[_il])) for r in _it
+              if r[_ic] is not None}
     _wt.close()
-    checar(_n_base + _n_exc == _n_tab,
-           f"ninguem some: {_n_base} na base + {_n_exc} excluidos = {_n_tab} na TABELA")
+    _sumiu = _k_tab - _k_base - _k_exc
+    checar(not _sumiu and not (_k_base & _k_exc),
+           f"ninguem some: {len(_k_tab)} na TABELA, {_n_base} na base + "
+           f"{_n_exc} excluidos ({len(_sumiu)} sumido(s), "
+           f"{len(_k_base & _k_exc)} nos dois)")
 
     _clis = nu.ler_base_cliente(_base, usar_cache=False)
     _cfg = nu.carregar_config(AQUI / "planner_config.json") \
@@ -628,7 +640,9 @@ if TABELA.exists() and (AQUI / "SISTEMA BAP" / "Consulta CNAE" / "cache_cnae.jso
         for _l in _lin_b:
             _nb = nu.regiao_da_base(_vend_b.get(_l["COD_VENDEDOR"], {}),
                                     _cfg_b["parametros"])
+            # (03/11) Fayga e Rodrigo: base seg/ter (excecao da regra)
             if _nb and _l["DATA"] in _restr and not _nb(_l) and \
+                    not nu.base_seg_ter(_cfg_b, _l["COD_VENDEDOR"]) and \
                     _l["DATA"].isoformat() not in nu.liberadas_do_vendedor(
                         _cfg_b, _l["COD_VENDEDOR"]):
                 _fora_b += 1
