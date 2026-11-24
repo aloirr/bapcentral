@@ -26,3 +26,5 @@
 - 2026-11-23 — T-0014 — #36, #35, #37 e #38 (autonomia de merge, R-20261123-201156-alexandre)
 - 2026-11-23 — T-0013 — Render: bap-central criado pelo navegador; v0.1.0 no ar; segredos trocados depois de um print
 - 2026-11-23 — T-0014 — bap_automation.py na produção com backup; falta o robô no notebook novo
+- 2026-11-24 — T-0016 — causas das 3 falhas da rota; #41, #40, #42; planner_nucleo.py na produção; concluída
+- 2026-11-24 — T-0004 — #43 (conferidor) e #44 (smoke bloqueante, "autorizo" do Alexandre); concluída
