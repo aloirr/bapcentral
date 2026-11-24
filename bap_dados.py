@@ -322,7 +322,9 @@ def _fontes(raiz, bloco) -> tuple[list, str]:
         # DISTRIBUIDORA interna - refaz SO este bloco
         return [tabela, raiz / "meta_config.json", csv], "e2"
     if bloco == "inadimplencia":
-        return [tabela] + _fotos_de_titulos(raiz), ""
+        # "fi1" (24/11, T-0017): as fotos diarias sem os CNPJs internos
+        # (RN-GER-004) - refaz SO este bloco
+        return [tabela] + _fotos_de_titulos(raiz), "fi1"
     if bloco == "comercial":
         return [tabela, rel / "SOLICITACAO_BAP.xlsx",
                 raiz / "oportunidade_config.json"], \
@@ -1422,6 +1424,16 @@ def _chave_titulo(t) -> tuple:
     return (t["filial"], t["prefixo"], t["num"], t["parcela"], t["tipo"])
 
 
+def titulos_sem_internos(titulos) -> list:
+    """RN-GER-004 (funcao pura, fonte unica): tira dos titulos em aberto os
+    de CNPJ interno (BAP AUTOPARTS / FRW / PMZ DISTRIBUIDORA), pela regra de
+    _interno. Usada nas fotos diarias e nos titulos do farol, para o atraso,
+    o recebido e o recuperado baterem com o cartao do farol e com o Diretor.
+    O 000040 e o vendedor de teste, nao cliente: nao sai do saldo."""
+    return [t for t in titulos or []
+            if not _interno(t.get("nome"), t.get("fantasia"))]
+
+
 def resumo_da_foto(titulos, dia) -> dict:
     """Carteira aberta, a vencer e em atraso (vencimento real antes do dia)."""
     atraso = [t for t in titulos if t["venc"] and t["venc"] < dia
@@ -1458,7 +1470,7 @@ def _bloco_inadimplencia(raiz) -> dict:
         try:
             wb = load_workbook(arq, read_only=True, data_only=True)
             try:
-                lidos = _ler_titulos(wb.worksheets[0])
+                lidos = titulos_sem_internos(_ler_titulos(wb.worksheets[0]))
             finally:
                 wb.close()
         except Exception:                               # noqa: BLE001
