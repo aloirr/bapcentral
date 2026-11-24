@@ -51,7 +51,7 @@ def test_farol_desenha_kpis_resumo_barras_e_bloco_desconhecido(admin):
     assert "Recebido (R$) · mês a mês" in h and 'class="hb"' in h and "Vendedor 01" in h
     assert "ainda não disponível na web" in h            # bloco tabela
     assert "Baixado em 24/11/2026 08:10" in h
-    assert "Cartões por estado" not in h
+    assert "Resumo e gráficos: BAP inteira" not in h
     assert "<form" not in h.split("<main>")[1]            # nenhum botão de gravar
 
 
@@ -59,7 +59,7 @@ def test_farol_filtro_por_estado_troca_so_os_cartoes(admin):
     postar(admin, pacote_farol())
     h = admin.get("/farol/pl_inadimplencia?uf=AM").text
     assert "R$ 700 mil" in h and "R$ 1,20 mi" not in h
-    assert "Cartões por estado; gráficos da BAP inteira" in h
+    assert "Cartões: AM. Resumo e gráficos: BAP inteira." in h and "· BAP inteira" in h
     assert "Recebido (R$) · mês a mês" in h              # gráficos seguem da BAP inteira
     h = admin.get("/farol/pl_inadimplencia?uf=RR").text  # sem recorte: traço, nunca o total
     assert "R$ 1,20 mi" not in h and "—" in h
@@ -96,7 +96,7 @@ def test_estados_no_cartao_invalido_422(cli):
 def test_estado_sem_recorte_de_um_cartao_mostra_traco_e_dica(admin):
     postar(admin, pacote_farol())
     h = admin.get("/farol/pl_inadimplencia?uf=AM").text
-    assert h.count("sem recorte por estado") >= 4          # cartões da BAP que o estado não tem
+    assert h.count("só na BAP inteira") >= 4          # cartões da BAP que o estado não tem
     assert '<div class="kpi-valor">R$ 980 mil' not in h   # nunca o número da BAP inteira no cartão
 
 

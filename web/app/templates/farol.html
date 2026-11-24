@@ -28,7 +28,7 @@
 {% endfor %}
 </section>
 {% if tela.insights %}
-<section class="resumo"><h2>Resumo gerencial</h2>
+<section class="resumo"><h2>Resumo gerencial{% if tela.uf %} <small>· BAP inteira</small>{% endif %}</h2>
   <ul>{% for i in tela.insights %}<li class="ins t-{{ i.tom }}"><span>{{ i.texto }}</span></li>{% endfor %}</ul>
 </section>
 {% endif %}

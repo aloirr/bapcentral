@@ -136,8 +136,8 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
-AVISO_UF = "Cartões por estado; gráficos da BAP inteira"
-SEM_RECORTE = "sem recorte por estado"
+AVISO_UF = "Cartões: {uf}. Resumo e gráficos: BAP inteira."
+SEM_RECORTE = "só na BAP inteira"
 INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -327,4 +327,4 @@ def farol_para_tela(rel: dict, uf: str | None = None) -> dict:
             "kpis": [k for k in map(_kpi, _lista(kpis)) if k],
             "insights": _insights(rel.get("insights_painel")) or ins_blocos, "blocos": blocos,
             "avisos": [str(a) for a in _lista(rel.get("avisos"))],
-            "aviso_uf": AVISO_UF if uf else "", "baixado_em": rel.get("baixado_em")}
+            "aviso_uf": AVISO_UF.format(uf=uf) if uf else "", "baixado_em": rel.get("baixado_em")}
