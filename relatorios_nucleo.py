@@ -724,14 +724,6 @@ def _status_nas_tabelas(ctx, rel):
                         f"Status do cliente fora da tabela {titulo}: {erro}")
 
 
-def titulos_sem_internos(titulos):
-    """RN-GER-004 (funcao pura): tira dos titulos em aberto os de CNPJ
-    interno (BAP AUTOPARTS / FRW / PMZ DISTRIBUIDORA). O 000040 e o vendedor
-    de teste, nao cliente: a RN-GER-005 nao tira divida do saldo a receber."""
-    return [t for t in titulos or []
-            if not bd._interno(t.get("nome"), t.get("fantasia"))]  # noqa: SLF001
-
-
 def _sem_internos(nome, bloco):
     """(13/10) Os CNPJs internos (FRW, BAP AUTOPARTS, PMZ DISTRIBUIDORA) fora do resultado
     tambem no cache montado antes da regra: a venda sai da TABELA e o
@@ -749,7 +741,7 @@ def _sem_internos(nome, bloco):
                 if it["cliente"] not in fora
                 and not bd._interno(it.get("razao"))])  # noqa: SLF001
         elif nome == "inadimplencia":
-            bloco = dict(bloco, titulos=titulos_sem_internos(
+            bloco = dict(bloco, titulos=bd.titulos_sem_internos(
                 bloco.get("titulos")))
         elif nome == "base":
             cs = bloco.get("clientes") or []
