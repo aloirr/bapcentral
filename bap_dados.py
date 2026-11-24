@@ -1424,11 +1424,12 @@ def _chave_titulo(t) -> tuple:
     return (t["filial"], t["prefixo"], t["num"], t["parcela"], t["tipo"])
 
 
-def fotos_sem_internos(titulos) -> list:
-    """RN-GER-004 (funcao pura): tira da foto diaria os titulos de CNPJ
-    interno (BAP AUTOPARTS / FRW / PMZ DISTRIBUIDORA) - a mesma regra de
-    _interno e do filtro dos titulos no farol, para o atraso, o recebido e
-    o recuperado baterem com o cartao do farol e com o Diretor."""
+def titulos_sem_internos(titulos) -> list:
+    """RN-GER-004 (funcao pura, fonte unica): tira dos titulos em aberto os
+    de CNPJ interno (BAP AUTOPARTS / FRW / PMZ DISTRIBUIDORA), pela regra de
+    _interno. Usada nas fotos diarias e nos titulos do farol, para o atraso,
+    o recebido e o recuperado baterem com o cartao do farol e com o Diretor.
+    O 000040 e o vendedor de teste, nao cliente: nao sai do saldo."""
     return [t for t in titulos or []
             if not _interno(t.get("nome"), t.get("fantasia"))]
 
@@ -1469,7 +1470,7 @@ def _bloco_inadimplencia(raiz) -> dict:
         try:
             wb = load_workbook(arq, read_only=True, data_only=True)
             try:
-                lidos = fotos_sem_internos(_ler_titulos(wb.worksheets[0]))
+                lidos = titulos_sem_internos(_ler_titulos(wb.worksheets[0]))
             finally:
                 wb.close()
         except Exception:                               # noqa: BLE001
