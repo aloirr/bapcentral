@@ -1,0 +1,23 @@
+{# Barrinhas por estado de um cartão (painel RRM e faróis): `est` = render._barras(...) #}
+{% macro barras_estados(est) %}
+{% if est %}
+<div class="rc-barras">
+  {% for b in est.barras %}
+  <div class="col">
+    <div class="area">
+      {% if not b.vazio %}
+        {% if b.sem_barra %}
+          <div class="rot-b t-{{ b.tom }}">{{ b.rot }}</div><div class="txt-b">{{ b.txt }}</div>
+        {% else %}
+          <div class="txt-b">{{ b.txt }}</div>
+          <div class="barra" style="height:{{ b.alt }}%"><span class="rot-b t-{{ b.tom }}">{{ b.rot }}</span></div>
+        {% endif %}
+      {% endif %}
+    </div>
+    <div class="uf">{{ b.uf }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% if est.legenda %}<div class="rc-legb">● {{ est.legenda }}</div>{% endif %}
+{% endif %}
+{% endmacro %}
