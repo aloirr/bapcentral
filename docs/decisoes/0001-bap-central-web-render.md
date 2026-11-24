@@ -1,6 +1,6 @@
 # ADR 0001 — BAP Central na web (Render)
 
-- **Status:** aprovada (R-20261120-114944-alexandre, itens 2 a 6, sobre as decisões do R-20261120-114608-gerente-projetos), com os adendos 1 e 2 no fim, que mandam sobre o texto original
+- **Status:** aprovada (R-20261120-114944-alexandre, itens 2 a 6, sobre as decisões do R-20261120-114608-gerente-projetos), com os adendos 1, 2 e 3 no fim, que mandam sobre o texto original
 - **Data:** 2026-11-20
 - **Tarefa:** T-0006 · **Autor:** engenheiro-software
 - **Depende de:** T-0002 (contrato do relatório), T-0003 (`ATUALIZAR_DO_GITHUB.bat`), T-0007 (recados por git)
@@ -384,3 +384,42 @@ Vale sobre o adendo 1 onde diverge. Fontes: autorização R-20261124-175008-alex
 - O pacote cresce alguns KB por farol, e o 4f leva cerca de 4 s a mais no PC (inventário do contrato, §8).
 - Visita depende do "Atualizar visitas" manual no PC: o `baixado_em` do farol fica à vista na tela.
 - Os perfis novos da web (`pos_venda`, `pre_venda`, `vendas`) são do desenho do modulo-web, com teste de acesso negado por perfil (§4.5).
+
+## Adendo 3 (24/11/2026): Títulos, Por cliente e "Cobrar no WhatsApp" no Farol de Inadimplência (T-0017)
+
+Vale sobre o adendo 2 **só no `pl_inadimplencia`**; nos outros faróis o adendo 2 continua inteiro. Fontes: pedido R-20261124-181913-alexandre; decisões R-20261124-192008-alexandre ("1 A … 7 A"); regras RN-POS-001 a RN-POS-004 (`docs/produto/03-regras.md`). O formato exato está no contrato, §10.2.
+
+1. **O pacote leva as tabelas e a fila.** Em `relatorios["pl_inadimplencia"]` entram:
+   - as tabelas "Títulos" e "Por cliente", só a parte dado, com lista fechada de colunas, **sem TELEFONE** e sem `edicao`, `kpis_de`, `recortes` e `detalhe`;
+   - o bloco `cobranca`: a fila, a mensagem pronta do PC e o número de WhatsApp já normalizado.
+
+   Assim, código e nome de cliente, cidade e telefone vão ao Render. **CNPJ não vai** ("2 A"): o cliente aparece pelo código, como no PC. O telefone vai **só** em `cobranca.fila[].whatsapp`.
+2. **Quem vê** ("1 A", RN-POS-004). O filtro é no servidor, com 403 e teste por perfil:
+   - `admin` e `pos_venda`: cartões, gráficos, Títulos, Por cliente e "Cobrar no WhatsApp";
+   - `gerente`: cartões, gráficos, Títulos e Por cliente, sem o bloco `cobranca` (sem telefone e sem botão);
+   - `diretor`: só cartões e gráficos;
+   - os outros perfis seguem o `render.FAROIS`, sem tabela nem fila.
+3. **A web deixa de ser só leitura num ponto.**
+   - Ela acrescenta registros ao diário da cobrança no disco, num jsonl só de acréscimo.
+   - Nas rodadas de 08h e 14h ("4 A"), o robô puxa o diário (`GET /api/cobranca`), grava `RELATORIOS/_COBRANCA_WHATSAPP/COBRANCA_WEB.csv` com a chave idempotente `id` e só então confirma (`POST /api/cobranca/confirmar`).
+   - O PC continua a fonte da verdade, e os CSV das máquinas ficam intocados (regra 7 do `CLAUDE.md`).
+   - A tela avisa "situação do PC até hh:mm".
+4. **Telefone corrigido no site** vale só para aquele envio e fica no diário ("5 A"), como no PC.
+5. **Retenção no Render** ("3 A"): os 7 últimos pacotes. O diário do site é apagado 30 dias depois de confirmado pelo robô.
+6. **Sem exportar** tabela, fila ou diário no site nesta entrega ("6 A").
+   - As páginas com tabela ou fila vão com `Cache-Control: no-store` e `noindex`.
+   - O registro de acesso guarda login, rid, aba, ação e hora, sem cliente nem telefone. O log da app continua sem dado pessoal.
+7. **Contrato v1, acréscimo compatível** (§10.2). Ordem de publicação:
+   - **a web antes**: aceita `tabelas` e `cobranca` no `pl_inadimplencia` e abre a API da cobrança;
+   - **o robô depois**. O robô novo trata 404 na API da cobrança como "web antiga": não importa nada e segue.
+8. **Continua:**
+   - o M2: o PC monta, a web desenha;
+   - sem API de WhatsApp nem disparo automático: a pessoa envia pelo link;
+   - nenhum segredo novo: usa o `BAP_WEB_TOKEN`;
+   - o resto do adendo 2: cartões e `insights` sem nome de cliente; os outros faróis sem tabela.
+9. **Conta 000040** ("7 A"): no Farol de Inadimplência, o cliente real de código 000040 continua, como no `main`. A exclusão da RN-GER-005 é da conta de testes, não desse cliente.
+
+### Consequências
+- O pacote cresce cerca de 280 KB por rodada (~40 KB compactado) [SUPOSIÇÃO: medida de 24/11, com 539 títulos e 136 clientes na fila]. Cabe no `BAP_WEB_PACOTE_MAX_MB` de 2 MB e no disco de 1 GB.
+- O 4f ganha duas chamadas HTTPS de saída (puxar e confirmar), com o mesmo token.
+- Se o disco do Render se perder antes de o robô puxar, perde-se no máximo o que foi registrado no site desde a última rodada.
