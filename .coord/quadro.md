@@ -4,7 +4,7 @@ Atualizado em 24/11/2026, 19h10 (Manaus). Dono: gerente-projetos.
 
 **24/11, noite — volta ao Claude Code na nuvem:** gerente fixo no ambiente BapCentral-GP (BAP_AGENTE=gerente-projetos), PO fixo no BapCentral-PO, guardiões e ronda de 20 min de volta. Sessões fixas em Opus 5.5 alto; tarefas e subagentes em Opus 5.5 médio (R-20261124-173350-gerente-projetos). O robô rodou no notebook do Alexandre: primeiro pacote no site às 18h07 (T-0013/T-0014 esperam a conferência dele).
 
-**T-0017 (alta):** Farol de Inadimplência no main (#46 a #53, `94ac56d`), simulação aprovada (R-20261124-181912-alexandre). Aguardando o Alexandre: "aprovo deploy v0.2.0", depois "instale" (bap_automation.py, bap_dados.py, relatorios_nucleo.py) e a decisão do 000040 (R-20261124-184942-gerente-projetos). 2ª entrega (WhatsApp, Títulos e Por cliente) aguarda as 6 decisões do R-20261124-182438-gerente-projetos.
+**T-0017 (alta):** detalhes na linha da tabela e em `.coord/tarefas/T-0017.md`.
 
 **Histórico — 22 e 23/11 no Cowork:** o Alexandre trabalhou numa sessão do Cowork (R-20261122-182900-alexandre e R-20261122-183000-alexandre), sem guardiões nem ronda; os 31 commits do período (646ff3c..b69fda7) foram conferidos commit a commit com o `verificar`: nenhuma violação de dono.
 
