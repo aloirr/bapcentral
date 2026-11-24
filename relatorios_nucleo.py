@@ -740,6 +740,9 @@ def _sem_internos(nome, bloco):
                 it for it in bloco.get("itens") or []
                 if it["cliente"] not in fora
                 and not bd._interno(it.get("razao"))])  # noqa: SLF001
+        elif nome == "inadimplencia":
+            bloco = dict(bloco, titulos=bd.titulos_sem_internos(
+                bloco.get("titulos")))
         elif nome == "base":
             cs = bloco.get("clientes") or []
             if cs:
