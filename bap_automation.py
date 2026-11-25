@@ -6598,7 +6598,7 @@ _DESCARTAR = object()
 
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
 # o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
-FAROIS_WEB = ("pl_inadimplencia",)
+FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas")
 # D1 do Alexandre ("2 A", 24/11): grafico e frase com nome de vendedor ou
 # supervisor VAO no pacote (True). Cliente e CNPJ nunca vao. Com False, o
 # grafico e as frases com nome de pessoa saem (1 linha).
@@ -6610,6 +6610,19 @@ _TERMOS_PESSOA_WEB = ("vendedor", "supervisor")
 # (frase "136 clientes" e contagem, nao nome: so o grafico por cliente sai)
 _TERMOS_CLIENTE_WEB = ("devedor", "cnpj")
 _TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
+# (T-0017, entregas 3 a 5) tabela do farol que o cartao por estado usa
+# (kpis_de + coluna FILIAL; RN-GER-006). Visita: "Por vendedor" (a filial do
+# vendedor; o estado vem pela regra do proprio farol).
+_TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
+                       "pl_entregas": "Entregas", "vc_visitas": "Por vendedor"}
+# bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
+_TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
+# bloco tabela com coluna de pessoa/cliente nunca vai (regra 6)
+_COLUNAS_PESSOA_TABELA_WEB = ("cliente", "cnpj", "cpf", "razão", "razao",
+                              "fantasia", "nome", "telefone", "e-mail",
+                              "email", "contato")
+# avisos do PC sobre abas que a web nao tem (Prospecção) ficam no PC
+_AVISO_SO_PC_WEB = ("prospecção", "prospeccao")
 
 
 def _para_json(obj, _nivel: int = 0, fora=_PACOTE_WEB_CHAVES_ACAO):
@@ -6693,7 +6706,16 @@ def _com_fuso_manaus(quando=None) -> datetime:
 # (Pedidos, Entregas, Visita) ganham a propria fonte aqui.
 _FONTE_BAIXADO_WEB = {
     "pl_inadimplencia": (Path(BKP_BAPTOOLS),
-                         "Relatorio_Titulos_em_Abertos_*.xlsx")}
+                         "Relatorio_Titulos_em_Abertos_*.xlsx"),
+    # Pedidos e Entregas nascem dos Movimentos do Protheus (aba ftPedidos)
+    "pv_pedidos": (Path(BKP_BAPTOOLS),
+                   "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pl_entregas": (Path(BKP_BAPTOOLS),
+                    "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    # Visita: o "Atualizar visitas" e manual no PC; vale a ultima gravacao do
+    # VISITAS_POR_CLIENTE (o passo final do visitas_maxima)
+    "vc_visitas": (Path(SUBPASTA_RELATORIOS) / "Visitas",
+                   "VISITAS_POR_CLIENTE.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
@@ -6853,10 +6875,18 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     if grafico_com_nome is None:
         grafico_com_nome = WEB_GRAFICOS_COM_NOME
     r = r or {}
-    blocos, titulos_fora = [], []
+    blocos, titulos_fora, avisos_extra = [], [], []
+    tipos = _TIPOS_BLOCO_FAROL_WEB + _TIPOS_BLOCO_EXTRA_WEB.get(rid, ())
     for b in ((r.get("painel") or {}).get("blocos") or []):
-        if not isinstance(b, dict) or b.get("tipo") not in _TIPOS_BLOCO_FAROL_WEB:
+        if not isinstance(b, dict) or b.get("tipo") not in tipos:
             continue
+        if b.get("tipo") == "tabela":
+            nomes = [str(c.get("nome") if isinstance(c, dict) else c).lower()
+                     for c in b.get("colunas") or []]
+            if any(t in n for n in nomes for t in _COLUNAS_PESSOA_TABELA_WEB):
+                avisos_extra.append(f"Bloco {b.get('titulo') or 'tabela'} "
+                                    "fica so no PC (traz cliente).")
+                continue
         if b.get("tipo") == "hbarras" and _texto_com_pessoa(
                 b.get("titulo"), grafico_com_nome, titulo=True):
             titulos_fora.append(str(b.get("titulo") or ""))
@@ -6875,11 +6905,19 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
         "painel": {"blocos": blocos},
         "insights_painel": _linhas_insight(
             r.get("insights_painel"), titulos_fora, grafico_com_nome),
-        "avisos": [str(a) for a in (r.get("avisos") or [])],
-        "recortes": recortes_farol_por_uf(r),
+        "avisos": [str(a) for a in (r.get("avisos") or [])
+                   if not any(t in str(a).lower() for t in _AVISO_SO_PC_WEB)]
+                  + avisos_extra,
+        "recortes": recortes_farol_por_uf(
+            r, _TABELA_RECORTE_WEB.get(rid, "Títulos")),
         # quando a base foi baixada do ERP (nao a hora da montagem); None = nao sei
         "baixado_em": (_com_fuso_manaus(baixado_em).isoformat()
                        if baixado_em else None)}
+    if r.get("kpis_faixa"):          # Pedidos: cartoes em faixa, como o PC
+        saida["kpis_faixa"] = True
+    if not saida["recortes"] and rid != "pl_inadimplencia":
+        saida["avisos"].append("Cartões por estado indisponíveis neste "
+                               "pacote: vale só o total da BAP.")
     val = _para_json(saida, fora=_CHAVES_FORA_FAROL_WEB)
     return val if isinstance(val, dict) else {}
 
@@ -6889,7 +6927,8 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
     """Funcao pura (T-0017, RN-GER-006: estado = filial da nota): os cartoes
     do farol por estado, prontos. Chama o kpis_de da tabela com as linhas
     daquela filial, como o filtro da tela do PC. Sem kpis_de, sem a tabela
-    ou sem a coluna: {}. Filial que nao e de um estado conhecido fica fora
+    ou sem a coluna: {}. Com filtro padrao MES na tabela (Pedidos, Entregas), so
+    as linhas desse mes (o mesmo escopo dos cartoes do topo). Filial que nao e de um estado conhecido fica fora
     (o total do farol segue inteiro em "kpis"). uf_de: nome/codigo da filial
     -> UF (padrao: relatorios_nucleo.uf_do_nome_da_filial).
     Devolve {"<UF>": {"kpis": [...]}}."""
@@ -6907,8 +6946,19 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
     if uf_de is None:
         import relatorios_nucleo as _rn                 # noqa: PLC0415
         uf_de = _rn.uf_do_nome_da_filial
+    # o recorte parte do MESMO escopo dos cartoes do topo: o filtro padrao MES
+    # da tabela (Pedidos e Entregas abrem no mes); os outros padroes sao so
+    # visao da tela (ex.: SITUACAO = EM ABERTO) e nao entram no farol
+    mes_ix, mes_val = None, None
+    for f in tab.get("filtros") or []:
+        if (isinstance(f, dict) and f.get("coluna") == "MÊS"
+                and f.get("padrao") and "MÊS" in nomes):
+            mes_ix, mes_val = nomes.index("MÊS"), f["padrao"]
     por_uf = {}
     for ln in tab.get("linhas") or []:
+        if mes_ix is not None and (len(ln) <= mes_ix
+                                   or str(ln[mes_ix]) != str(mes_val)):
+            continue
         try:
             uf = uf_de(ln[ix])
         except Exception:                               # noqa: BLE001
