@@ -100,3 +100,23 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .gb-rotv{height:310px}.gb-rotv .gb-rot{height:76px;overflow:visible;writing-mode:vertical-rl;transform:rotate(180deg);text-overflow:clip;padding:0 0 4px;font-size:.6rem;text-align:right;align-self:center}
 .gb-denso .gb-rot{overflow:visible}.gb-denso:not(.gb-rotv) .gb-rot{height:1.3rem}.gb-denso{padding-right:8px}
 @media(max-width:600px){.kpi-est{grid-column:1/-1}}
+
+/* tabela do farol: 1a coluna fixa na rolagem lateral, números à direita */
+.graf-tab{grid-column:1/-1}
+.tb-rol{max-height:420px;overflow:auto}
+.tb{white-space:nowrap}
+.tb th,.tb td{padding:.3rem .55rem}
+.tb .n{text-align:right;font-variant-numeric:tabular-nums}
+.tb th{position:sticky;top:0;z-index:1}
+.tb th:first-child,.tb td:first-child{position:sticky;left:0;background:#fff;border-right:1px solid #d5dbe1}
+.tb th:first-child{background:#e7edf5;z-index:2}
+.tb tbody tr:nth-child(even) td{background:#f6f8fa}
+.tb tfoot td{font-weight:800;border-top:2px solid #8f9c93;background:#eef2ee;position:sticky;bottom:0}
+/* cartões em faixa fina (kpis_faixa do PC) */
+.kpis.faixa{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px}
+.kpis.faixa .kpi{padding:6px 10px;border-width:1px;border-left-width:5px}
+.kpis.faixa .kpi-rot{font-size:.7rem}
+.kpis.faixa .kpi-valor{font-size:1.15rem;margin-top:.1rem}
+.kpis.faixa .kpi-det{font-size:.72rem;margin-top:0}
+.kpis.faixa .kpi-lin{font-size:.72rem;margin-top:.15rem;padding-top:.1rem}
+@media(max-width:600px){.kpis.faixa{grid-template-columns:1fr 1fr}.kpis.faixa .kpi-valor{font-size:1.05rem}.tb-rol{max-height:340px}}

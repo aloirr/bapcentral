@@ -16,7 +16,7 @@
 {% endif %}
 {% if tela.aviso_uf %}<p class="aviso info">{{ tela.aviso_uf }}</p>{% endif %}
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
-<section class="kpis">
+<section class="kpis{{ ' faixa' if tela.faixa }}">
 {% for k in tela.kpis %}
 <article class="kpi c-{{ k.cor }}{{ ' kpi-est' if k.estados }}">
   <div class="kpi-rot">{{ k.rot }}</div>
@@ -35,7 +35,7 @@
 {% endif %}
 <section class="graficos">
 {% for b in tela.blocos %}
-<article class="graf">
+<article class="graf{{ ' graf-tab' if b.tipo == 'tabela' }}">
   {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
   {% if b.tipo == "barras" %}
     {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
@@ -55,6 +55,13 @@
       {% endfor %}
     </div>
     {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
+  {% elif b.tipo == "tabela" %}
+    <div class="rolagem tb-rol"><table class="tab tb">
+      <thead><tr>{% for c in b.cols %}<th class="{{ 'n' if c.num }}">{{ c.nome }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for l in b.linhas %}<tr>{% for c in l %}<td class="{{ 'n' if c.num }}">{{ c.txt }}</td>{% endfor %}</tr>
+      {% else %}<tr><td colspan="{{ b.cols|length }}">Sem linhas neste pacote.</td></tr>{% endfor %}</tbody>
+      {% if b.total %}<tfoot><tr>{% for c in b.total %}<td class="{{ 'n' if c.num }}">{{ c.txt }}</td>{% endfor %}</tr></tfoot>{% endif %}
+    </table></div>
   {% else %}
     <p class="indisp-bloco">{{ indisponivel }}</p>
   {% endif %}

@@ -248,7 +248,7 @@ def criar_app() -> FastAPI:
         if not isinstance(rel, dict) or rel.get("forma") != "farol":
             return pagina(request, "farol.html", farol_nome=nome, rid=rid, tela=None)
         return pagina(request, "farol.html", farol_nome=nome, rid=rid,
-                      tela=render.farol_para_tela(rel, uf[:4] or None))
+                      tela=render.farol_para_tela(rel, uf[:4] or None, rid))
 
     # ------------------------------------------------------------ usuários (admin)
     @app.get("/usuarios", response_class=HTMLResponse)

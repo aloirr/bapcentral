@@ -105,6 +105,19 @@ def _kpis_ok(ks) -> bool:
     return isinstance(ks, list) and len(ks) <= 40 and all(_kpi_ok(k) for k in ks)
 
 
+def _tabela_ok(b) -> bool:
+    """Bloco tabela do farol: só formato; recusa coluna de cliente, CNPJ ou telefone (regra 6)."""
+    cols, linhas = b.get("colunas"), b.get("linhas")
+    if not (isinstance(cols, list) and 0 < len(cols) <= 20 and isinstance(linhas, list) and len(linhas) <= 500):
+        return False
+    for c in cols:
+        nome = c.get("nome") if isinstance(c, dict) else c
+        if not isinstance(nome, str) or render.coluna_proibida(nome):
+            return False
+    tot = b.get("total")
+    return all(isinstance(x, list) for x in linhas) and (tot is None or isinstance(tot, list))
+
+
 def validar_farol(rid: str, r) -> list[str]:
     """Forma "farol" (T-0017): só formato; kpis e blocos vêm prontos do PC (contrato §8)."""
     if not isinstance(r, dict) or r.get("forma") != "farol":
@@ -119,6 +132,11 @@ def validar_farol(rid: str, r) -> list[str]:
     bl = (r.get("painel") or {}).get("blocos") if isinstance(r.get("painel"), dict) else None
     if not (isinstance(bl, list) and len(bl) <= 30 and all(isinstance(b, dict) and isinstance(b.get("tipo"), str) for b in bl)):
         return [f"{rid}: painel.blocos inválido"]
+    for b in bl:
+        if b["tipo"] == "tabela" and not _tabela_ok(b):
+            return [f"{rid}: bloco tabela inválido ou com coluna de cliente/CNPJ/telefone"]
+    if r.get("kpis_faixa") is not None and not isinstance(r["kpis_faixa"], bool):
+        return [f"{rid}: kpis_faixa inválido"]
     ins = r.get("insights_painel")
     if ins is not None and not (isinstance(ins, list) and len(ins) <= 40 and all(
             isinstance(x, list) and len(x) >= 2 and isinstance(x[1], str) for x in ins)):

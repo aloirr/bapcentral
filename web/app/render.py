@@ -278,6 +278,63 @@ def _bloco_hbarras(b) -> dict:
             "ref": {"pos": round(100 * abs(ref) / mx, 1), "txt": fmt_valor(ref, formato)} if ref else None}
 
 
+_PROIBIDA = re.compile(r"cliente|cnpj|cpf|telefone|fone|whats|celular|e-?mail", re.I)
+MAX_LINHAS_TAB = 200
+
+
+def coluna_proibida(nome) -> bool:
+    """Coluna de cliente, CNPJ ou telefone não entra em tabela do farol (regra 6 do CLAUDE.md)."""
+    return bool(_PROIBIDA.search(str(nome or "")))
+
+
+def _nome_col(c) -> str:
+    return str(c.get("nome", "")) if isinstance(c, dict) else str(c)
+
+
+def _tipo_col(c) -> str:
+    return str(c.get("tipo", "texto")) if isinstance(c, dict) else "texto"
+
+
+def fmt_cel(v, tipo) -> str:
+    """Célula da tabela: o PC manda o número cru e o tipo da coluna; texto já pronto passa direto."""
+    if v is None or v == "":
+        return "—" if tipo != "texto" else ""
+    if isinstance(v, str):
+        return v
+    n = _num(v)
+    if n is None:
+        return str(v)
+    if tipo in ("moeda", "moeda2"):
+        return ("−" if n < 0 else "") + "R$ " + br(abs(n), 2 if tipo == "moeda2" else 0)
+    if tipo in ("pct", "pct1"):
+        return br(n, 1) + "%"
+    if tipo in ("num1", "dia"):
+        return br(n, 1)
+    if tipo == "num2":
+        return br(n, 2)
+    return br(n, 0 if float(n).is_integer() else 1)
+
+
+def _bloco_tabela(b) -> dict:
+    cols = _lista(b.get("colunas"))
+    if not cols or len(cols) > 20 or any(coluna_proibida(_nome_col(c)) for c in cols):
+        raise ValueError("colunas")
+    vis = [i for i, c in enumerate(cols) if not (isinstance(c, dict) and c.get("oculta"))]
+    tipos = [_tipo_col(cols[i]) for i in vis]
+
+    def linha(ln):
+        ln = _lista(ln)
+        return [{"txt": fmt_cel(ln[i] if i < len(ln) else None, t),
+                 "num": t != "texto"} for i, t in zip(vis, tipos)]
+
+    linhas = [linha(ln) for ln in _lista(b.get("linhas"))[:MAX_LINHAS_TAB]]
+    tot = _lista(b.get("total"))
+    return {"tipo": "tabela", "titulo": str(b.get("titulo", "")),
+            "cols": [{"nome": _nome_col(cols[i]), "num": _tipo_col(cols[i]) != "texto"} for i in vis],
+            "linhas": linhas, "total": linha(tot) if tot else None,
+            "largo": len(vis) > 3}
+
+
 def _blocos(painel) -> tuple[list[dict], list[dict]]:
     """(insights do painel, blocos desenháveis). Tipo que não sabemos desenhar, ou bloco
     malformado, vira cartão 'ainda não disponível na web' sem quebrar a página."""
@@ -292,6 +349,8 @@ def _blocos(painel) -> tuple[list[dict], list[dict]]:
                 out.append(_bloco_barras(b))
             elif b.get("tipo") == "hbarras":
                 out.append(_bloco_hbarras(b))
+            elif b.get("tipo") == "tabela":
+                out.append(_bloco_tabela(b))
             else:
                 raise ValueError("tipo desconhecido")
         except (ValueError, TypeError, AttributeError):
@@ -306,7 +365,7 @@ def recortes_farol(rel: dict) -> list[str]:
     return sorted(rec) if isinstance(rec, dict) else []
 
 
-def farol_para_tela(rel: dict, uf: str | None = None) -> dict:
+def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) -> dict:
     ufs = recortes_farol(rel)
     uf = (uf or "").upper()
     sem_dado = False
@@ -327,6 +386,7 @@ def farol_para_tela(rel: dict, uf: str | None = None) -> dict:
         uf, kpis = None, rel.get("kpis")
     ins_blocos, blocos = _blocos(rel.get("painel"))
     return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
+            "faixa": bool(rel.get("kpis_faixa")) or rid == "pv_pedidos",   # cartões em faixa fina, como o PC
             "kpis": [k for k in map(_kpi, _lista(kpis)) if k],
             "insights": _insights(rel.get("insights_painel")) or ins_blocos, "blocos": blocos,
             "avisos": [str(a) for a in _lista(rel.get("avisos"))],

@@ -13,7 +13,7 @@ for (const [nome, largura, altura] of [['pc', 1366, 900], ['cel', 390, 844]]) {
   const ctx = await b.newContext({ viewport: { width: largura, height: altura }, deviceScaleFactor: 2 });
   const p = await ctx.newPage();
   await p.goto(pathToFileURL(resolve(html)).href);
-  await p.screenshot({ path: `${prefixo}-${nome}.png`, fullPage: true });
+  await p.screenshot({ path: `${prefixo}-${nome}.png`, fullPage: false });
   await ctx.close();
 }
 await b.close();

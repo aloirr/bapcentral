@@ -133,3 +133,61 @@ def test_acesso_negado_por_perfil(admin):
     g = _usuario(admin, "ger.farol", "gerente")
     for rid in ("pv_pedidos", "vc_visitas", "pl_entregas", "pl_inadimplencia"):
         assert g.get(f"/farol/{rid}").status_code == 200
+
+
+def _tres():
+    from farol_fixture import farol_entregas, farol_pedidos, farol_visitas
+    return pacote_farol(pl_entregas=farol_entregas(), pv_pedidos=farol_pedidos(), vc_visitas=farol_visitas())
+
+
+def test_tabela_do_painel_desenha_alinhada_com_total(admin):
+    assert postar(admin, _tres()).status_code == 200
+    h = admin.get("/farol/pl_entregas").text
+    assert "Frete por estado · nov/2026" in h and 'class="rolagem tb-rol"' in h
+    assert '<td class="n">R$ 1.250.000</td>' in h and '<td class="n">3,0%</td>' in h and '<td class="n">310</td>' in h
+    assert "<tfoot>" in h and "TOTAL" in h
+    assert "ainda não disponível na web" not in h
+
+
+def test_pedidos_em_faixa_e_visita_sem_bloco_indisponivel(admin):
+    postar(admin, _tres())
+    h = admin.get("/farol/pv_pedidos").text
+    assert 'class="kpis faixa"' in h and "92,0%" in h
+    assert 'class="kpis"' in admin.get("/farol/pl_entregas").text
+    v = admin.get("/farol/vc_visitas").text
+    assert "Visitas por semana" in v and "ainda não disponível na web" not in v
+
+
+def test_menu_com_os_4_farois_disponiveis(admin):
+    p = _tres()
+    p["relatorios"]["pl_inadimplencia"] = pacote_farol()["relatorios"]["pl_inadimplencia"]
+    assert postar(admin, p).status_code == 200
+    h = admin.get("/").text
+    for rid in ("pv_pedidos", "vc_visitas", "pl_entregas", "pl_inadimplencia"):
+        assert f'href="/farol/{rid}"' in h
+
+
+def test_tabela_recusa_coluna_de_cliente_cnpj_telefone(cli):
+    from farol_fixture import farol_entregas
+    for nome in ("CLIENTE", "Cliente / Nome", "CNPJ", "Telefone", "WhatsApp", "E-mail"):
+        e = farol_entregas()
+        e["painel"]["blocos"][0]["colunas"].append({"nome": nome, "tipo": "texto"})
+        assert postar(cli, pacote_farol(pl_entregas=e)).status_code == 422, nome
+    e = farol_entregas()
+    e["painel"]["blocos"][0]["colunas"][0] = "CNPJ"             # coluna em texto simples também
+    assert postar(cli, pacote_farol(pl_entregas=e)).status_code == 422
+    assert postar(cli, pacote_farol(pl_entregas=farol_entregas())).status_code == 200
+
+
+def test_render_descarta_tabela_com_coluna_de_cliente_mesmo_sem_validador():
+    from app.render import farol_para_tela
+    from farol_fixture import farol_entregas
+    e = farol_entregas()
+    e["painel"]["blocos"][0]["colunas"][1] = {"nome": "CLIENTE", "tipo": "texto"}
+    assert [b["tipo"] for b in farol_para_tela(e)["blocos"]] == ["hbarras", "indisponivel"]
+
+
+def test_fmt_cel():
+    from app.render import fmt_cel
+    assert fmt_cel(1250000.0, "moeda") == "R$ 1.250.000"
+    assert fmt_cel(None, "pct1") == "—" and fmt_cel(3.04, "pct1") == "3,0%" and fmt_cel("x", "int") == "x"
