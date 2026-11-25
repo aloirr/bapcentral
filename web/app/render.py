@@ -226,8 +226,8 @@ def kpis_para_tela(kpis) -> list[dict]:
 
 
 # T-0020 (decisão do Alexandre, 25/11/2026): cartão sem dado não aparece e o resumo gerencial não repete
-# o número que já está nos cartões (R$ e %; a frase só sai quando TODOS os números dela já estão lá).
-_NUM_TELA = re.compile(r"R\$ ?-?\d[\d.,]*(?: ?(?:mi|mil)\b)?|-?\d[\d.,]*%")
+# o número que já está nos cartões (R$, % e contagem; a frase só sai quando TODOS os números dela já estão lá).
+_NUM_TELA = re.compile(r"R\$ ?-?\d[\d.,]*(?: ?(?:mi|mil)\b)?|-?\d[\d.,]*%|\d[\d.,]*\d|\d")
 
 
 def _numeros(txt) -> set[str]:
@@ -241,12 +241,22 @@ def cartao_vazio(k: dict) -> bool:
 
 
 def sem_repeticao(insights: list[dict], kpis: list[dict]) -> list[dict]:
-    """Tira do resumo a frase cujos números (R$ e %) já aparecem todos nos cartões."""
+    """Tira do resumo a frase cujos números (R$, % e contagens) já aparecem todos nos cartões."""
     vistos: set[str] = set()
     for k in kpis:
-        for txt in [k.get("valor"), k.get("detalhe")] + [ln.get("valor") for ln in k.get("linhas", [])]:
+        for txt in [k.get("rot"), k.get("valor"), k.get("detalhe")] + [
+                x for ln in k.get("linhas", []) for x in (ln.get("rot"), ln.get("valor"))]:
             vistos |= _numeros(txt)
     return [i for i in insights if not (_numeros(i.get("texto")) and _numeros(i.get("texto")) <= vistos)]
+
+
+def datas_proximas(a, b, minutos: int = 60) -> bool:
+    """T-0020: o "Baixado do ERP" só aparece quando fica a mais de `minutos` da hora do pacote."""
+    from datetime import datetime
+    try:
+        return abs((datetime.fromisoformat(str(a)) - datetime.fromisoformat(str(b))).total_seconds()) <= minutos * 60
+    except (TypeError, ValueError):
+        return False
 
 
 def _insights(linhas) -> list[dict]:
