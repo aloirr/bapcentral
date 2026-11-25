@@ -171,35 +171,98 @@ def _entrega(uf, dnf, etapa, valor):
             "cidade_filial": "MANAUS", "chave": ""}
 
 
-def test_RN_GER_006_entregas_pendencias_anteriores_por_estado(tmp_path):
-    """Comportamento: o Farol de Entregas (relatorios_nucleo.entregas) com
-    entregas fictícias; o kpis_de da tabela Entregas, chamado com as linhas
-    de NOV/26 de um estado (UF do cliente), dá as pendências de meses
-    anteriores SÓ daquele estado; a soma dos estados = o cartão da BAP."""
+def _farol_entregas(tmp_path, entregas):
+    """O Farol de Entregas de verdade (relatorios_nucleo.entregas) com
+    entregas fictícias; devolve o relatório, a tabela Entregas e os índices
+    das colunas UF e MÊS."""
     ctx = rn.Contexto(tmp_path, hoje=HOJE, params={"ANO": "2026", "MÊS": "11"})
-    ctx._b["posvenda"] = {"existe": True, "devolucoes": [], "entregas": [
+    ctx._b["posvenda"] = {"existe": True, "devolucoes": [],
+                          "entregas": entregas}
+    ctx._b["tabela"] = {"itens": []}
+    r = rn.entregas(ctx)
+    t = next(t for t in r["tabelas"] if t["titulo"] == "Entregas")
+    n = [c["nome"] for c in t["colunas"]]
+    return r, t, n.index("UF"), n.index("MÊS")
+
+
+def _pend(kpis):
+    k = next(k for k in kpis if k["rotulo"] == "Pendências anteriores")
+    return k["valor"], k["detalhe"]
+
+
+def _no_mes(t, im, uf=None, iu=None):
+    return [l for l in t["linhas"]
+            if l[im] == "NOV/26" and (uf is None or l[iu] == uf)]
+
+
+def test_RN_GER_006_entregas_pendencias_anteriores_por_estado(tmp_path):
+    """(a) Pendências anteriores seguem o FILTRO de UF da tela (UF do
+    cliente), inclusive em estado sem nota no mês (RR); a soma dos estados
+    = o cartão da BAP."""
+    r, t, iu, im = _farol_entregas(tmp_path, [
         _entrega("AM", date(2026, 11, 5), "ENTREGUE", 10.0),
         _entrega("PA", date(2026, 11, 6), "ENTREGUE", 20.0),
         _entrega("AM", date(2026, 10, 5), "EM ROTA", 1.0),     # pendentes
         _entrega("AM", date(2026, 10, 6), "EM ROTA", 2.0),
         _entrega("PA", date(2026, 10, 7), "EM ROTA", 4.0),
-        _entrega("PA", date(2026, 10, 8), "ENTREGUE", 8.0)]}   # concluída
-    ctx._b["tabela"] = {"itens": []}
-    r = rn.entregas(ctx)
-
-    def pend(kpis):
-        k = next(k for k in kpis if k["rotulo"] == "Pendências anteriores")
-        return k["valor"], k["detalhe"]
-    assert pend(r["kpis"]) == ("3", "R$ 7 · meses anteriores")
-    t = next(t for t in r["tabelas"] if t["titulo"] == "Entregas")
-    n = [c["nome"] for c in t["colunas"]]
-    iu, im = n.index("UF"), n.index("MÊS")
-    por_uf = {uf: pend(t["kpis_de"]([l for l in t["linhas"]
-                                     if l[iu] == uf and l[im] == "NOV/26"]))
-              for uf in ("AM", "PA")}
+        _entrega("RR", date(2026, 10, 9), "EM ROTA", 16.0),    # RR sem nota em NOV
+        _entrega("PA", date(2026, 10, 8), "ENTREGUE", 8.0)])   # concluída
+    assert _pend(r["kpis"]) == ("4", "R$ 23 · meses anteriores")
+    por_uf = {uf: _pend(rn.chamar_kpis_de(
+        t["kpis_de"], _no_mes(t, im, uf, iu), {iu: uf}))
+        for uf in ("AM", "PA", "RR")}
     assert por_uf == {"AM": ("2", "R$ 3 · meses anteriores"),
-                      "PA": ("1", "R$ 4 · meses anteriores")}
-    assert sum(int(v) for v, _ in por_uf.values()) == 3
+                      "PA": ("1", "R$ 4 · meses anteriores"),
+                      "RR": ("1", "R$ 16 · meses anteriores")}
+    assert sum(int(v) for v, _ in por_uf.values()) == 4
+
+
+def test_RN_GER_006_entregas_pendencias_mes_de_um_estado_so(tmp_path):
+    """(b) Mês só com notas do AM e filtro AM: só as pendências do AM (as
+    linhas visíveis são todas as do mês, e mesmo assim não vira o total)."""
+    r, t, iu, im = _farol_entregas(tmp_path, [
+        _entrega("AM", date(2026, 11, 5), "ENTREGUE", 10.0),
+        _entrega("AM", date(2026, 10, 5), "EM ROTA", 1.0),
+        _entrega("PA", date(2026, 10, 7), "EM ROTA", 4.0)])
+    assert _pend(r["kpis"]) == ("2", "R$ 5 · meses anteriores")
+    assert _no_mes(t, im, "AM", iu) == _no_mes(t, im)
+    assert _pend(rn.chamar_kpis_de(t["kpis_de"], _no_mes(t, im, "AM", iu),
+                                   {iu: "AM"})) == ("1", "R$ 1 · meses anteriores")
+
+
+def test_RN_GER_006_entregas_pendencias_sem_filtro_de_UF_e_total_BAP(tmp_path):
+    """(c) Sem filtro, com {} e com filtro de outra coluna (MÊS): o total da
+    BAP, igual a antes da T-0017; chamada direta sem `filtro` também."""
+    r, t, iu, im = _farol_entregas(tmp_path, [
+        _entrega("AM", date(2026, 11, 5), "ENTREGUE", 10.0),
+        _entrega("AM", date(2026, 10, 5), "EM ROTA", 1.0),
+        _entrega("PA", date(2026, 10, 7), "EM ROTA", 4.0)])
+    total = ("2", "R$ 5 · meses anteriores")
+    assert _pend(r["kpis"]) == total
+    linhas = _no_mes(t, im)
+    for filtro in (None, {}, {im: "NOV/26"}):
+        assert _pend(rn.chamar_kpis_de(t["kpis_de"], linhas, filtro)) == total
+    assert _pend(t["kpis_de"](linhas)) == total
+
+
+def test_RN_GER_006_chamar_kpis_de_sem_parametro_recebe_so_as_linhas():
+    """(d) kpis_de sem o parâmetro `filtro` (todas, menos a de Entregas)
+    recebe só as linhas, com ou sem filtro, como antes; com o parâmetro,
+    recebe o filtro."""
+    chamadas = []
+
+    def sem(ls):
+        chamadas.append(ls)
+        return [{"rotulo": "x", "valor": str(len(ls))}]
+    for filtro in (None, {}, {7: "AM"}):
+        assert rn.chamar_kpis_de(sem, [[1], [2]], filtro)[0]["valor"] == "2"
+    assert chamadas == [[[1], [2]]] * 3
+    assert rn.chamar_kpis_de(lambda ls, filtro=None: filtro, [[1]],
+                             {7: "AM"}) == {7: "AM"}
+    # e a kpis_de real de um farol sem o parâmetro (fixture do Pedidos)
+    t = _tabela("Pedidos", [("NOV/26", "MANAUS"), ("NOV/26", "BELÉM")])
+    assert rn.chamar_kpis_de(t["kpis_de"], t["linhas"], {1: "MANAUS"}) == \
+        _kpis_de(t["linhas"])
 
 
 def test_RN_GER_006_entregas_pendencias_anteriores_so_na_BAP_no_site():
