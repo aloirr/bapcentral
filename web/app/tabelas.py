@@ -687,6 +687,26 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
     }
 
 
+def colunas_ocultas(tab: dict) -> set[int]:
+    """T-0020 (decisão do Alexandre, 25/11/2026): posições, na tela, das colunas que só repetem outra.
+    A RAZÃO SOCIAL sai quando a tabela já tem FANTASIA (ela segue no Excel do PC); uma coluna de texto
+    igual, linha a linha, a uma coluna anterior também sai (ex.: PED. MÁX. igual ao PEDIDO)."""
+    cols, linhas = tab.get("cols") or [], tab.get("linhas") or []
+    nomes = [str(c.get("nome", "")).upper() for c in cols]
+    fora = set()
+    if any(n.startswith("FANTASIA") for n in nomes):
+        fora |= {i for i, n in enumerate(nomes) if n.startswith(("RAZÃO SOCIAL", "RAZAO SOCIAL"))}
+    if linhas:
+        vals = [[str((ln["cel"][i] or {}).get("t", "")) if i < len(ln["cel"]) else "" for ln in linhas]
+                for i in range(len(cols))]
+        for i, c in enumerate(cols):
+            if i in fora or c.get("num") or not any(v.strip() for v in vals[i]):
+                continue
+            if any(j not in fora and vals[j] == vals[i] for j in range(i)):
+                fora.add(i)
+    return fora
+
+
 def juntas_para_tela(t: dict, idxs: list[int], uf: str | None = None, centavos: bool = False) -> list[dict]:
     """As juntas da aba: com `liga`, só as linhas ligadas às linhas visíveis de cima (todas as páginas,
     depois de filtro, recorte e estado, §10.7.2); sem `liga`, todas (e o estado, se a junta traz UF)."""
