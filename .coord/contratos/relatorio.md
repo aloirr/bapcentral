@@ -37,7 +37,7 @@
 >   - `SISTEMA BAP/cache/` ao lado do código: o bytecode do Python. Sem `LOCALAPPDATA` (Linux, Render), o `sys.pycache_prefix` ligado no import de `farol_ddr.py:48` e `geocodificar.py:76` (e das telas) aponta para lá. Com `PYTHONPYCACHEPREFIX` no ambiente, o prefixo já vem pronto e é mantido. Os `.pyc` dessa pasta ficam fora do git pelo `*.py[cod]` (`.gitignore:18`), não pelo `__pycache__/`. A pasta recebe também o bytecode da biblioteca padrão compilado depois do import;
 >   - `__pycache__/` na raiz: os módulos importados **antes** do `farol_ddr` (o prefixo ainda não existe) gravam o bytecode no lugar padrão, ignorado pelo `__pycache__/` (`.gitignore:17`).
 >
-> Por isso `gravar_hist=False` sozinho **não** deixa o `montar` em leitura pura (§10.5).
+> Por isso `gravar_hist=False` sozinho **não** deixa o `montar` em leitura pura (§10, item 5).
 
 ## 2. Chaves de topo (sempre presentes)
 
@@ -338,7 +338,7 @@ relatorios["pl_inadimplencia"] = {
 | `baixado_em` | `str` ISO 8601 com fuso de Manaus (`-04:00`) ou `null` | a hora em que a base do farol foi baixada do ERP, **não** a hora em que o pacote foi montado (essa é o `gerado_em` do topo do pacote). A tela mostra os dois |
 
 **Filtro (o que sai do `rel` do PC):**
-- só as chaves da tabela acima (mais `tabelas` e `cobranca` no `pl_inadimplencia`, §10.2). Fora: `tabelas` (nos outros faróis), `juntas`, `graficos` (os gráficos que a web mostra vêm dentro dos blocos do painel), `paineis`, `painel_pre`, `parametros`, `capa`, `params_usados`, `fonte`, `subtitulo`;
+- só as chaves da tabela acima (mais `tabelas` e `cobranca` no `pl_inadimplencia`, §10.6). Fora: `tabelas` (nos outros faróis), `juntas`, `graficos` (os gráficos que a web mostra vêm dentro dos blocos do painel), `paineis`, `painel_pre`, `parametros`, `capa`, `params_usados`, `fonte`, `subtitulo`;
 - nenhum callable (§10, item 1; §11);
 - nenhuma chave que comece com `_`, em qualquer nível;
 - nunca `edicao`, `editar` nem `abrir`, em qualquer nível. **A web recusa o pacote** que trouxer uma delas (dado digitado intocável, regra 7 do `CLAUDE.md`);
@@ -350,7 +350,7 @@ relatorios["pl_inadimplencia"] = {
 - nome de vendedor e de supervisor **vai** nos gráficos (ex.: hbarras "Em atraso por vendedor"), como o gerente vê no PC. A chave do robô fica `bap_automation.WEB_GRAFICOS_COM_NOME = True`;
 - nome de cliente e CNPJ **nunca** vão ao Render nesta fase (regra 6 do `CLAUDE.md`), em nenhum nível: nem em bloco, nem em `kpis[].detalhe`/`linhas`, nem em frase de `insights`/`insights_painel`. A frase "Maiores devedores: ..." do `_painel_inadimplencia` (lista clientes) sai das duas listas no PC, antes do envio;
 - as tabelas (`tabelas`, `juntas` e o bloco `tabela` com cliente) ficam fora ("3 A"). Tabela com cliente na web só numa onda futura, com ADR própria.
-- **Exceção (ADR 0001, adendo 3):** no `pl_inadimplencia`, código, nome, cidade e WhatsApp de cliente vão **só** em `tabelas` e `cobranca` (§10.2). Cartões, blocos e `insights` continuam sem nome de cliente. CNPJ nunca vai.
+- **Exceção (ADR 0001, adendo 3):** no `pl_inadimplencia`, código, nome, cidade e WhatsApp de cliente vão **só** em `tabelas` e `cobranca` (§10.6). Cartões, blocos e `insights` continuam sem nome de cliente. CNPJ nunca vai.
 
 **Mini-gráficos por estado dos cartões:** vão no pacote, em `kpis[i]["estados"] = {"barras": [[UF, numero, "texto", "% na barra", "tom"], ...], "legenda": ""}`, **só** nos cartões que o PC desenha assim (`estados_do_cartao`, §4). `numero` é `float` (ou `null` sem dado), `texto` é o valor já formatado, `"% na barra"` é o texto da barra (pode ser `""`) e `tom` segue o §4 (`"ok"`, `"atencao"`, `"alerta"` ou `""`). Cartão sem mini-gráfico não leva a chave `estados` (ou leva `null`). É a mesma forma das barras que a T-0014 já lê (`bap_automation.recortes_por_uf`).
 
@@ -358,58 +358,70 @@ relatorios["pl_inadimplencia"] = {
 
 **Versão e ordem de publicação:** a web antiga recusa `rid` fora do `ACEITOS` (`web/app/pacotes.py`). Por isso a **web publica antes** (aceita o `rid` novo e a forma "farol") e o **robô depois** (passa a mandar o farol). A versão fica em 1. Chave nova nesta forma = acréscimo compatível; renomear ou tirar chave = v2 com ADR.
 
-### 10.2 Títulos, Por cliente e "Cobrar no WhatsApp" (só `pl_inadimplencia`, T-0017)
+### 10.6 Títulos, Por cliente e "Cobrar no WhatsApp" (só `pl_inadimplencia`, T-0017)
 
-Acrescentada em 24/11/2026. Fontes: ADR 0001, adendo 3; pedido R-20261124-181913-alexandre; decisões R-20261124-192008-alexandre ("1 A … 7 A"); RN-POS-001 a RN-POS-004. **Acréscimo compatível: o contrato continua na v1** (`versao_contrato = 1`). Vale o que está aqui sobre o §10.1, **só** no `relatorios["pl_inadimplencia"]`. Em qualquer outro `rid`, `tabelas` e `cobranca` continuam proibidas (a web recusa o pacote).
+Acrescentada em 24/11/2026 e revista em 25/11/2026 (revisão do PR #56). Fontes: ADR 0001, adendo 3; pedido R-20261124-181913-alexandre; decisões R-20261124-192008-alexandre ("1 A … 7 A"); RN-POS-001 a RN-POS-004. **Acréscimo compatível: o contrato continua na v1** (`versao_contrato = 1`). Vale sobre o §10.1, **só** em `relatorios["pl_inadimplencia"]`. Em qualquer outro `rid`, `tabelas` e `cobranca` continuam proibidas, e a web recusa o pacote.
 
-Donos: o PC monta (modulo-posvenda: `cobranca_whatsapp.pacote_web`; modulo-robo: o 4f), a web valida e desenha (modulo-web).
+**Como citar:** os itens numerados do §10 se citam "§10, item N" (ex.: `web/app/pacotes.py:202`, "chaves com `_`" = §10, item 2). As subseções são §10.1 (forma "farol") e §10.6 (esta). Os números 10.2 a 10.5 não são usados como subseção.
 
-#### 10.2.1 Chaves novas no farol
+Donos: o PC monta (modulo-posvenda: `cobranca_whatsapp.pacote_web`, `historico_origem` e `importar_web`; modulo-robo: o 4f). A web valida e desenha (modulo-web).
+
+#### 10.6.1 Chaves novas no farol
 
 ```python
 relatorios["pl_inadimplencia"] = {
     "forma": "farol", ...,                 # as chaves do §10.1, sem mudança
     "tabelas": [TabelaWeb("Títulos"), TabelaWeb("Por cliente")],
-    "cobranca": {...},                     # §10.2.3
+    "cobranca": {...},                     # §10.6.3
 }
 ```
 
 | Chave | Tipo | Regra |
 |---|---|---|
-| `tabelas` | `list[TabelaWeb]` (§10.2.2) | opcional. Exatamente as 2 tabelas, nesta ordem: `"Títulos"` e `"Por cliente"` |
-| `cobranca` | `dict` (§10.2.3) | opcional. Vai junto com `tabelas` (as duas ou nenhuma) |
+| `tabelas` | `list[TabelaWeb]` (§10.6.2) | opcional. Exatamente as 2 tabelas, nesta ordem: `"Títulos"` e `"Por cliente"` |
+| `cobranca` | `dict` (§10.6.3) | opcional. Vai junto com `tabelas`: as duas ou nenhuma |
 
 Sem as duas chaves, o farol se comporta como no §10.1 (robô antigo).
 
-#### 10.2.2 `TabelaWeb`: a parte dado da tabela do PC
+**Pacotes guardados no Render ("3 A"):** a web passa a guardar os **7** últimos pacotes, de qualquer conteúdo (hoje guarda 15: `web/app/pacotes.py`, `GUARDAR = 15` → `GUARDAR = 7`).
+
+#### 10.6.2 `TabelaWeb`: a parte dado da tabela do PC
 
 Chaves (e só elas):
 
 | Chave | Tipo | Regra |
 |---|---|---|
 | `titulo` | `str` | `"Títulos"` ou `"Por cliente"`, com acento, igual ao PC |
-| `colunas` | `list[{"nome": str, "tipo": str, "largura"?: int, "oculta"?: bool}]` | **exatamente** a lista abaixo, na ordem, com o mesmo `tipo` |
-| `linhas` | `list[list[Celula]]` | uma célula por coluna (mesmo tamanho de `colunas`). Célula: `str`, `int`, `float` ou `null`; data em ISO `"AAAA-MM-DD"` |
+| `colunas` | `list[{"nome": str, "tipo": str, "largura"?: int, "oculta"?: bool}]` | **exatamente** a lista abaixo, na ordem e com o mesmo `tipo` |
+| `linhas` | `list[list[Celula]]` | uma célula por coluna (o mesmo tamanho de `colunas`). Célula: `str`, `int`, `float` ou `null`; data em ISO `"AAAA-MM-DD"` |
 | `tons` | `list[str]` | um por linha, como no §3.3 |
 | `total` | `list[Celula] \| null` | a linha de total do PC, sem a célula de TELEFONE |
 | `filtros` | `list[str \| {"coluna", "padrao"?, "multi"?}]` | os do PC (§3.1); só citam colunas da lista abaixo |
 
-**Fora, sempre:** `edicao`, `editar`, `abrir`, `detalhe`, `kpis_de`, `recortes`, `exportar_*`, chave com `_` e qualquer callable. A tabela da web não tem cartões que seguem o filtro nem recortes nesta entrega.
+**Fora, sempre:** `edicao`, `editar`, `abrir`, `detalhe`, `kpis_de`, `recortes`, `exportar_*`, chave com `_` e qualquer callable. Nesta entrega, a tabela da web não tem cartões que seguem o filtro nem recortes.
 
 **Colunas permitidas** (as do `relatorios_nucleo.farol_inadimplencia`, **menos TELEFONE**; nome e tipo):
 - **"Títulos"** (17): `SITUAÇÃO` texto · `FAIXA` texto · `FILIAL` texto · `NF` texto · `PARC.` texto · `EMISSÃO` data · `VENCIMENTO` data · `DIAS ATRASO` int · `CLIENTE` texto · `NOME` texto · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto · `CONDIÇÃO` texto · `VALOR` moeda · `SALDO` moeda.
 - **"Por cliente"** (16): `SITUAÇÃO` texto · `FAIXA` texto · `CLIENTE` texto · `NOME` texto · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto · `TÍTULOS VENCIDOS` int · `EM ATRASO` moeda · `MAIOR ATRASO` int · `A VENCER` moeda · `PRÓX. VENCIMENTO` data · `LIMITE` moeda · `PEDIDO EM ABERTO` moeda · `ÚLTIMA COMPRA` data.
 
-**A web recusa o pacote inteiro** (com o motivo no log, sem dado pessoal) se: o `titulo` não for um dos dois; a lista de colunas não for igual à de cima (nome, ordem e tipo); aparecer coluna `TELEFONE`, `CNPJ`, `CPF`, `E-MAIL` ou `EMAIL`; uma linha tiver número de células diferente das colunas; ou houver chave proibida. `CLIENTE` é o código-loja do PC (ex.: `"001234-01"`); CNPJ não vai ("2 A").
+**A web recusa o pacote inteiro** (com o motivo no log, sem dado pessoal) quando:
+- o `titulo` não é um dos dois;
+- a lista de colunas não é igual à de cima (nome, ordem e tipo);
+- aparece coluna `TELEFONE`, `CNPJ`, `CPF`, `E-MAIL` ou `EMAIL`;
+- uma linha tem número de células diferente do número de colunas;
+- há chave proibida.
 
-**Igualdade:** célula a célula, a tabela da web é a do PC sem a coluna TELEFONE (o `testes` compara).
+`CLIENTE` é o código-loja do PC (ex.: `"001234-01"`). CNPJ não vai ("2 A").
 
-#### 10.2.3 Bloco `cobranca`
+**Igualdade:** célula a célula, a tabela da web é a do PC sem a coluna TELEFONE. O `testes` compara.
+
+#### 10.6.3 Bloco `cobranca`
 
 ```python
 "cobranca": {
     "gerado_em": "2026-11-24T08:07:00-04:00",  # quando o PC montou a fila
-    "web_ate_seq": 41,          # maior seq do diário do site já gravado no PC
+    "web_epoca": "b7e1c0d2a4f94e0f8a51c3d2e6f70a19",  # época do diário do site
+    "web_ate_seq": 41,          # §10.6.3, definição única abaixo
     "dias_recente": 7,          # cobranca_whatsapp.DIAS_RECENTE (RN-POS-002)
     "modelo": "Olá, {cliente}! ...",            # cobranca_whatsapp.MODELO
     "fila": [{
@@ -430,9 +442,10 @@ Chaves (e só elas):
 | Chave | Tipo | Regra |
 |---|---|---|
 | `gerado_em` | `str` ISO 8601 `-04:00` | a hora em que o robô montou a fila, **depois** de importar o diário do site. É o "hh:mm" do aviso "situação do PC até hh:mm" |
-| `web_ate_seq` | `int` | o maior `seq` do diário do site que já estava no `COBRANCA_WEB.csv` quando a fila foi montada (o `ate_seq` confirmado na rodada; `0` se nenhum) |
+| `web_epoca` | `str` | a `epoca` do diário do site (§10.6.5) a que `web_ate_seq` se refere. `""` quando o robô nunca puxou o diário |
+| `web_ate_seq` | `int` | **definição única:** o maior `seq` da época `web_epoca` cujo registro já estava gravado no `COBRANCA_WEB.csv` quando a fila foi montada, **tenha a confirmação dado certo ou não**. `0` quando nenhum |
 | `dias_recente` | `int` | `7` |
-| `modelo` | `str` | o modelo da mensagem do PC, com `{cliente}`, `{qtd_txt}`, `{total}` e `{titulos}` |
+| `modelo` | `str` | informativo: o modelo da mensagem do PC. A web **não** refaz a mensagem; usa a `mensagem` pronta |
 | `fila` | `list[ItemFila]` | `cobranca_whatsapp.fila(...)` (RN-POS-001): só cliente INADIMPLENTE com título VENCIDO, do maior `em_atraso` para o menor |
 
 `ItemFila` (as chaves de `cobranca_whatsapp.fila`, **sem `telefone_cad`**, mais `mensagem` e `ultimo`):
@@ -445,13 +458,17 @@ Chaves (e só elas):
 | `cidade`, `uf`, `vendedor`, `supervisor` | `str` | da aba "Por cliente" |
 | `em_atraso` | `float` | EM ATRASO |
 | `maior` | `int` | MAIOR ATRASO (dias) |
-| `whatsapp` | `str` | `cobranca_whatsapp.celular()`: `"55"` + DDD + 9 dígitos, ou `""` quando não há celular válido. **O único lugar do pacote com telefone** |
-| `aviso` | `str` | o aviso do `celular()` (`""` quando ok) |
+| `whatsapp` | `str` | o número de `cobranca_whatsapp.celular()` (RN-POS-001): `"55"` + DDD + **9 dígitos (celular) ou 8 dígitos (fixo)**. O fixo vai preenchido, com o `aviso` "telefone fixo: pode não ter WhatsApp". O campo só fica `""` quando o número é inválido (curto), repetido (ex.: `99 99999999`) ou ausente, sempre com `aviso`. **O único lugar do pacote com telefone** |
+| `aviso` | `str` | o aviso do `celular()` (`""` quando é celular válido) |
 | `titulos` | `list[{"nf": str, "parc": str, "venc": "AAAA-MM-DD", "dias": int, "saldo": float}]` | os títulos VENCIDOS do cliente, do maior `dias` para o menor |
 | `mensagem` | `str` | `cobranca_whatsapp.mensagem(item, modelo)`, pronta. A pessoa pode editar na tela; o texto editado **não** é guardado |
-| `ultimo` | `{"quando": "AAAA-MM-DD HH:MM:SS", "acao": "ENVIADO" \| "PULADO", "origem": "PC" \| "WEB"} \| null` | o último registro do cliente em qualquer `COBRANCA_*.csv` (`historico`); `origem = "WEB"` quando a `maquina` do registro é `"WEB"`. `null` = nunca cobrado |
+| `ultimo` | `{"quando": "AAAA-MM-DD HH:MM:SS", "acao": "ENVIADO" \| "PULADO", "origem": "PC" \| "WEB"} \| null` | vem de `cobranca_whatsapp.historico_origem(raiz) -> {cod: (quando, acao, maquina)}`: o último registro do cliente em qualquer `COBRANCA_*.csv`. `origem = "WEB"` quando `maquina == "WEB"`; senão `"PC"`. `null` = nunca cobrado. O `historico()` e a janela do PC não mudam |
 
-**A situação na tela** (RN-POS-002) sai de `ultimo` e de `dias_recente`, calculada pela web com o dia de hoje em Manaus: `ENVIADO HOJE`, `ENVIADO dd/mm` (menos de 7 dias), `PULADO HOJE` ou nada. Antes, a web junta ao `ultimo` os registros do próprio diário com `seq > web_ate_seq` daquele cliente (vale o de `quando` maior) e mostra "situação do PC até hh:mm" (o `gerado_em`).
+**A situação na tela** (RN-POS-002) sai de `ultimo` e de `dias_recente`, calculada pela web com o dia de hoje em Manaus: `ENVIADO HOJE`, `ENVIADO dd/mm` (menos de 7 dias), `PULADO HOJE` ou nada. Antes, a web junta ao `ultimo` os registros do próprio diário daquele cliente que o PC ainda não viu, e vale o de `quando` maior:
+- se `web_epoca` é a época atual do diário: os registros com `seq > web_ate_seq`;
+- se não é (diário recomeçado, ou `web_epoca` vazia): **todos** os registros do diário.
+
+A tela mostra "situação do PC até hh:mm" (o `gerado_em`).
 
 **Quem recebe o quê** (RN-POS-004, "1 A"; o corte é no servidor, antes do HTML):
 
@@ -461,24 +478,42 @@ Chaves (e só elas):
 | `gerente` | sim | sim | **não** (sem telefone e sem botão) |
 | `diretor` e os outros que veem o farol | sim | não | não |
 
-Pedido de aba ou de ação fora do perfil = **403**, com teste por perfil. Sem exportar tabela, fila ou diário ("6 A"). Página com tabela ou fila: `Cache-Control: no-store` e `<meta name="robots" content="noindex">`.
+- Pedido de aba ou de ação fora do perfil = **403**, com teste por perfil.
+- Sem exportar tabela, fila ou diário ("6 A").
+- Página com tabela ou fila: `Cache-Control: no-store` e `<meta name="robots" content="noindex">`.
+- Registro de acesso em `<BAP_WEB_DADOS>/acessos/`, guardado por 90 dias: login, rid, aba, ação e hora, sem cliente nem telefone.
 
-#### 10.2.4 Rota do site: `POST /farol/pl_inadimplencia/cobranca`
+#### 10.6.4 Rota do site: `POST /farol/pl_inadimplencia/cobranca`
 
-- Sessão com login; perfil `admin` ou `pos_venda` (senão 403). CSRF obrigatório no campo `csrf` (o mesmo da sessão, como nas outras rotas POST); sem ele, 403.
+- Sessão com login (cookie); **não aceita Bearer**. Perfil `admin` ou `pos_venda`, senão 403. CSRF obrigatório no campo `csrf` (o mesmo da sessão, como nas outras rotas POST); sem ele, 403.
 - Corpo `application/x-www-form-urlencoded`:
   - `csrf`;
-  - `cliente`: o `cod` de um item da `cobranca.fila` do pacote ativo (senão 404);
+  - `pacote_sha`: o sha256 do pacote com que a página foi desenhada (a página manda sempre);
+  - `cliente`: o `cod` do item;
   - `acao`: `ENVIADO` ou `PULADO` (senão 400);
-  - `telefone`: só com `ENVIADO`; o número usado no envio. Vazio = o `whatsapp` do item. Corrigido na tela ("5 A") = normalizado pela mesma regra do `celular()`; inválido = 400. Vale só para esse envio.
-- O servidor tira `em_atraso` e `titulos` (a quantidade) do item da fila do pacote ativo, nunca do navegador.
-- Clique duplo: mesmo `usuario` + `cliente` + `acao` em menos de 60 s não grava de novo e responde `{"ok": true, "repetido": true}`.
-- Resposta 200 JSON: `{"ok": true, "seq": int, "id": str, "situacao": "ENVIADO HOJE" | "PULADO HOJE", "repetido": false}`.
-- O link `wa.me`/`whatsapp://` é montado no navegador com o número e o texto da tela; o servidor não chama nenhuma API do WhatsApp.
+  - `telefone`: opcional, só com `ENVIADO`. É o número corrigido na tela ("5 A"), normalizado pelo `celular()`: celular ou fixo são aceitos. Se o `celular()` devolve `""`, a resposta é 400. Vale só para esse envio. O site é mais estrito que o PC, que aceita o número digitado sem normalizar.
+- **De onde sai o item (o registro não se perde quando o pacote troca):**
+  1. do pacote `pacote_sha`, se ele ainda está entre os 7 guardados e tem o `cliente` na fila;
+  2. senão, do pacote vigente, se ele tem o `cliente` na fila;
+  3. senão, **404** "abra o farol de novo". Isso só acontece se o pacote da página já saiu dos 7 guardados e o cliente saiu da fila.
 
-#### 10.2.5 Diário do site: `<BAP_WEB_DADOS>/cobranca/COBRANCA_WEB_<AAAA-MM>.jsonl`
+  O `em_atraso` e o `titulos` (a quantidade) do registro saem desse item, nunca do navegador. O `pacote_sha` gravado é o do pacote de onde o item saiu.
+- **ENVIADO precisa de número:** vale o `telefone` digitado (válido) ou, sem ele, o `whatsapp` do item. Se os dois estão vazios, a resposta é **400** e nada é gravado. `PULADO` não pede número.
+- Clique duplo: o mesmo `usuario` + `cliente` + `acao` em menos de 60 s não grava de novo. A resposta traz o registro original com `"repetido": true`.
+- Resposta 200 JSON: `{"ok": true, "seq": int, "id": str, "situacao": "ENVIADO HOJE" | "PULADO HOJE", "repetido": bool}`.
+- O link `wa.me`/`whatsapp://` é montado no navegador com o número e o texto da tela. O servidor não chama nenhuma API do WhatsApp.
 
-Um arquivo por mês (de `quando`), UTF-8, **um objeto JSON por linha**, só acréscimo, com `fsync` depois de cada linha. A web nunca altera nem apaga uma linha antes da confirmação do robô.
+#### 10.6.5 Diário do site: `<BAP_WEB_DADOS>/cobranca/`
+
+**Arquivos:**
+- `COBRANCA_WEB_<AAAA-MM>.jsonl`: um por mês (o mês de `quando`). UTF-8, **um objeto JSON por linha**, só acréscimo, com `fsync` depois de cada linha. Nenhuma linha é alterada nem apagada; a limpeza é **por arquivo inteiro** (abaixo).
+- `estado.json`: o estado do diário, gravado de forma atômica (arquivo temporário + `fsync` + `os.replace`):
+  `{"epoca": str, "ultimo_seq": int, "confirmado_ate": int, "confirmado_em": "AAAA-MM-DD HH:MM:SS", "arquivos": {"COBRANCA_WEB_<AAAA-MM>.jsonl": {"maior_seq": int, "confirmado_em": "AAAA-MM-DD HH:MM:SS" | null}}}`.
+  - O contador de `seq` mora aqui (`ultimo_seq`). Ele sobrevive à limpeza dos jsonl e nunca volta atrás dentro da mesma época.
+  - **`epoca`**: `uuid4().hex`, criada quando o `estado.json` não existe (primeiro uso ou disco perdido). Nesse caso, o `seq` recomeça em 1, mas numa época nova.
+  - Se há jsonl sem `estado.json`, a web não inventa estado: cria época nova e começa o `seq` acima do maior `seq` dos jsonl que ainda existem.
+
+**Registro** (uma linha do jsonl):
 
 ```json
 {"seq": 42, "id": "3f2b8c1e-6a0d-4c1b-9e7a-2d5f0b1c4a9e", "quando": "2026-11-24 15:02:11", "usuario": "login.web", "cliente": "001234-01", "telefone": "5592900000000", "em_atraso": 1234.5, "titulos": 2, "acao": "ENVIADO", "pacote_sha": "9a1c...e0"}
@@ -486,57 +521,79 @@ Um arquivo por mês (de `quando`), UTF-8, **um objeto JSON por linha**, só acr�
 
 | Campo | Tipo | Regra |
 |---|---|---|
-| `seq` | `int` | contador do servidor, começa em 1, cresce de 1 em 1, **nunca reaproveitado** (nem depois da limpeza) |
-| `id` | `str` | `uuid4` do servidor, texto com hífens. Chave de idempotência no PC |
-| `quando` | `str` `"AAAA-MM-DD HH:MM:SS"` | hora de Manaus (`TZ=America/Manaus` obrigatório), no mesmo formato do PC (`historico` compara texto) |
+| `seq` | `int` | de `estado.ultimo_seq + 1`; cresce de 1 em 1 dentro da época, nunca reaproveitado |
+| `id` | `str` | `uuid4` do servidor, texto com hífens. É a chave de idempotência no PC |
+| `quando` | `str` `"AAAA-MM-DD HH:MM:SS"` | hora de Manaus (`TZ=America/Manaus` obrigatório), no formato do PC (`historico` compara texto) |
 | `usuario` | `str` | o login do site |
 | `cliente` | `str` | o `cod` do item |
-| `telefone` | `str` | o número usado (`55`+DDD+9 dígitos); em `PULADO`, o `whatsapp` do item (como o `registrar` do PC; pode ser `""`) |
-| `em_atraso` | `float` | do item da fila |
+| `telefone` | `str` | `ENVIADO`: o número usado (`55` + DDD + 8 ou 9 dígitos, nunca vazio). `PULADO`: o `whatsapp` do item, como o `registrar` do PC (pode ser `""`) |
+| `em_atraso` | `float` | do item (§10.6.4) |
 | `titulos` | `int` | `len(item["titulos"])` |
 | `acao` | `"ENVIADO" \| "PULADO"` | |
-| `pacote_sha` | `str` | o sha256 (hex) do pacote ativo no momento do registro |
+| `pacote_sha` | `str` | o sha256 (hex) do pacote de onde o item saiu |
 
-**Retenção ("3 A"):** a linha confirmada (`seq <= ate_seq` de uma confirmação) é apagada 30 dias depois da confirmação; o arquivo do mês some quando todas as linhas dele já passaram desse prazo. Linha não confirmada nunca é apagada. A marca de confirmação (`ate_seq` e a hora) é interna da web.
+**Retenção ("3 A"), por arquivo:**
+- Só arquivo de **mês já fechado** pode sair.
+- Quando uma confirmação cobre o `maior_seq` de um mês fechado, a web grava `arquivos[<nome>].confirmado_em`.
+- O arquivo é apagado quando passam 30 dias desse `confirmado_em`. Cada linha fica, portanto, **no mínimo** 30 dias depois de confirmada.
+- Arquivo com linha não confirmada nunca é apagado.
 
-#### 10.2.6 API do robô (Bearer `BAP_WEB_TOKEN`, só HTTPS)
+#### 10.6.6 API do robô (Bearer `BAP_WEB_TOKEN`, só HTTPS)
 
-Mesma autenticação do `POST /api/pacote`: `Authorization: Bearer <BAP_WEB_TOKEN>`; sem ele ou errado = 401 com `WWW-Authenticate: Bearer`. Respostas em `application/json`.
+- Mesma autenticação do `POST /api/pacote`: `Authorization: Bearer <BAP_WEB_TOKEN>`. Sem ele ou errado = 401 com `WWW-Authenticate: Bearer`. **Não aceita cookie de sessão.**
+- Respostas em `application/json`.
 
 **`GET /api/cobranca?desde=<seq>`**
-- `desde`: `int >= 0` (ausente = 0; inválido = 400).
-- 200: `{"linhas": [Registro, ...], "ate_seq": int, "mais": bool}`.
-  - `linhas`: os registros do diário com `seq > desde`, em ordem de `seq`, no formato do §10.2.5, no máximo 1000;
-  - `ate_seq`: o maior `seq` devolvido (ou `desde`, se `linhas` vier vazia);
-  - `mais`: `true` quando há mais registros depois de `ate_seq` (o robô chama de novo com `desde = ate_seq`).
+- `desde`: `int >= 0`; ausente = 0; inválido = 400.
+- 200: `{"epoca": str, "linhas": [Registro, ...], "ate_seq": int, "mais": bool}`.
+  - `epoca`: a época atual do diário (§10.6.5);
+  - `linhas`: os registros guardados com `seq > desde`, em ordem de `seq`, no formato do §10.6.5, no máximo 1000;
+  - `ate_seq`: o maior `seq` devolvido, ou `desde` se `linhas` vier vazia;
+  - `mais`: `true` quando há mais registros depois de `ate_seq`. O robô chama de novo com `desde = ate_seq`.
 - Não muda nada no servidor.
 
-**`POST /api/cobranca/confirmar`**, corpo `application/json` `{"ate_seq": int}`
-- Marca como confirmados todos os registros com `seq <= ate_seq`. Idempotente: confirmar de novo o mesmo valor (ou um menor) responde 200 e não muda nada.
-- `ate_seq` maior que o último `seq` gravado = 409; não inteiro ou negativo = 400.
-- 200: `{"ok": true, "confirmado_ate": int}` (o maior `ate_seq` já confirmado).
+**`POST /api/cobranca/confirmar`**, corpo `application/json` `{"epoca": str, "ate_seq": int}`
+- Marca como confirmados todos os registros com `seq <= ate_seq`.
+- Idempotente: confirmar de novo o mesmo valor, ou um menor, responde 200 e não muda nada.
+- Erros:
+  - `epoca` diferente da atual = 409 `{"erro": "epoca"}`;
+  - `ate_seq` maior que `ultimo_seq` = 409;
+  - campo ausente, não inteiro ou negativo = 400.
+- 200: `{"ok": true, "epoca": str, "confirmado_ate": int}` (o maior `ate_seq` já confirmado).
 
-#### 10.2.7 Volta ao PC: `RELATORIOS/_COBRANCA_WHATSAPP/COBRANCA_WEB.csv`
+#### 10.6.7 Volta ao PC: `RELATORIOS/_COBRANCA_WHATSAPP/COBRANCA_WEB.csv`
 
-- Gravado só pelo robô (PC DT-AMADMBAP-03), por `cobranca_whatsapp.importar_web(raiz, linhas, nomes=None) -> int` (modulo-posvenda; função pura sobre o disco, com `test_RN_POS_003_...`).
-  - `linhas`: os `Registro` do GET; `nomes`: `{cod: NOME}` da aba "Por cliente" do farol da rodada (cliente fora dela = `""`).
-  - Devolve quantas linhas acrescentou. Pula `id` que já está no arquivo (idempotente). Erro de disco (arquivo aberto no Excel, OneDrive) = exceção, e o robô não confirma.
+- Gravado só pelo robô (PC DT-AMADMBAP-03), por `cobranca_whatsapp.importar_web(raiz, linhas, nomes=None) -> int` (modulo-posvenda). É uma função sem tela, testável com `tmp_path`, com `test_RN_POS_003_...`.
+  - `linhas`: os `Registro` do GET.
+  - `nomes`: `{cod-loja: NOME}` da aba "Por cliente" do farol da rodada. Cliente fora dela = `""`. Atenção: é outro `nomes`, diferente do da `fila()`, que é `{cod6: fantasia}`.
+  - Devolve quantas linhas acrescentou. Pula `id` que já está no arquivo (idempotente).
+  - Erro de disco (arquivo aberto no Excel, OneDrive) levanta exceção, e o robô não confirma.
 - Formato: `;`, UTF-8 com BOM só na criação (como o `registrar`), só acréscimo. Colunas: `CAMPOS_CSV + ("id",)` =
   `quando;maquina;usuario;cliente;nome;telefone;em_atraso;titulos;acao;id`.
   - `maquina` = `"WEB"`; `usuario` = o login do site; `em_atraso` com 2 casas e ponto (`f"{v:.2f}"`); o resto como veio do registro.
-- O `historico()` já lê o arquivo pelo glob `COBRANCA_*.csv`: o PC passa a ver o que foi cobrado no site sem mudar a janela. Os `COBRANCA_<MAQUINA>.csv` das assistentes ficam intocados (regra 7 do `CLAUDE.md`).
+  - O nome de máquina `WEB` fica **reservado** para o robô. Um PC com esse nome gravaria no mesmo arquivo; não pode existir.
+- O `historico()` e o `historico_origem()` já leem o arquivo pelo glob `COBRANCA_*.csv`: o PC passa a ver o que foi cobrado no site sem mudar a janela. Os `COBRANCA_<MAQUINA>.csv` das assistentes ficam intocados (regra 7 do `CLAUDE.md`).
 
-**A rodada do robô (4f, 08h e 14h, "4 A"), nesta ordem:**
-1. `GET /api/cobranca?desde=<ultimo ate_seq confirmado>` (repete enquanto `mais`). O robô guarda o último `ate_seq` confirmado num arquivo de estado dele [SUPOSIÇÃO: em `RELATORIOS/_COBRANCA_WHATSAPP/`, dono modulo-robo]; perdido o estado, `desde=0` é seguro (o `id` evita repetir).
-2. `importar_web(raiz, linhas, nomes)`.
-3. Só se gravou sem erro: `POST /api/cobranca/confirmar {"ate_seq": <o maior seq importado>}`.
-4. Monta `tabelas` e `cobranca` (`cobranca_whatsapp.pacote_web`), com `web_ate_seq` = o `ate_seq` confirmado, e envia o pacote (`POST /api/pacote`).
-- GET com 404 (web antiga) ou falha de rede: o robô registra no log (sem dado pessoal), não importa nem confirma e segue com o pacote; `web_ate_seq` fica no último confirmado.
+**Estado do robô:** `{"epoca": str, "ate_seq": int}`, num arquivo de estado do modulo-robo [SUPOSIÇÃO: em `RELATORIOS/_COBRANCA_WHATSAPP/`, fora do glob `COBRANCA_*.csv`]. `ate_seq` = o maior `seq` daquela época já gravado no `COBRANCA_WEB.csv`.
 
-#### 10.2.8 Ordem de publicação
+**A rodada do robô** (4f, 08h e 14h, "4 A"), nesta ordem:
+1. `GET /api/cobranca?desde=<estado.ate_seq>` (repete enquanto `mais`).
+   - Se a `epoca` da resposta é diferente da `estado.epoca` (disco perdido, ou primeiro uso), o robô descarta a resposta e refaz o GET com `desde=0`. O `id` impede repetir o que já estava no CSV.
+   - Estado perdido no PC: `desde=0` com a época da resposta. Também é seguro.
+2. `importar_web(raiz, linhas, nomes)`. Se gravou sem erro, o estado passa a `{epoca, ate_seq: maior seq gravado}` (ou continua o mesmo, se não veio nada).
+3. `POST /api/cobranca/confirmar {"epoca", "ate_seq": estado.ate_seq}`, em toda rodada com `ate_seq > 0`. Isso refaz uma confirmação que falhou antes, já que é idempotente.
+4. Monta `tabelas` e `cobranca` (`cobranca_whatsapp.pacote_web(..., web_ate_seq=estado.ate_seq, gerado_em=...)`, com `web_epoca = estado.epoca`) e envia o pacote (`POST /api/pacote`).
+
+**Falhas:**
+- GET com 404 (web antiga), 401, 5xx ou falha de rede: o robô registra no log (sem dado pessoal), não importa nem confirma e segue com o pacote, com o estado de antes.
+- Falha no `importar_web`: não confirma; o estado não muda.
+- Falha só no confirmar: segue; a próxima rodada confirma de novo.
+- 401 aparece no log como "token da web recusado", para o Alexandre trocar o `BAP_WEB_TOKEN`.
+
+#### 10.6.8 Ordem de publicação
 
 A web publicada hoje recusa `tabelas` no farol (§10.1). Por isso:
-1. **web antes**: aceita e valida `tabelas` e `cobranca` no `pl_inadimplencia`, desenha as abas, abre a rota do §10.2.4 e a API do §10.2.6 ("aprovo deploy vX.Y.Z");
+1. **web antes**: aceita e valida `tabelas` e `cobranca` no `pl_inadimplencia`, desenha as abas, abre a rota do §10.6.4 e a API do §10.6.6, e passa a guardar 7 pacotes ("aprovo deploy vX.Y.Z");
 2. **robô depois**: o "instale" do Alexandre no PC (regra 11 do `CLAUDE.md`).
 
 Web nova com robô antigo: o farol segue como no §10.1 (sem abas novas), e o GET não é chamado. A versão fica em 1. Renomear ou tirar chave desta seção = v2 com ADR.
