@@ -96,10 +96,15 @@ def fone_bonito(n: str) -> str:
 _DOC_INICIAL = re.compile(r"^\s*(?=(?:[.\-/\s]*\d){6})[\d.\-/\s]+")
 
 
-def nome_saudacao(nome) -> str:
-    """Nome para a saudacao: sem CPF/CNPJ (nem pedaco com 6+ digitos, ponto,
-    traco ou barra) no comeco. MEI: '12.345.678 FULANO' -> 'FULANO'."""
+def nome_sem_documento(nome) -> str:
+    """Nome sem CPF/CNPJ (nem pedaco com 6+ digitos, ponto, traco ou barra)
+    no comeco. MEI: '12.345.678 FULANO' -> 'FULANO' (RN-POS-004)."""
     return _DOC_INICIAL.sub("", texto(nome)).strip()
+
+
+def nome_saudacao(nome) -> str:
+    """Nome para a saudacao (sem documento no comeco)."""
+    return nome_sem_documento(nome)
 
 
 def fila(farol: dict, nomes=None) -> list[dict]:
@@ -211,21 +216,7 @@ def registrar(raiz, cli: dict, acao: str, numero: str = "",
 
 def historico(raiz) -> dict:
     """{cliente: (quando, acao)} - o ultimo registro de cada cliente."""
-    ult = {}
-    p_ = pasta(raiz)
-    if not p_.exists():
-        return ult
-    for arq in sorted(p_.glob("COBRANCA_*.csv")):
-        try:
-            with open(arq, encoding="utf-8-sig", newline="") as f:
-                for r in csv.DictReader(f, delimiter=";"):
-                    c = texto(r.get("cliente"))
-                    q = texto(r.get("quando"))
-                    if c and q >= ult.get(c, ("",))[0]:
-                        ult[c] = (q, texto(r.get("acao")))
-        except (OSError, ValueError, UnicodeDecodeError):
-            continue
-    return ult
+    return {c: v[:2] for c, v in historico_origem(raiz).items()}
 
 
 def situacao(hist: dict, cod: str, hoje=None) -> str:
@@ -306,7 +297,8 @@ def pacote_web(farol: dict, nomes, hist: dict, hoje=None, *,
             org = "WEB" if len(h) > 2 and h[2].upper() == "WEB" else "PC"
             ult = {"quando": h[0], "acao": h[1], "origem": org}
         itens.append({
-            "cod": it["cod"], "nome": it["nome"], "nome_msg": it["nome_msg"],
+            "cod": it["cod"], "nome": nome_sem_documento(it["nome"]),
+            "nome_msg": it["nome_msg"],
             "cidade": it["cidade"], "uf": it["uf"],
             "vendedor": it["vendedor"], "supervisor": it["supervisor"],
             "em_atraso": float(it["em_atraso"]), "maior": int(it["maior"]),
