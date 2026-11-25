@@ -222,7 +222,7 @@ body{background:#F5F6F4;color:#1E2722;font-family:"Segoe UI",system-ui,Roboto,sa
 .aviso.info{background:transparent;color:#69736D;font-size:.78rem;text-align:right;padding:.4rem 1.4rem 0}
 .aviso.info.faixa-pc,main .aviso.info{text-align:left;background:#EEF4EC;color:#1E2722;border-radius:8px;padding:.45rem .8rem;margin:.3rem 0}
 main{max-width:1320px;padding:.6rem 1.4rem}
-.abas{display:inline-flex;gap:2px;background:#E6EAE5;border-radius:10px;padding:3px;margin:.4rem 0 1rem}
+.abas{display:inline-flex;max-width:100%;overflow-x:auto;gap:2px;background:#E6EAE5;border-radius:10px;padding:3px;margin:.4rem 0 1rem}
 .abas a{background:none;border-radius:8px;color:#4A564E;padding:.45rem 1rem;font-weight:600}
 .abas a.ativa{background:#fff;color:#1E2722;box-shadow:0 1px 3px #0002}
 .cab-painel h1,main h1{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
@@ -254,7 +254,7 @@ main{max-width:1320px;padding:.6rem 1.4rem}
 .quadro.indisp{background:#EEF1EE;color:#69736D}
 button{background:#2F7D32;border-color:#2F7D32}
 .cob-desfaz button,.filtros-tab a,.caixa a{color:#2F7D32}
-footer{color:#9AA39D}
+footer{color:#5E6B62}
 /* barras: as cores do PC trocadas pelas da BAP (verde, verde-escuro, areia, cinza-verde) */
 .gb-b i,.leg i{border-radius:6px 6px 0 0}.leg i{border-radius:2px}
 .gb-b i[style*="62BB47" i],.leg i[style*="62BB47" i]{background:#7DB46A!important}
@@ -272,3 +272,4 @@ footer{color:#9AA39D}
 .juntas .tab-dados th,.juntas .tab-dados td{padding:.25rem .45rem;font-size:.8rem}
 .juntas .dica-rolagem{display:none}
 @media(max-width:600px){.juntas .junta{min-width:0;flex-basis:100%}}
+@media(max-width:600px){main{padding:.6rem}.topo{padding:.5rem .8rem}.aviso.info{padding:.3rem .8rem 0}.cob{min-width:0}}
