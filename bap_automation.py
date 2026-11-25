@@ -6906,12 +6906,16 @@ _COLUNAS_COBRANCA_WEB = {
         ("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("FILIAL", "texto"),
         ("NF", "texto"), ("PARC.", "texto"), ("EMISSÃO", "data"),
         ("VENCIMENTO", "data"), ("DIAS ATRASO", "int"),
-        ("CLIENTE", "texto"), ("NOME", "texto"), ("CIDADE", "texto"),
+        ("CLIENTE", "texto"), ("NOME", "texto"),
+        ("STATUS PROTHEUS", "texto"), ("STATUS", "texto"),
+        ("SITUAÇÃO PLANNER", "texto"), ("CIDADE", "texto"),
         ("UF", "texto"), ("VENDEDOR", "texto"), ("SUPERVISOR", "texto"),
         ("CONDIÇÃO", "texto"), ("VALOR", "moeda"), ("SALDO", "moeda")),
     "Por cliente": (
         ("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("CLIENTE", "texto"),
-        ("NOME", "texto"), ("CIDADE", "texto"), ("UF", "texto"),
+        ("NOME", "texto"), ("STATUS PROTHEUS", "texto"),
+        ("STATUS", "texto"), ("SITUAÇÃO PLANNER", "texto"),
+        ("CIDADE", "texto"), ("UF", "texto"),
         ("VENDEDOR", "texto"), ("SUPERVISOR", "texto"),
         ("TÍTULOS VENCIDOS", "int"), ("EM ATRASO", "moeda"),
         ("MAIOR ATRASO", "int"), ("A VENCER", "moeda"),
@@ -6946,6 +6950,8 @@ def tabelas_cobranca_web(r: dict):
             col = {"nome": nome, "tipo": tipo}
             if pc[i].get("largura") is not None:
                 col["largura"] = int(pc[i]["largura"])
+            if pc[i].get("oculta"):
+                col["oculta"] = True
             colunas.append(col)
         linhas = []
         for ln in t.get("linhas") or []:
