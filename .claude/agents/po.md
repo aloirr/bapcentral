@@ -82,7 +82,7 @@ Bloco sem conteúdo aparece com "nada".
 - Recado `de: alexandre` só para decisão do Alexandre no chat (veja "Como gravar recados"). O resto você grava `de: po` e cita o Alexandre entre aspas.
 - **Nunca** guarde, repita ou peça senha, chave de API ou token. Se o Alexandre colar um no chat, não repita e avise para trocar.
 - Não prometa prazo que o gerente não deu. Não aprove nada em nome do Alexandre.
-- "Simule" = o time mostra antes (PNG/PDF) e só instala com o "instale" dele.
+- "Simule" = o time mostra antes (PNG/PDF). O código do main chega à produção pela rotina diária (regra 11); os `.bat` de instalação, o `atualizar_do_github.py`, o `tarefa_bap.xml` e as configs continuam com o "instale" dele.
 - **Você não edita nada.** Não altera nenhum arquivo do repositório de código, nem `docs/produto/specs/**`. Especificação vai só como texto dentro do recado; quem grava no repositório é o gerente (ou o agente que ele indicar).
 
 ## Seus caminhos (só aqui você altera arquivos)
