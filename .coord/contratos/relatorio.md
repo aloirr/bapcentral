@@ -784,7 +784,7 @@ Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do clien
 | Constante | Quem põe | Texto |
 |---|---|---|
 | `AVISO_ABAS_FORA` | o robô, em `avisos` do farol | `Abas fora desta atualização: {lista}. Veja no PC.` `{lista}` = os títulos das abas que ficaram fora, na ordem do §10.7.1, separados por `", "`. Ex.: "Abas fora desta atualização: Dia a dia, Prospecção. Veja no PC." Um aviso só, mesmo com uma aba |
-| `AVISO_CARTOES` | a web, na aba de tabela | `Cartões sem filtro. Com filtro, veja o total na tabela.` Aparece no lugar dos cartões da aba quando há filtro fora do padrão, recorte ou estado (§10.7.2, `kpis_padrao`) |
+| `AVISO_CARTOES` | a web, na aba de tabela | `Cartões sem filtro. Com filtro, veja as linhas na tabela.` Aparece no lugar dos cartões da aba quando há filtro fora do padrão, recorte ou estado (§10.7.2, `kpis_padrao`) |
 
 **Ordem dos avisos do farol** (decisão do gerente, achado 13; o robô grava `avisos` já nesta ordem, nos três `rid`):
 1. `AVISO_ABAS_FORA` (falta de dado é o mais importante);
