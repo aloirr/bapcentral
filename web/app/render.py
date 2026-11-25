@@ -219,6 +219,17 @@ def _kpi(k) -> dict | None:
             "estados": _mini(k.get("estados"))}
 
 
+def kpis_para_tela(kpis) -> list[dict]:
+    """Os cartões prontos do PC (`kpis` ou `kpis_padrao` da aba) já na forma da tela."""
+    return [k for k in map(_kpi, _lista(kpis)) if k]
+
+
+def kpis_sem_numero(kpis) -> list[dict]:
+    """Os mesmos rótulos com "—": o cartão da aba que não segue o filtro (§10.7.2)."""
+    return [{"rot": str(k.get("rotulo", "")), "valor": "—", "cor": "", "detalhe": "", "linhas": [],
+             "estados": None} for k in _lista(kpis) if isinstance(k, dict)]
+
+
 def _insights(linhas) -> list[dict]:
     out = []
     for ln in _lista(linhas):

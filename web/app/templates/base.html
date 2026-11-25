@@ -22,7 +22,7 @@
   {% if gerado_em %}<div class="aviso info">Dados de {{ gerado_em|manaus }} (horário de Manaus)</div>{% block faixa %}{% endblock %}
   {% else %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
 {% endif %}
-<main>{% block corpo %}{% endblock %}</main>
+<main{% block mainclass %}{% endblock %}>{% block corpo %}{% endblock %}</main>
 <footer>BAP AUTOPARTS · BAP Central web v{{ versao }}</footer>
 </body>
 </html>

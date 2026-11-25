@@ -21,3 +21,19 @@
 {% if est.legenda %}<div class="rc-legb">● {{ est.legenda }}</div>{% endif %}
 {% endif %}
 {% endmacro %}
+
+{# Cartões do farol (resumo e abas de tabela): `kpis` na forma de render._kpi; `faixa` = faixa fina #}
+{% macro cartoes(kpis, faixa, vazio="Sem cartões neste recorte.") %}
+<section class="kpis{{ ' faixa' if faixa }}">
+{% for k in kpis %}
+<article class="kpi c-{{ k.cor }}{{ ' kpi-est' if k.estados }}">
+  <div class="kpi-rot">{{ k.rot }}</div>
+  <div class="kpi-valor">{{ k.valor }}</div>
+  {% if k.detalhe %}<div class="kpi-det">{{ k.detalhe }}</div>{% endif %}
+  {{ barras_estados(k.estados) }}
+  {% for l in k.linhas %}<div class="kpi-lin"><span>{{ l.rot }}</span><b class="t-{{ l.tom }}">{{ l.valor }}</b></div>{% endfor %}
+</article>
+{% else %}<p class="aviso atencao">{{ vazio }}</p>
+{% endfor %}
+</section>
+{% endmacro %}

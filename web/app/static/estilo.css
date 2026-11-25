@@ -174,3 +174,28 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 @media(min-width:1000px){.dica-rolagem{display:none}}
 .filtros-det summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
 .selo-erro{background:#fdecea;color:#b3261e}
+/* T-0017 (§10.7): abas de tabela de Pedidos, Entregas e Visita */
+main.larga{max-width:none}
+.subabas{display:flex;flex-wrap:wrap;gap:.35rem;margin:.4rem 0 .8rem}
+.subabas a{white-space:nowrap;padding:.3rem .7rem;border-radius:6px;border:1px solid #cfdccb;background:#fff;color:#1b2430;text-decoration:none;font-size:.85rem;min-height:32px;display:inline-flex;align-items:center}
+.subabas a.ativa{background:var(--azul);border-color:var(--azul);color:#fff}
+.recortes{margin-top:0}
+.junta{margin:1.2rem 0}
+.junta h2{font-size:1rem;margin:0 0 .4rem}.junta h2 small{font-weight:400;color:#667;font-size:.8rem}
+.tab-dados td.inteira{white-space:nowrap}
+.tab-dados tr.tom-ok td,.tab-dados tr.tom-ok td:first-child{background:#f1f8ee}
+.tab-dados tr.tom-grave td,.tab-dados tr.tom-grave td:first-child{background:#f6c9c4}
+.tab-dados tr.tom-info td,.tab-dados tr.tom-azul td,.tab-dados tr.tom-info td:first-child,.tab-dados tr.tom-azul td:first-child{background:#e7f1fb}
+.tab-dados tr.tom-cinza td,.tab-dados tr.tom-cinza td:first-child{background:#eceeed}
+.tab-dados.zebra tbody tr.tom-:nth-child(even) td{background:#f6f8fa}
+.atend{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
+.atend-trilho{display:inline-block;width:56px;height:10px;background:#e1e6e2;border-radius:5px;overflow:hidden}
+.atend-trilho i{display:block;height:100%}
+.tab-dados td{vertical-align:middle}
+@media(max-width:600px){
+  .tab-dados th,.tab-dados td{padding:.3rem .45rem;font-size:.8rem}
+  .subabas a,.filtros.recortes a{min-height:44px}
+  .tab-dados th:first-child,.tab-dados td:first-child{max-width:7.5rem;overflow:hidden;text-overflow:ellipsis}
+}
+.tab-dados{background:#fff}
+.filtros-tab label{min-width:0}

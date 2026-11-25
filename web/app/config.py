@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 TZ_ALVO = "America/Manaus"
+PACOTE_MAX_MB_PADRAO = 25      # o mesmo do render.yaml: sem a variável o pacote de ~2,5 MB não pode dar 413
 
 
 class ConfigErro(RuntimeError):
@@ -35,7 +36,7 @@ def carregar() -> Config:
     if not dados:
         raise ConfigErro("BAP_WEB_DADOS ausente (pasta do disco, ex.: /var/data).")
     try:
-        mb = float(os.environ.get("BAP_WEB_PACOTE_MAX_MB", "2"))
+        mb = float(os.environ.get("BAP_WEB_PACOTE_MAX_MB", str(PACOTE_MAX_MB_PADRAO)))
     except ValueError as e:
         raise ConfigErro("BAP_WEB_PACOTE_MAX_MB inválido.") from e
     return Config(

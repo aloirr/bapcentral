@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import cobranca, render
+from . import cobranca, render, tabelas
 from .arquivos import gravar_json
 
 FAROIS = tuple(render.FAROIS)                   # T-0017: forma "farol"
@@ -123,7 +123,8 @@ def validar_farol(rid: str, r) -> list[str]:
     """Forma "farol" (T-0017): só formato; kpis e blocos vêm prontos do PC (contrato §8)."""
     if not isinstance(r, dict) or r.get("forma") != "farol":
         return [f"{rid}: forma precisa ser farol"]
-    erros_t = cobranca.validar(rid, r)           # §10.6: tabelas e cobranca, só no pl_inadimplencia
+    # §10.6 (tabelas e cobranca do pl_inadimplencia) e §10.7 (tabelas dos outros três faróis)
+    erros_t = tabelas.validar(rid, r) if rid in tabelas.RIDS else cobranca.validar(rid, r)
     if erros_t:
         return erros_t
     achou = _chave_proibida({k: v for k, v in r.items() if k not in ("tabelas", "cobranca")})

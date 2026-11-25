@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from . import tabelas
 from .arquivos import gravar_json
 
 try:                                    # Render é Linux; sem fcntl só vale o trinco da thread
@@ -530,87 +531,17 @@ def registrar_acesso(dados: Path, login: str, rid: str, aba: str, acao: str) -> 
 
 # ------------------------------------------------------------------ apresentação das tabelas
 def fmt_celula(v, tipo) -> str:
-    if v is None or v == "":
-        return ""
-    if tipo == "moeda" and _num(v):
-        s = f"{v:,.2f}".replace(",", "\0").replace(".", ",").replace("\0", ".")
-        return "R$ " + s
-    if tipo == "int" and _num(v):
-        return f"{int(v):,}".replace(",", ".")
-    if tipo == "data" and isinstance(v, str) and RE_DATA.match(v):
-        return f"{v[8:10]}/{v[5:7]}/{v[:4]}"
-    return str(v)
-
-
-def _chave_ordem(v, tipo):
-    if v is None or v == "":
-        return (1, 0, "")
-    if tipo in ("int", "moeda") and _num(v):
-        return (0, v, "")
-    return (0, 0, str(v).casefold())
+    """Inadimplência: moeda com centavos (a tela de sempre). A regra geral está em `tabelas.fmt_celula`."""
+    return tabelas.fmt_celula(v, tipo, centavos=True)
 
 
 def tabela_para_tela(t: dict, titulo: str, consulta: dict, pagina_tam: int = 100) -> dict:
-    """Filtra, ordena e pagina no servidor. `consulta`: f<i> (lista de valores), ord, dir, pag."""
+    """Filtra, ordena e pagina no servidor. `consulta`: f<i> (lista de valores), ord, dir, pag.
+    Desde a T-0017 (§10.7) é a tela genérica de `tabelas`, com o mesmo resultado de antes:
+    cliente, nome e valor primeiro, moeda com centavos e o total sempre à mostra."""
     cols = colunas_esperadas(titulo, t["colunas"])
-    linhas = t["linhas"]
-    filtros = []
-    for f in t.get("filtros") or []:
-        nome = f if isinstance(f, str) else f["coluna"]
-        if nome not in [n for n, _ in cols]:
-            continue
-        i = [n for n, _ in cols].index(nome)
-        padrao = f.get("padrao") if isinstance(f, dict) else None
-        multi = bool(isinstance(f, dict) and f.get("multi"))
-        chave = f"f{i}"
-        if chave in consulta:
-            sel = [v for v in consulta[chave] if v != ""]
-        else:
-            sel = [str(padrao)] if padrao not in (None, "") else []
-        opcoes = sorted({str(ln[i]) for ln in linhas if ln[i] not in (None, "")}, key=str.casefold)
-        filtros.append({"nome": nome, "chave": chave, "i": i, "multi": multi,
-                        "opcoes": opcoes, "sel": sel})
-        if sel:
-            linhas = [ln for ln in linhas if str(ln[i]) in sel]
-    ordem = consulta.get("ord", [""])[0]
-    desc = consulta.get("dir", ["asc"])[0] == "desc"
-    if ordem.isdigit() and int(ordem) < len(cols):
-        j = int(ordem)
-        linhas = sorted(linhas, key=lambda ln: _chave_ordem(ln[j], cols[j][1]), reverse=desc)
-    else:
-        j = None
-    tons = t.get("tons") or []
-    idx = {id(ln): k for k, ln in enumerate(t["linhas"])}
-    total = len(linhas)
-    try:
-        pag = max(1, int(consulta.get("pag", ["1"])[0]))
-    except ValueError:
-        pag = 1
-    paginas = max(1, -(-total // pagina_tam))
-    pag = min(pag, paginas)
-    visiveis = linhas[(pag - 1) * pagina_tam: pag * pagina_tam]
-    ocultas = {k for k, c in enumerate(t["colunas"]) if c.get("oculta")}
-    vista = [k for k in ordem_tela(titulo, cols) if k not in ocultas]
-    chips = {k: c["chip"] for k, c in enumerate(t["colunas"]) if c.get("chip")}
-
-    def cel(v, k):
-        txt = fmt_celula(v, cols[k][1])
-        cor = None
-        if v is not None:                                   # §10.6.2: sem espaços nas pontas e em maiúsculas
-            alvo = str(v).strip().upper()
-            cor = next((c for ch, c in (chips.get(k) or {}).items() if str(ch).strip().upper() == alvo), None)
-        return {"t": txt, "f": cor[0] if cor else None, "c": cor[1] if cor else None}
-    return {
-        "titulo": titulo, "total_linhas": total, "pag": pag, "paginas": paginas,
-        "cols": [{"i": k, "nome": cols[k][0], "tipo": cols[k][1], "num": cols[k][1] in ("int", "moeda")}
-                 for k in vista],
-        "linhas": [{"tom": tons[idx[id(ln)]] if idx.get(id(ln)) is not None and idx[id(ln)] < len(tons) else "",
-                    "cel": [cel(ln[k], k) for k in vista]}
-                   for ln in visiveis],
-        "total": ([cel(t["total"][k], k) for k in vista]
-                  if t.get("total") else None),
-        "filtros": filtros, "ord": j, "desc": desc,
-    }
+    return tabelas.tabela_para_tela(t, consulta, pagina_tam=pagina_tam, ordem_tela=ordem_tela(titulo, cols),
+                                    centavos=True, total_sempre=True, vazios_no_fim=False, titulo=titulo)
 
 
 def fone_bonito(n: str) -> str:

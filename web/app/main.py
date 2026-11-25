@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, cobranca, config, pacotes, render
+from . import VERSAO, cobranca, config, pacotes, render, tabelas
 from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 
 log = logging.getLogger("bap_web")
@@ -253,12 +253,71 @@ def criar_app() -> FastAPI:
         rel = ((ultimo.get() or {}).get("relatorios") or {}).get(rid)
         return rel if isinstance(rel, dict) and rel.get("forma") == "farol" else None
 
+    def farol_abas(request: Request, u: dict, rid: str, aba: str, uf: str):
+        """Pedidos, Entregas e Visita (§10.7): Resumo e abas de tabela. Perfil e aba conferidos aqui."""
+        perfil = u["perfil"]
+        if aba in tabelas.chaves(rid) and not tabelas.ve_aba(rid, aba, perfil):
+            raise PermissionError                       # aba fora do perfil = 403 (diretor só vê o Resumo)
+        if aba not in tabelas.chaves(rid):
+            if aba in [c for c, _ in cobranca.ABAS[1:]]:
+                raise PermissionError                   # aba da Inadimplência pedida em outro farol
+            aba = "resumo"
+        cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba, "ver")
+        nome = render.FAROIS[rid][0]
+        rel = rel_do(rid)
+        if not rel:
+            return pagina(request, "farol.html", farol_nome=nome, rid=rid, tela=None, abas=[], aba="resumo")
+        por_chave = {c: next((t for t in rel.get("tabelas") or [] if t.get("titulo") == tit), None)
+                     for c, tit in tabelas.ABAS[rid]}
+        com_aba = [(c, tit) for c, tit in tabelas.ABAS[rid] if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
+        barra = [tabelas.RESUMO] + com_aba if com_aba else []
+        ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo")
+        if aba == "resumo":
+            return pagina(request, "farol.html", tela=render.farol_para_tela(rel, uf[:4] or None, rid), **ctx)
+        t = por_chave[aba]
+        if not t:                                       # a aba ficou fora desta atualização do PC
+            return pagina(request, "farol.html", tela=None, **ctx)
+        consulta = {}
+        for k, v in request.query_params.multi_items():
+            consulta.setdefault(k, []).append(v[:80])
+        topo = render.farol_para_tela(rel, None, rid)
+        ufs = topo["ufs"]
+        uf = uf.upper()[:2]
+        uf = uf if uf in ufs else ""
+        subnomes, sub, juntas = [], None, []
+        if t.get("subabas"):                            # Solicitação BAP: sem estado, sem filtros (D5)
+            try:
+                sub = int(consulta.get("sub", ["0"])[0])
+            except ValueError:
+                sub = 0
+            subnomes, tab = tabelas.subabas_para_tela(t, sub, consulta)
+            sub = tab["sub"]
+        else:
+            tab = tabelas.tabela_para_tela(t, consulta, uf=uf or None)
+            juntas = tabelas.juntas_para_tela(t, tab["idxs"], uf or None)
+        aviso_uf = ""
+        if rid == "vc_visitas" or (uf and not t.get("uf_linhas")):
+            aviso_uf = tabelas.AVISO_SEM_ESTADO
+        aviso_kpis = ""
+        if t.get("kpis_padrao") is not None:            # os cartões da aba só no filtro padrão (§10.7.2)
+            if tab["padrao"]:
+                kpis = render.kpis_para_tela(t["kpis_padrao"])
+            else:
+                kpis, aviso_kpis = render.kpis_sem_numero(t["kpis_padrao"]), tabelas.AVISO_CARTOES
+        else:
+            kpis = render.farol_para_tela(rel, uf or None, rid)["kpis"]
+        return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis,
+                      faixa=topo["faixa"], ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
+                      aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, titulo_aba=t["titulo"], **ctx)
+
     @app.get("/farol/{rid}", response_class=HTMLResponse)
     async def farol(request: Request, rid: str, uf: str = "", aba: str = "resumo"):
         u = usuario(request)
         if rid not in render.FAROIS or u["perfil"] not in render.FAROIS[rid][1]:
             raise PermissionError                       # perfil conferido no servidor
         perfil = u["perfil"]
+        if rid in tabelas.RIDS:
+            return farol_abas(request, u, rid, aba, uf)
         chaves = [c for c, _ in cobranca.ABAS]
         if aba in chaves[1:]:                           # aba de tabela ou de fila: 403 fora do perfil
             if (rid != cobranca.RID or (aba in cobranca.ABA_TABELA and perfil not in cobranca.VE_TABELAS)
