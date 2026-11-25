@@ -713,7 +713,8 @@ class _BaseRelatorio:
         v = self.vista_atual()
         if v is not None and v.t.get("kpis_de"):
             try:
-                return v.t["kpis_de"](v.visiveis())
+                return rn.chamar_kpis_de(v.t["kpis_de"], v.visiveis(),
+                                      v.filtros_colunas())
             except Exception:                           # noqa: BLE001
                 pass
         return self.rel.get("kpis", [])
@@ -1073,7 +1074,9 @@ class _BaseRelatorio:
             t2["filtro_texto"] = v.texto_do_filtro()
             if t.get("kpis_de"):
                 try:
-                    t2["kpis_visiveis"] = t["kpis_de"](t2["linhas_visiveis"])
+                    t2["kpis_visiveis"] = rn.chamar_kpis_de(
+                        t["kpis_de"], t2["linhas_visiveis"],
+                        v.filtros_colunas())
                 except Exception:                       # noqa: BLE001
                     t2["kpis_visiveis"] = None
             tabs.append(t2)
@@ -2647,6 +2650,14 @@ class VistaTabela:
         if self.busca.get().strip():
             partes.append(f"Busca: {self.busca.get().strip()}")
         return ("Filtro: " + " · ".join(partes)) if partes else ""
+
+    def filtros_colunas(self):
+        """{indice da coluna: valor} dos filtros de coluna ligados."""
+        filtros = {i: v for i, (v, m, _n) in self._geral_ativo().items()}
+        for i, (var, multi, _n) in self.filtros.items():
+            if var.get() != TODOS:
+                filtros[i] = var.get()
+        return filtros
 
     def _filtradas(self):
         busca = self.busca.get().strip().upper()

@@ -758,12 +758,220 @@ def _sem_internos(nome, bloco):
     return bloco
 
 
+def hoje_manaus() -> date:
+    """Data de hoje no fuso America/Manaus (regra 4); sem tzdata, UTC-4 fixo."""
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+        fuso = ZoneInfo("America/Manaus")
+    except Exception:                                   # noqa: BLE001
+        fuso = timezone(timedelta(hours=-4))
+    return datetime.now(fuso).date()
+
+
+def chamar_kpis_de(f, linhas, filtro=None):
+    """kpis_de(linhas) e, se aceitar, kpis_de(linhas, filtro={col: valor}).
+    Sem `filtro` na assinatura, a chamada e identica a de antes."""
+    import inspect
+    try:
+        if "filtro" in inspect.signature(f).parameters:
+            return f(linhas, filtro=filtro)
+    except (TypeError, ValueError):
+        pass
+    return f(linhas)
+
+
+# ---------------------------------------------------------------------------
+# RN-GER-011 (T-0017): nome e texto de cliente vao ao site sem documento e sem
+# contato. Funcoes puras; o PC continua mostrando o texto como esta.
+# ---------------------------------------------------------------------------
+_CPF_FMT = r"\d{3}\.\d{3}\.\d{3}-\d{2}"
+_CNPJ_FMT = r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"
+_DOC_MEIO = re.compile(
+    r"(?<![\w])(?:\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}"
+    r"|\d{3}\.?\d{3}\.?\d{3}-?\d{2})(?![\w])")
+_ROTULO_DOC = r"(?:(?:CNPJ|CPF)\s*[:.\-]?\s*)?"
+_DOC_QUALQUER = re.compile(
+    rf"{_ROTULO_DOC}(?<![\w])(?:{_CNPJ_FMT}|{_CPF_FMT}"
+    r"|\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})"
+    r"(?![\w])", re.IGNORECASE)
+# pedaco de documento no comeco (MEI "12.345.678 FULANO", RN-POS-004): so
+# quando tem separador entre digitos; numero puro de 6 a 10 digitos fica
+_DOC_PEDACO_INI = re.compile(r"^\s*(?=(?:[.\-/\s]*\d){6})[\d.\-/\s]+")
+_VALOR_RS = re.compile(r"(R\$\s*\d[\d.]*(?:,\d+)?)")
+_DOC_SOLTO = re.compile(r"(?<!\d)(?:\d{14}|\d{11})(?!\d)")
+_EMAIL = re.compile(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+")
+_FONE = re.compile(
+    r"(?<![\w])(?:\+?55[\s.\-]?)?(?:\(?\d{2}\)?[\s.\-]?)?9?\d{4}[\s.\-]?\d{4}"
+    r"(?![\w]|,\d)")
+_COD_CLIENTE = re.compile(r"^\d{6}(?:-\d{2})? - ")
+REMOVIDO = "[removido]"
+
+
+def _limpa_pontas(s: str) -> str:
+    s = re.sub(r"\(\s*\)|\[\s*\]", " ", s)
+    s = re.sub(r"\s{2,}", " ", s)
+    return s.strip(" \t-/.,;:")
+
+
+def sem_documento(texto) -> str:
+    """Tira CPF/CNPJ do comeco, do fim (11 ou 14 digitos, com ou sem
+    mascara) e o formatado no meio. RN-GER-011."""
+    if texto in (None, ""):
+        return ""
+    s = _DOC_QUALQUER.sub(" ", str(texto))
+    m = _DOC_PEDACO_INI.match(s)
+    if m and re.search(r"\d[.\-/]\d", m.group(0)):
+        s = s[m.end():]
+    return _limpa_pontas(s)
+
+
+def cliente_sem_documento(texto) -> str:
+    """Coluna 'codigo - nome': mantem o codigo do comeco e limpa o resto."""
+    if texto in (None, ""):
+        return ""
+    s = str(texto)
+    if re.fullmatch(r"\d{6}(?:-\d{2})?", s.strip()):
+        return s.strip()                 # so o codigo
+    m = _COD_CLIENTE.match(s)
+    if not m:
+        return sem_documento(s)
+    nome = sem_documento(s[m.end():])
+    return m.group(0) + nome if nome else m.group(0).rstrip(" -")
+
+
+def texto_sem_contato(texto) -> str:
+    """Troca telefone (8 a 13 digitos, com ou sem DDD/55 e mascara), e-mail e
+    CPF/CNPJ por '[removido]'. RN-GER-011."""
+    if texto in (None, ""):
+        return ""
+    def limpa(parte):
+        parte = _EMAIL.sub(REMOVIDO, parte)
+        parte = _DOC_MEIO.sub(REMOVIDO, parte)
+        parte = _DOC_SOLTO.sub(REMOVIDO, parte)
+        return _FONE.sub(REMOVIDO, parte)
+    # valor em reais (R$ ...) nunca e telefone
+    partes = _VALOR_RS.split(str(texto))
+    return "".join(p if k % 2 else limpa(p) for k, p in enumerate(partes))
+
+
+def _texto_filtro(valor, tipo) -> str:
+    """O texto da celula como a tela compara no filtro (bv.formatar 'texto'
+    e bv.data_br nas colunas de data)."""
+    if tipo in ("data", "dia"):
+        if isinstance(valor, datetime):
+            valor = valor.date()
+        if isinstance(valor, date):
+            return f"{valor:%d/%m/%Y}"
+        return "" if valor is None else str(valor)
+    return "" if valor in (None, "") else str(valor)
+
+
+def _indices_em_linhas(t, linhas):
+    """Indices, em t["linhas"], das linhas dadas (por identidade)."""
+    pos = {id(l): k for k, l in enumerate(t["linhas"])}
+    return [pos[id(l)] for l in linhas if id(l) in pos]
+
+
+def linhas_padrao(t, params=None) -> list:
+    """Indices (base 0) das linhas que a tela mostra ao abrir a aba: os
+    filtros com `padrao`, sem recorte e sem busca. Mesma regra de
+    `bap_relatorios.VistaTabela._filtradas` no estado inicial. `params` =
+    nomes dos parametros de cima (so decide o filtro repetido que vira
+    oculto); filtros gerais da janela nao entram (sem Tk). Os indices sao
+    sempre de `t["linhas"]` (com `linhas_filtro`, a linha da base que nao
+    esta em `t["linhas"]` fica fora)."""
+    nomes = [c["nome"] for c in t["colunas"]]
+    fora = set(t.get("filtros_fora") or ())
+    base = t.get("linhas_filtro") or t["linhas"]
+    tons_b = (t.get("tons_filtro") if t.get("linhas_filtro")
+              else t.get("tons")) or [""] * len(base)
+    ativos = {}
+    for f in t.get("filtros") or ():
+        nome = nome_filtro(f)
+        if nome not in nomes or nome in fora or not isinstance(f, dict):
+            continue
+        padrao = f.get("padrao")
+        oculto = bool(f.get("oculto"))
+        if params is not None and (nome in params or nome.removesuffix(
+                " PLANNER").removesuffix(" PROTHEUS") in params):
+            oculto = "padrao" in f or oculto
+        i = nomes.index(nome)
+        multi = bool(f.get("multi"))
+        if oculto:
+            v = padrao if padrao not in (None, "") else None
+        else:
+            if padrao in (None, ""):
+                continue
+            tipo = t["colunas"][i].get("tipo")
+            if multi:
+                valores = {x.strip() for l in base
+                           for x in str(l[i] or "").split(";") if x.strip()}
+            else:
+                valores = {_texto_filtro(l[i], tipo) for l in base
+                           if l[i] not in (None, "")}
+            v = padrao if padrao in valores else None
+        if v is not None:
+            ativos[i] = (v, multi)
+    saida = []
+    for k, l in enumerate(base):
+        ok = True
+        for i, (v, multi) in ativos.items():
+            if multi:
+                if v not in [x.strip() for x in str(l[i] or "").split(";")]:
+                    ok = False
+                    break
+            elif _texto_filtro(l[i], t["colunas"][i].get("tipo")) != v:
+                ok = False
+                break
+        if ok:
+            saida.append((k, l))
+    if t.get("top_n"):
+        saida = saida[:t["top_n"]]
+        if t.get("ordem_top"):
+            i_m, i_f = t["ordem_top"]
+            saida.sort(key=lambda x: (-(x[1][i_m] or 0), -(x[1][i_f] or 0)))
+    return _indices_em_linhas(t, [l for _k, l in saida])
+
+
+def recortes_em_linhas(t) -> list:
+    """[{"rotulo", "linhas"}]: para cada recorte por funcao da tabela, na
+    ordem do PC, os indices (base 0, em `linhas`) que ele deixa. Recorte
+    {"top": N} fica fora, com aviso no log. Recorte que falha fica vazio.
+    Tabela `enxuta` (sem recortes no PC): lista vazia. Os indices sao de
+    `t["linhas"]`, a mesma base de `linhas_padrao`; com `linhas_filtro` o
+    recorte corre na base do filtro e so entram as linhas que estao em
+    `t["linhas"]`."""
+    import logging
+    saida = []
+    if t.get("enxuta"):
+        return saida
+    base = t.get("linhas_filtro") or t["linhas"]
+    for r in t.get("recortes") or ():
+        rotulo, regra = r[0], r[1]
+        if callable(regra):
+            idx = []
+            ok = []
+            for l in base:
+                try:
+                    if regra(l):
+                        ok.append(l)
+                except Exception:                       # noqa: BLE001
+                    continue
+            idx = _indices_em_linhas(t, ok)
+            saida.append({"rotulo": rotulo, "linhas": idx})
+        else:
+            logging.getLogger(__name__).warning(
+                "recorte '%s' (top) fica fora do pacote da web", rotulo)
+    return saida
+
+
 class Contexto:
     """Os blocos de dado que um relatorio pede, carregados sob demanda."""
 
     def __init__(self, raiz, hoje=None, log=None, params=None):
         self.raiz = Path(raiz)
-        self.hoje = hoje or date.today()
+        self.hoje = hoje or hoje_manaus()
         self.log = log
         self.params = dict(params or {})
         self._b = {}
@@ -6963,12 +7171,17 @@ def entregas(ctx):
     tons_pend = ["alerta" if l[E_PRAZO] == "ATRASADA" else "atencao"
                  for l in pend]
 
-    def cartoes_mes(ls):
-        return cartoes(ls) + [kpi(
-            "Pendências anteriores", br(len(pend)),
-            "alerta" if pend else "ok",
-            f"{moeda(sum(l[E_VNF] or 0 for l in pend))} · meses anteriores"
-            if pend else "nada pendente")]
+    def cartoes_mes(ls, filtro=None):
+        # RN-GER-006: as pendencias seguem o filtro de UF de fato (o
+        # {coluna: valor} da tela), nunca deduzido das linhas. Sem filtro
+        # de UF (ou chamada sem `filtro`) = total da BAP.
+        uf = (filtro or {}).get(E_UF)
+        pd = pend if uf in (None, "") else [l for l in pend if l[E_UF] == uf]
+        return cartoes(list(ls)) + [kpi(
+            "Pendências anteriores", br(len(pd)),
+            "alerta" if pd else "ok",
+            f"{moeda(sum(l[E_VNF] or 0 for l in pd))} · meses anteriores"
+            if pd else "nada pendente")]
     r["kpis"] = cartoes_mes(no_mes_)
     etapas = Counter(l[E_ETAPA].upper() or "(vazio)" for l in linhas
                      if rotulo_no_periodo(ctx, l[E_MES]))
@@ -13332,7 +13545,8 @@ def farol_visitas(ctx):
     if not todos:
         r["avisos"].append("Nenhum dia baixado ainda: clique em "
                            "“Atualizar visitas”.")
-    falta = vn.dias_faltando(ctx.raiz, de, min(ate, hoje))
+    falta = vn.dias_faltando(ctx.raiz, de,
+                             min(ate, hoje - timedelta(days=1)))
     if falta and todos:
         txt = ", ".join(f"{d:%d/%m}" for d in falta[:8])
         r["avisos"].append(f"Sem o arquivo de {len(falta)} dia(s) útil(eis): "
