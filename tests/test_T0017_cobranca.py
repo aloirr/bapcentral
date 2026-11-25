@@ -6,10 +6,11 @@ número e saudação), RN-POS-002 (situação pelo último registro), RN-POS-003
 RN-POS-004 (o que vai ao site: Títulos e Por cliente sem TELEFONE nem CNPJ).
 
 Junta os testes do modulo-posvenda (cobranca_whatsapp.pacote_web,
-importar_web, historico_origem, nome_saudacao) e do modulo-robo (passo 4f do
+importar_web, historico_origem, nome_saudacao, nome_sem_documento) e do modulo-robo (passo 4f do
 bap_automation). Dados 100% fictícios; o site é um falso em memória.
 """
 import json
+import re
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
@@ -278,6 +279,9 @@ def test_RN_POS_002_ultimo_em_qualquer_diario_com_origem_pc_ou_web(tmp_path):
     # historico() (tuplas de 2) também serve: origem PC
     p2 = cw.pacote_web(farol_min(), {}, h, HOJE)
     assert {i["ultimo"]["origem"] for i in p2["fila"]} == {"PC"}
+    # pasta sem diário: histórico vazio (nos dois leitores)
+    assert cw.historico(tmp_path / "vazio") == {}
+    assert cw.historico_origem(tmp_path / "vazio") == {}
 
 
 @pytest.mark.parametrize("quando,acao,esperado", [
@@ -568,3 +572,37 @@ def test_RN_POS_004_pacote_inteiro_ida_e_volta_sem_telefone_cadastral(
     assert r["cobranca"]["fila"][0]["ultimo"]["origem"] == "WEB"
     json.dumps(pacote, allow_nan=False)                 # serializa limpo
     assert "92 90000" not in json.dumps(pacote, ensure_ascii=False)
+
+
+DOC_NO_COMECO = re.compile(r"^\s*(?:\d{2,3}\.\d{3}\.\d{3}|\d{6,})")
+
+
+def test_RN_POS_004_nome_do_site_sem_documento_na_fila():
+    assert cw.nome_sem_documento("12.345.678/0001-90 EMPRESA") == "EMPRESA"
+    assert cw.nome_sem_documento("LOJA 99") == "LOJA 99"
+    f = farol_min()
+    f["tabelas"][0]["linhas"][0][2] = "123.456.789-09 FULANO FICTICIO"
+    p = cw.pacote_web(f, {}, {}, HOJE)
+    assert _item(p, "000001-01")["nome"] == "FULANO FICTICIO"
+    assert "123.456" not in str(p)
+    # a janela do PC continua com o nome cru na fila
+    assert next(i for i in cw.fila(f) if i["cod"] == "000001-01")[
+        "nome"].startswith("123.456")
+
+
+def test_RN_POS_004_nome_das_tabelas_sem_cpf_cnpj_no_comeco():
+    f = _farol()
+    f["tabelas"][0]["linhas"][0][9] = "12.345.678 CLIENTE MEI FICTICIO"
+    f["tabelas"][1]["linhas"][0][3] = "123.456.789-00 CLIENTE MEI FICTICIO"
+    tabs = ba.tabelas_cobranca_web(f)
+    for t in tabs:
+        i = [c["nome"] for c in t["colunas"]].index("NOME")
+        assert [ln[i] for ln in t["linhas"]] == ["CLIENTE MEI FICTICIO"]
+        assert not any(DOC_NO_COMECO.match(str(ln[i])) for ln in t["linhas"])
+    texto = json.dumps(tabs, ensure_ascii=False)
+    assert "12.345.678" not in texto and "123.456.789" not in texto
+
+
+def test_RN_POS_004_sem_a_funcao_do_posvenda_as_tabelas_nao_vao(monkeypatch):
+    monkeypatch.delattr(cw, "nome_sem_documento", raising=False)
+    assert ba.tabelas_cobranca_web(_farol()) is None
