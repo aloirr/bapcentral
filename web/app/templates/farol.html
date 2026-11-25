@@ -56,6 +56,7 @@
     </div>
     {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
   {% elif b.tipo == "tabela" %}
+    {% if b.rolar %}<p class="dica-rolar">Role para o lado para ver mais colunas →</p>{% endif %}
     <div class="rolagem tb-rol"><table class="tab tb">
       <thead><tr>{% for c in b.cols %}<th class="{{ 'n' if c.num }}">{{ c.nome }}</th>{% endfor %}</tr></thead>
       <tbody>{% for l in b.linhas %}<tr>{% for c in l %}<td class="{{ 'n' if c.num }}">{{ c.txt }}</td>{% endfor %}</tr>

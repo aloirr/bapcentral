@@ -174,6 +174,11 @@ def fmt_valor(v, formato) -> str:
         return br(v, 1) + "%"
     if formato == "dias":
         return br(v, 1) + " dia(s)"
+    if formato == "hora":                      # segundos do dia -> 09:48 (como o bap_visual)
+        s_ = int(round(v))
+        return f"{s_ // 3600:02d}:{s_ % 3600 // 60:02d}"
+    if formato == "min":                       # segundos -> 25 min (TMA/TMD)
+        return f"{br(v / 60.0, 0)} min"
     if formato == "num1" or (isinstance(v, float) and abs(v) < 100 and v % 1):
         return br(v, 1)
     return br(v)
@@ -320,6 +325,7 @@ def _bloco_tabela(b) -> dict:
     if not cols or len(cols) > 20 or any(coluna_proibida(_nome_col(c)) for c in cols):
         raise ValueError("colunas")
     vis = [i for i, c in enumerate(cols) if not (isinstance(c, dict) and c.get("oculta"))]
+    vis = vis[:1] + [i for i in vis[1:] if _tipo_col(cols[i]) != "texto"] + [i for i in vis[1:] if _tipo_col(cols[i]) == "texto"]
     tipos = [_tipo_col(cols[i]) for i in vis]
 
     def linha(ln):
@@ -332,7 +338,7 @@ def _bloco_tabela(b) -> dict:
     return {"tipo": "tabela", "titulo": str(b.get("titulo", "")),
             "cols": [{"nome": _nome_col(cols[i]), "num": _tipo_col(cols[i]) != "texto"} for i in vis],
             "linhas": linhas, "total": linha(tot) if tot else None,
-            "largo": len(vis) > 3}
+            "largo": len(vis) > 3, "rolar": len(vis) > 3}
 
 
 def _blocos(painel) -> tuple[list[dict], list[dict]]:

@@ -120,3 +120,9 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .kpis.faixa .kpi-det{font-size:.72rem;margin-top:0}
 .kpis.faixa .kpi-lin{font-size:.72rem;margin-top:.15rem;padding-top:.1rem}
 @media(max-width:600px){.kpis.faixa{grid-template-columns:1fr 1fr}.kpis.faixa .kpi-valor{font-size:1.05rem}.tb-rol{max-height:340px}}
+
+.dica-rolar{display:none;margin:0 0 .3rem;font-size:.75rem;color:#5e6b62}
+@media(max-width:900px){.dica-rolar{display:block}}
+.kpis{align-items:start}
+.kpi-lin b,.kpi-det b{white-space:nowrap}
+.kpi-lin span{min-width:0}

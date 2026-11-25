@@ -14,6 +14,7 @@ for (const [nome, largura, altura] of [['pc', 1366, 900], ['cel', 390, 844]]) {
   const p = await ctx.newPage();
   await p.goto(pathToFileURL(resolve(html)).href);
   await p.screenshot({ path: `${prefixo}-${nome}.png`, fullPage: false });
+  await p.screenshot({ path: `${prefixo}-${nome}-inteira.png`, fullPage: true });
   await ctx.close();
 }
 await b.close();

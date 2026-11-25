@@ -191,3 +191,23 @@ def test_fmt_cel():
     from app.render import fmt_cel
     assert fmt_cel(1250000.0, "moeda") == "R$ 1.250.000"
     assert fmt_cel(None, "pct1") == "—" and fmt_cel(3.04, "pct1") == "3,0%" and fmt_cel("x", "int") == "x"
+
+
+def test_barras_de_horario_e_duracao_nao_mostram_segundos():
+    from app.render import fmt_valor
+    assert fmt_valor(35280, "hora") == "09:48" and fmt_valor(1500, "min") == "25 min"
+    from app.render import farol_para_tela
+    from farol_fixture import farol_visitas
+    v = farol_visitas()
+    g = v["painel"]["blocos"][0]["grafico"]
+    g["formato"], g["series"][0]["valores"] = "hora", [35280, 0, 61200]
+    cols = farol_para_tela(v)["blocos"][0]["cols"]
+    assert cols[0]["barras"][0]["txt"] == "09:48" and cols[2]["barras"][0]["txt"] == "17:00"
+
+
+def test_tabela_numeros_perto_da_1a_coluna_e_dica_de_rolagem(admin):
+    postar(admin, _tres())
+    h = admin.get("/farol/pl_entregas").text
+    ths = h.split("<thead>")[1].split("</thead>")[0]
+    assert ths.index("FRETE R$") < ths.index("REGIÃO") and ths.index("UF") < ths.index("NOTAS")
+    assert "Role para o lado" in h
