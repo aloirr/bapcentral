@@ -435,6 +435,6 @@ Vale sobre o adendo 2 **só no `pv_pedidos`, `pl_entregas` e `vc_visitas`**. Fon
 5. **Contrato v1, acréscimo compatível.** Publicação: a web antes, o robô depois (§10.7.10).
 
 ### Consequências
-- O pacote passa de cerca de 0,3 MB para cerca de 2,2 MB no fim do mês [SUPOSIÇÃO: medida de 25/11 nas bases do repositório, com as recomendações de D2 e D3], dentro do `BAP_WEB_PACOTE_MAX_MB` de 25 do `render.yaml`. O robô tem trava própria de 20 MB (§10.7.8).
-- A função de limpeza de documento do núcleo (`relatorios_nucleo.sem_documento`) passa a valer para as tabelas desses faróis. Ela acha o CPF no fim do nome, que o `cobranca_whatsapp.nome_sem_documento` da Inadimplência não acha (84 nomes de 2.216 no Farol de Pedidos). Fica a recomendação ao modulo-posvenda de usar a mesma função na Inadimplência.
+- A limpeza de documento do núcleo (RN-GER-011) vale para as tabelas desses faróis (contrato §10.7.4). Fica a recomendação ao modulo-posvenda de usar a mesma função na Inadimplência.
+- O pacote cresce para o tamanho do contrato §10.7.8, dentro do teto do `render.yaml`, e o robô tem trava própria (§10.7.8).
 - Mais dado de cliente no disco do Render (7 pacotes). O acesso continua com login, corte no servidor, `no-store`, `noindex` e registro de acesso.

@@ -659,13 +659,14 @@ As abas da web, na ordem do PC. A chave vai na URL (`/farol/<rid>?aba=<chave>`).
 
 Chaves do §10.6.2, com o mesmo sentido: `titulo`, `colunas`, `linhas`, `tons`, `total`, `filtros`. **Diferenças em relação ao §10.6.2:**
 - `tons`: no `pv_pedidos` (que está em `LINHA_PINTADA`) vêm com cor (`"grave"`, `"alerta"`, `"atencao"`, `"ok"`, `""`) e a web pinta a linha. No `pl_entregas` e no `vc_visitas` vêm todos `""`;
-- `filtros`: o item `dict` pode ter `"oculto": true` = filtro aplicado com o `padrao` e sem caixa na tela (o MÊS do Farol de Pedidos). Filtro que cita coluna cortada sai.
+- `filtros`: o item `dict` pode ter `"oculto": true` = filtro aplicado com o `padrao` e sem caixa na tela (o MÊS do "Pedidos" e do "Entregas"). Filtro que cita coluna cortada sai. **`filtros` é opcional, e `[]` vale o mesmo que não ter a chave** (a web aceita os dois; ex.: as sub-abas da "Solicitação BAP");
+- `total`: a linha de total do PC, com as regras do §10.7.2.1. Fica fora de `linhas`.
 
 | Chave nova | Tipo | Regra |
 |---|---|---|
 | `juntas` | `list[Junta]` | só em "Pedidos" (3) e "Entregas" (1). Abaixo |
 | `subabas` | `list[TabelaWeb7]` | só em "Solicitação BAP": uma por aba do arquivo. Aí `colunas` e `linhas` da tabela-mãe vêm `[]` |
-| `kpis_padrao` | `list[Kpi]` (§4) | os cartões que o PC mostra ao abrir a aba: `relatorios_nucleo.chamar_kpis_de(kpis_de, linhas_padrao)`, com as linhas dos filtros padrão e sem recorte (§11.2). Ausente quando a tabela do PC não tem `kpis_de`: aí a aba mostra os `kpis` de cima. A web mostra `kpis_padrao` só enquanto os filtros estão no padrão, sem recorte e sem estado; com outro filtro, os cartões da aba mostram "—" e o aviso "Com filtro, os cartões seguem só no PC." |
+| `kpis_padrao` | `list[Kpi]` (§4) | os cartões que o PC mostra ao abrir a aba: `relatorios_nucleo.chamar_kpis_de(kpis_de, linhas_padrao)`, com as linhas dos filtros padrão e sem recorte (§11.2). **Cartão inteiro, como os do Resumo:** `rotulo`, `valor`, `cor`, `detalhe` e, quando o PC põe, `linhas` (o `detalhe` do `Kpi` não é o `detalhe` de pedido da tabela, que sai). Ausente quando a tabela do PC não tem `kpis_de`: aí a aba mostra os `kpis` de cima. A web mostra `kpis_padrao` só enquanto os filtros estão no padrão, sem recorte e sem estado. Com outro filtro, recorte ou estado, os cartões da aba saem, e fica o aviso `AVISO_CARTOES` do §10.7.6 |
 | `recortes_linhas` | `list[{"rotulo": str, "linhas": list[int]}]` | os recortes do PC (`recortes`, §11.4), prontos: para cada rótulo, na ordem do PC, os índices (base 0, em `linhas`) das linhas que o recorte deixa. Só recorte por função. Recorte `{"top": N}` não existe nessas tabelas hoje: se aparecer, fica fora, com aviso no log |
 | `uf_linhas` | `list[str]` | uma UF por linha (`""` = sem UF), pela RN-GER-006: no "Pedidos", a UF da **filial da nota** (`relatorios_nucleo.uf_do_nome_da_filial` da coluna FILIAL); no "Entregas" e na junta de pendências, a UF do **cliente** (coluna UF). Ausente no Visita e nas juntas do Pedidos. Usada pelo filtro de estado [D5] |
 | `zebra` | `bool` | só apresentação ("Pedidos") |
@@ -689,7 +690,21 @@ Selo só nas colunas marcadas no §10.7.3. Em outra coluna, a web recusa.
 
 **Fora, sempre** (em qualquer nível de `tabelas`): `edicao`, `editar`, `abrir`, `detalhe`, `kpis_de`, `total_de`, `totais_por`, `recortes` (a forma do PC, com callable), `ordem_exportar`, `cores_celulas` (só Excel/PDF), `so_exportar`, `solicitacao_bap`, `pdf*`, `nota_pdf`, chave com `_` e qualquer callable. O "Ver pedido" (`detalhe_pedido`, §11.1) fica no PC [D4].
 
-**Total:** a web mostra `total` só quando as linhas visíveis são todas as da tabela (a regra do §11.3, item 2). Com filtro, recorte ou estado, sem total.
+##### 10.7.2.1 A linha de total (`total`)
+
+A linha TOTAL do PC vai **à parte**, na chave `total` (a mesma do §10.6.2), nunca em `linhas`. Forma: `list[Celula] | null`, uma célula por coluna (o mesmo tamanho de `colunas`). Hoje só o Visita tem total ("Por supervisor", "Por vendedor", "Dia a dia" e "Aderência dia a dia").
+
+**O PC normaliza** (o robô, antes de conferir; função pura):
+1. célula `""` ou `None` → `null`, em qualquer coluna;
+2. o rótulo do PC (a 1ª célula da linha, quando é texto; hoje sempre `"TOTAL"`) vai para a **1ª coluna visível de tipo `texto`** e sai de onde estava (se já está nela, fica). Ex.: no "Dia a dia", o PC põe `"TOTAL"` em `DATA` (data): no pacote, `DATA` = `null` e `DIA` = `"TOTAL"`;
+3. as outras células ficam como o PC calculou (número em coluna de número; texto pronto em coluna `hora`);
+4. célula que ainda não casa com o `tipo` da coluna (texto em `int`, `moeda`, `pct`, `num`, `data`, `dia`...) → `null`. Nenhum número é inventado.
+
+**A web valida:** tamanho igual ao de `colunas`; em cada célula, `null` ou o valor do `tipo` (§10.6.2: número em coluna de número, data ISO em `data`/`dia`, `str` em `texto` e `hora`). Senão, recusa o pacote ("total inválido").
+
+**A web desenha** a linha fixa no fim da tabela, em negrito, como no PC, **só** quando as linhas visíveis são todas as da tabela (a regra do §11.3, item 2). Com filtro, recorte ou estado, sem total.
+
+**Igualdade:** o `total` é o do PC, depois dos 4 passos acima.
 
 #### 10.7.3 Colunas por tabela
 
@@ -703,7 +718,7 @@ Conferidas no `main` em `2d182bd`, com `montar(rid, raiz, hoje=20/11/2026, param
 - **"Solicitação BAP"**: não é tabela do `montar`. O robô lê `solicitacao_bap.ler(raiz)` (o `RELATORIOS/SOLICITACAO_BAP.xlsx` que ele mesmo grava) e manda uma `subaba` por aba do arquivo, na ordem de `solicitacao_bap.ABAS_TELA`: "Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitacao Manual", "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir" (aba ausente no arquivo não vai). Colunas = o cabeçalho da aba, como o PC mostra; o `tipo` segue a regra da tela (`bap_relatorios.AbaSolicitacaoBap.carregar`): `num` em QUANTIDADE, DEMANDA_PEDIDO, JA_SOLICITADO, SALDO_A_SOLICITAR e ESTOQUE_NA_ORIGEM; `data` em DATA quando todas as células são data; `texto` no resto. Como o cabeçalho é do arquivo, aqui não há lista fixa: valem as colunas que saem (§10.7.4) e a limpeza em `CLIENTE` (DETALHADO_PEDIDO). Sem filtros nem recortes (o PC só tem a busca). A troca de loja de coleta (duplo clique, grava) fica no PC. Linhas [D3].
 
 **`pl_entregas`**
-- **"Entregas"** (22; não sai nenhuma): `MÊS` texto (o) · `SITUAÇÃO` texto · `SLA` int [`chip_tom` = `"TOM SLA"`] · `DT. PED` dia · `DT. NF` dia · `DT. PREVISTA` dia · `DT. REAL` dia · `UF` texto · `CIDADE` texto · `CLIENTE` texto (limpa, código e nome) · `VLR NF` moeda · `VLR FRETE` moeda · `TRANSPORTADORA` texto · `RESPONSÁVEL` texto [D6] · `TBL FRETE` moeda · `VLR REAL FRETE` moeda · `ETAPA` texto (inteira) · `NF` texto · `FILIAL` texto · `LOCAL/FRETE` texto (o) · `TOM SLA` texto (o) · `PRAZO` texto (o) [chip por texto]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote), `SITUAÇÃO`, `ETAPA`, `PRAZO`, `FILIAL`. A edição (duplo clique, grava em `ACOMPANHAMENTO_POS_VENDA.xlsx`/`_EDICOES_POS_VENDA`) fica no PC.
+- **"Entregas"** (22; não sai nenhuma): `MÊS` texto (o) · `SITUAÇÃO` texto · `SLA` int [`chip_tom` = `"TOM SLA"`] · `DT. PED` dia · `DT. NF` dia · `DT. PREVISTA` dia · `DT. REAL` dia · `UF` texto · `CIDADE` texto · `CLIENTE` texto (limpa, código e nome) · `VLR NF` moeda · `VLR FRETE` moeda · `TRANSPORTADORA` texto · `RESPONSÁVEL` texto [D6] · `TBL FRETE` moeda · `VLR REAL FRETE` moeda · `ETAPA` texto (inteira) · `NF` texto · `FILIAL` texto · `LOCAL/FRETE` texto (o) · `TOM SLA` texto (o) · `PRAZO` texto (o) [chip por texto]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote, **oculto**: com a D2 A só há esse mês), `SITUAÇÃO`, `ETAPA`, `PRAZO`, `FILIAL`. A edição (duplo clique, grava em `ACOMPANHAMENTO_POS_VENDA.xlsx`/`_EDICOES_POS_VENDA`) fica no PC.
   - Junta "Pendências dos meses anteriores" → tabela com o mesmo título (22): as mesmas colunas, com `MÊS` **visível**. `liga = null`. Sem filtros próprios.
 
 **`vc_visitas`** (sem o bloco de status; `tons` todos `""`)
@@ -722,8 +737,23 @@ Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do clien
 
 #### 10.7.4 Dado pessoal: o que sai e a limpeza (no PC, antes do envio)
 
-- **Colunas que nunca vão**, em nenhuma tabela, junta ou sub-aba destes três `rid` (nome comparado sem acento e em maiúsculas): `TELEFONE`, `CELULAR`, `WHATSAPP`, `CNPJ`, `CPF`, `E-MAIL`, `EMAIL`, `CONTATO`, `FOTO` (o nome do arquivo da foto traz o CNPJ), `ENDEREÇO`. A web recusa o pacote que trouxer uma delas.
-- **Nome de cliente ou estabelecimento (as colunas "limpa"):** a célula passa por uma função pura do núcleo (modulo-farois; regra proposta RN-GER-011, §10.7.9):
+- **Colunas que nunca vão ao site.** Esta lista é a **fonte única** (RD-0021). Vale em qualquer tabela, junta ou sub-aba destes três `rid` e no bloco `tabela` do painel de qualquer farol. O nome da coluna é comparado inteiro, sem acento e em maiúsculas. A web recusa o pacote que trouxer uma delas. (`FOTO` está na lista porque o nome do arquivo da foto traz o CNPJ.)
+
+  ```text colunas-fora
+  TELEFONE
+  CELULAR
+  WHATSAPP
+  CNPJ
+  CPF
+  E-MAIL
+  EMAIL
+  CONTATO
+  FOTO
+  ENDERECO
+  ```
+
+  O robô (`bap_automation`) e a web (`web/app/render.py`, de onde o `tabelas` importa) têm cada um **uma** cópia desta lista. Um teste do `testes` lê o bloco `colunas-fora` deste arquivo e confere que as duas cópias são iguais a ele. A recusa do bloco `tabela` do painel por coluna de cliente (nome com CLIENTE, RAZÃO ou FANTASIA, §10.1) é regra a mais, própria do bloco, e não repete esta lista.
+- **Nome de cliente ou estabelecimento (as colunas "limpa"):** a célula passa por uma função pura do núcleo (modulo-farois; RN-GER-011):
   - `relatorios_nucleo.sem_documento(texto) -> str`: tira o CPF/CNPJ do **começo** (como `cobranca_whatsapp.nome_sem_documento`), do **fim** (11 ou 14 dígitos, com ou sem pontuação: o MEI "NOME 12345678900") e qualquer CPF/CNPJ **formatado** no meio;
   - `relatorios_nucleo.cliente_sem_documento(texto) -> str`: para as colunas "código - nome" (`ctx.nome_cliente`, ex.: `"001234 - NOME"`). Mantém o código do começo (`^\d{6}(-\d{2})? - `) e aplica `sem_documento` só ao nome;
   - **por quê:** o `nome_sem_documento` de hoje (1) apaga o código do começo (`"001234 - NOME"` vira `"NOME"`), e (2) não vê o CPF no fim. Medido nas bases: "Pedidos" `RAZÃO SOCIAL` 222 com documento no começo e **84 com CPF no fim** (de 2.216 linhas); "Cliente a cliente" `CLIENTE` 198 e 30 (de 1.441); "Entregas" `CLIENTE` 19 e 4 (de 1.390).
@@ -747,13 +777,28 @@ Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do clien
 
 #### 10.7.6 Conferência no PC e defesa na web
 
-**O PC confere cada aba antes de mandar** (`bap_automation`, modulo-robo): as colunas depois do corte batem com o §10.7.3 (nome, ordem, `tipo`, `oculta` e a forma do selo); cada linha tem o número de colunas (o robô corta a célula a mais); `recortes_linhas` e `uf_linhas` coerentes com `linhas`. Se uma aba não bate, **só ela** fica fora (com as juntas), com o aviso "A aba <título> ficou fora desta atualização: as colunas do PC não batem com o contrato." e uma linha no log sem dado pessoal. As outras abas e os outros relatórios seguem.
+**O PC confere cada aba antes de mandar** (`bap_automation`, modulo-robo): as colunas depois do corte batem com o §10.7.3 (nome, ordem, `tipo`, `oculta` e a forma do selo); cada linha tem o número de colunas (o robô corta a célula a mais); `recortes_linhas` e `uf_linhas` coerentes com `linhas`. Se uma aba não bate, **só ela** fica fora (com as juntas). As outras abas e os outros relatórios seguem. O motivo técnico vai só para o log (uma linha por aba, sem dado pessoal). No farol vai **um** aviso, com todas as abas que ficaram fora.
+
+**Os textos de aviso desta seção** (fonte única, RD-0024 e RD-0027; robô e web usam constantes com estes textos, e os testes os citam daqui):
+
+| Constante | Quem põe | Texto |
+|---|---|---|
+| `AVISO_ABAS_FORA` | o robô, em `avisos` do farol | `Abas fora desta atualização: {lista}. Veja no PC.` `{lista}` = os títulos das abas que ficaram fora, na ordem do §10.7.1, separados por `", "`. Ex.: "Abas fora desta atualização: Dia a dia, Prospecção. Veja no PC." Um aviso só, mesmo com uma aba |
+| `AVISO_CARTOES` | a web, na aba de tabela | `Cartões sem filtro. Com filtro, veja o total na tabela.` Aparece no lugar dos cartões da aba quando há filtro fora do padrão, recorte ou estado (§10.7.2, `kpis_padrao`) |
+
+**Ordem dos avisos do farol** (decisão do gerente, achado 13; o robô grava `avisos` já nesta ordem, nos três `rid`):
+1. `AVISO_ABAS_FORA` (falta de dado é o mais importante);
+2. os que começam com "Sem o arquivo";
+3. o que começa com "Sem filtro por estado";
+4. os outros, na ordem do PC.
+
+No Visita, o robô manda **no máximo 2** avisos (o teto do celular, `_avisos_curtos_visita_web`), cortando do fim desta ordem. Assim o aviso de aba fora nunca é cortado.
 
 **A web recusa o pacote inteiro** (motivo no log, sem dado pessoal) quando, num destes três `rid`:
 - uma tabela tem `titulo` fora da lista do §10.7.1, fora da ordem ou repetido; uma junta ou sub-aba está fora do lugar do §10.7.3;
 - as colunas não são as do §10.7.3 (no "Solicitação BAP": coluna que sai, ou `tipo` fora de `texto`, `num` e `data`);
 - aparece coluna que sai (§10.7.4), selo fora das colunas marcadas, ou `chip_tom` que não aponta para coluna oculta da mesma tabela;
-- uma linha tem número de células diferente do de colunas; um índice de `recortes_linhas` está fora de `linhas`; `uf_linhas` tem tamanho diferente de `linhas` ou valor que não é UF (`^[A-Z]{2}$`) nem `""`;
+- uma linha tem número de células diferente do de colunas; o `total` não segue o §10.7.2.1; um índice de `recortes_linhas` está fora de `linhas`; `uf_linhas` tem tamanho diferente de `linhas` ou valor que não é UF (`^[A-Z]{2}$`) nem `""`;
 - uma tabela passa de 60.000 linhas (`MAX_LINHAS`, como no §10.6);
 - há chave proibida (§10.7.2) em qualquer nível.
 
@@ -763,7 +808,7 @@ Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do clien
   - "Pedidos": as linhas com `MÊS` = mês do pacote (o PC já mostra só essas: o filtro MÊS é oculto e segue o Mês/Ano de cima). As juntas vão inteiras (já são só do que está em aberto);
   - "Entregas": as linhas com `MÊS` = mês do pacote; as pendências dos meses anteriores vão na junta;
   - Visita: as tabelas do `montar` já são do mês.
-- **Filtro por estado [D5]:** com um estado escolhido, a web também filtra as linhas pelas `uf_linhas` (a mesma regra dos cartões, RN-GER-006): "Pedidos" pela filial da nota, "Entregas" e a junta de pendências pela UF do cliente. As juntas do "Pedidos" seguem a `liga`. Os `kpis_padrao` não seguem o estado (mostram "—", como com filtro). O "Solicitação BAP" e as abas do Visita não têm estado: a web mostra a tabela da BAP inteira, com o aviso do §10.1.
+- **Filtro por estado [D5]:** com um estado escolhido, a web também filtra as linhas pelas `uf_linhas` (a mesma regra dos cartões, RN-GER-006): "Pedidos" pela filial da nota, "Entregas" e a junta de pendências pela UF do cliente. As juntas do "Pedidos" seguem a `liga`. Os `kpis_padrao` não seguem o estado: com estado, os cartões da aba saem, e fica o `AVISO_CARTOES` (§10.7.6). O "Solicitação BAP" e as abas do Visita não têm estado: a web mostra a tabela da BAP inteira, com o aviso do §10.1.
 
 #### 10.7.8 Tamanho do pacote
 
@@ -785,7 +830,7 @@ Medido nas bases do repositório (NOV/26, dados até 20/11), JSON compacto, com 
 - **Trava do robô:** `bap_automation.WEB_PACOTE_TETO_MB = 20`. Se o pacote serializado passar disso, o robô corta, nesta ordem, até caber, com um aviso no farol e uma linha no log: (1) "Solicitação BAP" só com as linhas de pedido EM ABERTO; (2) "Cliente a cliente" fora; (3) todas as `tabelas` dos três faróis fora (cai no §10.1). Nunca manda pacote que a web recusaria pelo tamanho.
 - A web pagina no servidor (100 linhas por página, como no §10.6). A página leva só a página da tabela, não o pacote.
 
-#### 10.7.9 Decisões em aberto (do Alexandre) e regra nova
+#### 10.7.9 Decisões em aberto (do Alexandre) e a regra
 
 | | Pergunta | Opções | Recomendação |
 |---|---|---|---|
@@ -796,7 +841,7 @@ Medido nas bases do repositório (NOV/26, dados até 20/11), JSON compacto, com 
 | **D5** | O estado escolhido em cima filtra as linhas? | (A) sim, pela mesma regra dos cartões (RN-GER-006); Visita e "Solicitação BAP" com aviso; (B) não: tabelas sempre da BAP inteira, com aviso | **A**: o número do cartão e as linhas contam a mesma história |
 | **D6** | Texto livre e nome de motorista | (A) vão: o texto livre passa pela limpeza (telefone, e-mail e CPF/CNPJ viram "[removido]"); `RESPONSÁVEL` vai como o nome do vendedor; (B) `OBSERVAÇÃO`, `JUSTIFICATIVA`, `RESULTADO`, `LINHAS DE INTERESSE` e `RESPONSÁVEL` ficam só no PC | **A**: é o que o gerente lê no PC; nas bases não há telefone nem documento nesses textos |
 
-**Regra nova proposta ao gerente-projetos** (dono do `docs/produto/03-regras.md`), com o número que ele der: "RN-GER-011 · Tabela no site: sem CPF/CNPJ, telefone, e-mail, contato e foto. O nome de cliente ou estabelecimento vai limpo de CPF/CNPJ no começo, no fim e formatado no meio; o código do cliente fica. Texto livre vai sem telefone, e-mail e documento." Os testes citam `test_RN_GER_011_...`.
+**Regra:** RN-GER-011 (`docs/produto/03-regras.md`). Os testes citam `test_RN_GER_011_...`.
 
 #### 10.7.10 Ordem de publicação
 
@@ -805,7 +850,7 @@ Medido nas bases do repositório (NOV/26, dados até 20/11), JSON compacto, com 
 3. **Web antes:** aceita, valida e desenha `tabelas` nos três `rid`, com o corte por perfil; `VERSAO` nova no `/saude`. Sobe com o merge (ADR 0001, adendo 4). A web publicada hoje recusa `tabelas` fora do `pl_inadimplencia`: **o robô novo antes da web derruba o pacote inteiro** (o `vc_painel` também para de atualizar).
 4. **Robô depois:** o "instale" no PC (regra 11 do `CLAUDE.md`), só com o `/saude` na versão nova.
 
-Web nova com robô antigo: só a aba Resumo (§10.1). A versão do contrato fica em 1. Renomear ou tirar chave desta seção = v2 com ADR.
+A versão do contrato fica em 1. Renomear ou tirar chave desta seção = v2 com ADR.
 
 ## 11. Parte ação: os callables e a web v1
 
