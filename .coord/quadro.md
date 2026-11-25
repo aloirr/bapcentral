@@ -1,6 +1,8 @@
 # Quadro — BAP Tools
 
-Atualizado em 24/11/2026, 19h10 (Manaus). Dono: gerente-projetos.
+Atualizado em 25/11/2026, 02h05 (Manaus). Dono: gerente-projetos.
+
+**24/11, 22h45 — PAUSA até 02h00 de 25/11 (R-20261124-223741-alexandre):** nada pela metade, nada instalado em PC, nenhum PR aberto, nenhuma sessão filha. **25/11, 02h00 — retomada:** Pedidos, Entregas e Visita com todas as abas do PC (R-20261124-223741-alexandre e R-20261124-223958-alexandre "1 B"); nova simulação dos 3 antes de PR.
 
 **24/11, noite — volta ao Claude Code na nuvem:** gerente fixo no ambiente BapCentral-GP (BAP_AGENTE=gerente-projetos), PO fixo no BapCentral-PO, guardiões e ronda de 20 min de volta. Sessões fixas em Opus 5.5 alto; tarefas e subagentes em Opus 5.5 médio (R-20261124-173350-gerente-projetos). O robô rodou no notebook do Alexandre: primeiro pacote no site às 18h07 (T-0013/T-0014 esperam a conferência dele).
 
@@ -26,10 +28,11 @@ Atualizado em 24/11/2026, 19h10 (Manaus). Dono: gerente-projetos.
 | T-0014 | Web: visões prontas por estado para o filtro (supervisor fica para depois) | em_teste (no main: #36 `0169ceb`, #35 `356b90d`, #37 `3623986`, #38 `df697f3`; simulação aprovada no R-20261123-195144-alexandre; bap_automation.py instalado na produção, R-20261123-213700-gerente-projetos) | modulo-robo + modulo-web + testes | — | — | junto com a T-0013: conferir o filtro por estado com o primeiro pacote |
 | T-0015 | `.bat` com o final de linha do Windows (CRLF) no repositório | concluida (#28 `19c5110`, `.gitattributes`; #29 teste; #31 `8f31c54`, `ATUALIZAR_DO_GITHUB.bat` guardado em LF) | alexandre (governança) + testes | — | — | concluída em 23/11 |
 | T-0016 | Rota por lugar respeita o sábado sem repetição (RN-ROT-002) e a cidade base (RN-ROT-003); smoke da rota limpo | concluida (#41 `a0f1ec2`, #40 `af3b8cf`, #42 `dd7e85d`; `planner_nucleo.py` instalado na produção com backup ANTES_T0016_NOV2026, byte a byte) | modulo-rota + testes + gerente-projetos | — | — | concluída em 24/11 |
-| T-0017 | Os 4 faróis do PC no site: Inadimplência (entrega 1), depois Pedidos, Entregas e Visita | em_teste (entrega 1 no main: #46 `4793fd1`, #47 `89eb4ca`, #48 `a08ab86`, #49 `ec31d36`, #51 `0605f8b`, #50 `e56fe45`, #52 `73a8b4a` v0.2.0, #53 `94ac56d`; números PC × pacote batem, valor × regra) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + engenheiro-dados + testes | — | — | deploy v0.2.0 e "instale" com o Alexandre; 2ª entrega (WhatsApp) 30/11 simulação, 02/12 entrega, após as decisões; Farol de Pedidos 26/11 |
+| T-0017 | Os 4 faróis do PC no site: Inadimplência (entregas 1 e 2), depois Pedidos, Entregas e Visita | em_andamento (entrega 1 no main: #46–#53; entrega 2 — WhatsApp, Títulos e Por cliente — aprovada no R-20261124-220857-alexandre e no main: #55, #56, #65, #62, #63, #64, #66 `2a50fa5`; site com deploy automático, #57; Pedidos, Entregas e Visita prontos em 4 branches sem PR: modulo-robo/T-0017-tres-farois `6d99e22`, modulo-web/T-0017-tres-farois `b2f763d`, modulo-farois/T-0017-hoje-fora-du `f81059e`, testes/T-0017-testes-tres-farois `fd773cc`) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + modulo-posvenda + testes | — | — | Pedidos, Entregas e Visita com todas as abas do PC (tabelas com as regras da Inadimplência; o que grava fica no PC): desenho e nova simulação dos 3 em 25/11 (R-20261124-223741-alexandre, R-20261124-223958-alexandre); dados no site só depois do robô rodar na produção nova (T-0018) |
+| T-0018 | Rotina diária de atualização da produção (`atualizar_do_github.py --diario`, 06h30) e produção na pasta pessoal | aguardando_alexandre (no main: #59 `e74de94` e ADR 0002, #60 `2d182bd` testes, #61 `a1b930f` regra 11; nada instalado em PC) | engenheiro-software + testes + alexandre (governança) | — | — | plano de migração para a pasta pessoal (R-20261124-214958-alexandre) com as 5 decisões do R-20261124-215228-gerente-projetos; depois `--primeira-vez --simular` com imagem antes |
 
 **Previsões:** a hora é a do último status do gerente ao po, e cada "Status HHhMM" do po leva a hora nova e o motivo quando ela muda (R-20261120-092924-alexandre).
 
-**Reservas:** a próxima tarefa é a T-0018. A próxima ADR livre é a 0002 (a 0001 é a da T-0006).
+**Reservas:** a próxima tarefa é a T-0019. A próxima ADR livre é a 0003.
 
 **Legenda de status:** aberta · em_andamento · em_teste · em_revisao · aguardando_alexandre · concluida · bloqueada.
