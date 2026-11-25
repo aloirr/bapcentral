@@ -1,4 +1,4 @@
-"""Fixture FICTÍCIA da cobrança (T-0017, §10.2): "Cliente 001", "Vendedor 01", telefone 5592900000001."""
+"""Fixture FICTÍCIA da cobrança (T-0017, §10.6): "Cliente 001", "Vendedor 01", telefone 5592900000001."""
 from copy import deepcopy
 
 from app import cobranca

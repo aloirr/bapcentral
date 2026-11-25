@@ -9,7 +9,7 @@ Texto de apoio do `modulo-web` (T-0013). O deploy é automático a cada commit n
 - Python 3.12, FastAPI + Jinja2 + uvicorn. HTML do servidor; um único JavaScript (`static/cobranca.js`) só na fila de cobrança.
 - Entrada: `uvicorn app.main:criar_app --factory` (a pasta de trabalho é `web/`).
 - Sem `SESSION_SECRET` o app **não sobe** e diz o motivo no log.
-- Dados no disco: `$BAP_WEB_DADOS/usuarios.json` (senhas com scrypt + sal) e `$BAP_WEB_DADOS/pacotes/<gerado_em>.json` (os últimos 7) e `cobranca/` (diário do site, §10.2.5). Sem Postgres. Dado de cliente e dado digitado nunca vão ao GitHub.
+- Dados no disco: `$BAP_WEB_DADOS/usuarios.json` (senhas com scrypt + sal) e `$BAP_WEB_DADOS/pacotes/<gerado_em>.json` (os últimos 7) e `cobranca/` (diário do site, §10.6.5). Sem Postgres. Dado de cliente e dado digitado nunca vão ao GitHub.
 
 ## 2. Texto proposto do `render.yaml` (governança: proposta ao gerente, não entra no PR)
 

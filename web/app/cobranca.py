@@ -293,7 +293,7 @@ def aviso_curto(aviso: str) -> str:
     if "fixo" in a:
         return "Fixo: confira se tem WhatsApp"
     if "repetido" in a:
-        return "Número repetido em outro cliente: digite o certo"
+        return "Número com dígitos repetidos: digite o certo"
     return aviso
 
 
@@ -398,10 +398,16 @@ class Diario:
         def __enter__(self):
             self.d._trinco.acquire()
             self.f = None
-            if fcntl:
-                self.d.pasta.mkdir(parents=True, exist_ok=True)
-                self.f = open(self.d.pasta / ".trava", "a")
-                fcntl.flock(self.f, fcntl.LOCK_EX)
+            try:
+                if fcntl:
+                    self.d.pasta.mkdir(parents=True, exist_ok=True)
+                    self.f = open(self.d.pasta / ".trava", "a")
+                    fcntl.flock(self.f, fcntl.LOCK_EX)
+            except BaseException:                       # não deixa o trinco da thread preso
+                if self.f:
+                    self.f.close()
+                self.d._trinco.release()
+                raise
 
         def __exit__(self, *a):
             if self.f:
@@ -489,7 +495,7 @@ class Diario:
                 mudou = True
             if a["confirmado_em"] is not None:
                 desde = datetime.strptime(a["confirmado_em"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=MANAUS)
-                if agora_ - desde > timedelta(days=RETENCAO_DIAS):
+                if agora_ - desde >= timedelta(days=RETENCAO_DIAS):
                     (self.pasta / nome).unlink(missing_ok=True)
                     del e["arquivos"][nome]
                     mudou = True
@@ -589,7 +595,10 @@ def tabela_para_tela(t: dict, titulo: str, consulta: dict, pagina_tam: int = 100
 
     def cel(v, k):
         txt = fmt_celula(v, cols[k][1])
-        cor = (chips.get(k) or {}).get(str(v)) if v is not None else None
+        cor = None
+        if v is not None:                                   # §10.6.2: sem espaços nas pontas e em maiúsculas
+            alvo = str(v).strip().upper()
+            cor = next((c for ch, c in (chips.get(k) or {}).items() if str(ch).strip().upper() == alvo), None)
         return {"t": txt, "f": cor[0] if cor else None, "c": cor[1] if cor else None}
     return {
         "titulo": titulo, "total_linhas": total, "pag": pag, "paginas": paginas,

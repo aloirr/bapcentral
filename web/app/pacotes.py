@@ -279,7 +279,10 @@ def por_sha(dados: Path, sha: str) -> dict | None:
     """O pacote guardado (entre os 7 últimos) cujo sha256 é `sha`; None se já saiu (§10.6.4)."""
     if not re.fullmatch(r"[0-9a-f]{64}", sha or ""):
         return None
-    for a in reversed(listar(dados)):
+    guardados = listar(dados)
+    for velho in [k for k in _MEMO_SHA if k[0] not in {str(a) for a in guardados}]:
+        del _MEMO_SHA[velho]                               # só os pacotes ainda guardados
+    for a in reversed(guardados):
         chave = (str(a), a.stat().st_mtime_ns)
         if chave not in _MEMO_SHA:
             _MEMO_SHA[chave] = hashlib.sha256(a.read_bytes()).hexdigest()

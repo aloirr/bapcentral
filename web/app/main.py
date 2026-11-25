@@ -394,7 +394,7 @@ def criar_app() -> FastAPI:
         if negado:
             return negado
         bruto = request.query_params.get("desde", "0")
-        if not bruto.isdigit() or len(bruto) > 15:
+        if not (bruto.isascii() and bruto.isdigit()) or len(bruto) > 15:
             return JSONResponse({"erro": "desde precisa ser inteiro >= 0"}, status_code=400)
         return diario.desde(int(bruto))
 

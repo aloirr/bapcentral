@@ -1,4 +1,4 @@
-"""T-0017 entrega 2: Títulos, Por cliente e "Cobrar no WhatsApp" (contrato §10.2; RN-POS-001 a 004).
+"""T-0017 entrega 2: Títulos, Por cliente e "Cobrar no WhatsApp" (contrato §10.6; RN-POS-001 a 004).
 Fixture fictícia: nada de cliente, CNPJ ou telefone real."""
 import json
 from datetime import datetime, timedelta
@@ -660,3 +660,49 @@ def test_tratados_acessivel_da_primeira_pagina(admin):
     h = _tela(admin, "cobrar").text
     assert 'href="/farol/pl_inadimplencia?aba=cobrar&amp;pag=1#tratados">1 já tratados hoje</a>' in h
     assert 'id="tratados"' in h
+
+
+def test_aviso_de_numero_repetido_diz_digitos_repetidos():
+    assert cobranca.aviso_curto("telefone inválido (repetido)") == "Número com dígitos repetidos: digite o certo"
+
+
+def test_limpeza_com_exatamente_30_dias_ja_apaga(amb):
+    d = cobranca.Diario(amb)
+    _reg(d, "a", AGORA)
+    ep = d.epoca()
+    dez = AGORA + timedelta(days=10)
+    d.confirmar(ep, 1, dez)                                       # nov fecha; marcado em 04/12 15:00
+    nov = amb / "cobranca" / "COBRANCA_WEB_2026-11.jsonl"
+    d.confirmar(ep, 1, dez + timedelta(days=30) - timedelta(seconds=1))
+    assert nov.exists()
+    d.confirmar(ep, 1, dez + timedelta(days=30))                  # "30 dias ou mais" (§10.6.5)
+    assert not nov.exists()
+
+
+def test_chip_casa_sem_espacos_e_sem_diferenca_de_caixa(admin):
+    p = pacote_cobranca()
+    t = p["relatorios"]["pl_inadimplencia"]["tabelas"][0]
+    t["colunas"][0]["chip"] = {" vencido ": ["#FDECEA", "#B3261E"]}
+    postar(admin, p)
+    assert 'class="selo" style="background:#FDECEA;color:#B3261E">VENCIDO' in _tela(admin, "titulos").text
+
+
+def test_desde_com_digito_unicode_da_400_e_nao_500(admin):
+    assert admin.get("/api/cobranca?desde=%C2%B2", headers=_h()).status_code == 400
+
+
+def test_js_numero_espelha_o_celular_do_pc():
+    import shutil
+    import subprocess
+    from pathlib import Path
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("sem node")
+    js = (Path(cobranca.__file__).parent / "static" / "cobranca.js").read_text(encoding="utf-8")
+    ini = js.index("  function celular(v) {")
+    fim = js.index("  function numero(card, link) {")
+    casos = ["(92) 99999-1234", "092 3200-0002", "92 8888-1111", "92 99999-9999", "123", "", "5592999991234",
+             "(92) 3200-0002 / (92) 99999-1234", "92 91234-5678 e 92 3200-0002", "0 92 98888-7777"]
+    prog = js[ini:fim] + "\nconsole.log(JSON.stringify(" + json.dumps(casos) + ".map(celular)));"
+    saida = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30).stdout
+    assert json.loads(saida) == [cobranca.celular(c) for c in casos]

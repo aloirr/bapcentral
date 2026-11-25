@@ -101,12 +101,25 @@
   }
   if (!secoes.length) return;
 
+  // espelho do `celular()` do PC (mesma regra do servidor): '55' + DDD + 8 ou 9 dígitos, ou '' se inválido
+  function celular(v) {
+    var partes = (v || '').split(/[\/;,|]| e /);
+    for (var i = 0; i < partes.length; i++) {
+      var d = partes[i].replace(/\D/g, '');
+      if (d.indexOf('55') === 0 && d.length >= 12) d = d.slice(2);
+      d = d.replace(/^0+/, '');
+      if (d.length < 10) continue;
+      var ddd = d.slice(0, 2), num = d.slice(2);
+      if (num.length === 8 && '6789'.indexOf(num[0]) >= 0) num = '9' + num;
+      var resto = num.slice(1);
+      if (resto.split('').every(function (c) { return c === resto[0]; })) return '';
+      if (num.length === 8 || num.length === 9) return '55' + ddd + num;
+    }
+    return '';
+  }
   function numero(card, link) {
-    var d = (card.querySelector('.cob-tel').value || '').replace(/\D/g, '');
-    if (!d) return link.dataset.base;
-    if (d.indexOf('55') === 0 && d.length >= 12) return d;
-    d = d.replace(/^0+/, '');
-    return d.length >= 10 ? '55' + d : '';
+    var digitado = card.querySelector('.cob-tel').value || '';
+    return digitado.replace(/\D/g, '') ? celular(digitado) : link.dataset.base;
   }
   function atualizaLink(card) {
     var a = card.querySelector('.cob-link');
