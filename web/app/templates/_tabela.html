@@ -17,9 +17,9 @@
   <thead><tr>{% for c in tabela.cols %}
     {% set prox = 'desc' if (tabela.ord == c.i and not tabela.desc) else 'asc' %}
     <th class="{{ 'num' if c.num }}"><a href="{{ base }}&amp;ord={{ c.i }}&amp;dir={{ prox }}{{ fq }}">{{ c.nome }}{{ ' ▲' if tabela.ord == c.i and not tabela.desc }}{{ ' ▼' if tabela.ord == c.i and tabela.desc }}</a></th>{% endfor %}</tr></thead>
-  <tbody>{% for l in tabela.linhas %}<tr class="tom-{{ l.tom }}">{% for v in l.cel %}<td class="{{ 'num' if tabela.cols[loop.index0].num }}">{{ v }}</td>{% endfor %}</tr>
+  <tbody>{% for l in tabela.linhas %}<tr class="tom-{{ l.tom }}">{% for v in l.cel %}<td class="{{ 'num' if tabela.cols[loop.index0].num }}">{% if v.f %}<span class="selo" style="background:{{ v.f }};color:{{ v.c }}">{{ v.t }}</span>{% else %}{{ v.t }}{% endif %}</td>{% endfor %}</tr>
   {% else %}<tr><td colspan="{{ tabela.cols|length }}">Nenhuma linha neste filtro.</td></tr>{% endfor %}</tbody>
-  {% if tabela.total %}<tfoot><tr>{% for v in tabela.total %}<td class="{{ 'num' if tabela.cols[loop.index0].num }}"><b>{{ v }}</b></td>{% endfor %}</tr></tfoot>{% endif %}
+  {% if tabela.total %}<tfoot><tr>{% for v in tabela.total %}<td class="{{ 'num' if tabela.cols[loop.index0].num }}"><b>{{ v.t }}</b></td>{% endfor %}</tr></tfoot>{% endif %}
 </table></div>
 {% if tabela.paginas > 1 %}
 {% set q %}{% if tabela.ord is not none %}&amp;ord={{ tabela.ord }}&amp;dir={{ 'desc' if tabela.desc else 'asc' }}{% endif %}{{ fq }}{% endset %}

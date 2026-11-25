@@ -45,6 +45,22 @@ _C = [("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("CLIENTE", "texto"), ("NOME"
       ("A VENCER", "moeda"), ("PRÓX. VENCIMENTO", "data"), ("LIMITE", "moeda"),
       ("PEDIDO EM ABERTO", "moeda"), ("ÚLTIMA COMPRA", "data")]
 COLUNAS = {"Títulos": _T, "Por cliente": _C}        # §10.6.2: PC depois do montar, menos TELEFONE
+STATUS_BLOCO = ("STATUS PROTHEUS", "STATUS", "SITUAÇÃO PLANNER")   # opcionais em bloco (3 ou nenhuma)
+COLUNAS_CHIP = ("SITUAÇÃO", "FAIXA", "STATUS")                     # `chip`: selo colorido do PC
+RE_COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def colunas_esperadas(titulo: str, cols) -> list[tuple[str, str]]:
+    """A lista do PC; sem as 3 colunas de status só se nenhuma delas veio (qualquer outra mistura recusa)."""
+    cheia = COLUNAS[titulo]
+    tem = [c.get("nome") for c in cols if isinstance(c, dict) and c.get("nome") in STATUS_BLOCO]
+    return cheia if tem else [(n, t) for n, t in cheia if n not in STATUS_BLOCO]
+
+
+def _chip_ok(chip) -> bool:
+    return isinstance(chip, dict) and len(chip) <= 60 and all(
+        isinstance(k, str) and len(k) < 60 and isinstance(v, (list, tuple)) and len(v) == 2
+        and all(isinstance(x, str) and RE_COR.match(x) for x in v) for k, v in chip.items())
 PROIBIDAS_TABELA = {"edicao", "editar", "abrir", "detalhe", "kpis_de", "recortes", "juntas"}
 COLUNAS_PROIBIDAS = {"TELEFONE", "CNPJ", "CPF", "E-MAIL", "EMAIL"}
 CHAVES_TABELA = {"titulo", "colunas", "linhas", "tons", "total", "filtros"}
@@ -111,10 +127,11 @@ def _tabela_erro(t, titulo) -> str | None:
     nomes = [str(c.get("nome", "")).upper() if isinstance(c, dict) else "" for c in cols]
     if COLUNAS_PROIBIDAS & set(nomes):
         return f"tabela {titulo}: coluna proibida (telefone, CNPJ, CPF ou e-mail)"
-    esperado = COLUNAS[titulo]
+    esperado = colunas_esperadas(titulo, cols)
     ok = len(cols) == len(esperado) and all(
         isinstance(c, dict) and c.get("nome") == n and c.get("tipo") == tp
-        and (set(c) - {"nome", "tipo", "largura", "oculta"} == set())
+        and (set(c) - {"nome", "tipo", "largura", "oculta", "chip"} == set())
+        and (c.get("chip") is None or (n in COLUNAS_CHIP and _chip_ok(c["chip"])))
         and (c.get("largura") is None or _int(c.get("largura")))
         and bool(c.get("oculta")) == (n in _OC)            # mesma marca "oculta" do PC
         for c, (n, tp) in zip(cols, esperado))
@@ -134,7 +151,7 @@ def _tabela_erro(t, titulo) -> str | None:
     if tot is not None and not (isinstance(tot, list) and len(tot) == len(esperado)
                                 and all(_celula_ok(v, tp) for v, (_, tp) in zip(tot, esperado))):
         return f"tabela {titulo}: total inválido"
-    nm = {n for n, _ in esperado}
+    nm = {n for n, _ in COLUNAS[titulo]}                # filtro de coluna ausente é ignorado na tela
     fl = t.get("filtros", [])
     if not isinstance(fl, list):
         return f"tabela {titulo}: filtros inválidos"
@@ -500,11 +517,13 @@ def _chave_ordem(v, tipo):
 
 def tabela_para_tela(t: dict, titulo: str, consulta: dict, pagina_tam: int = 100) -> dict:
     """Filtra, ordena e pagina no servidor. `consulta`: f<i> (lista de valores), ord, dir, pag."""
-    cols = COLUNAS[titulo]
+    cols = colunas_esperadas(titulo, t["colunas"])
     linhas = t["linhas"]
     filtros = []
     for f in t.get("filtros") or []:
         nome = f if isinstance(f, str) else f["coluna"]
+        if nome not in [n for n, _ in cols]:
+            continue
         i = [n for n, _ in cols].index(nome)
         padrao = f.get("padrao") if isinstance(f, dict) else None
         multi = bool(isinstance(f, dict) and f.get("multi"))
@@ -536,14 +555,20 @@ def tabela_para_tela(t: dict, titulo: str, consulta: dict, pagina_tam: int = 100
     pag = min(pag, paginas)
     visiveis = linhas[(pag - 1) * pagina_tam: pag * pagina_tam]
     ocultas = {k for k, c in enumerate(t["colunas"]) if c.get("oculta")}
+    chips = {k: c["chip"] for k, c in enumerate(t["colunas"]) if c.get("chip")}
+
+    def cel(v, k):
+        txt = fmt_celula(v, cols[k][1])
+        cor = (chips.get(k) or {}).get(str(v)) if v is not None else None
+        return {"t": txt, "f": cor[0] if cor else None, "c": cor[1] if cor else None}
     return {
         "titulo": titulo, "total_linhas": total, "pag": pag, "paginas": paginas,
         "cols": [{"i": k, "nome": n, "tipo": tp, "num": tp in ("int", "moeda")}
                  for k, (n, tp) in enumerate(cols) if k not in ocultas],
         "linhas": [{"tom": tons[idx[id(ln)]] if idx.get(id(ln)) is not None and idx[id(ln)] < len(tons) else "",
-                    "cel": [fmt_celula(v, cols[k][1]) for k, v in enumerate(ln) if k not in ocultas]}
+                    "cel": [cel(v, k) for k, v in enumerate(ln) if k not in ocultas]}
                    for ln in visiveis],
-        "total": ([fmt_celula(v, cols[k][1]) for k, v in enumerate(t["total"]) if k not in ocultas]
+        "total": ([cel(v, k) for k, v in enumerate(t["total"]) if k not in ocultas]
                   if t.get("total") else None),
         "filtros": filtros, "ord": j, "desc": desc,
     }

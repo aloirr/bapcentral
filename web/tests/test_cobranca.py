@@ -539,3 +539,42 @@ def test_limpeza_roda_na_confirmacao_repetida_e_ao_subir(amb):
     assert jan.exists()
     d.limpar(dez + timedelta(days=100))                      # ao subir o app
     assert jan.exists()                                      # sem confirmação: fica
+
+
+def _sem_status(p, quais=cobranca.STATUS_BLOCO):
+    for tb in p["relatorios"]["pl_inadimplencia"]["tabelas"]:
+        idx = [k for k, c in enumerate(tb["colunas"]) if c["nome"] in quais]
+        for k in reversed(idx):
+            del tb["colunas"][k]
+            for ln in tb["linhas"]:
+                del ln[k]
+            if tb["total"]:
+                del tb["total"][k]
+        tb["filtros"] = [f for f in tb["filtros"] if (f if isinstance(f, str) else f["coluna"]) not in quais]
+    return p
+
+
+def test_colunas_de_status_opcionais_em_bloco(cli, admin):
+    assert postar(cli, _sem_status(pacote_cobranca())).status_code == 200   # nenhuma das 3
+    h = _tela(admin, "titulos").text
+    assert "Cliente 001" in h and "VENCIMENTO" in h
+    assert _tela(admin, "cliente").status_code == 200
+    assert postar(cli, pacote_cobranca()).status_code == 200                # as 3 juntas
+    for quais in (("STATUS",), ("STATUS PROTHEUS",), ("STATUS PROTHEUS", "SITUAÇÃO PLANNER"),
+                  ("STATUS", "SITUAÇÃO PLANNER")):
+        _recusa(cli, _sem_status(pacote_cobranca(), quais), "colunas diferentes")
+
+
+def test_chip_vira_selo_nas_colunas_permitidas_e_valida_cor_e_coluna(admin, cli):
+    p = pacote_cobranca()
+    t = p["relatorios"]["pl_inadimplencia"]["tabelas"][0]
+    t["colunas"][0]["chip"] = {"VENCIDO": ["#FDECEA", "#B3261E"]}
+    t["tons"] = [""] * len(t["tons"])
+    assert postar(admin, p).status_code == 200
+    h = _tela(admin, "titulos").text
+    assert 'class="selo" style="background:#FDECEA;color:#B3261E">VENCIDO' in h
+    p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][0]["chip"] = {"VENCIDO": ["vermelho", "#000000"]}
+    _recusa(cli, p, "colunas diferentes")
+    p = pacote_cobranca()                                                    # chip em coluna fora das 3
+    p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][1 + 2]["chip"] = {"x": ["#000000", "#FFFFFF"]}
+    _recusa(cli, p, "colunas diferentes")

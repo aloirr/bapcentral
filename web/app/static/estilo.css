@@ -124,3 +124,5 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .cob-acoes [hidden]{display:none}
 .cob-erro{color:var(--al);margin:0;min-height:1em;font-size:.85rem}
 @media(max-width:600px){.fila{grid-template-columns:1fr}.cob-acoes>*{flex:1}}
+.selo{display:inline-block;padding:.1rem .55rem;border-radius:10px;font-size:.78rem;font-weight:700;white-space:nowrap}
+.tab-dados tr.tom- td{background:transparent}
