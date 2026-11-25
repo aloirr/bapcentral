@@ -319,9 +319,28 @@ def _tipo_col(c) -> str:
     return str(c.get("tipo", "texto")) if isinstance(c, dict) else "texto"
 
 
-def fmt_celula(v, tipo, centavos=False) -> str:
-    """Texto da célula de tabela (a única regra: abas, juntas, bloco tabela do painel).
-    Moeda sem centavos como o PC; `centavos=True` (Inadimplência) mantém as 2 casas."""
+def fmt_celula(v, tipo, centavos=False, painel=False) -> str:
+    """Texto da célula de tabela (a única função: abas, juntas, bloco tabela do painel).
+    Moeda sem centavos como o PC; `centavos=True` (Inadimplência) mantém as 2 casas.
+    `painel=True` (bloco tabela do Painel e dos faróis): o jeito que o Painel já mostra no ar:
+    vazio fora de coluna de texto vira "—" e pct/pct1 levam 1 casa decimal."""
+    if painel:
+        if v is None or v == "":
+            return "—" if tipo != "texto" else ""
+        if isinstance(v, str):
+            return v
+        n = _num(v)
+        if n is None:
+            return str(v)
+        if tipo in ("moeda", "moeda2"):
+            return ("−" if n < 0 else "") + "R$ " + br(abs(n), 2 if tipo == "moeda2" else 0)
+        if tipo in ("pct", "pct1"):
+            return br(n, 1) + "%"
+        if tipo in ("num1", "dia"):
+            return br(n, 1)
+        if tipo == "num2":
+            return br(n, 2)
+        return br(n, 0 if float(n).is_integer() else 1)
     if v is None or v == "":
         return ""
     n = _num(v)
@@ -353,7 +372,7 @@ def _bloco_tabela(b) -> dict:
     vis = vis[:1] + [i for i in vis[1:] if _tipo_col(cols[i]) != "texto"] + [i for i in vis[1:] if _tipo_col(cols[i]) == "texto"]
 
     def cel(ln, i):
-        return {"t": fmt_celula(ln[i] if i < len(ln) else None, _tipo_col(cols[i])), "f": None, "c": None, "b": None}
+        return {"t": fmt_celula(ln[i] if i < len(ln) else None, _tipo_col(cols[i]), painel=True), "f": None, "c": None, "b": None}
 
     linhas = [{"tom": "", "cel": [cel(_lista(ln), i) for i in vis]}
               for ln in _lista(b.get("linhas"))[:MAX_LINHAS_TAB]]

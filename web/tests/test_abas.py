@@ -843,7 +843,7 @@ def test_total_fixo_so_sem_filtro_recorte_ou_estado(com_tabelas):
 
 # ------------------------------------------------------------------ cartões, estado vazio, avisos
 def test_aviso_dos_cartoes_e_o_do_contrato_e_estado_tira_os_cartoes(com_tabelas):
-    assert tabelas.AVISO_CARTOES == "Cartões sem filtro. Com filtro, veja o total na tabela."
+    assert tabelas.AVISO_CARTOES == "Cartões sem filtro. Com filtro, veja as linhas na tabela."
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
     assert tabelas.AVISO_CARTOES in h and 'class="kpis' not in h and "kpi-valor\">—" not in h
     h = com_tabelas.get("/farol/pl_entregas?aba=entregas&uf=PA").text

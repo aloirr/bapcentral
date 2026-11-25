@@ -44,7 +44,7 @@ SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitaca
            "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir")
 # D5 (recomendação A): estado filtra as linhas só onde o pacote traz `uf_linhas`
 AVISO_SEM_ESTADO = "Sem filtro por estado: esta tabela mostra a BAP inteira."
-AVISO_CARTOES = "Cartões sem filtro. Com filtro, veja o total na tabela."
+AVISO_CARTOES = "Cartões sem filtro. Com filtro, veja as linhas na tabela."
 AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
 # coluna que identifica a linha: fica fixa à esquerda ao rolar para o lado (celular)
 FIXA = {"Por vendedor": "VENDEDOR", "Dia a dia": "VENDEDOR", "Aderência dia a dia": "VENDEDOR",

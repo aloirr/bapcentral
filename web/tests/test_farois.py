@@ -216,3 +216,19 @@ def test_tabela_numeros_perto_da_1a_coluna_e_dica_de_rolagem(admin):
     ths = h.split("<thead>")[1].split("</thead>")[0]
     assert ths.index("FRETE R$") < ths.index("REGIÃO") and ths.index("UF") < ths.index("NOTAS")
     assert "Role para o lado" in h
+
+
+def test_bloco_tabela_do_painel_igual_ao_golden_gerado_com_o_codigo_de_antes():
+    import json
+    from pathlib import Path
+    from app import render
+    from painel_tabela_fixture import blocos_tabela
+    g = json.loads((Path(__file__).parent / "golden_painel_tabela.json").read_text(encoding="utf-8"))
+    novos = []
+    for b in blocos_tabela():
+        r = render._bloco_tabela(b)
+        novos.append({"titulo": r["titulo"], "cols": [[c["nome"], c["num"]] for c in r["cols"]],
+                      "linhas": [[c["t"] for c in ln["cel"]] for ln in r["linhas"]],
+                      "total": [c["t"] for c in r["total"]] if r["total"] else None})
+    assert json.loads(json.dumps(novos, ensure_ascii=False)) == g
+    assert any("—" in ln for b in g for ln in b["linhas"])            # o vazio continua "—" no Painel
