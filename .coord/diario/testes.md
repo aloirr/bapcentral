@@ -5,3 +5,4 @@
 - 2026-11-25 — T-0017 — entrega 2: tests/test_T0017_cobranca.py (30 testes, RN-POS-001 a 004) e conferência PC × pacote NOV/2026 sem diferença (539 + 193 linhas, fila 139)
 - 2026-11-25 — T-0017 — entregas 3 a 5: +2 testes de Pendências anteriores por estado (PC com o relatório fictício; site sem o cartão no recorte); total BAP igual ao main nas bases (0), soma fecha
 - 2026-11-25 — T-0017 — Pendências anteriores: 4 testes de comportamento (rn.entregas + chamar_kpis_de, casos a-d) no lugar do teste que replicava a lógica; 21 testes no arquivo, 238 em tests/, 122 na web
+- 2026-11-25 — T-0017 — todas as abas: tests/test_T0017_abas_tres_farois.py (87 casos; RN-GER-011, linhas_padrao × VistaTabela._filtradas, recortes_em_linhas); 83 passam, 4 falham = achados (documento sem máscara no meio; R$ com 8 dígitos sem ponto)
