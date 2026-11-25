@@ -93,6 +93,15 @@ def fone_bonito(n: str) -> str:
 
 
 # ------------------------------------------------------------- a fila
+_DOC_INICIAL = re.compile(r"^\s*(?=(?:[.\-/\s]*\d){6})[\d.\-/\s]+")
+
+
+def nome_saudacao(nome) -> str:
+    """Nome para a saudacao: sem CPF/CNPJ (nem pedaco com 6+ digitos, ponto,
+    traco ou barra) no comeco. MEI: '12.345.678 FULANO' -> 'FULANO'."""
+    return _DOC_INICIAL.sub("", texto(nome)).strip()
+
+
 def fila(farol: dict, nomes=None) -> list[dict]:
     """Os clientes INADIMPLENTES do Farol de Inadimplencia com os titulos
     vencidos (do maior atraso em R$ para o menor). nomes: {cod: nome para
@@ -120,8 +129,9 @@ def fila(farol: dict, nomes=None) -> list[dict]:
         ts = sorted(tits.get(cod, []), key=lambda x: -x["dias"])
         saida.append({
             "cod": cod, "nome": texto(l[ic["NOME"]]),
-            "nome_msg": (nomes or {}).get(cod.split("-")[0]) or texto(
-                l[ic["NOME"]]),
+            "nome_msg": nome_saudacao(
+                (nomes or {}).get(cod.split("-")[0])) or nome_saudacao(
+                l[ic["NOME"]]) or "cliente",
             "cidade": texto(l[ic["CIDADE"]]), "uf": texto(l[ic["UF"]]),
             "vendedor": texto(l[ic["VENDEDOR"]]),
             "supervisor": texto(l[ic["SUPERVISOR"]]),
@@ -146,7 +156,7 @@ def mensagem(cli: dict, modelo: str = MODELO) -> str:
         linhas.append(f"• e mais {len(ts) - 12} título(s)")
     nome = " ".join(w.lower() if w.lower() in ("da", "das", "de", "do",
                                                "dos", "e") else
-                    w.capitalize() for w in cli["nome_msg"].split())
+                    w.capitalize() for w in (nome_saudacao(cli["nome_msg"]) or "cliente").split())
     total = sum(x["saldo"] for x in ts) or cli["em_atraso"]
     return modelo.format(
         cliente=nome, total=moeda(total), titulos="\n".join(linhas),
