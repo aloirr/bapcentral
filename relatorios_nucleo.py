@@ -787,17 +787,23 @@ def chamar_kpis_de(f, linhas, filtro=None):
 # ---------------------------------------------------------------------------
 _CPF_FMT = r"\d{3}\.\d{3}\.\d{3}-\d{2}"
 _CNPJ_FMT = r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"
-_DOC_MEIO = re.compile(rf"(?<!\d)(?:{_CNPJ_FMT}|{_CPF_FMT})(?!\d)")
+_DOC_MEIO = re.compile(
+    r"(?<![\w])(?:\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}"
+    r"|\d{3}\.?\d{3}\.?\d{3}-?\d{2})(?![\w])")
 _ROTULO_DOC = r"(?:(?:CNPJ|CPF)\s*[:.\-]?\s*)?"
 _DOC_QUALQUER = re.compile(
-    rf"{_ROTULO_DOC}(?<!\d)(?:{_CNPJ_FMT}|{_CPF_FMT}|\d{{14}}|\d{{11}})(?![\d])",
-    re.IGNORECASE)
+    rf"{_ROTULO_DOC}(?<![\w])(?:{_CNPJ_FMT}|{_CPF_FMT}"
+    r"|\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})"
+    r"(?![\w])", re.IGNORECASE)
+# pedaco de documento no comeco (MEI "12.345.678 FULANO", RN-POS-004): so
+# quando tem separador entre digitos; numero puro de 6 a 10 digitos fica
+_DOC_PEDACO_INI = re.compile(r"^\s*(?=(?:[.\-/\s]*\d){6})[\d.\-/\s]+")
 _VALOR_RS = re.compile(r"(R\$\s*\d[\d.]*(?:,\d+)?)")
 _DOC_SOLTO = re.compile(r"(?<!\d)(?:\d{14}|\d{11})(?!\d)")
 _EMAIL = re.compile(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+")
 _FONE = re.compile(
-    r"(?<!\d)(?:\+?55[\s.\-]?)?(?:\(?\d{2}\)?[\s.\-]?)?9?\d{4}[\s.\-]?\d{4}"
-    r"(?![\d]|,\d)")
+    r"(?<![\w])(?:\+?55[\s.\-]?)?(?:\(?\d{2}\)?[\s.\-]?)?9?\d{4}[\s.\-]?\d{4}"
+    r"(?![\w]|,\d)")
 _COD_CLIENTE = re.compile(r"^\d{6}(?:-\d{2})? - ")
 REMOVIDO = "[removido]"
 
@@ -814,6 +820,9 @@ def sem_documento(texto) -> str:
     if texto in (None, ""):
         return ""
     s = _DOC_QUALQUER.sub(" ", str(texto))
+    m = _DOC_PEDACO_INI.match(s)
+    if m and re.search(r"\d[.\-/]\d", m.group(0)):
+        s = s[m.end():]
     return _limpa_pontas(s)
 
 
