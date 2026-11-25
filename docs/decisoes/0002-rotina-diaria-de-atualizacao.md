@@ -35,14 +35,15 @@ Ordem, da conferência mais barata à mais cara. Um limite que falha **não troc
 | 3 | Cota da API: `/rate_limit` (não gasta cota) com 4 ou mais restantes | — | 15 |
 | 4 | SHA e data do `main` (`/commits/main`). Se for o SHA do `VERSAO_INSTALADA.txt`, sai 0 sem baixar nada. | `sha_do_texto_versao` | 0 / 15 |
 | 5 | **Limite 1:** o commit tem 2 h ou mais | `commit_maduro` | 10 |
-| 6 | **Limite 2:** o PR de origem (`/commits/{sha}/pulls`) tem todas as verificações do head concluídas e verdes (`/commits/{head}/check-runs`) | `pr_de_origem`, `ci_verde` | 11 |
-| 7 | Baixa o zip **do SHA conferido** (`github.com/.../archive/{sha}.zip`, fora da cota da API) e confere o SHA no comentário do zip | — | 1 |
+| 6 | **Limite 2:** o PR de origem (`/commits/{sha}/pulls`, só o PR cujo `merge_commit_sha` é o próprio SHA; commit sem PR próprio sai 11) tem todas as verificações do head concluídas e verdes (`/commits/{head}/check-runs`) | `pr_de_origem`, `ci_verde` | 11 |
+| 7 | Baixa o zip **do SHA conferido** (`github.com/.../archive/{sha}.zip`, fora da cota da API) e confere o SHA no comentário do zip; sem o comentário ou com outro SHA, sai 1 sem trocar nada | — | 1 |
 | 8 | **Limite 3:** `VERSAO` de `web/app/__init__.py` no zip é igual à `versao` do `/saude`. A URL vem de `BAP_WEB_URL` ou do cofre (`BAP_WEB`/`url`), a mesma do pacote do robô, e não vai para o log. | `versao_do_init`, `versoes_batem` | 12 |
 | 9 | Plano sem os arquivos de `so_com_instale`. Os que estiverem diferentes viram "pendente de instale" no log. | `so_com_instale` | — |
 | 10 | **Limite 5:** trava "instalado por fora" (arquivo da produção mais novo que o `main`) | `planejar` | 2 |
 | 11 | Backup `SISTEMA BAP\BACKUP_RELATORIOS\ANTES_DIARIO_<MÊS><ANO>[_n]`, troca atômica e conferência byte a byte (T-0003) | — | 3 / 4 |
 | 12 | Grava `SISTEMA BAP\VERSAO_INSTALADA.txt`: 1ª linha com o SHA, depois a data (Manaus), o modo e o n.º de arquivos | `texto_versao_instalada` | 0 |
 
+- **`--simular`:** mostra o plano e o código, mas não grava nada, nem a linha de log.
 - **Cota:** no máximo 4 requisições por rodada (1 sem custo). Cabem com folga nas 60 por hora.
 - **Log sem dado pessoal:** cada linha tem a data, o modo, o código, o SHA curto e só nomes de programa e hashes curtos (`linha_log`). Nada de usuário, máquina, URL ou conteúdo de arquivo.
 - **Nunca instalados pelo `--diario`:** `instalar_bap.bat`, `INSTALAR_PDF.bat`, `REPARAR_PYTHON_BAP.bat`, `VERIFICAR_REQUISITOS.bat`, `ATUALIZAR_DO_GITHUB.bat`, `INSTALAR_ROTINA_DIARIA.bat`, `atualizar_do_github.py`, `tarefa_bap.xml`, qualquer `.json`. Também ficam de fora as bases, os dados digitados e os segredos (`eh_excluido`, T-0003).
@@ -51,7 +52,7 @@ Ordem, da conferência mais barata à mais cara. Um limite que falha **não troc
 ### 3.1 `--primeira-vez`
 - Só manual. Exige `--confirmar`, ou então `--simular` para mostrar antes. Não combina com `--diario`.
 - Faz backup **total** dos `.py`/`.bat` da raiz da produção (`ANTES_PRIMEIRA_VEZ_<MÊS><ANO>`) e ignora a trava 5.
-- Os limites 1 a 3 não valem aqui: a rodada é manual e o Alexandre está olhando. A trava do robô continua valendo (código 14).
+- [SUPOSIÇÃO: não está escrito no R-20261124-214958; confirmar com o po] Os limites 1 a 3 não valem aqui: a rodada é manual e o Alexandre está olhando. A trava do robô continua valendo (código 14).
 
 ### 3.2 Agendamento
 - `ATUALIZAR_DO_GITHUB.bat --agendar` executa `schtasks /Create /TN "BAP - Atualizacao diaria do codigo" /TR "py -3.12 \"<pasta>\atualizar_do_github.py\" --diario" /SC DAILY /ST 06:30 /F`. É criado sem `/RU` e sem senha: fica com o usuário atual e só roda com ele logado. `--remover-agendamento` apaga a tarefa.
@@ -83,5 +84,5 @@ exit /b %BAP_CODIGO%
 
 ## 6. Testes
 
-- Os testes ficam no rascunho da sessão, `test_T0018_rotina.py`, até o agente testes levar para `tests/`. São 56 casos, sem rede (monkeypatch em `_get_json`, `versao_do_site` e `baixar_main`): cada limite como função pura, o `--diario` ponta a ponta (instala, já instalado, cada limite falho sem troca e com 1 linha de log, pausa, simular), o `--primeira-vez` (exige `--confirmar`, backup total, ignora a trava 5) e o `schtasks`.
+- Os testes ficam no rascunho da sessão, `test_T0018_rotina.py`, até o agente testes levar para `tests/`. São 63 casos, sem rede (monkeypatch em `_get_json`, `versao_do_site` e `baixar_main`): cada limite como função pura, o `--diario` ponta a ponta (instala, já instalado, API fora do ar, zip de outro commit ou sem comentário, falha na troca com restauração, cada limite falho sem troca e com 1 linha de log, pausa, simular), o `--primeira-vez` (exige `--confirmar`, backup total, ignora a trava 5) e o `schtasks`.
 - O `tests/test_atualizar_do_github.py` (T-0003) continua verde sem alteração.

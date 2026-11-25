@@ -236,8 +236,8 @@ def commit_maduro(data_commit: datetime, agora: datetime,
 def pr_de_origem(pulls: list, sha: str) -> dict | None:
     """Limite 2 (parte 1): o PR mesclado no ``main`` que gerou o commit ``sha``.
 
-    Prefere o PR cujo ``merge_commit_sha`` e o proprio ``sha``; senao, o
-    primeiro PR mesclado com base ``main``. Sem PR mesclado -> ``None``.
+    So vale o PR mesclado no ``main`` cujo ``merge_commit_sha`` e o proprio
+    ``sha``: commit sem PR proprio nao herda o CI de outro PR -> ``None``.
     """
     mesclados = [p for p in (pulls or []) if isinstance(p, dict)
                  and p.get("merged_at")
@@ -245,7 +245,7 @@ def pr_de_origem(pulls: list, sha: str) -> dict | None:
     for p in mesclados:
         if p.get("merge_commit_sha") == sha:
             return p
-    return mesclados[0] if mesclados else None
+    return None
 
 
 def ci_verde(check_runs: list) -> tuple[bool, str]:
@@ -818,12 +818,13 @@ def rodar_diario(producao: Path, simular: bool = False,
     """
     producao = Path(producao)
     agora = agora or agora_manaus()
-    modo = "diario-simular" if simular else "diario"
+    modo = "diario"
     sha: str | None = None
 
     def fim(codigo: int, motivo: str) -> int:
         print(f"[codigo {codigo}] {motivo}")
-        registrar(producao, linha_log(agora, modo, codigo, motivo, sha))
+        if not simular:  # simulacao nao grava nada, nem o log
+            registrar(producao, linha_log(agora, modo, codigo, motivo, sha))
         return codigo
 
     if (producao / ARQ_PAUSA_REL).exists():
@@ -878,8 +879,9 @@ def rodar_diario(producao: Path, simular: bool = False,
             datas = baixar_main(origem, URL_ZIP_SHA.format(sha=sha), info=info)
         except (OSError, zipfile.BadZipFile) as erro:
             return fim(CODIGO_ERRO, f"erro ao baixar o zip ({type(erro).__name__})")
-        if info.get("sha") and info["sha"] != sha:
-            return fim(CODIGO_ERRO, "o zip baixado e de outro commit")
+        if info.get("sha") != sha:
+            return fim(CODIGO_ERRO, "o zip baixado nao traz o SHA conferido"
+                       " (outro commit ou sem comentario)")
 
         v_main = info.get("versao_web")
         v_site = versao_do_site()
@@ -898,7 +900,8 @@ def rodar_diario(producao: Path, simular: bool = False,
             nomes = ", ".join(r.name for r in plano.mais_novos_na_producao)
             return fim(CODIGO_TRAVA, f"limite 5: instalado por fora: {nomes}")
 
-        codigo = executar(plano, producao, ASSUNTO_DIARIO, simular, agora.date())
+        codigo = executar(plano, producao, ASSUNTO_DIARIO, simular,
+                          agora.astimezone(_fuso_manaus()).date())
         trocados = plano.a_trocar
         resumo = ", ".join(f"{r.name} {plano.hash_main[r][:7]}"
                            for r in trocados) or "nenhum arquivo diferente"
@@ -1073,10 +1076,8 @@ def main(argv: list[str] | None = None) -> int:
                 gravar_versao(producao, sha, agora, len(plano.a_trocar), modo)
             except OSError as erro:
                 print(f"AVISO: VERSAO_INSTALADA.txt nao gravado ({type(erro).__name__}).")
-        if args.primeira_vez:
+        if args.primeira_vez and not args.simular:
             nomes = ", ".join(r.name for r in plano.a_trocar) or "nenhum"
-            if args.simular:
-                modo += "-simular"
             registrar(producao, linha_log(agora, modo, codigo,
                                           f"trocados: {nomes}", sha))
         return codigo
