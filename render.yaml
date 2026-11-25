@@ -11,7 +11,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:criar_app --factory --host 0.0.0.0 --port $PORT
     healthCheckPath: /saude
-    autoDeploy: false        # deploy só com "aprovo deploy vX.Y.Z"
+    autoDeploy: true         # deploy a cada commit no main (R-20261124-210855-alexandre)
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7
