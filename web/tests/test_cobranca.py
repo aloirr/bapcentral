@@ -237,15 +237,60 @@ def test_fila_mostra_mensagem_link_aviso_e_situacao(admin):
     h = _tela(admin, "cobrar").text
     assert "Situação do PC até 08:07" in h
     assert "Olá, Cliente 001! Tudo bem?" in h and "<textarea" in h
-    assert "https://wa.me/559232000002?text=" in h and "telefone fixo: pode não ter WhatsApp" in h
-    assert "sem telefone no cadastro" in h                       # sem número: aviso, sem link
-    assert h.count("https://wa.me/") == 4
-    assert "ENVIADO HOJE" in h                                   # cliente 4: PC, hoje
+    assert "https://wa.me/559232000002?text=" in h and "Fixo: confira se tem WhatsApp" in h
+    assert "Sem celular: digite um número" in h                  # sem número: aviso, sem link
+    assert h.count("https://wa.me/") == 4                      # 3 na fila + 1 no bloco recolhido
+    # já tratados hoje vão ao fim, recolhidos
+    assert "Já tratados hoje (1)" in h and h.index("Já tratados hoje") > h.index("Cliente 003")
+    assert h.index("Cliente 004") > h.index("Já tratados hoje")
     assert "ENVIADO 21/11" in h                                  # cliente 5: site, 3 dias
-    assert h.count("a cobrar") == 3
+    assert h.count("A COBRAR") == 3
     assert "<form" not in h.split("<main>")[1]                   # botões por fetch, sem formulário
 
 
+def test_um_so_botao_principal_enviado_escondido_ate_abrir_o_whatsapp(admin):
+    postar(admin, pacote_cobranca())
+    h = _tela(admin, "cobrar").text
+    assert h.count("Abrir WhatsApp") >= 3
+    assert 'data-acao="ENVIADO" hidden>Marquei como enviado' in h   # só aparece depois do toque no link
+    assert "Pular" in h and "Desfazer" not in h                      # o Desfazer nasce no navegador
+    js = admin.get("/static/cobranca.js").text
+    assert "Desfazer" in js and "10000" in js and "pagehide" in js
+
+
+def test_fila_pagina_de_10_em_10(admin):
+    p = pacote_cobranca()
+    f = p["relatorios"]["pl_inadimplencia"]["cobranca"]["fila"]
+    base = f[0]
+    for i in range(6, 26):
+        f.append({**base, "cod": f"{i:06d}-01", "nome": f"Cliente {i:03d}", "ultimo": None,
+                  "em_atraso": 100.0 - i})
+    postar(admin, p)
+    h1 = _tela(admin, "cobrar").text
+    assert h1.count('<article class="cob') == 10 and "Página 1 de 3" in h1 and "Já tratados" not in h1
+    h3 = admin.get(URL + "?aba=cobrar&pag=3").text
+    assert "Página 3 de 3" in h3 and "Já tratados hoje (1)" in h3
+    assert admin.get(URL + "?aba=cobrar&pag=99").status_code == 200 and admin.get(URL + "?aba=cobrar&pag=x").status_code == 200
+
+
+def test_tabela_na_tela_cliente_nome_e_valor_primeiro_sem_mudar_o_pacote(admin, amb):
+    postar(admin, pacote_cobranca())
+    h = _tela(admin, "titulos").text
+    cab = h[h.index("<thead>"):h.index("</thead>")]
+    ordem = [c for c in ("CLIENTE", "NOME", "SALDO", "VALOR", "SITUAÇÃO", "NF") if c in cab]
+    assert cab.index("CLIENTE") < cab.index("NOME") < cab.index("SALDO") < cab.index("VALOR") < cab.index("SITUAÇÃO")
+    cab = _tela(admin, "cliente").text
+    cab = cab[cab.index("<thead>"):cab.index("</thead>")]
+    assert cab.index("CLIENTE") < cab.index("NOME") < cab.index("EM ATRASO") < cab.index("SITUAÇÃO")
+    g = json.loads(sorted((amb / "pacotes").glob("*.json"))[-1].read_text(encoding="utf-8"))
+    assert [c["nome"] for c in g["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"]][:3] == \
+        ["SITUAÇÃO", "FAIXA", "FILIAL"]                              # o pacote segue a ordem do PC
+
+
+def test_abas_quebram_em_linhas_e_dica_de_rolagem(admin):
+    postar(admin, pacote_cobranca())
+    assert "abas-quebra" in _tela(admin).text
+    assert "Role para o lado" in _tela(admin, "titulos").text
 def test_enviado_grava_diario_com_valores_do_pacote(admin):
     postar(admin, pacote_cobranca())
     r = _acoes(admin, "000001-01", "ENVIADO")
@@ -282,7 +327,7 @@ def test_telefone_corrigido_vale_so_para_o_envio(admin):
     j = _acoes(admin, "000003-01", "ENVIADO", "(92) 99999-1234").json()    # item sem whatsapp
     assert j["ok"]
     assert cobranca.Diario(_dados(admin)).desde(0)["linhas"][0]["telefone"] == "5592999991234"
-    assert "sem telefone no cadastro" in _tela(admin, "cobrar").text     # a fila não mudou
+    assert "Sem celular: digite um número" in _tela(admin, "cobrar").text     # a fila não mudou
     assert _acoes(admin, "000003-01", "ENVIADO", "123").status_code == 400
     assert _acoes(admin, "000003-01", "PULADO").status_code == 200       # PULADO sem número
     assert _acoes(admin, "000003-01", "ENVIADO", "").status_code == 400  # sem número nenhum
@@ -577,4 +622,12 @@ def test_chip_vira_selo_nas_colunas_permitidas_e_valida_cor_e_coluna(admin, cli)
     _recusa(cli, p, "colunas diferentes")
     p = pacote_cobranca()                                                    # chip em coluna fora das 3
     p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][1 + 2]["chip"] = {"x": ["#000000", "#FFFFFF"]}
+    _recusa(cli, p, "colunas diferentes")
+
+
+def test_larg_fixa_da_coluna_e_aceita(cli):
+    p = pacote_cobranca()
+    p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][0]["larg_fixa"] = 106
+    assert postar(cli, p).status_code == 200
+    p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][0]["larg_fixa"] = "x"
     _recusa(cli, p, "colunas diferentes")

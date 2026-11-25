@@ -50,6 +50,17 @@ COLUNAS_CHIP = ("SITUAÇÃO", "FAIXA", "STATUS")                     # `chip`: s
 RE_COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
+# Só a ordem na TELA muda (o pacote segue a ordem do PC): cliente, nome e o valor primeiro.
+ORDEM_TELA = {"Títulos": ("CLIENTE", "NOME", "SALDO", "VALOR"),
+              "Por cliente": ("CLIENTE", "NOME", "EM ATRASO")}
+
+
+def ordem_tela(titulo: str, cols) -> list[int]:
+    nomes = [n for n, _ in cols]
+    pri = [nomes.index(n) for n in ORDEM_TELA[titulo] if n in nomes]
+    return pri + [k for k in range(len(nomes)) if k not in pri]
+
+
 def colunas_esperadas(titulo: str, cols) -> list[tuple[str, str]]:
     """A lista do PC; sem as 3 colunas de status só se nenhuma delas veio (qualquer outra mistura recusa)."""
     cheia = COLUNAS[titulo]
@@ -130,7 +141,8 @@ def _tabela_erro(t, titulo) -> str | None:
     esperado = colunas_esperadas(titulo, cols)
     ok = len(cols) == len(esperado) and all(
         isinstance(c, dict) and c.get("nome") == n and c.get("tipo") == tp
-        and (set(c) - {"nome", "tipo", "largura", "oculta", "chip"} == set())
+        and (set(c) - {"nome", "tipo", "largura", "oculta", "chip", "larg_fixa"} == set())
+        and (c.get("larg_fixa") is None or _int(c.get("larg_fixa")))
         and (c.get("chip") is None or (n in COLUNAS_CHIP and _chip_ok(c["chip"])))
         and (c.get("largura") is None or _int(c.get("largura")))
         and bool(c.get("oculta")) == (n in _OC)            # mesma marca "oculta" do PC
@@ -266,6 +278,23 @@ def celular(v) -> str:
 # ------------------------------------------------------------------ situação (RN-POS-002)
 def agora() -> datetime:
     return datetime.now(MANAUS)
+
+
+FILA_POR_PAGINA = 10
+
+
+def aviso_curto(aviso: str) -> str:
+    """Aviso do `celular()` do PC em frase de ação, curta."""
+    a = (aviso or "").lower()
+    if not a:
+        return ""
+    if "sem telefone" in a:
+        return "Sem celular: digite um número"
+    if "fixo" in a:
+        return "Fixo: confira se tem WhatsApp"
+    if "repetido" in a:
+        return "Número repetido em outro cliente: digite o certo"
+    return aviso
 
 
 def situacao(ultimo: dict | None, dias_recente: int, hoje: date) -> str:
@@ -555,6 +584,7 @@ def tabela_para_tela(t: dict, titulo: str, consulta: dict, pagina_tam: int = 100
     pag = min(pag, paginas)
     visiveis = linhas[(pag - 1) * pagina_tam: pag * pagina_tam]
     ocultas = {k for k, c in enumerate(t["colunas"]) if c.get("oculta")}
+    vista = [k for k in ordem_tela(titulo, cols) if k not in ocultas]
     chips = {k: c["chip"] for k, c in enumerate(t["colunas"]) if c.get("chip")}
 
     def cel(v, k):
@@ -563,12 +593,12 @@ def tabela_para_tela(t: dict, titulo: str, consulta: dict, pagina_tam: int = 100
         return {"t": txt, "f": cor[0] if cor else None, "c": cor[1] if cor else None}
     return {
         "titulo": titulo, "total_linhas": total, "pag": pag, "paginas": paginas,
-        "cols": [{"i": k, "nome": n, "tipo": tp, "num": tp in ("int", "moeda")}
-                 for k, (n, tp) in enumerate(cols) if k not in ocultas],
+        "cols": [{"i": k, "nome": cols[k][0], "tipo": cols[k][1], "num": cols[k][1] in ("int", "moeda")}
+                 for k in vista],
         "linhas": [{"tom": tons[idx[id(ln)]] if idx.get(id(ln)) is not None and idx[id(ln)] < len(tons) else "",
-                    "cel": [cel(v, k) for k, v in enumerate(ln) if k not in ocultas]}
+                    "cel": [cel(ln[k], k) for k in vista]}
                    for ln in visiveis],
-        "total": ([cel(v, k) for k, v in enumerate(t["total"]) if k not in ocultas]
+        "total": ([cel(t["total"][k], k) for k in vista]
                   if t.get("total") else None),
         "filtros": filtros, "ord": j, "desc": desc,
     }

@@ -59,7 +59,9 @@ def fmt_manaus(iso: str | None) -> str:
 
 
 def hhmm(iso: str | None) -> str:
-    return fmt_manaus(iso)[-5:]
+    """"hh:mm" se for de hoje (Manaus); senão "dd/mm hh:mm"."""
+    f = fmt_manaus(iso)
+    return f[-5:] if f[:10] == cobranca.agora().strftime("%d/%m/%Y") else f[:5] + " " + f[-5:]
 
 
 def criar_app() -> FastAPI:
@@ -290,13 +292,22 @@ def criar_app() -> FastAPI:
         cob = rel["cobranca"]
         extras = diario.pendentes(cob["web_epoca"], cob["web_ate_seq"])
         hoje = cobranca.agora().date()
-        fila = []
+        pendentes, tratados = [], []
         for it in cob["fila"]:
             sit = cobranca.situacao(cobranca.ultimo_efetivo(it, extras), cob["dias_recente"], hoje)
             link = f"https://wa.me/{it['whatsapp']}?text={quote(it['mensagem'])}" if it["whatsapp"] else ""
-            fila.append({**it, "situacao": sit, "link": link})
-        return pagina(request, "farol.html", tela=None, fila=fila, pc_ate=cob["gerado_em"],
-                      pacote_sha=ultimo.sha(), **ctx)
+            c = {**it, "situacao": sit, "link": link, "aviso": cobranca.aviso_curto(it["aviso"])}
+            (tratados if sit.endswith("HOJE") else pendentes).append(c)   # já tratados hoje vão ao fim
+        try:
+            pag = max(1, int(request.query_params.get("pag", "1")))
+        except ValueError:
+            pag = 1
+        paginas = max(1, -(-len(pendentes) // cobranca.FILA_POR_PAGINA))
+        pag = min(pag, paginas)
+        ini = (pag - 1) * cobranca.FILA_POR_PAGINA
+        return pagina(request, "farol.html", tela=None, fila=pendentes[ini:ini + cobranca.FILA_POR_PAGINA],
+                      tratados=tratados if pag == paginas else [], n_fila=len(pendentes), n_tratados=len(tratados),
+                      pag=pag, paginas=paginas, pc_ate=cob["gerado_em"], pacote_sha=ultimo.sha(), **ctx)
 
     @app.post("/farol/pl_inadimplencia/cobranca")
     async def cobrar(request: Request):
