@@ -59,17 +59,6 @@ def _nome_arquivo(rel, sufixo="") -> str:
     return f"{base.strip('_')}_{datetime.now():%Y%m%d_%H%M}"
 
 
-def chamar_kpis_de(f, linhas, filtro=None):
-    """kpis_de(linhas) e, se aceitar, kpis_de(linhas, filtro={col: valor})."""
-    import inspect
-    try:
-        if "filtro" in inspect.signature(f).parameters:
-            return f(linhas, filtro=filtro)
-    except (TypeError, ValueError):
-        pass
-    return f(linhas)
-
-
 class _BaseRelatorio:
     """A janela de um relatorio. (28/10) A mesma tela serve de programa
     proprio (Relatorio, tk.Tk) e dentro do BAP Analista (RelatorioNoQuadro,
@@ -724,7 +713,7 @@ class _BaseRelatorio:
         v = self.vista_atual()
         if v is not None and v.t.get("kpis_de"):
             try:
-                return chamar_kpis_de(v.t["kpis_de"], v.visiveis(),
+                return rn.chamar_kpis_de(v.t["kpis_de"], v.visiveis(),
                                       v.filtros_colunas())
             except Exception:                           # noqa: BLE001
                 pass
@@ -1085,7 +1074,7 @@ class _BaseRelatorio:
             t2["filtro_texto"] = v.texto_do_filtro()
             if t.get("kpis_de"):
                 try:
-                    t2["kpis_visiveis"] = chamar_kpis_de(
+                    t2["kpis_visiveis"] = rn.chamar_kpis_de(
                         t["kpis_de"], t2["linhas_visiveis"],
                         v.filtros_colunas())
                 except Exception:                       # noqa: BLE001

@@ -769,6 +769,18 @@ def hoje_manaus() -> date:
     return datetime.now(fuso).date()
 
 
+def chamar_kpis_de(f, linhas, filtro=None):
+    """kpis_de(linhas) e, se aceitar, kpis_de(linhas, filtro={col: valor}).
+    Sem `filtro` na assinatura, a chamada e identica a de antes."""
+    import inspect
+    try:
+        if "filtro" in inspect.signature(f).parameters:
+            return f(linhas, filtro=filtro)
+    except (TypeError, ValueError):
+        pass
+    return f(linhas)
+
+
 class Contexto:
     """Os blocos de dado que um relatorio pede, carregados sob demanda."""
 
