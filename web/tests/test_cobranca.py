@@ -631,3 +631,32 @@ def test_larg_fixa_da_coluna_e_aceita(cli):
     assert postar(cli, p).status_code == 200
     p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][0]["larg_fixa"] = "x"
     _recusa(cli, p, "colunas diferentes")
+
+
+def test_falha_ao_gravar_o_diario_devolve_503_json_e_nada_e_registrado(admin, monkeypatch):
+    postar(admin, pacote_cobranca())
+
+    def quebra(self, **kw):
+        raise OSError("disco")
+    with monkeypatch.context() as m:
+        m.setattr(cobranca.Diario, "registrar", quebra)
+        r = _acoes(admin, "000001-01", "ENVIADO")
+    assert r.status_code == 503 and r.json()["ok"] is False and "gravar" in r.json()["erro"]
+    assert cobranca.Diario(_dados(admin)).desde(0)["linhas"] == []
+    assert _acoes(admin, "000001-01", "ENVIADO").status_code == 200          # o toque de novo grava
+
+
+def test_js_da_fila_envia_ao_sair_guarda_pendente_e_so_confirma_com_ok_do_servidor(admin):
+    js = admin.get("/static/cobranca.js").text
+    for trecho in ("visibilitychange", "pagehide", "sessionStorage", "keepalive", "selo-erro",
+                   "enviaTodos(true, card.dataset.cod)", "REGISTRANDO"):
+        assert trecho in js, trecho
+    # o selo "HOJE" só é escrito com a resposta do servidor (res[1].situacao), nunca no toque
+    assert "' HOJE'" not in js and "res[1].situacao" in js
+
+
+def test_tratados_acessivel_da_primeira_pagina(admin):
+    postar(admin, pacote_cobranca())
+    h = _tela(admin, "cobrar").text
+    assert 'href="/farol/pl_inadimplencia?aba=cobrar&amp;pag=1#tratados">1 já tratados hoje</a>' in h
+    assert 'id="tratados"' in h

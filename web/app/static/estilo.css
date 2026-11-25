@@ -142,3 +142,4 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .dica-rolagem{margin:0 0 .3rem;font-size:.8rem;color:#5e6b62}
 @media(min-width:1000px){.dica-rolagem{display:none}}
 .filtros-det summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+.selo-erro{background:#fdecea;color:#b3261e}

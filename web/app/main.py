@@ -336,9 +336,13 @@ def criar_app() -> FastAPI:
             fone = cobranca.celular(digitado) if digitado else item["whatsapp"]
             if not fone:
                 return JSONResponse({"ok": False, "erro": "telefone inválido ou ausente"}, status_code=400)
-        reg, repetido = diario.registrar(
-            usuario=u["login"], cliente=item["cod"], acao=acao, telefone=fone,
-            em_atraso=item["em_atraso"], titulos=len(item["titulos"]), pacote_sha=sha_item)
+        try:
+            reg, repetido = diario.registrar(
+                usuario=u["login"], cliente=item["cod"], acao=acao, telefone=fone,
+                em_atraso=item["em_atraso"], titulos=len(item["titulos"]), pacote_sha=sha_item)
+        except OSError:                                  # disco cheio ou indisponível: nada foi registrado
+            log.error("cobrança: falha ao gravar o diário")
+            return JSONResponse({"ok": False, "erro": "Não foi possível gravar agora."}, status_code=503)
         cobranca.registrar_acesso(cfg.dados, u["login"], cobranca.RID, "cobrar", acao)
         sit = "ENVIADO HOJE" if reg["acao"] == "ENVIADO" else "PULADO HOJE"
         return {"ok": True, "seq": reg["seq"], "id": reg["id"], "situacao": sit, "repetido": repetido}
