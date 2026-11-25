@@ -1,8 +1,8 @@
 # Quadro — BAP Tools
 
-Atualizado em 25/11/2026, 03h50 (Manaus). Dono: gerente-projetos.
+Atualizado em 25/11/2026, 03h45 (Manaus). Dono: gerente-projetos.
 
-**25/11, 03h50 — PAUSA; o Alexandre continua de outra conta (R-20261125-034012-alexandre):** nada pela metade, nenhum PR aberto, nada instalado em PC, rondas apagadas. Passagem do gerente no recado de passagem do gerente ao po de 25/11 03h5x; passagem do po no R-20261125-034013-po. Desenho e pareceres em `recados/anexos/T-0017/abas/pareceres/` (repositório de recados).
+**25/11, 03h42 — PAUSA; o Alexandre continua de outra conta (R-20261125-034012-alexandre):** nada pela metade, nenhum PR aberto, nada instalado em PC, rondas apagadas. Passagem do gerente no R-20261125-034226-gerente-projetos; passagem do po no R-20261125-034013-po. Desenho e pareceres em `recados/anexos/T-0017/abas/pareceres/` (repositório de recados).
 
 **24/11, noite — volta ao Claude Code na nuvem:** gerente fixo no ambiente BapCentral-GP (BAP_AGENTE=gerente-projetos), PO fixo no BapCentral-PO, guardiões e ronda de 20 min de volta. Sessões fixas em Opus 5.5 alto; tarefas e subagentes em Opus 5.5 médio (R-20261124-173350-gerente-projetos). O robô rodou no notebook do Alexandre: primeiro pacote no site às 18h07 (T-0013/T-0014 esperam a conferência dele).
 
