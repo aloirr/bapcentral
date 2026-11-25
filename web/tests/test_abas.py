@@ -727,3 +727,33 @@ def test_config_padrao_do_pacote_e_25_mb_como_o_render_yaml(monkeypatch, amb):
     yaml = Path(__file__).resolve().parents[2] / "render.yaml"
     if yaml.exists():
         assert re.search(r"BAP_WEB_PACOTE_MAX_MB\s*\n\s*value:\s*['\"]?25", yaml.read_text(encoding="utf-8"))
+
+
+def test_recorte_ativo_esconde_os_cartoes_da_visita_e_mostra_o_aviso(com_tabelas):
+    h = com_tabelas.get("/farol/vc_visitas?aba=dia&rec=0").text
+    assert 'class="kpis' not in h and tabelas.AVISO_CARTOES in h
+    h = com_tabelas.get("/farol/vc_visitas?aba=dia").text                    # sem recorte: os cartões voltam
+    assert 'class="kpis' in h and tabelas.AVISO_CARTOES not in h
+    h = com_tabelas.get("/farol/vc_visitas?aba=dia&f5=SEM%20VISITA").text    # filtro de coluna também
+    assert 'class="kpis' not in h and tabelas.AVISO_CARTOES in h
+
+
+def test_linha_sem_visita_tem_contadores_zerados_e_horas_vazias():
+    t = _tab(pacote_tres_farois()["relatorios"]["vc_visitas"], "Dia a dia")
+    ix = {c["nome"]: k for k, c in enumerate(t["colunas"])}
+    sem = [ln for ln in t["linhas"] if ln[ix["SITUAÇÃO"]] == "SEM VISITA"]
+    assert sem
+    for ln in sem:
+        assert ln[ix["VISIT."]] == 0 and ln[ix["CAD."]] == 0 and ln[ix["PROSP."]] == 0
+        assert ln[ix["% CONV."]] is None and ln[ix["INÍCIO"]] == "—" and ln[ix["ÚLT. ATIV."]] == "—"
+
+
+def test_cartoes_da_visita_saem_da_mesma_conta_do_total_da_tabela():
+    r = pacote_tres_farois()["relatorios"]["vc_visitas"]
+    sup = _tab(r, "Por supervisor")
+    nomes = [c["nome"] for c in sup["colunas"]]
+    tot = dict(zip(nomes, sup["total"]))
+    soma = sum(ln[nomes.index("VISIT.")] for ln in sup["linhas"])
+    cart = {k["rotulo"]: k["valor"] for k in r["kpis"]}
+    assert tot["VISIT."] == soma and cart["Visitas"] == str(soma)
+    assert cart["% da meta"] == f"{tot['% META']:.1f}".replace(".", ",") + "%"

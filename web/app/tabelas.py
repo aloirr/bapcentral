@@ -672,7 +672,8 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
         "total": ([_celula_tela(tot[c], c, tot, cols, cols[c]["tipo"], centavos) for c in vista]
                   if mostra_total else None),
         "filtros": filtros, "ord": j, "desc": desc, "recortes": recortes, "rec": rec,
-        "padrao": padrao, "uf_aplicada": uf_aplicada, "zebra": bool(t.get("zebra")),
+        "padrao": padrao, "filtrado": rec is not None or any(set(f["sel"]) != set(f["padrao"]) for f in filtros),
+        "uf_aplicada": uf_aplicada, "zebra": bool(t.get("zebra")),
         "idxs": idxs,                                   # as linhas visíveis (todas as páginas), para as juntas
     }
 

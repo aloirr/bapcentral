@@ -309,6 +309,8 @@ def criar_app() -> FastAPI:
                 kpis = render.kpis_para_tela(t["kpis_padrao"])
             else:
                 kpis, aviso_kpis = render.kpis_sem_numero(t["kpis_padrao"]), tabelas.AVISO_CARTOES
+        elif tab["filtrado"]:                           # recorte ou filtro ativo: os cartões de cima somem
+            kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
         else:
             kpis = render.farol_para_tela(rel, uf or None, rid)["kpis"]
         return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis,

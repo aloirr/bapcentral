@@ -321,6 +321,11 @@ def farol_entregas_com_abas():
 # ------------------------------------------------------------------ Visita
 def _metricas(i, sem_visita=False):
     visit = 0 if sem_visita else 12 + (i * 3) % 11
+    if sem_visita:                       # como o PC: contadores em 0, razões e horas vazias ("—")
+        return {"META": 20.0, "VISIT.": 0, "% META": 0.0, "% CONV.": None, "% FORA DE ROTA": None, "CAD.": 0,
+                "CAD. C/ COMPRA": 0, "PROSP.": 0, "INÍCIO": "—", "ÚLT. ATIV.": "—", "JORNADA LÍQ.": "—",
+                "DIAS < JORN. LÍQ.": 0, "INTERV. ALMOÇO": "—", "DIAS ALMOÇO > MÁX.": 0, "TMA": "—", "TMD": "—",
+                "KM": 0.0, "KM/CLIENTE": None}
     return {"META": 20.0, "VISIT.": visit, "% META": round(100.0 * visit / 20.0, 1), "% CONV.": 38.5 + i % 6,
             "% FORA DE ROTA": 8.0 + i % 4, "CAD.": i % 3, "CAD. C/ COMPRA": i % 2, "PROSP.": i % 4,
             "INÍCIO": f"{8 + i % 2:02d}:{(i * 7) % 60:02d}", "ÚLT. ATIV.": f"17:{(i * 11) % 60:02d}",
@@ -373,7 +378,7 @@ def tabela_dia(n=120):
                         {"rotulo": "Sem visita em dia útil", "linhas": sem},
                         {"rotulo": "Abaixo da meta", "linhas": [k for k in range(n) if linhas[k][ix["% META"]] < 80]},
                         {"rotulo": "Fora de rota acima de 10%",
-                         "linhas": [k for k in range(n) if linhas[k][ix["% FORA DE ROTA"]] > 10]}])
+                         "linhas": [k for k in range(n) if (linhas[k][ix["% FORA DE ROTA"]] or 0) > 10]}])
 
 
 def tabela_aderencia():
@@ -434,10 +439,15 @@ def tabela_indicacao():
 
 def farol_visitas_com_abas():
     f = farol_visitas()
-    f["kpis"] = [_kpi("Visitas", "180", "ok"), _kpi("% da meta", "84,0%", "atencao"), _kpi("Conversão", "41,2%"),
-                 _kpi("Fora de rota", "9,8%"), _kpi("Km rodados", "1.104")]
     f["avisos"] = ["Sem filtro por estado: os cartões mostram a BAP inteira."]
-    f["tabelas"] = [tabela_supervisor(), tabela_vendedor(), tabela_dia(), tabela_aderencia(), tabela_cliente(),
+    sup = tabela_supervisor()                  # os cartões saem da mesma conta do TOTAL da tabela
+    tot = dict(zip([c["nome"] for c in sup["colunas"]], sup["total"]))
+    pct = tot["% META"]
+    f["kpis"] = [_kpi("Visitas", str(tot["VISIT."]), "ok" if pct >= 100 else "atencao" if pct >= 80 else "alerta"),
+                 _kpi("% da meta", f"{pct:.1f}%".replace(".", ","), "ok" if pct >= 100 else "atencao" if pct >= 80 else "alerta"),
+                 _kpi("Meta", str(int(tot["META"]))), _kpi("Conversão", f"{tot['% CONV.']:.1f}%".replace(".", ",")),
+                 _kpi("Km rodados", f"{tot['KM']:,.0f}".replace(",", "."))]
+    f["tabelas"] = [sup, tabela_vendedor(), tabela_dia(), tabela_aderencia(), tabela_cliente(),
                     tabela_prospeccao(), tabela_indicacao()]
     return f
 
