@@ -6860,7 +6860,8 @@ def _avisos_curtos_visita_web(avisos, maximo: int = 2) -> list:
     def peso(a):
         a = str(a)
         return 0 if a.startswith("Sem o arquivo") else (
-            1 if a.startswith("Sem filtro por estado") else 2)
+            1 if a.startswith("Sem filtro por estado") else (
+                3 if "fora desta atualização" in a else 2))
     return sorted(ok, key=peso)[:maximo]
 
 
@@ -6984,7 +6985,9 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
         if tabs:
             val["tabelas"] = tabs
         if avs:
-            val.setdefault("avisos", []).extend(avs)
+            val["avisos"] = (val.get("avisos") or []) + avs
+            if rid == "vc_visitas":      # celular: no maximo 2 avisos
+                val["avisos"] = _avisos_curtos_visita_web(val["avisos"])
     return val
 
 
@@ -7640,13 +7643,12 @@ def tabelas_farol_web(rid: str, r: dict, raiz=None):
     a que nao bater com o contrato fica fora, com aviso no farol e uma linha
     de log sem dado pessoal; as outras seguem. O Pedidos leva as 3 juntas, o
     Entregas leva a das pendencias, e o Pedidos leva a Solicitacao BAP."""
-    avisos, saida = [], []
+    recusadas, saida = [], []
     por_titulo = {t.get("titulo"): t for t in (r or {}).get("tabelas") or []
                   if isinstance(t, dict)}
 
     def fora(titulo):
-        avisos.append(f"A aba {titulo} ficou fora desta atualização: as "
-                      "colunas do PC não batem com o contrato.")
+        recusadas.append(titulo)
     for titulo in _ABAS_TABELAS_WEB.get(rid, ()):
         if titulo == TITULO_SOLICITACAO_WEB:
             try:
@@ -7660,7 +7662,9 @@ def tabelas_farol_web(rid: str, r: dict, raiz=None):
                 saida.append(tab)
             continue
         t = por_titulo.get(titulo)
-        tab = tabela_web7(rid, t) if t else None
+        if not t:                    # aba que nao existe no farol: sem aviso
+            continue
+        tab = tabela_web7(rid, t)
         if tab is not None and (rid, titulo) in _JUNTAS_WEB:
             tab_mes = next((f.get("padrao") for f in t.get("filtros") or []
                             if isinstance(f, dict)
@@ -7674,6 +7678,15 @@ def tabelas_farol_web(rid: str, r: dict, raiz=None):
             fora(titulo)
             continue
         saida.append(tab)
+    avisos = []
+    if recusadas:         # um aviso so (teto de 2 avisos no celular)
+        log.warning("Pacote web: abas fora do pacote no farol %s: %s.", rid,
+                    ", ".join(recusadas))
+        avisos.append(
+            (f"{len(recusadas)} abas ficaram fora desta atualização "
+             f"({', '.join(recusadas)})" if len(recusadas) > 1 else
+             f"A aba {recusadas[0]} ficou fora desta atualização")
+            + ": as colunas do PC não batem com o contrato.")
     return saida, avisos
 
 
