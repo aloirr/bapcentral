@@ -18,7 +18,7 @@
 {% elif fila is defined %}
 {% include "_fila.html" %}
 {% else %}
-<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em and (tela.baixado_em|string)[:13] != (gerado_em|string)[:13] %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
+<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
 {% if tela.ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
   <a href="/farol/{{ rid }}" class="{{ 'ativa' if not tela.uf }}">BAP inteira</a>
@@ -58,8 +58,6 @@
     {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
   {% elif b.tipo == "tabela" %}
     {{ grade(b, "", "", "Sem linhas neste pacote.") }}
-  {% else %}
-    <p class="indisp-bloco">{{ indisponivel }}</p>
   {% endif %}
 </article>
 {% endfor %}
