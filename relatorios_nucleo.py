@@ -6974,12 +6974,13 @@ def entregas(ctx):
     tons_pend = ["alerta" if l[E_PRAZO] == "ATRASADA" else "atencao"
                  for l in pend]
 
-    def cartoes_mes(ls):
-        # RN-GER-006: as pendencias seguem o recorte (UF do cliente)
-        ls = list(ls)
-        pd = pend if len(ls) == len(no_mes_) else \
-            [l for l in pend if l[E_UF] in {x[E_UF] for x in ls}]
-        return cartoes(ls) + [kpi(
+    def cartoes_mes(ls, filtro=None):
+        # RN-GER-006: as pendencias seguem o filtro de UF de fato (o
+        # {coluna: valor} da tela), nunca deduzido das linhas. Sem filtro
+        # de UF (ou chamada sem `filtro`) = total da BAP.
+        uf = (filtro or {}).get(E_UF)
+        pd = pend if uf in (None, "") else [l for l in pend if l[E_UF] == uf]
+        return cartoes(list(ls)) + [kpi(
             "Pendências anteriores", br(len(pd)),
             "alerta" if pd else "ok",
             f"{moeda(sum(l[E_VNF] or 0 for l in pd))} · meses anteriores"
