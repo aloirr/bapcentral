@@ -6855,7 +6855,7 @@ def _avisos_curtos_visita_web(avisos, maximo: int = 2) -> list:
     def peso(a):
         a = str(a)
         return 0 if a.startswith("Sem o arquivo") else (
-            1 if a.startswith("Cartões por estado") else 2)
+            1 if a.startswith("Sem filtro por estado") else 2)
     return sorted(ok, key=peso)[:maximo]
 
 
@@ -6939,8 +6939,8 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     if r.get("kpis_faixa"):          # Pedidos: cartoes em faixa, como o PC
         saida["kpis_faixa"] = True
     if not saida["recortes"] and rid != "pl_inadimplencia":
-        saida["avisos"].append("Cartões por estado indisponíveis neste "
-                               "pacote: vale só o total da BAP.")
+        saida["avisos"].append("Sem filtro por estado: os cartões "
+                               "mostram a BAP inteira.")
     if rid == "vc_visitas":
         saida["avisos"] = _avisos_curtos_visita_web(saida["avisos"])
     val = _para_json(saida, fora=_CHAVES_FORA_FAROL_WEB)
