@@ -16,6 +16,7 @@ import re
 import unicodedata
 
 from . import render
+from .render import COLUNAS_FORA, RE_DATA, coluna_fora, fmt_celula   # a lista e o formato são do render (fonte única)
 
 # ------------------------------------------------------------------ D1: quem vê as tabelas
 # Decisão D1 do Alexandre ainda aberta: recomendação A = o perfil de cada farol vê todas as abas
@@ -43,8 +44,8 @@ SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitaca
            "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir")
 # D5 (recomendação A): estado filtra as linhas só onde o pacote traz `uf_linhas`
 AVISO_SEM_ESTADO = "Sem filtro por estado: esta tabela mostra a BAP inteira."
-AVISO_CARTOES = ("Cartões só para a BAP inteira, sem recorte nem filtro. Os números do estado estão no "
-                 "Resumo.")
+AVISO_CARTOES = "Cartões sem filtro. Com filtro, veja o total na tabela."
+AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
 # coluna que identifica a linha: fica fixa à esquerda ao rolar para o lado (celular)
 FIXA = {"Por vendedor": "VENDEDOR", "Dia a dia": "VENDEDOR", "Aderência dia a dia": "VENDEDOR",
         "Cliente a cliente": "VENDEDOR"}
@@ -155,9 +156,6 @@ SELOS = {
 }
 # tabelas que levam `uf_linhas` e `kpis_padrao` etc. não têm lista própria: o formato basta.
 
-# dado pessoal que nunca vai (§10.7.4), nome comparado sem acento e em maiúsculas
-COLUNAS_FORA = {"TELEFONE", "CELULAR", "WHATSAPP", "CNPJ", "CPF", "E-MAIL", "EMAIL", "CONTATO", "FOTO",
-                "ENDERECO"}
 PROIBIDAS = {"edicao", "editar", "abrir", "detalhe", "kpis_de", "total_de", "totais_por", "recortes",
              "ordem_exportar", "cores_celulas", "so_exportar", "solicitacao_bap", "nota_pdf"}
 # dentro dos cartões (`kpis_padrao`) "detalhe" é o texto do cartão; as outras chaves de ação nunca
@@ -179,17 +177,8 @@ MAX_OPCOES = 300
 JUNTA_MAX = 200
 RE_UF = re.compile(r"^[A-Z]{2}$")
 RE_COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
-RE_DATA = re.compile(r"^\d{4}-\d{2}-\d{2}")
 # CPF/CNPJ já formatado dentro de uma célula: o PC deveria ter limpado (RN-GER-011); a web recusa
 RE_DOC = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}")
-
-
-def _sem_acento(s: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFD", str(s)) if unicodedata.category(c) != "Mn").upper()
-
-
-def coluna_fora(nome) -> bool:
-    return _sem_acento(nome).strip() in COLUNAS_FORA
 
 
 def _int(v) -> bool:
@@ -221,7 +210,8 @@ def _proibida(o, nivel=0) -> str | None:
 
 
 def _celula_ok(v, tipo) -> bool:
-    if v is None:
+    """Célula de linha: `null`, ou o valor do tipo; `""` vale em qualquer tipo (o PC deixa célula em branco)."""
+    if v is None or v == "":
         return True
     if tipo in NUM_TIPOS:
         return _num(v)
@@ -230,7 +220,7 @@ def _celula_ok(v, tipo) -> bool:
     if tipo == "hora":
         return isinstance(v, str) and len(v) <= 12
     if isinstance(v, str):
-        return len(v) <= 2000 and not RE_DOC.search(v)
+        return len(v) <= 2000
     return _num(v)
 
 
@@ -238,8 +228,14 @@ def _celula_sub_ok(v) -> bool:
     if v is None:
         return True
     if isinstance(v, str):
-        return len(v) <= 2000 and not RE_DOC.search(v)
+        return len(v) <= 2000
     return _num(v)
+
+
+def _total_ok(tot, tipos) -> bool:
+    """§10.7.2.1: uma célula por coluna; `null` ou o valor do tipo (texto só em texto e hora)."""
+    return (isinstance(tot, list) and len(tot) == len(tipos)
+            and all(v is None or (_celula_ok(v, tp) and v != "") for v, tp in zip(tot, tipos)))
 
 
 def _cols_esperadas(titulo: str, cols) -> list | None:
@@ -329,7 +325,7 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
         return "titulo inesperado"
     permitidas = set(CHAVES_TABELA) | ({"juntas", "subabas"} if nivel == "aba" else set())
     if nivel == "sub":
-        permitidas = {"titulo", "colunas", "linhas", "tons"}
+        permitidas = {"titulo", "colunas", "linhas", "tons", "filtros", "total"}
     extra = set(t) - permitidas
     if extra:
         return f"chave não aceita: {sorted(extra)[0][:20]}"
@@ -357,9 +353,7 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
     if tons is not None and not (isinstance(tons, list) and len(tons) == len(linhas)
                                  and all(isinstance(x, str) and x in TONS for x in tons)):
         return "tons inválidos"
-    tot = t.get("total")
-    if tot is not None and not (isinstance(tot, list) and len(tot) == n
-                                and all(_celula_ok(v, tp) for v, tp in zip(tot, tipos))):
+    if t.get("total") is not None and not _total_ok(t["total"], tipos):
         return "total inválido"
     nomes = [x[0] for x in esperado]
     fl = t.get("filtros", [])
@@ -407,6 +401,10 @@ def _sub_erro(t, cols, linhas) -> str | None:
     if tons is not None and not (isinstance(tons, list) and len(tons) == len(linhas)
                                  and all(isinstance(x, str) and x in TONS for x in tons)):
         return "subaba: tons inválidos"
+    if t.get("filtros") not in (None, []):                      # a Solicitação BAP não tem filtros (§10.7.2)
+        return "subaba: filtros fora do contrato"
+    if t.get("total") is not None and not _total_ok(t["total"], [c["tipo"] for c in cols]):
+        return "total inválido"
     return None
 
 
@@ -477,35 +475,46 @@ def validar(rid: str, r: dict) -> list[str]:
     return []
 
 
+# ------------------------------------------------------------------ documento em texto: só a aba cai (W2)
+_RE_AVISO_FORA = re.compile(r"^" + re.escape(AVISO_ABAS_FORA).replace(r"\{lista\}", "(.+)") + "$")
+
+
+def _celulas_com_documento(linhas) -> bool:
+    return any(isinstance(v, str) and RE_DOC.search(v) for ln in linhas if isinstance(ln, list) for v in ln)
+
+
+def _aba_tem_documento(t: dict) -> bool:
+    """CPF/CNPJ já formatado em célula de texto de qualquer parte da aba (linhas, total, juntas, sub-abas)."""
+    partes = [t] + [j["tabela"] for j in t.get("juntas") or []] + list(t.get("subabas") or [])
+    return any(_celulas_com_documento(list(p.get("linhas") or []) + [p.get("total") or []]) for p in partes)
+
+
+def tirar_abas_com_documento(corpo: dict) -> list[str]:
+    """Defesa da web (RN-GER-011): a aba com CPF/CNPJ formatado numa célula sai do pacote, com o aviso
+    `AVISO_ABAS_FORA`; o resto do pacote (Painel, Inadimplência, as outras abas) segue. Devolve os títulos."""
+    fora_todas: list[str] = []
+    for rid in RIDS:
+        rel = (corpo.get("relatorios") or {}).get(rid)
+        if not isinstance(rel, dict) or not isinstance(rel.get("tabelas"), list):
+            continue
+        fora = [t["titulo"] for t in rel["tabelas"] if _aba_tem_documento(t)]
+        if not fora:
+            continue
+        rel["tabelas"] = [t for t in rel["tabelas"] if t["titulo"] not in fora]
+        avisos = [a for a in rel.get("avisos") or [] if isinstance(a, str)]
+        ja = []
+        for a in avisos:
+            m = _RE_AVISO_FORA.match(a)
+            if m:
+                ja += m.group(1).split(", ")
+        lista = [x for _, x in ABAS[rid] if x in set(ja) | set(fora)]
+        avisos = [a for a in avisos if not _RE_AVISO_FORA.match(a)]
+        rel["avisos"] = [AVISO_ABAS_FORA.format(lista=", ".join(lista))] + avisos
+        fora_todas += fora
+    return fora_todas
+
+
 # ------------------------------------------------------------------ apresentação
-def _grupos(inteiro: str) -> str:
-    return inteiro.replace(",", ".")
-
-
-def fmt_celula(v, tipo, centavos=False) -> str:
-    """Texto da célula. Moeda: sem centavos como o PC; `centavos=True` (Inadimplência) mantém as 2 casas."""
-    if v is None or v == "":
-        return ""
-    if tipo in ("moeda", "moeda2") and _num(v):
-        d = 2 if (centavos or tipo == "moeda2") else 0
-        return ("−" if v < 0 else "") + "R$ " + render.br(abs(v), d)
-    if tipo == "int" and _num(v):
-        return f"{int(v):,}".replace(",", ".")
-    if tipo in ("num", "valor") and _num(v):
-        return render.br(v, 0 if float(v).is_integer() else 1)
-    if tipo == "num1" and _num(v):
-        return render.br(v, 1)
-    if tipo == "num2" and _num(v):
-        return render.br(v, 2)
-    if tipo == "pct" and _num(v):
-        return render.br(v, 0) + "%"
-    if tipo == "pct1" and _num(v):
-        return render.br(v, 1) + "%"
-    if tipo in ("data", "dia") and isinstance(v, str) and RE_DATA.match(v):
-        return f"{v[8:10]}/{v[5:7]}/{v[:4]}"             # sempre com ano (pendência de dezembro vista em janeiro)
-    return str(v)
-
-
 def _chave_ordem(v, tipo):
     if v is None or v == "" or v == "—":
         return (1, 0, "")

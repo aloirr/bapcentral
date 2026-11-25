@@ -253,6 +253,12 @@ def criar_app() -> FastAPI:
         rel = ((ultimo.get() or {}).get("relatorios") or {}).get(rid)
         return rel if isinstance(rel, dict) and rel.get("forma") == "farol" else None
 
+    def consulta_de(request: Request) -> dict:
+        c: dict = {}
+        for k, v in request.query_params.multi_items():
+            c.setdefault(k, []).append(v[:80])
+        return c
+
     def farol_abas(request: Request, u: dict, rid: str, aba: str, uf: str):
         """Pedidos, Entregas e Visita (§10.7): Resumo e abas de tabela. Perfil e aba conferidos aqui."""
         perfil = u["perfil"]
@@ -272,23 +278,19 @@ def criar_app() -> FastAPI:
         com_aba = [(c, tit) for c, tit in tabelas.ABAS[rid] if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
         barra = [tabelas.RESUMO] + com_aba if com_aba else []
         ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo")
+        ufs = render.recortes_farol(rel)
+        uf_ok = uf.upper()[:2] if uf.upper()[:2] in ufs else ""
+        topo = render.farol_para_tela(rel, (uf[:4] if aba == "resumo" else uf_ok) or None, rid)   # uma vez só
         if aba == "resumo":
-            return pagina(request, "farol.html", tela=render.farol_para_tela(rel, uf[:4] or None, rid), **ctx)
+            return pagina(request, "farol.html", tela=topo, **ctx)
         t = por_chave[aba]
         if not t:                                       # a aba ficou fora desta atualização do PC
             return pagina(request, "farol.html", tela=None, **ctx)
-        consulta = {}
-        for k, v in request.query_params.multi_items():
-            consulta.setdefault(k, []).append(v[:80])
-        topo = render.farol_para_tela(rel, None, rid)
-        ufs = topo["ufs"]
-        uf = uf.upper()[:2]
-        uf = uf if uf in ufs else ""
-        subnomes, sub, juntas = [], None, []
+        consulta = consulta_de(request)
         solicitacao = bool(t.get("subabas"))
+        subnomes, sub, juntas = [], None, []
         if solicitacao:                                 # Solicitação BAP: sem estado, sem cartões do Resumo (D5)
-            ufs = []
-            uf = ""
+            ufs, uf_ok = [], ""
             try:
                 sub = int(consulta.get("sub", ["0"])[0])
             except ValueError:
@@ -296,23 +298,20 @@ def criar_app() -> FastAPI:
             subnomes, tab = tabelas.subabas_para_tela(t, sub, consulta)
             sub = tab["sub"]
         else:
-            tab = tabelas.tabela_para_tela(t, consulta, uf=uf or None)
-            juntas = tabelas.juntas_para_tela(t, tab["idxs"], uf or None)
-        aviso_uf = ""
-        if rid == "vc_visitas" or (uf and not t.get("uf_linhas")):
-            aviso_uf = tabelas.AVISO_SEM_ESTADO
+            tab = tabelas.tabela_para_tela(t, consulta, uf=uf_ok or None)
+            juntas = tabelas.juntas_para_tela(t, tab["idxs"], uf_ok or None)
+        # cada aba do Visita é uma página sem seletor de estado: o aviso fica em cada uma (RD-0023)
+        aviso_uf = tabelas.AVISO_SEM_ESTADO if rid == "vc_visitas" else ""
         aviso_kpis = ""
         if solicitacao:
             kpis = []
-        elif t.get("kpis_padrao") is not None:          # os cartões da aba só no filtro padrão (§10.7.2)
-            if tab["padrao"]:
-                kpis = render.kpis_para_tela(t["kpis_padrao"])
-            else:
-                kpis, aviso_kpis = render.kpis_sem_numero(t["kpis_padrao"]), tabelas.AVISO_CARTOES
-        elif tab["filtrado"]:                           # recorte ou filtro ativo: os cartões de cima somem
+        elif tab["filtrado"] or uf_ok:                  # filtro, recorte ou estado: os cartões da aba saem (§10.7.2)
             kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
+        elif t.get("kpis_padrao") is not None:
+            kpis = render.kpis_para_tela(t["kpis_padrao"])
         else:
-            kpis = render.farol_para_tela(rel, uf or None, rid)["kpis"]
+            kpis = topo["kpis"]
+        uf = uf_ok
         return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis,
                       faixa=True, ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
                       aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, titulo_aba=t["titulo"], **ctx)
@@ -350,10 +349,8 @@ def criar_app() -> FastAPI:
         if aba in cobranca.ABA_TABELA:
             titulo = cobranca.ABA_TABELA[aba]
             t = next(x for x in rel["tabelas"] if x["titulo"] == titulo)
-            consulta = {}
-            for k, v in request.query_params.multi_items():
-                consulta.setdefault(k, []).append(v[:80])
-            return pagina(request, "farol.html", tela=None, tabela=cobranca.tabela_para_tela(t, titulo, consulta),
+            return pagina(request, "farol.html", tela=None,
+                          tabela=cobranca.tabela_para_tela(t, titulo, consulta_de(request)),
                           **ctx)
         cob = rel["cobranca"]
         extras = diario.pendentes(cob["web_epoca"], cob["web_ate_seq"])
@@ -506,6 +503,9 @@ def criar_app() -> FastAPI:
         erros = pacotes.validar(corpo)
         if erros:
             return JSONResponse({"erro": "esquema inválido", "detalhes": erros}, status_code=422)
+        fora = tabelas.tirar_abas_com_documento(corpo)   # só a aba com CPF/CNPJ cai; o resto do pacote segue
+        if fora:
+            log.warning("abas fora do pacote por CPF/CNPJ em célula: %d", len(fora))
         pacotes.gravar(cfg.dados, corpo, datetime.now(MANAUS).isoformat(timespec="seconds"))
         log.info("pacote recebido: %s (%d bytes)", pacotes.nome_arquivo(corpo["gerado_em"]), total)
         return {"ok": True, "gerado_em": corpo["gerado_em"], "bytes": total}

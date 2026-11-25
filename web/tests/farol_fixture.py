@@ -64,9 +64,10 @@ def farol_entregas():
 
 
 def farol_pedidos():
-    return _base("Farol de Pedidos", [{"rotulo": "Pedidos", "valor": "320", "cor": "ok"},
+    return {**_base("Farol de Pedidos", [{"rotulo": "Pedidos", "valor": "320", "cor": "ok"},
                                       {"rotulo": "Atendimento", "valor": "92,0%", "cor": "atencao", "detalhe": "meta 95%"},
-                                      {"rotulo": "SLA médio", "valor": "3,1 dia(s)", "cor": "neutro"}], [])
+                                      {"rotulo": "SLA médio", "valor": "3,1 dia(s)", "cor": "neutro"}], []),
+            "kpis_faixa": True}
 
 
 def farol_visitas():
@@ -257,7 +258,7 @@ def tabela_solicitacao():
                  "ESTOQUE_NA_ORIGEM": 20 + i, "PEDIDO": f"9{i + 100:05d}", "CLIENTE": _cod(i), "STATUS": "EM ABERTO",
                  "MOTIVO": "FORA DE LINHA", "FILIAL": f"FILIAL FICTICIA {UFS3[i % 3]}"}
             linhas.append([v[n] for n in nomes])
-        subs.append({"titulo": titulo, "colunas": cols, "linhas": linhas})
+        subs.append({"titulo": titulo, "colunas": cols, "linhas": linhas, "filtros": [], "total": None})
     return {"titulo": "Solicitação BAP", "colunas": [], "linhas": [], "subabas": subs}
 
 
@@ -303,7 +304,7 @@ def tabela_entregas(n=18, pend=6):
           _kpi("Frete do mês", "R$ 4,6 mil"), _kpi("Atrasadas", "7", "alerta"),
           _kpi("Pendências antigas", str(pend), "alerta")]
     return _tabela7("Entregas", linhas, tons,
-                    [{"coluna": "MÊS", "padrao": "NOV/26"}, "SITUAÇÃO", "ETAPA", "PRAZO", "FILIAL"],
+                    [{"coluna": "MÊS", "padrao": "NOV/26", "oculto": True}, "SITUAÇÃO", "ETAPA", "PRAZO", "FILIAL"],
                     uf_linhas=ufs, kpis_padrao=kp,
                     juntas=[{"titulo": "Pendências dos meses anteriores", "liga": None,
                              "tabela": {"titulo": "Pendências dos meses anteriores", "colunas": pc, "linhas": pl,

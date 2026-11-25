@@ -4,7 +4,7 @@
 {% set uf_q = ('&uf=' ~ uf) if (uf is defined and uf) else '' %}
 {% set base0 = '/farol/' ~ rid ~ '?aba=' ~ aba %}
 {% set base = base0 ~ sub_q ~ uf_q %}
-<header class="cab-painel"><h1>{{ farol_nome }} · {{ titulo_aba or tabela.titulo }}</h1><span>{{ tabela.total_linhas }} {{ "linha" if tabela.total_linhas == 1 else "linhas" }}</span></header>
+<header class="cab-painel"><h1>{{ farol_nome }} · {{ titulo_aba or tabela.titulo }}</h1>{% if tabela.total_linhas %}<span>{{ tabela.total_linhas }} {{ "linha" if tabela.total_linhas == 1 else "linhas" }}</span>{% endif %}</header>
 {% if ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
   <span class="f-rot">Estado</span>
@@ -27,7 +27,7 @@
   {% for r in tabela.recortes %}<a href="{{ base }}{{ sem_rec }}&amp;rec={{ r.n }}" class="{{ 'ativa' if r.ativo }}">{{ r.rotulo }} ({{ r.qtd }})</a>{% endfor %}
 </nav>
 {% endif %}
-{% if tabela.filtros %}
+{% if tabela.filtros and (tabela.total_linhas or not tabela.padrao) %}
 <details class="filtros-det"{{ " open" if not tabela.padrao }}><summary>Filtros</summary>
 <form method="get" action="/farol/{{ rid }}" class="filtros-tab">
   <input type="hidden" name="aba" value="{{ aba }}">
@@ -45,7 +45,6 @@
   <button type="submit">Filtrar</button> <a href="{{ base }}">Limpar</a>
 </form></details>
 {% endif %}
-<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>
 {{ grade(tabela, base, fq, "Nenhuma linha neste mês." if tabela.padrao else "Nenhuma linha neste filtro.") }}
 {% if tabela.paginas > 1 %}
 {% set q %}{% if tabela.ord is not none %}&amp;ord={{ tabela.ord }}&amp;dir={{ 'desc' if tabela.desc else 'asc' }}{% endif %}{{ fq }}{% endset %}

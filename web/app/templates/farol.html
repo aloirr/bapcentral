@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block titulo %}{{ farol_nome }}{% endblock %}
 {% from "_estados.html" import barras_estados, cartoes %}
+{% from "_grade.html" import grade %}
 {% block faixa %}{% if fila is defined %}<div class="aviso info faixa-pc">Situação do PC até {{ pc_ate|hhmm }}. O que você marcar aqui chega ao PC às 08h ou 14h.</div>{% endif %}{% endblock %}
 {% block mainclass %}{{ ' class="larga"'|safe if tabela }}{% endblock %}
 {% block cabeca %}{% if noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}{% endblock %}
@@ -57,13 +58,7 @@
     </div>
     {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
   {% elif b.tipo == "tabela" %}
-    {% if b.rolar %}<p class="dica-rolar">Role para o lado para ver mais colunas →</p>{% endif %}
-    <div class="rolagem tb-rol"><table class="tab tb">
-      <thead><tr>{% for c in b.cols %}<th class="{{ 'n' if c.num }}">{{ c.nome }}</th>{% endfor %}</tr></thead>
-      <tbody>{% for l in b.linhas %}<tr>{% for c in l %}<td class="{{ 'n' if c.num }}">{{ c.txt }}</td>{% endfor %}</tr>
-      {% else %}<tr><td colspan="{{ b.cols|length }}">Sem linhas neste pacote.</td></tr>{% endfor %}</tbody>
-      {% if b.total %}<tfoot><tr>{% for c in b.total %}<td class="{{ 'n' if c.num }}">{{ c.txt }}</td>{% endfor %}</tr></tfoot>{% endif %}
-    </table></div>
+    {{ grade(b, "", "", "Sem linhas neste pacote.") }}
   {% else %}
     <p class="indisp-bloco">{{ indisponivel }}</p>
   {% endif %}

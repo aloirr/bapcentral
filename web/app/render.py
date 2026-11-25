@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
@@ -224,12 +225,6 @@ def kpis_para_tela(kpis) -> list[dict]:
     return [k for k in map(_kpi, _lista(kpis)) if k]
 
 
-def kpis_sem_numero(kpis) -> list[dict]:
-    """Os mesmos rótulos com "—": o cartão da aba que não segue o filtro (§10.7.2)."""
-    return [{"rot": str(k.get("rotulo", "")), "valor": "—", "cor": "", "detalhe": "", "linhas": [],
-             "estados": None} for k in _lista(kpis) if isinstance(k, dict)]
-
-
 def _insights(linhas) -> list[dict]:
     out = []
     for ln in _lista(linhas):
@@ -294,13 +289,26 @@ def _bloco_hbarras(b) -> dict:
             "ref": {"pos": round(100 * abs(ref) / mx, 1), "txt": fmt_valor(ref, formato)} if ref else None}
 
 
-_PROIBIDA = re.compile(r"cliente|cnpj|cpf|telefone|fone|whats|celular|e-?mail", re.I)
 MAX_LINHAS_TAB = 200
+# Colunas que nunca vão ao site (contrato §10.7.4, bloco `colunas-fora`): a lista é daqui, e o
+# `tabelas` importa. Nome inteiro, sem acento e em maiúsculas.
+COLUNAS_FORA = frozenset({"TELEFONE", "CELULAR", "WHATSAPP", "CNPJ", "CPF", "E-MAIL", "EMAIL", "CONTATO",
+                         "FOTO", "ENDERECO"})
+_CLIENTE_NO_BLOCO = re.compile(r"cliente|raz[aã]o|fantasia", re.I)     # regra a mais, só do bloco tabela (§10.1)
+RE_DATA = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+def _sem_acento(s) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", str(s)) if unicodedata.category(c) != "Mn").upper()
+
+
+def coluna_fora(nome) -> bool:
+    return _sem_acento(nome).strip() in COLUNAS_FORA
 
 
 def coluna_proibida(nome) -> bool:
-    """Coluna de cliente, CNPJ ou telefone não entra em tabela do farol (regra 6 do CLAUDE.md)."""
-    return bool(_PROIBIDA.search(str(nome or "")))
+    """Bloco tabela do painel: a lista do contrato mais coluna de cliente (regra 6 do CLAUDE.md)."""
+    return coluna_fora(nome) or bool(_CLIENTE_NO_BLOCO.search(str(nome or "")))
 
 
 def _nome_col(c) -> str:
@@ -311,45 +319,50 @@ def _tipo_col(c) -> str:
     return str(c.get("tipo", "texto")) if isinstance(c, dict) else "texto"
 
 
-def fmt_cel(v, tipo) -> str:
-    """Célula da tabela: o PC manda o número cru e o tipo da coluna; texto já pronto passa direto."""
+def fmt_celula(v, tipo, centavos=False) -> str:
+    """Texto da célula de tabela (a única regra: abas, juntas, bloco tabela do painel).
+    Moeda sem centavos como o PC; `centavos=True` (Inadimplência) mantém as 2 casas."""
     if v is None or v == "":
-        return "—" if tipo != "texto" else ""
-    if isinstance(v, str):
-        return v
+        return ""
     n = _num(v)
-    if n is None:
-        return str(v)
-    if tipo in ("moeda", "moeda2"):
-        return ("−" if n < 0 else "") + "R$ " + br(abs(n), 2 if tipo == "moeda2" else 0)
-    if tipo in ("pct", "pct1"):
-        return br(n, 1) + "%"
-    if tipo in ("num1", "dia"):
+    if tipo in ("moeda", "moeda2") and n is not None:
+        return ("−" if n < 0 else "") + "R$ " + br(abs(n), 2 if (centavos or tipo == "moeda2") else 0)
+    if tipo == "int" and n is not None:
+        return f"{int(n):,}".replace(",", ".")
+    if tipo in ("num", "valor") and n is not None:
+        return br(n, 0 if float(n).is_integer() else 1)
+    if tipo == "num1" and n is not None:
         return br(n, 1)
-    if tipo == "num2":
+    if tipo == "num2" and n is not None:
         return br(n, 2)
-    return br(n, 0 if float(n).is_integer() else 1)
+    if tipo == "pct" and n is not None:
+        return br(n, 0) + "%"
+    if tipo == "pct1" and n is not None:
+        return br(n, 1) + "%"
+    if tipo in ("data", "dia") and isinstance(v, str) and RE_DATA.match(v):
+        return f"{v[8:10]}/{v[5:7]}/{v[:4]}"             # sempre com ano
+    return str(v)
 
 
 def _bloco_tabela(b) -> dict:
+    """Bloco `tabela` do painel, na forma que o macro `grade` desenha (a mesma das abas)."""
     cols = _lista(b.get("colunas"))
-    if not cols or len(cols) > 20 or any(coluna_proibida(_nome_col(c)) for c in cols):
+    if not cols or len(cols) > 20:
         raise ValueError("colunas")
     vis = [i for i, c in enumerate(cols) if not (isinstance(c, dict) and c.get("oculta"))]
     vis = vis[:1] + [i for i in vis[1:] if _tipo_col(cols[i]) != "texto"] + [i for i in vis[1:] if _tipo_col(cols[i]) == "texto"]
-    tipos = [_tipo_col(cols[i]) for i in vis]
 
-    def linha(ln):
-        ln = _lista(ln)
-        return [{"txt": fmt_cel(ln[i] if i < len(ln) else None, t),
-                 "num": t != "texto"} for i, t in zip(vis, tipos)]
+    def cel(ln, i):
+        return {"t": fmt_celula(ln[i] if i < len(ln) else None, _tipo_col(cols[i])), "f": None, "c": None, "b": None}
 
-    linhas = [linha(ln) for ln in _lista(b.get("linhas"))[:MAX_LINHAS_TAB]]
+    linhas = [{"tom": "", "cel": [cel(_lista(ln), i) for i in vis]}
+              for ln in _lista(b.get("linhas"))[:MAX_LINHAS_TAB]]
     tot = _lista(b.get("total"))
     return {"tipo": "tabela", "titulo": str(b.get("titulo", "")),
-            "cols": [{"nome": _nome_col(cols[i]), "num": _tipo_col(cols[i]) != "texto"} for i in vis],
-            "linhas": linhas, "total": linha(tot) if tot else None,
-            "largo": len(vis) > 3, "rolar": len(vis) > 3}
+            "cols": [{"i": i, "nome": _nome_col(cols[i]), "tipo": _tipo_col(cols[i]),
+                      "num": _tipo_col(cols[i]) != "texto", "inteira": False, "livre": False} for i in vis],
+            "linhas": linhas, "total": [cel(tot, i) for i in vis] if tot else None, "zebra": False,
+            "ord": None, "desc": False}
 
 
 def _blocos(painel) -> tuple[list[dict], list[dict]]:
@@ -403,7 +416,7 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
         uf, kpis = None, rel.get("kpis")
     ins_blocos, blocos = _blocos(rel.get("painel"))
     return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
-            "faixa": bool(rel.get("kpis_faixa")) or rid == "pv_pedidos",   # cartões em faixa fina, como o PC
+            "faixa": bool(rel.get("kpis_faixa")),   # cartões em faixa fina, como o PC
             "kpis": [k for k in map(_kpi, _lista(kpis)) if k],
             "insights": _insights(rel.get("insights_painel")) or ins_blocos, "blocos": blocos,
             "avisos": [str(a) for a in _lista(rel.get("avisos")) if not str(a).startswith("Sem filtro por estado")],

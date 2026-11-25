@@ -1,6 +1,7 @@
 {# Grade de tabela do farol. `tab` = tabelas.tabela_para_tela (ou uma junta); `base` liga os cabeçalhos à ordenação #}
 {% macro celula(v) %}{% if v.b %}<span class="atend"><span class="atend-trilho"><i style="width:{{ v.b.w }}%;background:{{ v.b.f }}"></i></span><b>{{ v.t }}</b></span>{% elif v.f %}<span class="selo" style="background:{{ v.f }};color:{{ v.c }}">{{ v.t }}</span>{% else %}{{ v.t }}{% endif %}{% endmacro %}
 {% macro grade(tab, base="", fq="", vazio="Nenhuma linha neste filtro.") %}
+{% if tab.linhas and tab.cols|length > 6 %}<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>{% endif %}
 <div class="rolagem rolagem-dados"><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
   <thead><tr>{% for c in tab.cols %}
     {% if base %}{% set prox = 'desc' if (tab.ord == c.i and not tab.desc) else 'asc' %}

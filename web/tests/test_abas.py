@@ -227,12 +227,6 @@ def test_recusa_celula_de_tipo_errado_e_documento_formatado(cli):
     p, r = _rel("pv_pedidos")
     _tab(r, "Pedidos")["linhas"][0][9] = "muito"                  # LIMITE (moeda) com texto
     _recusa(cli, p, "linha com número de células ou valores")
-    p, r = _rel("pv_pedidos")
-    _tab(r, "Pedidos")["linhas"][0][5] = "CLIENTE FICTICIO 12.345.678/0001-90"      # CNPJ formatado
-    _recusa(cli, p, "valores inválidos")
-    p, r = _rel("vc_visitas")
-    _tab(r, "Prospecção")["linhas"][0][13] = "ligar para 123.456.789-09"            # CPF formatado no texto livre
-    _recusa(cli, p, "valores inválidos")
 
 
 def test_recusa_recortes_e_uf_incoerentes(cli):
@@ -757,3 +751,117 @@ def test_cartoes_da_visita_saem_da_mesma_conta_do_total_da_tabela():
     cart = {k["rotulo"]: k["valor"] for k in r["kpis"]}
     assert tot["VISIT."] == soma and cart["Visitas"] == str(soma)
     assert cart["% da meta"] == f"{tot['% META']:.1f}".replace(".", ",") + "%"
+
+
+# ------------------------------------------------------------------ W2: documento em célula derruba só a aba
+def _pacote_com_painel():
+    from conftest import pacote_ficticio
+    p = pacote_tres_farois()
+    p["relatorios"]["vc_painel"] = pacote_ficticio()["relatorios"]["vc_painel"]
+    p["relatorios"]["pl_inadimplencia"] = pacote_farol()["relatorios"]["pl_inadimplencia"]
+    return p
+
+
+def test_documento_formatado_em_celula_tira_so_a_aba_e_avisa(cli, amb):
+    p = _pacote_com_painel()
+    _tab(p["relatorios"]["pv_pedidos"], "Pedidos")["linhas"][0][5] = "CLIENTE FICTICIO 12.345.678/0001-90"
+    _tab(p["relatorios"]["vc_visitas"], "Prospecção")["linhas"][0][13] = "ligar para 123.456.789-09"
+    _tab(p["relatorios"]["vc_visitas"], "Dia a dia")["total"][3] = None
+    r = postar(cli, p)
+    assert r.status_code == 200, r.text                       # o pacote não cai
+    g = json.loads(sorted((amb / "pacotes").glob("*.json"))[-1].read_text(encoding="utf-8"))["relatorios"]
+    assert "vc_painel" in g and "pl_inadimplencia" in g       # Painel e Inadimplência seguem
+    assert [t["titulo"] for t in g["pv_pedidos"]["tabelas"]] == ["Solicitação BAP"]
+    assert "Prospecção" not in [t["titulo"] for t in g["vc_visitas"]["tabelas"]] and len(g["vc_visitas"]["tabelas"]) == 6
+    assert g["pv_pedidos"]["avisos"][0] == tabelas.AVISO_ABAS_FORA.format(lista="Pedidos")
+    assert g["vc_visitas"]["avisos"][0] == tabelas.AVISO_ABAS_FORA.format(lista="Prospecção")
+    assert "12.345.678" not in json.dumps(g) and "123.456.789" not in json.dumps(g)
+
+
+def test_documento_em_junta_ou_subaba_tira_a_aba_inteira_e_junta_com_o_aviso_do_robo():
+    p = pacote_tres_farois()
+    r = p["relatorios"]["pv_pedidos"]
+    r["avisos"] = ["Abas fora desta atualização: Solicitação BAP. Veja no PC.", "Outro aviso."]
+    _tab(r, "Pedidos")["juntas"][2]["tabela"]["linhas"][0][13] = "9 - FULANO 123.456.789-09"
+    fora = tabelas.tirar_abas_com_documento(p)
+    assert fora == ["Pedidos"] and r["tabelas"][0]["titulo"] == "Solicitação BAP"
+    assert r["avisos"] == ["Abas fora desta atualização: Pedidos, Solicitação BAP. Veja no PC.", "Outro aviso."]
+    p = pacote_tres_farois()
+    _tab(p["relatorios"]["pv_pedidos"], "Solicitação BAP")["subabas"][3]["linhas"][0][1] = "12.345.678/0001-90"
+    assert tabelas.tirar_abas_com_documento(p) == ["Solicitação BAP"]
+
+
+# ------------------------------------------------------------------ W1: pacote no formato do robô
+def test_pacote_no_formato_do_robo_aceito_ponta_a_ponta(cli, admin):
+    p = pacote_tres_farois()
+    for s in _tab(p["relatorios"]["pv_pedidos"], "Solicitação BAP")["subabas"]:
+        assert s["filtros"] == [] and s["total"] is None        # sub-aba com filtros [] e total null
+    sup = _tab(p["relatorios"]["vc_visitas"], "Por supervisor")
+    nomes = [c["nome"] for c in sup["colunas"]]
+    assert sup["total"][nomes.index("SUPERVISOR")] == "TOTAL" and sup["total"][nomes.index("CHAVE")] is None
+    dia = _tab(p["relatorios"]["vc_visitas"], "Dia a dia")
+    assert dia["total"][[c["nome"] for c in dia["colunas"]].index("DATA")] is None
+    _tab(p["relatorios"]["pl_entregas"], "Entregas")["filtros"] = []               # filtros [] = sem a chave
+    _tab(p["relatorios"]["pv_pedidos"], "Pedidos")["linhas"][0][9] = ""             # célula em branco em coluna de número
+    sub = _tab(p["relatorios"]["pv_pedidos"], "Solicitação BAP")["subabas"][0]
+    sub["total"] = [None] * len(sub["colunas"])
+    assert postar(admin, p).status_code == 200
+    for url in ("/farol/vc_visitas?aba=supervisor", "/farol/vc_visitas?aba=dia", "/farol/pv_pedidos?aba=solicitacao",
+                "/farol/pv_pedidos?aba=pedidos", "/farol/pl_entregas?aba=entregas"):
+        assert admin.get(url).status_code == 200, url
+
+
+def test_recusa_total_que_nao_segue_o_contrato(cli):
+    p, r = _rel("vc_visitas")
+    t = _tab(r, "Por supervisor")
+    t["total"][1] = "muito"                                    # texto em coluna int
+    _recusa(cli, p, "total inválido")
+    p, r = _rel("vc_visitas")
+    _tab(r, "Por supervisor")["total"].pop()
+    _recusa(cli, p, "total inválido")
+    p, r = _rel("vc_visitas")
+    _tab(r, "Dia a dia")["total"][0] = "TOTAL"                 # rótulo em coluna de data
+    _recusa(cli, p, "total inválido")
+    p, r = _rel("vc_visitas")
+    _tab(r, "Por supervisor")["total"][0] = ""                 # "" vira null no PC; a web exige null
+    _recusa(cli, p, "total inválido")
+    p, r = _rel("pv_pedidos")
+    _tab(r, "Solicitação BAP")["subabas"][0]["total"] = ["x"]
+    _recusa(cli, p, "total inválido")
+    p, r = _rel("pv_pedidos")
+    _tab(r, "Solicitação BAP")["subabas"][0]["filtros"] = ["DATA"]
+    _recusa(cli, p, "filtros")
+
+
+def test_total_fixo_so_sem_filtro_recorte_ou_estado(com_tabelas):
+    h = com_tabelas.get("/farol/vc_visitas?aba=supervisor").text
+    assert "<tfoot>" in h and "TOTAL" in h
+    assert "<tfoot>" not in com_tabelas.get("/farol/vc_visitas?aba=dia&rec=0").text
+    assert "<tfoot>" in com_tabelas.get("/farol/vc_visitas?aba=dia").text
+    assert "tfoot td{position:sticky;bottom:0" in (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
+
+
+# ------------------------------------------------------------------ cartões, estado vazio, avisos
+def test_aviso_dos_cartoes_e_o_do_contrato_e_estado_tira_os_cartoes(com_tabelas):
+    assert tabelas.AVISO_CARTOES == "Cartões sem filtro. Com filtro, veja o total na tabela."
+    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
+    assert tabelas.AVISO_CARTOES in h and 'class="kpis' not in h and "kpi-valor\">—" not in h
+    h = com_tabelas.get("/farol/pl_entregas?aba=entregas&uf=PA").text
+    assert tabelas.AVISO_CARTOES in h and 'class="kpis' not in h
+    assert not hasattr(render, "kpis_sem_numero")
+
+
+def test_tabela_vazia_so_diz_nenhuma_linha_neste_mes(com_tabelas):
+    h = com_tabelas.get("/farol/vc_visitas?aba=indicacao").text
+    assert "Nenhuma linha neste mês." in h and "0 linhas" not in h and "<details" not in h
+    assert "Role para o lado" not in h
+
+
+def test_visita_mantem_o_aviso_sem_filtro_por_estado_em_cada_aba(com_tabelas):
+    for chave in tabelas.chaves("vc_visitas"):
+        assert tabelas.AVISO_SEM_ESTADO in com_tabelas.get(f"/farol/vc_visitas?aba={chave}").text, chave
+
+
+def test_painel_usa_a_mesma_grade_das_abas(com_tabelas):
+    h = com_tabelas.get("/farol/pl_entregas").text
+    assert 'class="rolagem rolagem-dados"' in h and "tab-dados" in h and "tb-rol" not in h

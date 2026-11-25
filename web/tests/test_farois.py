@@ -143,8 +143,8 @@ def _tres():
 def test_tabela_do_painel_desenha_alinhada_com_total(admin):
     assert postar(admin, _tres()).status_code == 200
     h = admin.get("/farol/pl_entregas").text
-    assert "Frete por estado · nov/2026" in h and 'class="rolagem tb-rol"' in h
-    assert '<td class="n">R$ 1.250.000</td>' in h and '<td class="n">3,0%</td>' in h and '<td class="n">310</td>' in h
+    assert "Frete por estado · nov/2026" in h and 'class="rolagem rolagem-dados"' in h
+    assert '<td class="num">R$ 1.250.000</td>' in h and '<td class="num">3,0%</td>' in h and '<td class="num">310</td>' in h
     assert "<tfoot>" in h and "TOTAL" in h
     assert "ainda não disponível na web" not in h
 
@@ -179,18 +179,23 @@ def test_tabela_recusa_coluna_de_cliente_cnpj_telefone(cli):
     assert postar(cli, pacote_farol(pl_entregas=farol_entregas())).status_code == 200
 
 
-def test_render_descarta_tabela_com_coluna_de_cliente_mesmo_sem_validador():
-    from app.render import farol_para_tela
-    from farol_fixture import farol_entregas
-    e = farol_entregas()
-    e["painel"]["blocos"][0]["colunas"][1] = {"nome": "CLIENTE", "tipo": "texto"}
-    assert [b["tipo"] for b in farol_para_tela(e)["blocos"]] == ["hbarras", "indisponivel"]
+def test_formato_unico_de_celula():
+    from app.render import fmt_celula
+    assert fmt_celula(1250000.0, "moeda") == "R$ 1.250.000"
+    assert fmt_celula(None, "pct1") == "" and fmt_celula(3.04, "pct1") == "3,0%" and fmt_celula("x", "int") == "x"
 
 
-def test_fmt_cel():
-    from app.render import fmt_cel
-    assert fmt_cel(1250000.0, "moeda") == "R$ 1.250.000"
-    assert fmt_cel(None, "pct1") == "—" and fmt_cel(3.04, "pct1") == "3,0%" and fmt_cel("x", "int") == "x"
+def test_colunas_fora_numa_lista_so_igual_ao_contrato():
+    import re
+    from pathlib import Path
+    from app import render, tabelas
+    assert tabelas.COLUNAS_FORA is render.COLUNAS_FORA and tabelas.fmt_celula is render.fmt_celula
+    contrato = Path(__file__).resolve().parents[2] / ".coord" / "contratos" / "relatorio.md"
+    m = re.search(r"```text colunas-fora\n(.*?)```", contrato.read_text(encoding="utf-8"), re.S)
+    if m:                                             # o contrato da branch já traz o bloco
+        assert set(m.group(1).split()) == set(render.COLUNAS_FORA)
+    assert render.coluna_proibida("CONTATO") and render.coluna_proibida("Razão social")
+    assert not render.coluna_proibida("FRETE R$")
 
 
 def test_barras_de_horario_e_duracao_nao_mostram_segundos():
