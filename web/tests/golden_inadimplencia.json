@@ -1,0 +1,7565 @@
+{
+"consultas": [
+{},
+{
+"dir": [
+"desc"
+],
+"ord": [
+"7"
+]
+},
+{
+"f1": [
+"VENDEDOR"
+]
+},
+{
+"pag": [
+"2"
+]
+},
+{
+"f14": [
+"AM"
+]
+},
+{
+"f15": [
+"Vendedor 02",
+"Vendedor 03"
+]
+}
+],
+"saida": {
+"Por cliente|0": {
+"cols": [
+{
+"i": 2,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 12,
+"nome": "EM ATRASO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 7,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 8,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 10,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 11,
+"nome": "TÍTULOS VENCIDOS",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 13,
+"nome": "MAIOR ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 14,
+"nome": "A VENCER",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 15,
+"nome": "PRÓX. VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 16,
+"nome": "LIMITE",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 17,
+"nome": "PEDIDO EM ABERTO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "ÚLTIMA COMPRA",
+"num": false,
+"tipo": "data"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f8",
+"i": 8,
+"multi": false,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f9",
+"i": 9,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "32"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "44"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000003-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 003"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "56"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000004-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 004"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "68"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "80"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": null,
+"pag": 1,
+"paginas": 2,
+"titulo": "Por cliente",
+"total": null,
+"total_linhas": 6
+},
+"Por cliente|1": {
+"cols": [
+{
+"i": 2,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 12,
+"nome": "EM ATRASO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 7,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 8,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 10,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 11,
+"nome": "TÍTULOS VENCIDOS",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 13,
+"nome": "MAIOR ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 14,
+"nome": "A VENCER",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 15,
+"nome": "PRÓX. VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 16,
+"nome": "LIMITE",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 17,
+"nome": "PEDIDO EM ABERTO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "ÚLTIMA COMPRA",
+"num": false,
+"tipo": "data"
+}
+],
+"desc": true,
+"filtros": [
+{
+"chave": "f8",
+"i": 8,
+"multi": false,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f9",
+"i": 9,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "32"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "44"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000004-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 004"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "68"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "80"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000003-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 003"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "56"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": 7,
+"pag": 1,
+"paginas": 2,
+"titulo": "Por cliente",
+"total": null,
+"total_linhas": 6
+},
+"Por cliente|2": {
+"cols": [
+{
+"i": 2,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 12,
+"nome": "EM ATRASO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 7,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 8,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 10,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 11,
+"nome": "TÍTULOS VENCIDOS",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 13,
+"nome": "MAIOR ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 14,
+"nome": "A VENCER",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 15,
+"nome": "PRÓX. VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 16,
+"nome": "LIMITE",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 17,
+"nome": "PEDIDO EM ABERTO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "ÚLTIMA COMPRA",
+"num": false,
+"tipo": "data"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f8",
+"i": 8,
+"multi": false,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f9",
+"i": 9,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "32"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "44"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000003-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 003"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "56"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000004-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 004"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "68"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "80"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": null,
+"pag": 1,
+"paginas": 2,
+"titulo": "Por cliente",
+"total": null,
+"total_linhas": 6
+},
+"Por cliente|3": {
+"cols": [
+{
+"i": 2,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 12,
+"nome": "EM ATRASO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 7,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 8,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 10,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 11,
+"nome": "TÍTULOS VENCIDOS",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 13,
+"nome": "MAIOR ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 14,
+"nome": "A VENCER",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 15,
+"nome": "PRÓX. VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 16,
+"nome": "LIMITE",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 17,
+"nome": "PEDIDO EM ABERTO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "ÚLTIMA COMPRA",
+"num": false,
+"tipo": "data"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f8",
+"i": 8,
+"multi": false,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f9",
+"i": 9,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000006-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 006"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 14.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "92"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": null,
+"pag": 2,
+"paginas": 2,
+"titulo": "Por cliente",
+"total": null,
+"total_linhas": 6
+},
+"Por cliente|4": {
+"cols": [
+{
+"i": 2,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 12,
+"nome": "EM ATRASO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 7,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 8,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 10,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 11,
+"nome": "TÍTULOS VENCIDOS",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 13,
+"nome": "MAIOR ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 14,
+"nome": "A VENCER",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 15,
+"nome": "PRÓX. VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 16,
+"nome": "LIMITE",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 17,
+"nome": "PEDIDO EM ABERTO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "ÚLTIMA COMPRA",
+"num": false,
+"tipo": "data"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f8",
+"i": 8,
+"multi": false,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f9",
+"i": 9,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "32"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "44"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000003-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 003"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "56"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000004-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 004"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "68"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "80"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": null,
+"pag": 1,
+"paginas": 2,
+"titulo": "Por cliente",
+"total": null,
+"total_linhas": 6
+},
+"Por cliente|5": {
+"cols": [
+{
+"i": 2,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 12,
+"nome": "EM ATRASO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 7,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 8,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 10,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 11,
+"nome": "TÍTULOS VENCIDOS",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 13,
+"nome": "MAIOR ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 14,
+"nome": "A VENCER",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 15,
+"nome": "PRÓX. VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 16,
+"nome": "LIMITE",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 17,
+"nome": "PEDIDO EM ABERTO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "ÚLTIMA COMPRA",
+"num": false,
+"tipo": "data"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f8",
+"i": 8,
+"multi": false,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f9",
+"i": 9,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "32"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "44"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000003-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 003"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "56"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000004-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 004"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "68"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "INADIMPLENTE"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "2"
+},
+{
+"c": null,
+"f": null,
+"t": "80"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "05/12/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 20.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 0,00"
+},
+{
+"c": null,
+"f": null,
+"t": "02/10/2026"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": null,
+"pag": 1,
+"paginas": 2,
+"titulo": "Por cliente",
+"total": null,
+"total_linhas": 6
+},
+"Títulos|0": {
+"cols": [
+{
+"i": 8,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 19,
+"nome": "SALDO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "VALOR",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 2,
+"nome": "FILIAL",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 4,
+"nome": "PARC.",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "EMISSÃO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 6,
+"nome": "VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 7,
+"nome": "DIAS ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 11,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 13,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 14,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 15,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 16,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 17,
+"nome": "CONDIÇÃO",
+"num": false,
+"tipo": "texto"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f0",
+"i": 0,
+"multi": false,
+"nome": "SITUAÇÃO",
+"opcoes": [
+"VENCIDO"
+],
+"sel": []
+},
+{
+"chave": "f14",
+"i": 14,
+"multi": true,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f15",
+"i": 15,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 1.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 1.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1001"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "11/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "19"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 3.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1002"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "12/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "28"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000003-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 003"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 3.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1003"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "13/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "37"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000004-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 004"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 6.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1004"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "14/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "46"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 6.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1005"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "15/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "55"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+}
+],
+"ord": null,
+"pag": 1,
+"paginas": 3,
+"titulo": "Títulos",
+"total": [
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 93.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 117.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+}
+],
+"total_linhas": 12
+},
+"Títulos|1": {
+"cols": [
+{
+"i": 8,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 19,
+"nome": "SALDO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "VALOR",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 2,
+"nome": "FILIAL",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 4,
+"nome": "PARC.",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "EMISSÃO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 6,
+"nome": "VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 7,
+"nome": "DIAS ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 11,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 13,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 14,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 15,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 16,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 17,
+"nome": "CONDIÇÃO",
+"num": false,
+"tipo": "texto"
+}
+],
+"desc": true,
+"filtros": [
+{
+"chave": "f0",
+"i": 0,
+"multi": false,
+"nome": "SITUAÇÃO",
+"opcoes": [
+"VENCIDO"
+],
+"sel": []
+},
+{
+"chave": "f14",
+"i": 14,
+"multi": true,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f15",
+"i": 15,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000012-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 012"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 14.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 18.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1012"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "22/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "118"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000011-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 011"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 13.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 16.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1011"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "21/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "109"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000010-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 010"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 15.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1010"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "20/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "100"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000009-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 009"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 10.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 13.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1009"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "19/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "91"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000008-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 008"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1008"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "18/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "82"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": 7,
+"pag": 1,
+"paginas": 3,
+"titulo": "Títulos",
+"total": [
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 93.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 117.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+}
+],
+"total_linhas": 12
+},
+"Títulos|2": {
+"cols": [
+{
+"i": 8,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 19,
+"nome": "SALDO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "VALOR",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 2,
+"nome": "FILIAL",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 4,
+"nome": "PARC.",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "EMISSÃO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 6,
+"nome": "VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 7,
+"nome": "DIAS ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 11,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 13,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 14,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 15,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 16,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 17,
+"nome": "CONDIÇÃO",
+"num": false,
+"tipo": "texto"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f0",
+"i": 0,
+"multi": false,
+"nome": "SITUAÇÃO",
+"opcoes": [
+"VENCIDO"
+],
+"sel": []
+},
+{
+"chave": "f14",
+"i": 14,
+"multi": true,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f15",
+"i": 15,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 1.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 1.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1001"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "11/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "19"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 3.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1002"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "12/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "28"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000003-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 003"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 3.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1003"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "13/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "37"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000004-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 004"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 6.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1004"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "14/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "46"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 6.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1005"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "15/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "55"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+}
+],
+"ord": null,
+"pag": 1,
+"paginas": 3,
+"titulo": "Títulos",
+"total": [
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 93.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 117.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+}
+],
+"total_linhas": 12
+},
+"Títulos|3": {
+"cols": [
+{
+"i": 8,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 19,
+"nome": "SALDO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "VALOR",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 2,
+"nome": "FILIAL",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 4,
+"nome": "PARC.",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "EMISSÃO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 6,
+"nome": "VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 7,
+"nome": "DIAS ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 11,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 13,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 14,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 15,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 16,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 17,
+"nome": "CONDIÇÃO",
+"num": false,
+"tipo": "texto"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f0",
+"i": 0,
+"multi": false,
+"nome": "SITUAÇÃO",
+"opcoes": [
+"VENCIDO"
+],
+"sel": []
+},
+{
+"chave": "f14",
+"i": 14,
+"multi": true,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f15",
+"i": 15,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000006-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 006"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1006"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "16/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "64"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000007-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 007"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 8.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 10.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1007"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "17/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "73"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000008-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 008"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1008"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "18/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "82"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000009-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 009"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 10.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 13.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1009"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "19/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "91"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000010-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 010"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 12.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 15.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1010"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "20/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "100"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": null,
+"pag": 2,
+"paginas": 3,
+"titulo": "Títulos",
+"total": [
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 93.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 117.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+}
+],
+"total_linhas": 12
+},
+"Títulos|4": {
+"cols": [
+{
+"i": 8,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 19,
+"nome": "SALDO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "VALOR",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 2,
+"nome": "FILIAL",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 4,
+"nome": "PARC.",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "EMISSÃO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 6,
+"nome": "VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 7,
+"nome": "DIAS ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 11,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 13,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 14,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 15,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 16,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 17,
+"nome": "CONDIÇÃO",
+"num": false,
+"tipo": "texto"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f0",
+"i": 0,
+"multi": false,
+"nome": "SITUAÇÃO",
+"opcoes": [
+"VENCIDO"
+],
+"sel": []
+},
+{
+"chave": "f14",
+"i": 14,
+"multi": true,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": [
+"AM"
+]
+},
+{
+"chave": "f15",
+"i": 15,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": []
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 1.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 1.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1001"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "11/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "19"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 3.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1002"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "12/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "28"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000004-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 004"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 4.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 6.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1004"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "14/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "46"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 6.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1005"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "15/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "55"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000007-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 007"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 8.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 10.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1007"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "17/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "73"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 04"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": null,
+"pag": 1,
+"paginas": 2,
+"titulo": "Títulos",
+"total": [
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 93.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 117.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+}
+],
+"total_linhas": 8
+},
+"Títulos|5": {
+"cols": [
+{
+"i": 8,
+"nome": "CLIENTE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 9,
+"nome": "NOME",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 19,
+"nome": "SALDO",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 18,
+"nome": "VALOR",
+"num": true,
+"tipo": "moeda"
+},
+{
+"i": 0,
+"nome": "SITUAÇÃO",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 1,
+"nome": "FAIXA",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 2,
+"nome": "FILIAL",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 3,
+"nome": "NF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 4,
+"nome": "PARC.",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 5,
+"nome": "EMISSÃO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 6,
+"nome": "VENCIMENTO",
+"num": false,
+"tipo": "data"
+},
+{
+"i": 7,
+"nome": "DIAS ATRASO",
+"num": true,
+"tipo": "int"
+},
+{
+"i": 11,
+"nome": "STATUS",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 13,
+"nome": "CIDADE",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 14,
+"nome": "UF",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 15,
+"nome": "VENDEDOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 16,
+"nome": "SUPERVISOR",
+"num": false,
+"tipo": "texto"
+},
+{
+"i": 17,
+"nome": "CONDIÇÃO",
+"num": false,
+"tipo": "texto"
+}
+],
+"desc": false,
+"filtros": [
+{
+"chave": "f0",
+"i": 0,
+"multi": false,
+"nome": "SITUAÇÃO",
+"opcoes": [
+"VENCIDO"
+],
+"sel": []
+},
+{
+"chave": "f14",
+"i": 14,
+"multi": true,
+"nome": "UF",
+"opcoes": [
+"AM",
+"PA"
+],
+"sel": []
+},
+{
+"chave": "f15",
+"i": 15,
+"multi": false,
+"nome": "VENDEDOR",
+"opcoes": [
+"Vendedor 01",
+"Vendedor 02",
+"Vendedor 03",
+"Vendedor 04"
+],
+"sel": [
+"Vendedor 02",
+"Vendedor 03"
+]
+}
+],
+"linhas": [
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000001-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 001"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 1.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 1.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1001"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "11/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "19"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000002-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 002"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 2.400,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 3.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1002"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "12/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "28"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000005-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 005"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 6.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "31-60"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1005"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "15/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "55"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "MANAUS"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "atencao"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000006-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 006"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 7.200,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 9.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1006"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "16/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "64"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 03"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+},
+{
+"cel": [
+{
+"c": null,
+"f": null,
+"t": "000009-01"
+},
+{
+"c": null,
+"f": null,
+"t": "Cliente 009"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 10.800,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 13.500,00"
+},
+{
+"c": null,
+"f": null,
+"t": "VENCIDO"
+},
+{
+"c": null,
+"f": null,
+"t": "61-90"
+},
+{
+"c": null,
+"f": null,
+"t": "AM"
+},
+{
+"c": null,
+"f": null,
+"t": "1009"
+},
+{
+"c": null,
+"f": null,
+"t": "1"
+},
+{
+"c": null,
+"f": null,
+"t": "01/09/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "19/10/2026"
+},
+{
+"c": null,
+"f": null,
+"t": "91"
+},
+{
+"c": null,
+"f": null,
+"t": "OK"
+},
+{
+"c": null,
+"f": null,
+"t": "BELÉM"
+},
+{
+"c": null,
+"f": null,
+"t": "PA"
+},
+{
+"c": null,
+"f": null,
+"t": "Vendedor 02"
+},
+{
+"c": null,
+"f": null,
+"t": "Supervisor 01"
+},
+{
+"c": null,
+"f": null,
+"t": "30 DIAS"
+}
+],
+"tom": "alerta"
+}
+],
+"ord": null,
+"pag": 1,
+"paginas": 2,
+"titulo": "Títulos",
+"total": [
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 93.600,00"
+},
+{
+"c": null,
+"f": null,
+"t": "R$ 117.000,00"
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+},
+{
+"c": null,
+"f": null,
+"t": ""
+}
+],
+"total_linhas": 6
+}
+}
+}

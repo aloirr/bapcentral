@@ -133,3 +133,102 @@ def test_acesso_negado_por_perfil(admin):
     g = _usuario(admin, "ger.farol", "gerente")
     for rid in ("pv_pedidos", "vc_visitas", "pl_entregas", "pl_inadimplencia"):
         assert g.get(f"/farol/{rid}").status_code == 200
+
+
+def _tres():
+    from farol_fixture import farol_entregas, farol_pedidos, farol_visitas
+    return pacote_farol(pl_entregas=farol_entregas(), pv_pedidos=farol_pedidos(), vc_visitas=farol_visitas())
+
+
+def test_tabela_do_painel_desenha_alinhada_com_total(admin):
+    assert postar(admin, _tres()).status_code == 200
+    h = admin.get("/farol/pl_entregas").text
+    assert "Frete por estado · nov/2026" in h and 'class="rolagem rolagem-dados"' in h
+    assert '<td class="num">R$ 1.250.000</td>' in h and '<td class="num">3,0%</td>' in h and '<td class="num">310</td>' in h
+    assert "<tfoot>" in h and "TOTAL" in h
+    assert "ainda não disponível na web" not in h
+
+
+def test_pedidos_em_faixa_e_visita_sem_bloco_indisponivel(admin):
+    postar(admin, _tres())
+    h = admin.get("/farol/pv_pedidos").text
+    assert 'class="kpis faixa"' in h and "92,0%" in h
+    assert 'class="kpis"' in admin.get("/farol/pl_entregas").text
+    v = admin.get("/farol/vc_visitas").text
+    assert "Visitas por semana" in v and "ainda não disponível na web" not in v
+
+
+def test_menu_com_os_4_farois_disponiveis(admin):
+    p = _tres()
+    p["relatorios"]["pl_inadimplencia"] = pacote_farol()["relatorios"]["pl_inadimplencia"]
+    assert postar(admin, p).status_code == 200
+    h = admin.get("/").text
+    for rid in ("pv_pedidos", "vc_visitas", "pl_entregas", "pl_inadimplencia"):
+        assert f'href="/farol/{rid}"' in h
+
+
+def test_tabela_recusa_coluna_de_cliente_cnpj_telefone(cli):
+    from farol_fixture import farol_entregas
+    for nome in ("CLIENTE", "Cliente / Nome", "CNPJ", "Telefone", "WhatsApp", "E-mail"):
+        e = farol_entregas()
+        e["painel"]["blocos"][0]["colunas"].append({"nome": nome, "tipo": "texto"})
+        assert postar(cli, pacote_farol(pl_entregas=e)).status_code == 422, nome
+    e = farol_entregas()
+    e["painel"]["blocos"][0]["colunas"][0] = "CNPJ"             # coluna em texto simples também
+    assert postar(cli, pacote_farol(pl_entregas=e)).status_code == 422
+    assert postar(cli, pacote_farol(pl_entregas=farol_entregas())).status_code == 200
+
+
+def test_formato_unico_de_celula():
+    from app.render import fmt_celula
+    assert fmt_celula(1250000.0, "moeda") == "R$ 1.250.000"
+    assert fmt_celula(None, "pct1") == "" and fmt_celula(3.04, "pct1") == "3,0%" and fmt_celula("x", "int") == "x"
+
+
+def test_colunas_fora_numa_lista_so_igual_ao_contrato():
+    import re
+    from pathlib import Path
+    from app import render, tabelas
+    assert tabelas.COLUNAS_FORA is render.COLUNAS_FORA and tabelas.fmt_celula is render.fmt_celula
+    contrato = Path(__file__).resolve().parents[2] / ".coord" / "contratos" / "relatorio.md"
+    m = re.search(r"```text colunas-fora\n(.*?)```", contrato.read_text(encoding="utf-8"), re.S)
+    if m:                                             # o contrato da branch já traz o bloco
+        assert set(m.group(1).split()) == set(render.COLUNAS_FORA)
+    assert render.coluna_proibida("CONTATO") and render.coluna_proibida("Razão social")
+    assert not render.coluna_proibida("FRETE R$")
+
+
+def test_barras_de_horario_e_duracao_nao_mostram_segundos():
+    from app.render import fmt_valor
+    assert fmt_valor(35280, "hora") == "09:48" and fmt_valor(1500, "min") == "25 min"
+    from app.render import farol_para_tela
+    from farol_fixture import farol_visitas
+    v = farol_visitas()
+    g = v["painel"]["blocos"][0]["grafico"]
+    g["formato"], g["series"][0]["valores"] = "hora", [35280, 0, 61200]
+    cols = farol_para_tela(v)["blocos"][0]["cols"]
+    assert cols[0]["barras"][0]["txt"] == "09:48" and cols[2]["barras"][0]["txt"] == "17:00"
+
+
+def test_tabela_numeros_perto_da_1a_coluna_e_dica_de_rolagem(admin):
+    postar(admin, _tres())
+    h = admin.get("/farol/pl_entregas").text
+    ths = h.split("<thead>")[1].split("</thead>")[0]
+    assert ths.index("FRETE R$") < ths.index("REGIÃO") and ths.index("UF") < ths.index("NOTAS")
+    assert "Role para o lado" in h
+
+
+def test_bloco_tabela_do_painel_igual_ao_golden_gerado_com_o_codigo_de_antes():
+    import json
+    from pathlib import Path
+    from app import render
+    from painel_tabela_fixture import blocos_tabela
+    g = json.loads((Path(__file__).parent / "golden_painel_tabela.json").read_text(encoding="utf-8"))
+    novos = []
+    for b in blocos_tabela():
+        r = render._bloco_tabela(b)
+        novos.append({"titulo": r["titulo"], "cols": [[c["nome"], c["num"]] for c in r["cols"]],
+                      "linhas": [[c["t"] for c in ln["cel"]] for ln in r["linhas"]],
+                      "total": [c["t"] for c in r["total"]] if r["total"] else None})
+    assert json.loads(json.dumps(novos, ensure_ascii=False)) == g
+    assert any("—" in ln for b in g for ln in b["linhas"])            # o vazio continua "—" no Painel

@@ -368,7 +368,7 @@ def test_config_token_curto_nao_sobe_e_limite_padrao(amb, monkeypatch):
     assert "curto" not in str(e.value).replace("curto (", "")
     monkeypatch.setenv("BAP_WEB_TOKEN", TOKEN)
     monkeypatch.delenv("BAP_WEB_PACOTE_MAX_MB")
-    assert config.carregar().pacote_max == 2 * 1024 * 1024
+    assert config.carregar().pacote_max == 25 * 1024 * 1024      # o mesmo do render.yaml
 
 
 def test_css_barras_sem_colunas_fixas():
