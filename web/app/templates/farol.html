@@ -18,10 +18,9 @@
 {% elif fila is defined %}
 {% include "_fila.html" %}
 {% else %}
-<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
+<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
 {% if tela.ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
-  <span class="f-rot">Estado</span>
   <a href="/farol/{{ rid }}" class="{{ 'ativa' if not tela.uf }}">BAP inteira</a>
   {% for u in tela.ufs %}<a href="/farol/{{ rid }}?uf={{ u }}" class="{{ 'ativa' if u == tela.uf }}">{{ u }}</a>{% endfor %}
 </nav>
@@ -36,7 +35,7 @@
 </section>
 {% endif %}
 <section class="graficos">
-{% for b in tela.blocos %}
+{% for b in tela.blocos if b.tipo in ("barras", "hbarras", "tabela") %}
 <article class="graf{{ ' graf-tab' if b.tipo == 'tabela' }}">
   {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
   {% if b.tipo == "barras" %}
@@ -59,8 +58,6 @@
     {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
   {% elif b.tipo == "tabela" %}
     {{ grade(b, "", "", "Sem linhas neste pacote.") }}
-  {% else %}
-    <p class="indisp-bloco">{{ indisponivel }}</p>
   {% endif %}
 </article>
 {% endfor %}

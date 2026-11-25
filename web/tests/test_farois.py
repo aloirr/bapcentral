@@ -47,10 +47,11 @@ def test_farol_recusa_chaves_de_edicao_tabelas_e_internas(cli):
 def test_farol_desenha_kpis_resumo_barras_e_bloco_desconhecido(admin):
     postar(admin, pacote_farol())
     h = admin.get("/farol/pl_inadimplencia").text
-    assert "R$ 1,20 mi" in h and "Resumo gerencial" in h and "Atraso acima de 90 dias" in h
-    assert "Recebido (R$) · mês a mês" in h and 'class="hb"' in h and "Vendedor 01" in h
-    assert "ainda não disponível na web" in h            # bloco tabela
-    assert "Baixado do ERP em 24/11/2026 08:10" in h
+    assert "R$ 1,20 mi" in h and "Recebido (R$) · mês a mês" in h and 'class="hb"' in h and "Vendedor 01" in h
+    # T-0020: a frase do resumo que só repete número de cartão sai; sem frase, sem quadro de resumo
+    assert "Atraso acima de 90 dias" not in h and "Resumo gerencial" not in h
+    assert "ainda não disponível na web" not in h        # T-0020: bloco que a web não desenha não aparece
+    assert "Baixado do ERP" not in h                     # T-0020: mesma hora do pacote: uma data só
     assert "Resumo e gráficos: BAP inteira" not in h
     assert "<form" not in h.split("<main>")[1]            # nenhum botão de gravar
 
@@ -61,8 +62,9 @@ def test_farol_filtro_por_estado_troca_so_os_cartoes(admin):
     assert "R$ 700 mil" in h and "R$ 1,20 mi" not in h
     assert "Resumo e gráficos: BAP inteira." in h and "· BAP inteira" not in h
     assert "Recebido (R$) · mês a mês" in h              # gráficos seguem da BAP inteira
-    h = admin.get("/farol/pl_inadimplencia?uf=RR").text  # sem recorte: traço, nunca o total
-    assert "R$ 1,20 mi" not in h and "—" in h
+    h = admin.get("/farol/pl_inadimplencia?uf=RR").text  # sem recorte: nunca o total
+    assert "R$ 1,20 mi" not in h and "Sem números de RR neste pacote." in h
+    assert '<div class="kpi-valor">—</div>' not in h     # T-0020: cartão só com traço não aparece
 
 
 def test_farol_malformado_nao_quebra(admin):
@@ -70,7 +72,7 @@ def test_farol_malformado_nao_quebra(admin):
     p["relatorios"]["pl_inadimplencia"]["painel"]["blocos"].append({"tipo": "barras", "grafico": "x"})
     postar(admin, p)
     r = admin.get("/farol/pl_inadimplencia")
-    assert r.status_code == 200 and r.text.count("ainda não disponível na web") >= 2
+    assert r.status_code == 200 and "ainda não disponível na web" not in r.text   # T-0020: some, sem quebrar
 
 
 def _com_estados(p):

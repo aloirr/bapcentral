@@ -212,3 +212,64 @@ main.larga{max-width:none}
 .rolagem-dados .tab-dados tfoot td{position:sticky;bottom:0;z-index:2;font-weight:800;background:#e7edf5;border-top:2px solid #8f9c93}
 .rolagem-dados .tab-dados tfoot td:first-child{z-index:3}
 .tab-dados.tb{white-space:normal}
+/* T-0020 · visual C (decisão do Alexandre, 25/11/2026): cores e logo da BAP AUTOPARTS, um só estilo de botão, sem bordas pesadas */
+body{background:#F5F6F4;color:#1E2722;font-family:"Segoe UI",system-ui,Roboto,sans-serif}
+.topo{background:#fff;color:#1E2722;box-shadow:0 1px 0 #E1E5E0;padding:.55rem 1.4rem}
+.marca{display:flex;align-items:center;gap:.6rem;color:#1E2722;font-size:1.1rem}
+.marca::before{content:"";width:28px;height:28px;flex:none;background:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADgAAAA3CAMAAABuDnn5AAAAYFBMVEWZ1J5at2Jp6W1Zu2F/f39Zu2Hc8N0SfxJ8yIJkvms/vz9bwGRbwGNbwGM/v3////8Af38A/38A//9ZumH8/fwAAABQtlhdw2VqxXGs3LFUqlVZu2EA/wBZvGLO6tFZvGFSMsSxAAAAIHRSTlP/GQlyAo7/Av//BM1bkQQBAgIB/v8A//7//wPRAbH/Thy6zM8AAAKiSURBVHjapZbreqQgDIaDhzl22t1FDCMg93+XDSgKCDPzPJsftlLeJiaQfCBS+7nRg9nWKO5NmdY2tHTrso2QvGna03wZzhFxAf0vxjJa13VwcpgKzG608mj8n8vgJFjLD9TK8sckJl0C/2hhleRVw7sVojuCjZgeiPyVYc/2cGEP0zh3Iw+Pgsn7TkLwx+7eHQxkzxqJaiMhcMpxo+eGAaokBtKDZ71wfHy+Ab3P8wbetFnS8h505BTASbRrGT4Auex9sOATGsrwCcjROpLAZv3AFBzJlkchWDq3QJ/abnXfwSvAfBrm+Xk5orKlMoDWzb4UwOf609kJjijT/+A7criBqc0yI7EV36Ab9Q48JAvVpGFP6QvwQFpKTi8/AIfLmN4TAZ36xOMw5LECixdiEEBeJczhNbsxDCyWQTkutq0ktxRb6MvgNWwLNy3ND/ZgimC0a1yjnRPQgCqBp2jTeCmkB1UZTDORR+87PKhSVpPvCbGmB+8/wCRUOIY6XocCqLKsFhKx1SMGMQev9XKkoIE2afuHXdHRScAebHIEt7jIpzcOQxG06SGPXA4zXCTEtyVJDgNh0lgv1YsVgag62Jrx2ysZgdSUqXVkHWz/zDrImYC/Wax1nzuISndwExY/8xmBltqjOE/qQHI47V31kp9VmgFuBExHlw6VNANoAgC1kFMOuqnjp5UpiIYxGOcZiMbpKDet4ulRsINHto65crBVkAbHtI3ypJ2/Bqn2za466DPlZyCaZhFmC6jPrE6Gsnp/QXQEgaRFnRz5kwoDzqE0LMi5IMnota9laKsL9udNBm4iUJN4fC0CkfKpfwp61enAOor4YLFgTYWu+LqXUfRqdapJ644qZA3PWXo3X53ourqY9/+TtSoFVduITJEL8QvnHemTA0HMNwAAAABJRU5ErkJggg==) center/contain no-repeat}
+.marca small{color:#69736D;opacity:1;font-size:.8rem}
+.sair{color:#69736D;font-size:.85rem}.sair button{background:none;border:0;color:#2F7D32;font-weight:600}
+.aviso.info{background:transparent;color:#69736D;font-size:.78rem;text-align:right;padding:.4rem 1.4rem 0}
+.aviso.info.faixa-pc,main .aviso.info{text-align:left;background:#EEF4EC;color:#1E2722;border-radius:8px;padding:.45rem .8rem;margin:.3rem 0}
+main{max-width:1320px;padding:.6rem 1.4rem}
+.abas{display:inline-flex;max-width:100%;overflow-x:auto;gap:2px;background:#E6EAE5;border-radius:10px;padding:3px;margin:.4rem 0 1rem}
+.abas a{background:none;border-radius:8px;color:#4A564E;padding:.45rem 1rem;font-weight:600}
+.abas a.ativa{background:#fff;color:#1E2722;box-shadow:0 1px 3px #0002}
+.cab-painel h1,main h1{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+.filtros a,.subabas a{border:0;background:#E6EAE5;border-radius:8px;color:#4A564E;font-weight:600}
+.filtros a.ativa,.subabas a.ativa{background:#2F7D32;color:#fff}
+.kpi{background:#fff;border:0;border-radius:12px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;padding:14px 16px}
+.kpi-rot{font-weight:600;color:#69736D;display:flex;align-items:center;gap:.45rem}
+.kpi-rot::before{content:"";width:8px;height:8px;border-radius:50%;background:#C5CEC7;flex:none}
+.kpi.c-alerta .kpi-rot::before{background:#B3261E}.kpi.c-atencao .kpi-rot::before{background:#E0A43A}.kpi.c-ok .kpi-rot::before{background:#4FA236}
+.kpi.c-alerta .kpi-valor{color:#B3261E}
+.kpi-valor{font-weight:700}
+.kpis.faixa .kpi{border:0;padding:8px 12px}
+.kpi-lin{border-top:1px solid #EEF1EE}
+.resumo,.graf,.rc{background:#fff;border:0;border-radius:12px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;overflow:hidden}
+.graf h3,.resumo h2{font-size:.9rem;font-weight:600;color:#4A564E}
+.ins{border-left:0;background:none;padding:.1rem 0 .1rem 1.1rem;position:relative}
+.ins::before{content:"";position:absolute;left:0;top:.55em;width:8px;height:8px;border-radius:50%;background:#C5CEC7}
+.ins.t-alerta::before{background:#B3261E}.ins.t-atencao::before{background:#E0A43A}.ins.t-ok::before{background:#4FA236}
+.rolagem,.rolagem-dados{border-radius:12px;box-shadow:0 0 0 1px #E6EAE5}
+.tab th,.tb th:first-child,.tab-dados th:first-child{background:#fff;color:#69736D;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid #1E2722}
+.tab-dados th a{color:#69736D}
+.tab td{border-bottom:1px solid #EEF1EE}
+.tab-dados tr.tom-alerta td,.tab-dados tr.tom-alerta td:first-child{background:#FDF1F0}
+.tab-dados tr.tom-grave td,.tab-dados tr.tom-grave td:first-child{background:#F9DEDB}
+.tab-dados tr.tom-atencao td,.tab-dados tr.tom-atencao td:first-child{background:#FFF8EA}
+.tab-dados tr.tom-ok td,.tab-dados tr.tom-ok td:first-child{background:#F4FAF2}
+.tab-dados tfoot td,.rolagem-dados .tab-dados tfoot td{background:#F5F6F4;border-top:2px solid #1E2722}
+.quadro{background:#fff;color:#1E2722;border:0;border-radius:14px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;position:relative}
+.quadro.indisp{background:#EEF1EE;color:#69736D}
+button{background:#2F7D32;border-color:#2F7D32}
+.cob-desfaz button,.filtros-tab a,.caixa a{color:#2F7D32}
+footer{color:#5E6B62}
+/* barras: as cores do PC trocadas pelas da BAP (verde, verde-escuro, areia, cinza-verde) */
+.gb-b i,.leg i{border-radius:6px 6px 0 0}.leg i{border-radius:2px}
+.gb-b i[style*="62BB47" i],.leg i[style*="62BB47" i]{background:#7DB46A!important}
+.gb-b i[style*="1F4FD1" i],.hb-trilho i[style*="1F4FD1" i],.leg i[style*="1F4FD1" i]{background:#2F7D32!important}
+.gb-b i[style*="C98A00" i],.gb-b i[style*="B7791F" i],.hb-trilho i[style*="C98A00" i],.leg i[style*="C98A00" i],.leg i[style*="B7791F" i]{background:#D8B56E!important}
+.gb-b i[style*="4F6D7A" i],.hb-trilho i[style*="4F6D7A" i],.leg i[style*="4F6D7A" i]{background:#8FA79A!important}
+.hb-trilho{border-radius:7px;overflow:hidden;background:#EEF1EE}
+/* T-0020: coluna que só repete outra não aparece; tabelas de baixo lado a lado, como no farol do PC */
+.oc{display:none}
+.juntas{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;margin:1rem 0}
+.juntas .junta{flex:1 1 auto;max-width:100%;min-width:300px;margin:0;background:#fff;border-radius:12px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;padding:10px 12px}
+.juntas .junta h2{font-size:.9rem;font-weight:600;color:#4A564E}
+.juntas .rolagem-dados{max-height:420px;box-shadow:none;border-radius:0}
+.juntas .tab-dados{width:auto;min-width:100%}
+.juntas .tab-dados th,.juntas .tab-dados td{padding:.25rem .45rem;font-size:.8rem}
+.juntas .dica-rolagem{display:none}
+@media(max-width:600px){.juntas .junta{min-width:0;flex-basis:100%}}
+@media(max-width:600px){main{padding:.6rem}.topo{padding:.5rem .8rem}.aviso.info{padding:.3rem .8rem 0}.cob{min-width:0}}

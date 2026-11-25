@@ -11,7 +11,6 @@
 </nav>
 {% if filtros and filtros.ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
-  <span class="f-rot">Estado</span>
   <a href="/painel?aba={{ aba }}" class="{{ 'ativa' if not uf }}">BAP inteira</a>
   {% for u in filtros.ufs %}<a href="/painel?aba={{ aba }}&uf={{ u }}" class="{{ 'ativa' if u == uf }}">{{ u }}</a>{% endfor %}
 </nav>
