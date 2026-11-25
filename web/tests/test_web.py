@@ -104,12 +104,12 @@ def test_pacote_sem_token_ou_errado_401(cli, amb):
     assert not (amb / "pacotes").exists()
 
 
-def test_pacote_ok_grava_atomico_e_mantem_15(cli, amb):
+def test_pacote_ok_grava_atomico_e_mantem_7(cli, amb):
     for i in range(17):
         r = postar(cli, pacote_ficticio(f"2026-11-{i + 1:02d}T08:30:00-04:00"))
         assert r.status_code == 200, r.text
     arqs = sorted(p.name for p in (amb / "pacotes").glob("*"))
-    assert len(arqs) == 15 and arqs[-1].startswith("20261117")
+    assert len(arqs) == 7 and arqs[-1].startswith("20261117")
     assert not [a for a in arqs if a.startswith(".tmp")]
 
 

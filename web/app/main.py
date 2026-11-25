@@ -8,7 +8,7 @@ import os
 import secrets
 from datetime import date, datetime
 from pathlib import Path
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, config, pacotes, render
+from . import VERSAO, cobranca, config, pacotes, render
 from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 
 log = logging.getLogger("bap_web")
@@ -26,7 +26,7 @@ MANAUS = ZoneInfo("America/Manaus")
 VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
 RELATORIO = ("vc_painel", "Painel Executivo")
 FORM_MAX = 16 * 1024
-ISENTAS_FUSO = ("/saude", "/static", "/api/pacote")   # saúde e robô seguem; as telas param
+ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca")   # saúde e robô seguem; as telas param
 
 
 def hoje_local() -> date:
@@ -58,6 +58,12 @@ def fmt_manaus(iso: str | None) -> str:
     return d.astimezone(MANAUS).strftime("%d/%m/%Y %H:%M")
 
 
+def hhmm(iso: str | None) -> str:
+    """"hh:mm" se for de hoje (Manaus); senão "dd/mm hh:mm"."""
+    f = fmt_manaus(iso)
+    return f[-5:] if f[:10] == cobranca.agora().strftime("%d/%m/%Y") else f[:5] + " " + f[-5:]
+
+
 def criar_app() -> FastAPI:
     cfg = config.carregar()
     cfg.dados.mkdir(parents=True, exist_ok=True)
@@ -66,6 +72,10 @@ def criar_app() -> FastAPI:
     modelos = Jinja2Templates(directory=str(AQUI / "templates"))
     modelos.env.autoescape = True
     modelos.env.filters["manaus"] = fmt_manaus
+    modelos.env.filters["hhmm"] = hhmm
+    modelos.env.filters["fone"] = cobranca.fone_bonito
+    diario = cobranca.Diario(cfg.dados)
+    diario.limpar()                                   # §10.6.5: também quando o app sobe
 
     app = FastAPI(title="BAP Central", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(SessionMiddleware, secret_key=cfg.segredo, session_cookie="bap_sessao",
@@ -166,6 +176,7 @@ def criar_app() -> FastAPI:
             request.session["u"] = u["login"]
             request.session["s"] = u["sessao"]
             csrf(request)
+            cobranca.registrar_acesso(cfg.dados, u["login"], "-", "-", "login")
             return RedirectResponse("/", status_code=303)
         msg = ("Usuário ou senha inválidos, ou acesso bloqueado após %d tentativas erradas. "
                "Tente em 15 minutos ou peça ao administrador." % MAX_ERROS)
@@ -238,17 +249,103 @@ def criar_app() -> FastAPI:
                       tela=render.aba_para_tela(atual, escolhido),
                       filtros=render.filtros(atual), uf=escolhido or "")
 
+    def rel_do(rid):
+        rel = ((ultimo.get() or {}).get("relatorios") or {}).get(rid)
+        return rel if isinstance(rel, dict) and rel.get("forma") == "farol" else None
+
     @app.get("/farol/{rid}", response_class=HTMLResponse)
-    async def farol(request: Request, rid: str, uf: str = ""):
+    async def farol(request: Request, rid: str, uf: str = "", aba: str = "resumo"):
         u = usuario(request)
         if rid not in render.FAROIS or u["perfil"] not in render.FAROIS[rid][1]:
             raise PermissionError                       # perfil conferido no servidor
+        perfil = u["perfil"]
+        chaves = [c for c, _ in cobranca.ABAS]
+        if aba in chaves[1:]:                           # aba de tabela ou de fila: 403 fora do perfil
+            if (rid != cobranca.RID or (aba in cobranca.ABA_TABELA and perfil not in cobranca.VE_TABELAS)
+                    or (aba == "cobrar" and perfil not in cobranca.COBRA)):
+                raise PermissionError
+        else:
+            aba = "resumo"
+        cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba, "ver")
         nome = render.FAROIS[rid][0]
-        rel = ((ultimo.get() or {}).get("relatorios") or {}).get(rid)
-        if not isinstance(rel, dict) or rel.get("forma") != "farol":
-            return pagina(request, "farol.html", farol_nome=nome, rid=rid, tela=None)
-        return pagina(request, "farol.html", farol_nome=nome, rid=rid,
-                      tela=render.farol_para_tela(rel, uf[:4] or None, rid))
+        rel = rel_do(rid)
+        if not rel:
+            return pagina(request, "farol.html", farol_nome=nome, rid=rid, tela=None, abas=[], aba="resumo")
+        abas = []
+        if rid == cobranca.RID and "tabelas" in rel and "cobranca" in rel:
+            abas = [(c, n) for c, n in cobranca.ABAS
+                    if c == "resumo" or (c in cobranca.ABA_TABELA and perfil in cobranca.VE_TABELAS)
+                    or (c == "cobrar" and perfil in cobranca.COBRA)]
+        ctx = dict(farol_nome=nome, rid=rid, abas=abas if len(abas) > 1 else [], aba=aba, noindex=aba != "resumo")
+        if aba == "resumo":
+            return pagina(request, "farol.html", tela=render.farol_para_tela(rel, uf[:4] or None, rid), **ctx)
+        if "tabelas" not in rel:                        # robô antigo: sem as abas novas
+            return pagina(request, "farol.html", tela=None, **ctx)
+        if aba in cobranca.ABA_TABELA:
+            titulo = cobranca.ABA_TABELA[aba]
+            t = next(x for x in rel["tabelas"] if x["titulo"] == titulo)
+            consulta = {}
+            for k, v in request.query_params.multi_items():
+                consulta.setdefault(k, []).append(v[:80])
+            return pagina(request, "farol.html", tela=None, tabela=cobranca.tabela_para_tela(t, titulo, consulta),
+                          **ctx)
+        cob = rel["cobranca"]
+        extras = diario.pendentes(cob["web_epoca"], cob["web_ate_seq"])
+        hoje = cobranca.agora().date()
+        pendentes, tratados = [], []
+        for it in cob["fila"]:
+            sit = cobranca.situacao(cobranca.ultimo_efetivo(it, extras), cob["dias_recente"], hoje)
+            link = f"https://wa.me/{it['whatsapp']}?text={quote(it['mensagem'])}" if it["whatsapp"] else ""
+            c = {**it, "situacao": sit, "link": link, "aviso": cobranca.aviso_curto(it["aviso"])}
+            (tratados if sit.endswith("HOJE") else pendentes).append(c)   # já tratados hoje vão ao fim
+        try:
+            pag = max(1, int(request.query_params.get("pag", "1")))
+        except ValueError:
+            pag = 1
+        paginas = max(1, -(-len(pendentes) // cobranca.FILA_POR_PAGINA))
+        pag = min(pag, paginas)
+        ini = (pag - 1) * cobranca.FILA_POR_PAGINA
+        return pagina(request, "farol.html", tela=None, fila=pendentes[ini:ini + cobranca.FILA_POR_PAGINA],
+                      tratados=tratados if pag == paginas else [], n_fila=len(pendentes), n_tratados=len(tratados),
+                      pag=pag, paginas=paginas, pc_ate=cob["gerado_em"], pacote_sha=ultimo.sha(), **ctx)
+
+    @app.post("/farol/pl_inadimplencia/cobranca")
+    async def cobrar(request: Request):
+        u = usuario(request, cobranca.COBRA)
+        f = await formulario(request)
+        # §10.6.4: o item sai do pacote da página (se ainda entre os 7); senão do vigente; senão 404
+        def acha(pac):
+            rel = ((pac or {}).get("relatorios") or {}).get(cobranca.RID)
+            cob = rel.get("cobranca") if isinstance(rel, dict) else None
+            return next((i for i in (cob or {}).get("fila", []) if i["cod"] == f.get("cliente")), None)
+        sha_pag = f.get("pacote_sha", "")
+        item, sha_item = None, ""
+        if sha_pag and sha_pag != ultimo.sha():
+            item = acha(pacotes.por_sha(cfg.dados, sha_pag))
+            sha_item = sha_pag
+        if not item:
+            item, sha_item = acha(ultimo.get()), ultimo.sha()
+        if not item:
+            return JSONResponse({"ok": False, "erro": "abra o farol de novo"}, status_code=404)
+        acao = f.get("acao")
+        if acao not in cobranca.ACOES:
+            return JSONResponse({"ok": False, "erro": "ação inválida"}, status_code=400)
+        fone = item["whatsapp"]
+        if acao == "ENVIADO":
+            digitado = (f.get("telefone") or "").strip()
+            fone = cobranca.celular(digitado) if digitado else item["whatsapp"]
+            if not fone:
+                return JSONResponse({"ok": False, "erro": "telefone inválido ou ausente"}, status_code=400)
+        try:
+            reg, repetido = diario.registrar(
+                usuario=u["login"], cliente=item["cod"], acao=acao, telefone=fone,
+                em_atraso=item["em_atraso"], titulos=len(item["titulos"]), pacote_sha=sha_item)
+        except OSError:                                  # disco cheio ou indisponível: nada foi registrado
+            log.error("cobrança: falha ao gravar o diário")
+            return JSONResponse({"ok": False, "erro": "Não foi possível gravar agora."}, status_code=503)
+        cobranca.registrar_acesso(cfg.dados, u["login"], cobranca.RID, "cobrar", acao)
+        sit = "ENVIADO HOJE" if reg["acao"] == "ENVIADO" else "PULADO HOJE"
+        return {"ok": True, "seq": reg["seq"], "id": reg["id"], "situacao": sit, "repetido": repetido}
 
     # ------------------------------------------------------------ usuários (admin)
     @app.get("/usuarios", response_class=HTMLResponse)
@@ -282,14 +379,46 @@ def criar_app() -> FastAPI:
                       msg="Feito.", erro="")
 
     # ------------------------------------------------------------ pacote do robô
-    @app.post("/api/pacote")
-    async def api_pacote(request: Request):
+    def sem_token(request: Request):
         auth = request.headers.get("authorization", "")
         esperado = cfg.token
         entrada = auth[7:] if auth.lower().startswith("bearer ") else ""
         if not esperado or not hmac.compare_digest(entrada.encode(), esperado.encode()):
             return JSONResponse({"erro": "não autorizado"}, status_code=401,
                                 headers={"WWW-Authenticate": "Bearer"})
+        return None
+
+    @app.get("/api/cobranca")
+    async def api_cobranca(request: Request):
+        negado = sem_token(request)
+        if negado:
+            return negado
+        bruto = request.query_params.get("desde", "0")
+        if not (bruto.isascii() and bruto.isdigit()) or len(bruto) > 15:
+            return JSONResponse({"erro": "desde precisa ser inteiro >= 0"}, status_code=400)
+        return diario.desde(int(bruto))
+
+    @app.post("/api/cobranca/confirmar")
+    async def api_confirmar(request: Request):
+        negado = sem_token(request)
+        if negado:
+            return negado
+        try:
+            corpo = json.loads((await request.body())[:1024])
+            ate = corpo.get("ate_seq") if isinstance(corpo, dict) else None
+            epoca = corpo.get("epoca") if isinstance(corpo, dict) else None
+        except ValueError:
+            ate = epoca = None
+        try:
+            return diario.confirmar(epoca, ate)
+        except cobranca.ErroCobranca as e:
+            return JSONResponse({"erro": e.msg}, status_code=e.status)
+
+    @app.post("/api/pacote")
+    async def api_pacote(request: Request):
+        negado = sem_token(request)
+        if negado:
+            return negado
         ct = request.headers.get("content-type", "").split(";")[0].strip().lower()
         if ct != "application/json":
             return JSONResponse({"erro": "só application/json (nada de arquivo ou .pkl)"},

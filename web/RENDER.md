@@ -1,15 +1,15 @@
 # BAP Central web no Render (Onda 0 e 1)
 
-Texto de apoio do `modulo-web` (T-0013). **Nada daqui foi publicado.** Deploy só com a frase do Alexandre "aprovo deploy vX.Y.Z".
+Texto de apoio do `modulo-web` (T-0013). O deploy é automático a cada commit no `main` (R-20261124-210855-alexandre).
 
 > **Depende do adendo à ADR 0001.** A ADR 0001 (seção 2.1) escolheu M1 (a web roda `montar`). A decisão do gerente para esta onda é outra: **a web não roda o `montar`**. O robô no PC manda pronta a **parte dado** do contrato (`.coord/contratos/relatorio.md`, §10) dos dois relatórios, e a web só guarda e mostra. O adendo que registra essa mudança fica fora de `web/**` (é do dono da ADR) e precisa existir antes do deploy.
 
 ## 1. O que roda
 
-- Python 3.12, FastAPI + Jinja2 + uvicorn. HTML do servidor, sem JavaScript.
+- Python 3.12, FastAPI + Jinja2 + uvicorn. HTML do servidor; um único JavaScript (`static/cobranca.js`) só na fila de cobrança.
 - Entrada: `uvicorn app.main:criar_app --factory` (a pasta de trabalho é `web/`).
 - Sem `SESSION_SECRET` o app **não sobe** e diz o motivo no log.
-- Dados no disco: `$BAP_WEB_DADOS/usuarios.json` (senhas com scrypt + sal) e `$BAP_WEB_DADOS/pacotes/<gerado_em>.json` (os últimos 15). Sem Postgres. Dado de cliente e dado digitado nunca vão ao GitHub.
+- Dados no disco: `$BAP_WEB_DADOS/usuarios.json` (senhas com scrypt + sal) e `$BAP_WEB_DADOS/pacotes/<gerado_em>.json` (os últimos 7) e `cobranca/` (diário do site, §10.6.5). Sem Postgres. Dado de cliente e dado digitado nunca vão ao GitHub.
 
 ## 2. Texto proposto do `render.yaml` (governança: proposta ao gerente, não entra no PR)
 
@@ -24,7 +24,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:criar_app --factory --host 0.0.0.0 --port $PORT
     healthCheckPath: /saude
-    autoDeploy: false        # deploy só com "aprovo deploy vX.Y.Z"
+    autoDeploy: true         # deploy automático a cada commit no main (R-20261124-210855-alexandre)
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7
