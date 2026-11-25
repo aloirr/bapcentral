@@ -32,20 +32,19 @@ ABAS = (("resumo", "Resumo"), ("titulos", "Títulos"), ("cliente", "Por cliente"
         ("cobrar", "Cobrar no WhatsApp"))
 ABA_TABELA = {"titulos": "Títulos", "cliente": "Por cliente"}
 
-COLUNAS = {
-    "Títulos": [("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("FILIAL", "texto"), ("NF", "texto"),
-                ("PARC.", "texto"), ("EMISSÃO", "data"), ("VENCIMENTO", "data"),
-                ("DIAS ATRASO", "int"), ("CLIENTE", "texto"), ("NOME", "texto"),
-                ("CIDADE", "texto"), ("UF", "texto"), ("VENDEDOR", "texto"),
-                ("SUPERVISOR", "texto"), ("CONDIÇÃO", "texto"), ("VALOR", "moeda"),
-                ("SALDO", "moeda")],
-    "Por cliente": [("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("CLIENTE", "texto"),
-                    ("NOME", "texto"), ("CIDADE", "texto"), ("UF", "texto"),
-                    ("VENDEDOR", "texto"), ("SUPERVISOR", "texto"), ("TÍTULOS VENCIDOS", "int"),
-                    ("EM ATRASO", "moeda"), ("MAIOR ATRASO", "int"), ("A VENCER", "moeda"),
-                    ("PRÓX. VENCIMENTO", "data"), ("LIMITE", "moeda"),
-                    ("PEDIDO EM ABERTO", "moeda"), ("ÚLTIMA COMPRA", "data")],
-}
+_OC = ("STATUS PROTHEUS", "SITUAÇÃO PLANNER")      # ocultas no PC: vêm no pacote, a tela não desenha
+_T = [("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("FILIAL", "texto"), ("NF", "texto"),
+      ("PARC.", "texto"), ("EMISSÃO", "data"), ("VENCIMENTO", "data"), ("DIAS ATRASO", "int"),
+      ("CLIENTE", "texto"), ("NOME", "texto"), ("STATUS PROTHEUS", "texto"), ("STATUS", "texto"),
+      ("SITUAÇÃO PLANNER", "texto"), ("CIDADE", "texto"), ("UF", "texto"), ("VENDEDOR", "texto"),
+      ("SUPERVISOR", "texto"), ("CONDIÇÃO", "texto"), ("VALOR", "moeda"), ("SALDO", "moeda")]
+_C = [("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("CLIENTE", "texto"), ("NOME", "texto"),
+      ("STATUS PROTHEUS", "texto"), ("STATUS", "texto"), ("SITUAÇÃO PLANNER", "texto"),
+      ("CIDADE", "texto"), ("UF", "texto"), ("VENDEDOR", "texto"), ("SUPERVISOR", "texto"),
+      ("TÍTULOS VENCIDOS", "int"), ("EM ATRASO", "moeda"), ("MAIOR ATRASO", "int"),
+      ("A VENCER", "moeda"), ("PRÓX. VENCIMENTO", "data"), ("LIMITE", "moeda"),
+      ("PEDIDO EM ABERTO", "moeda"), ("ÚLTIMA COMPRA", "data")]
+COLUNAS = {"Títulos": _T, "Por cliente": _C}        # §10.6.2: PC depois do montar, menos TELEFONE
 PROIBIDAS_TABELA = {"edicao", "editar", "abrir", "detalhe", "kpis_de", "recortes", "juntas"}
 COLUNAS_PROIBIDAS = {"TELEFONE", "CNPJ", "CPF", "E-MAIL", "EMAIL"}
 CHAVES_TABELA = {"titulo", "colunas", "linhas", "tons", "total", "filtros"}
@@ -117,7 +116,7 @@ def _tabela_erro(t, titulo) -> str | None:
         isinstance(c, dict) and c.get("nome") == n and c.get("tipo") == tp
         and (set(c) - {"nome", "tipo", "largura", "oculta"} == set())
         and (c.get("largura") is None or _int(c.get("largura")))
-        and (c.get("oculta") is None or isinstance(c.get("oculta"), bool))
+        and bool(c.get("oculta")) == (n in _OC)            # mesma marca "oculta" do PC
         for c, (n, tp) in zip(cols, esperado))
     if not ok:
         return f"tabela {titulo}: colunas diferentes da lista permitida"
@@ -366,6 +365,11 @@ class Diario:
 
     def _tranca(self):
         return Diario._Tranca(self)
+
+    def limpar(self, agora_=None) -> None:
+        """Retenção (§10.6.5): roda em toda confirmação aceita e quando o app sobe."""
+        with self._tranca():
+            self._limpar(self._estado(), agora_ or agora(), gravar=False)
 
     def epoca(self) -> str:
         with self._tranca():

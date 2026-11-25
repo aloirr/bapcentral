@@ -62,7 +62,7 @@ def test_recusa_colunas_fora_da_lista_ordem_ou_tipo(cli):
     c[0], c[1] = c[1], c[0]
     _recusa(cli, p, "colunas diferentes")
     p = pacote_cobranca()
-    p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][15]["tipo"] = "texto"
+    p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][18]["tipo"] = "texto"
     _recusa(cli, p, "colunas diferentes")
     p = pacote_cobranca()
     p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["linhas"][0].pop()
@@ -213,13 +213,13 @@ def test_filtro_e_ordenacao_na_url(admin):
     postar(admin, pacote_cobranca())
     h = _tela(admin, "titulos").text
     assert h.count("<tr class=") == 12
-    h = admin.get(URL + "?aba=titulos&f11=PA").text              # UF = PA: clientes 3, 6, 9, 12
+    h = admin.get(URL + "?aba=titulos&f14=PA").text              # UF = PA: clientes 3, 6, 9, 12
     assert h.count("<tr class=") == 4 and "Cliente 003" in h and "Cliente 001" not in h
-    h = admin.get(URL + "?aba=titulos&f11=PA&f11=AM").text      # multi
+    h = admin.get(URL + "?aba=titulos&f14=PA&f14=AM").text      # multi
     assert h.count("<tr class=") == 12
-    h = admin.get(URL + "?aba=titulos&ord=15&dir=desc").text    # VALOR decrescente
+    h = admin.get(URL + "?aba=titulos&ord=18&dir=desc").text    # VALOR decrescente
     assert h.index("Cliente 012") < h.index("Cliente 001")
-    h = admin.get(URL + "?aba=titulos&ord=15&dir=asc").text
+    h = admin.get(URL + "?aba=titulos&ord=18&dir=asc").text
     assert h.index("Cliente 001") < h.index("Cliente 012")
     assert admin.get(URL + "?aba=titulos&ord=zz&pag=abc").status_code == 200
 
@@ -514,3 +514,28 @@ def test_pacote_guardado_e_so_os_7_ultimos(cli, amb):
     for i in range(9):
         assert postar(cli, pacote_cobranca(gerado_em=f"2026-11-{i + 1:02d}T08:30:00-04:00")).status_code == 200
     assert len(list((amb / "pacotes").glob("*.json"))) == 7
+
+
+def test_colunas_ocultas_vem_no_pacote_mas_nao_na_tela_e_marca_diferente_do_pc_recusa(admin, cli):
+    postar(admin, pacote_cobranca())
+    h = _tela(admin, "titulos").text
+    assert "STATUS PROTHEUS" not in h and "SITUAÇÃO PLANNER" not in h and "STATUS</a>" in h
+    p = pacote_cobranca()
+    p["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"][10]["oculta"] = False
+    _recusa(cli, p, "colunas diferentes")
+
+
+def test_limpeza_roda_na_confirmacao_repetida_e_ao_subir(amb):
+    d = cobranca.Diario(amb)
+    _reg(d, "a", AGORA)
+    ep = d.epoca()
+    dez = AGORA + timedelta(days=10)
+    d.confirmar(ep, 1, dez)                                  # nov fecha e é marcado
+    nov = amb / "cobranca" / "COBRANCA_WEB_2026-11.jsonl"
+    d.confirmar(ep, 1, dez + timedelta(days=31))             # mesma confirmação, repetida: limpa
+    assert not nov.exists()
+    _reg(d, "b", dez + timedelta(days=32))
+    jan = amb / "cobranca" / "COBRANCA_WEB_2027-01.jsonl"
+    assert jan.exists()
+    d.limpar(dez + timedelta(days=100))                      # ao subir o app
+    assert jan.exists()                                      # sem confirmação: fica

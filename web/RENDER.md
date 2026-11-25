@@ -1,6 +1,6 @@
 # BAP Central web no Render (Onda 0 e 1)
 
-Texto de apoio do `modulo-web` (T-0013). **Nada daqui foi publicado.** Deploy só com a frase do Alexandre "aprovo deploy vX.Y.Z".
+Texto de apoio do `modulo-web` (T-0013). O deploy é automático a cada commit no `main` (R-20261124-210855-alexandre).
 
 > **Depende do adendo à ADR 0001.** A ADR 0001 (seção 2.1) escolheu M1 (a web roda `montar`). A decisão do gerente para esta onda é outra: **a web não roda o `montar`**. O robô no PC manda pronta a **parte dado** do contrato (`.coord/contratos/relatorio.md`, §10) dos dois relatórios, e a web só guarda e mostra. O adendo que registra essa mudança fica fora de `web/**` (é do dono da ADR) e precisa existir antes do deploy.
 
@@ -24,7 +24,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:criar_app --factory --host 0.0.0.0 --port $PORT
     healthCheckPath: /saude
-    autoDeploy: false        # deploy só com "aprovo deploy vX.Y.Z"
+    autoDeploy: true         # deploy automático a cada commit no main (R-20261124-210855-alexandre)
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7

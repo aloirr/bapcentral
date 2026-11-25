@@ -73,6 +73,7 @@ def criar_app() -> FastAPI:
     modelos.env.filters["hhmm"] = hhmm
     modelos.env.filters["fone"] = cobranca.fone_bonito
     diario = cobranca.Diario(cfg.dados)
+    diario.limpar()                                   # §10.6.5: também quando o app sobe
 
     app = FastAPI(title="BAP Central", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(SessionMiddleware, secret_key=cfg.segredo, session_cookie="bap_sessao",

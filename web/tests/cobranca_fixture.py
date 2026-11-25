@@ -8,7 +8,8 @@ HOJE = "2026-11-24"
 
 
 def _cols(titulo):
-    return [{"nome": n, "tipo": t} for n, t in cobranca.COLUNAS[titulo]]
+    return [{"nome": n, "tipo": t, "oculta": n in ("STATUS PROTHEUS", "SITUAÇÃO PLANNER")}
+            for n, t in cobranca.COLUNAS[titulo]]
 
 
 def _titulos():
@@ -17,18 +18,19 @@ def _titulos():
         dias = 10 + i * 9
         linhas.append(["VENCIDO", "31-60" if dias < 61 else "61-90", "AM", str(1000 + i), "1",
                        "2026-09-01", "2026-10-%02d" % min(i + 10, 28), dias, f"{i:06d}-01",
-                       f"Cliente {i:03d}", "MANAUS" if i % 3 else "BELÉM", "AM" if i % 3 else "PA",
+                       f"Cliente {i:03d}", "LIBERADO", "OK", "SEM PENDÊNCIA",
+                       "MANAUS" if i % 3 else "BELÉM", "AM" if i % 3 else "PA",
                        f"Vendedor {(i % 4) + 1:02d}", "Supervisor 01", "30 DIAS", 1500.0 * i, 1200.0 * i])
         tons.append("alerta" if dias > 60 else "atencao")
     return {"titulo": "Títulos", "colunas": _cols("Títulos"), "linhas": linhas, "tons": tons,
-            "total": ["", "", "", "", "", None, None, None, "", "", "", "", "", "", "", 117000.0, 93600.0],
+            "total": ["", "", "", "", "", None, None, None, "", "", "", "", "", "", "", "", "", "", 117000.0, 93600.0],
             "filtros": ["SITUAÇÃO", {"coluna": "UF", "multi": True}, "VENDEDOR"]}
 
 
 def _por_cliente():
     linhas, tons = [], []
     for i in range(1, 7):
-        linhas.append(["INADIMPLENTE", "31-60", f"{i:06d}-01", f"Cliente {i:03d}",
+        linhas.append(["INADIMPLENTE", "31-60", f"{i:06d}-01", f"Cliente {i:03d}", "LIBERADO", "OK", "SEM PENDÊNCIA",
                        "MANAUS" if i % 3 else "BELÉM", "AM" if i % 3 else "PA", f"Vendedor {(i % 4) + 1:02d}",
                        "Supervisor 01", 2, 2400.0 * i, 20 + i * 12, 800.0, "2026-12-05", 20000.0, 0.0,
                        "2026-10-02"])
