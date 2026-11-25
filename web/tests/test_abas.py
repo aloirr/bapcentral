@@ -100,14 +100,14 @@ def test_diretor_so_resumo_sem_barra_de_abas(com_tabelas):
     d = _cli_de(com_tabelas, "diretor")
     for rid in RIDS:
         h = d.get(f"/farol/{rid}").text
-        assert 'class="abas' not in h and "Resumo gerencial" not in h.split("<main")[1].split("<header")[0]
+        assert 'class="abas' not in h and ">Resumo<" not in h.split("<main")[1].split("<header")[0]
         assert d.get(f"/farol/{rid}?aba={tabelas.chaves(rid)[0]}").status_code == 403
 
 
 def test_barra_de_abas_do_perfil_do_farol(com_tabelas):
     c = _cli_de(com_tabelas, "pre_venda")
     h = c.get("/farol/pv_pedidos").text
-    assert "Resumo gerencial" in h and "?aba=pedidos" in h and "?aba=solicitacao" in h
+    assert ">Resumo<" in h and "?aba=pedidos" in h and "?aba=solicitacao" in h
     v = _cli_de(com_tabelas, "vendas").get("/farol/vc_visitas").text
     for chave in tabelas.chaves("vc_visitas"):
         assert f"?aba={chave}" in v
@@ -236,8 +236,8 @@ def test_recusa_celula_de_tipo_errado_e_documento_formatado(cli):
 
 
 def test_recusa_recortes_e_uf_incoerentes(cli):
-    p, r = _rel("pv_pedidos")
-    _tab(r, "Pedidos")["recortes_linhas"][0]["linhas"].append(10 ** 6)
+    p, r = _rel("vc_visitas")
+    _tab(r, "Dia a dia")["recortes_linhas"][0]["linhas"].append(10 ** 6)
     _recusa(cli, p, "recortes_linhas")
     p, r = _rel("pv_pedidos")
     _tab(r, "Pedidos")["uf_linhas"].pop()
@@ -378,7 +378,7 @@ def _esp(v, tipo):
     if tipo == "data":
         return f"{v[8:10]}/{v[5:7]}/{v[:4]}"
     if tipo == "dia":
-        return f"{v[8:10]}/{v[5:7]}"
+        return f"{v[8:10]}/{v[5:7]}/{v[:4]}"
     return str(v)
 
 
@@ -398,11 +398,13 @@ def test_cada_tabela_na_tela_e_igual_ao_fixture(rid):
             continue
         tela = _todas(t)
         vis = [k for k, c in enumerate(t["colunas"]) if not c.get("oculta")]
-        assert [c["nome"] for c in tela["cols"]] == [t["colunas"][k]["nome"] for k in vis]
+        # a coluna que identifica a linha (VENDEDOR) vai à frente; as outras seguem a ordem do pacote
+        assert sorted(c["i"] for c in tela["cols"]) == vis and [c["nome"] for c in tela["cols"]][0] in (
+            t["colunas"][vis[0]]["nome"], "VENDEDOR")
         # com os filtros apagados, a tela tem todas as linhas do pacote, na ordem do pacote
         assert tela["total_linhas"] == len(t["linhas"]), t["titulo"]
         for k, ln in enumerate(tela["linhas"]):
-            for cel, j in zip(ln["cel"], vis):
+            for cel, j in zip(ln["cel"], [c["i"] for c in tela["cols"]]):
                 assert cel["t"] == _esp(t["linhas"][k][j], t["colunas"][j]["tipo"]), (t["titulo"], k, t["colunas"][j]["nome"])
             assert ln["tom"] == (t.get("tons") or [""] * len(t["linhas"]))[k]
         for c in tela["cols"]:                                       # nada oculto na tela
@@ -425,17 +427,17 @@ def test_solicitacao_igual_ao_fixture_com_7_subabas(com_tabelas):
     t = _tab(p["relatorios"]["pv_pedidos"], "Solicitação BAP")
     for k, s in enumerate(t["subabas"]):
         nomes, tela = tabelas.subabas_para_tela(t, k, {})
-        assert nomes == [x["titulo"] for x in t["subabas"]] and tela["total_linhas"] == len(s["linhas"])
-        assert [c["nome"] for c in tela["cols"]] == [c["nome"] for c in s["colunas"]]
+        assert nomes == [tabelas.ROTULO_SUB[x["titulo"]] for x in t["subabas"]] and tela["total_linhas"] == len(s["linhas"])
+        assert len(tela["cols"]) == len(s["colunas"])
         for ln, orig in zip(tela["linhas"], s["linhas"]):
             for cel, v, c in zip(ln["cel"], orig, s["colunas"]):
                 assert cel["t"] == _esp(v, "num" if c["tipo"] == "num" else c["tipo"])
         h = com_tabelas.get(f"/farol/pv_pedidos?aba=solicitacao&sub={k}").text
-        assert s["colunas"][0]["nome"] in h
+        assert tela["cols"][0]["nome"] in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&sub=99").text
-    assert "COD_PRODUTO" in h and 'class="ativa">Solicitacao Lojas' in h        # sub fora da lista: a primeira
+    assert "CÓD. PRODUTO" in h and 'class="ativa">Lojas' in h        # sub fora da lista: a primeira
     h = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&sub=1").text
-    assert "ESTOQUE_NA_ORIGEM" in h and "Solicitacao CD</a>" in h and "FiliaisExcluir" in h
+    assert "ESTOQUE NA ORIGEM" in h and ">CD</a>" in h and "Filiais excluídas" in h
 
 
 def test_pagina_mostra_valores_do_fixture(com_tabelas):
@@ -453,14 +455,55 @@ def test_pagina_mostra_valores_do_fixture(com_tabelas):
 # ------------------------------------------------------------------ filtro, recorte, ordem, página
 def test_recorte_e_contagem(com_tabelas):
     p = pacote_tres_farois()
-    t = _tab(p["relatorios"]["pv_pedidos"], "Pedidos")
-    tela = tabelas.tabela_para_tela(t, {"rec": ["1"]})
-    esperado = {k for k in t["recortes_linhas"][1]["linhas"] if t["linhas"][k][20] == "EM ABERTO"}
-    assert tela["total_linhas"] == len(esperado) and tela["rec"] == 1
-    assert [r["qtd"] for r in tela["recortes"]][1] == len(esperado)
+    t = _tab(p["relatorios"]["vc_visitas"], "Dia a dia")
+    tela = tabelas.tabela_para_tela(t, {"rec": ["0"]})
+    esperado = set(t["recortes_linhas"][0]["linhas"])
+    assert tela["total_linhas"] == min(len(esperado), 100) and tela["rec"] == 0
+    assert [r["qtd"] for r in tela["recortes"]][0] == len(esperado)
     assert tabelas.tabela_para_tela(t, {"rec": ["99"]})["rec"] is None
-    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&rec=1").text
-    assert "Mais de 4 dias" in h and f"{len(esperado)} linhas" in h
+    h = com_tabelas.get("/farol/vc_visitas?aba=dia&rec=0").text
+    assert "Sem visita em dia útil" in h and "Recorte" in h
+    # o recorte "sem visita em dia útil" só tem dia útil e visitas = 0
+    ix = {c["nome"]: k for k, c in enumerate(t["colunas"])}
+    for k in esperado:
+        assert t["linhas"][k][ix["DIA"]] not in ("SÁB", "DOM") and t["linhas"][k][ix["VISIT."]] == 0
+
+
+def test_pedidos_e_enxuta_sem_recortes(com_tabelas):
+    t = _tab(pacote_tres_farois()["relatorios"]["pv_pedidos"], "Pedidos")
+    assert not t.get("recortes_linhas")
+    assert "Recorte" not in com_tabelas.get("/farol/pv_pedidos?aba=pedidos").text
+
+
+def test_dia_da_semana_da_fixture_de_visita_e_real():
+    from datetime import date
+    t = _tab(pacote_tres_farois()["relatorios"]["vc_visitas"], "Dia a dia")
+    ix = {c["nome"]: k for k, c in enumerate(t["colunas"])}
+    nomes = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"]
+    for ln in t["linhas"]:
+        d = date.fromisoformat(ln[ix["DATA"]])
+        assert ln[ix["DIA"]] == nomes[d.weekday()] and d.weekday() < 5 and d.day != 2
+
+
+def test_cores_da_fixture_iguais_as_do_pc():
+    from farol_fixture import BARRA_ATEND, FAIXA_META, FAIXA_SLA
+    assert FAIXA_SLA == [[1, "#E5F3DF", "#2F7D32"], [2, "#FFF1C7", "#8A5A00"], [4, "#FBDDDA", "#B3261E"],
+                         [None, "#B3261E", "#FFFFFF"]]
+    assert FAIXA_META[0] == [79.9999, "#FBDDDA", "#B3261E"] and BARRA_ATEND["faixas"][2][1] == "#62BB47"
+
+
+def test_coluna_da_linha_vai_a_frente_e_texto_livre_quebra(com_tabelas):
+    t = _tab(pacote_tres_farois()["relatorios"]["vc_visitas"], "Por vendedor")
+    assert tabelas.tabela_para_tela(t, {})["cols"][0]["nome"] == "VENDEDOR"
+    t = _tab(pacote_tres_farois()["relatorios"]["vc_visitas"], "Prospecção")
+    assert [c["nome"] for c in tabelas.tabela_para_tela(t, {})["cols"] if c["livre"]] == [
+        "RESULTADO", "LINHAS DE INTERESSE", "OBSERVAÇÃO"]
+
+
+def test_rotulos_legiveis_na_solicitacao(com_tabelas):
+    h = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&sub=4").text
+    assert "Detalhado por pedido" in h and "Produtos excluídos" in h and "Solicitacao CD" not in h
+    assert "CÓD. PRODUTO" in h and "DESCRIÇÃO" in h and "COD_PRODUTO" not in h
 
 
 def test_ordenacao_filtro_multi_e_paginas(com_tabelas):
@@ -501,19 +544,17 @@ def test_estado_filtra_linhas_pelo_uf_linhas_e_cartoes_da_aba_viram_traco(com_ta
     esperado = [k for k, ln in enumerate(t["linhas"]) if ln[20] == "EM ABERTO" and t["uf_linhas"][k] == "PA"]
     assert tela["total_linhas"] == len(esperado) and not tela["padrao"]
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
-    assert f"{len(esperado)} linhas" in h and "Com filtro, os cartões seguem só no PC." in h
-    assert "3,6 dia(s)" not in h and '<div class="kpi-valor">—</div>' in h
+    assert f"{len(esperado)} linhas" in h and tabelas.AVISO_CARTOES in h
+    assert "3,6 dia(s)" not in h and '<div class="kpi-valor">—</div>' not in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos").text                 # sem estado: os cartões prontos da aba
-    assert "3,6 dia(s)" in h and "Com filtro, os cartões" not in h
+    assert "3,6 dia(s)" in h and tabelas.AVISO_CARTOES not in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=XX").text           # estado desconhecido: ignora
     assert "3,6 dia(s)" in h
 
 
 def test_cartoes_da_aba_sem_numero_com_recorte_ou_filtro(com_tabelas):
-    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&rec=0").text
-    assert "Com filtro, os cartões seguem só no PC." in h and "3,6 dia(s)" not in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&f8=MANAUS").text
-    assert "Com filtro, os cartões seguem só no PC." in h
+    assert tabelas.AVISO_CARTOES in h and "3,6 dia(s)" not in h and 'class="kpis' not in h   # cartões somem
 
 
 def test_entregas_estado_filtra_linhas_e_junta_de_pendencias(com_tabelas):
@@ -533,14 +574,14 @@ def test_visita_e_solicitacao_sem_estado_com_aviso(com_tabelas):
     h = com_tabelas.get("/farol/vc_visitas?aba=dia&uf=AM").text
     assert tabelas.AVISO_SEM_ESTADO in h and "Filtro por estado" not in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&uf=AM").text
-    assert tabelas.AVISO_SEM_ESTADO in h and "Solicitacao Lojas" in h
+    assert "Estado" not in h.split("<main")[1] and 'class="kpis' not in h and ">Lojas<" in h
 
 
 # ------------------------------------------------------------------ juntas (liga)
 def test_junta_com_liga_so_das_linhas_visiveis_de_todas_as_paginas():
     p = pacote_tres_farois()
     t = _tab(p["relatorios"]["pv_pedidos"], "Pedidos")
-    tela = tabelas.tabela_para_tela(t, {"rec": ["1"]}, pagina_tam=3)           # 7 linhas, 3 por página
+    tela = tabelas.tabela_para_tela(t, {"f8": ["MANAUS"]}, pagina_tam=3)       # 7 linhas, 3 por página
     assert tela["paginas"] > 1
     visiveis = {t["linhas"][k][2].lstrip("0") for k in tela["idxs"]}           # PEDIDO de todas as páginas
     js = tabelas.juntas_para_tela(t, tela["idxs"])
@@ -573,13 +614,13 @@ def test_junta_aparece_na_pagina_com_titulo_do_quadro(com_tabelas):
 # ------------------------------------------------------------------ selos
 def test_selos_faixa_barra_e_pela_linha(com_tabelas):
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos").text
-    assert 'class="atend-trilho"' in h and "background:#2F7D32" in h              # barra do % ATENDIDO
+    assert 'class="atend-trilho"' in h and "background:#62BB47" in h              # barra do % ATENDIDO
     assert 'class="selo" style="background:#B3261E;color:#FFFFFF"' in h             # SLA > 4 em faixa
     h = com_tabelas.get("/farol/pl_entregas?aba=entregas").text
     assert 'class="selo" style="background:#E5F3DF;color:#2F7D32"' in h             # SLA pela linha (TOM SLA = ok)
     assert 'style="background:#B3261E;color:#FFFFFF"' in h
     h = com_tabelas.get("/farol/vc_visitas?aba=vendedor").text
-    assert 'style="background:#FDECEA;color:#B3261E"' in h and 'style="background:#E5F3DF;color:#2F7D32"' in h
+    assert 'style="background:#FBDDDA;color:#B3261E"' in h and 'style="background:#E5F3DF;color:#2F7D32"' in h
 
 
 def test_linha_pintada_so_no_pedidos(com_tabelas):
@@ -599,7 +640,7 @@ def test_formatos_do_contrato():
     assert fm(1250.5, "moeda") == "R$ 1.250" or fm(1250.5, "moeda") == "R$ 1.251"
     assert fm(1250.5, "moeda2") == "R$ 1.250,50" and fm(1250.5, "moeda", centavos=True) == "R$ 1.250,50"
     assert fm(85.34, "pct") == "85%" and fm(85.34, "pct1") == "85,3%"
-    assert fm("2026-11-19", "data") == "19/11/2026" and fm("2026-11-19", "dia") == "19/11"
+    assert fm("2026-11-19", "data") == "19/11/2026" and fm("2026-11-19", "dia") == "19/11/2026"
     assert fm("08:15", "hora") == "08:15" and fm(1250, "int") == "1.250" and fm(1250.5, "num") == "1.250,5"
     assert fm(3.46, "num1") == "3,5" and fm(None, "moeda") == "" and fm("", "data") == ""
 

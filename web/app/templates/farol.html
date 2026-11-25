@@ -26,6 +26,7 @@
 </nav>
 {% endif %}
 {% if tela.aviso_uf %}<p class="aviso info">{{ tela.aviso_uf }}</p>{% endif %}
+{% for a in tela.avisos_info %}<p class="aviso info">{{ a }}</p>{% endfor %}
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
 {{ cartoes(tela.kpis, tela.faixa) }}
 {% if tela.insights %}

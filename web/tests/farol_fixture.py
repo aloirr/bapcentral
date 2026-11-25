@@ -80,13 +80,15 @@ def farol_visitas():
 # 100% fictício: "CLIENTE FICTICIO nn", "VENDEDOR FICTICIO nn", códigos 9xxxxx, sem CNPJ nem telefone.
 # ---------------------------------------------------------------------------------------------
 from copy import deepcopy  # noqa: E402
+from datetime import date  # noqa: E402
 
 from app import tabelas  # noqa: E402
 
-FAIXA_SLA = [[1, "#E5F3DF", "#2F7D32"], [3, None, None], [4, "#FFF1C7", "#8A5A00"], [None, "#B3261E", "#FFFFFF"]]
-BARRA_ATEND = {"max": 100, "faixas": [[49.99, "#B3261E", "#B3261E"], [99.99, "#B7791F", "#8A5A00"],
-                                      [None, "#2F7D32", "#2F7D32"]]}
-FAIXA_META = [[69.99, "#FDECEA", "#B3261E"], [99.99, "#FFF1C7", "#8A5A00"], [None, "#E5F3DF", "#2F7D32"]]
+# iguais às do PC: relatorios_nucleo.CHIP_SLA() (PRAZO_FATURAR = 2), BARRA_ATENDIDO e FAIXA_PCT_META
+FAIXA_SLA = [[1, "#E5F3DF", "#2F7D32"], [2, "#FFF1C7", "#8A5A00"], [4, "#FBDDDA", "#B3261E"], [None, "#B3261E", "#FFFFFF"]]
+BARRA_ATEND = {"max": 100, "faixas": [[49.99, "#D9534F", "#B3261E"], [99.98, "#E0A526", "#8A5A00"],
+                                      [None, "#62BB47", "#2F7D32"]]}
+FAIXA_META = [[79.9999, "#FBDDDA", "#B3261E"], [99.9999, "#FFF1C7", "#8A5A00"], [None, "#E5F3DF", "#2F7D32"]]
 CHIP_PRAZO = {"NO PRAZO": ["#E5F3DF", "#2F7D32"], "ATRASADA": ["#B3261E", "#FFFFFF"]}
 SELO = {"Pedidos": {"SLA": ("chip", FAIXA_SLA), "% ATENDIDO": ("barra", BARRA_ATEND)},
         "Entregas": {"SLA": ("chip_tom", "TOM SLA"), "PRAZO": ("chip", CHIP_PRAZO)},
@@ -95,7 +97,15 @@ SELO = {"Pedidos": {"SLA": ("chip", FAIXA_SLA), "% ATENDIDO": ("barra", BARRA_AT
         "Dia a dia": {"% META": ("chip", FAIXA_META)}}
 UFS3 = ["AM", "PA", "MA"]
 CIDADES3 = ["MANAUS", "BELÉM", "SÃO LUÍS"]
-DIAS_SEM = ["SEG", "TER", "QUA", "QUI", "SEX"]
+DIAS_SEM = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"]
+
+
+def _dow(dia, mes=11):
+    """Dia da semana pela data real (01/11/2026 é domingo)."""
+    return DIAS_SEM[date(2026, mes, dia).weekday()]
+
+
+UTEIS = [d for d in range(1, 20) if date(2026, 11, d).weekday() < 5 and d != 2]      # 02/11 é feriado
 
 
 def _colunas(titulo, nomes=None):
@@ -181,10 +191,8 @@ def tabela_pedidos(n=24):
         ufs.append(UFS3[i % 3])
     ix = {c["nome"]: k for k, c in enumerate(cols)}
     ab = [k for k, ln in enumerate(linhas) if ln[ix["SITUAÇÃO"]] == "EM ABERTO"]
-    rec = [("Faturar (100% atendidos)", [k for k in ab if linhas[k][ix["% ATENDIDO"]] == 100]),
-           ("Mais de 4 dias", [k for k in ab if linhas[k][ix["SLA"]] > 4]),
-           ("Crédito a analisar", [k for k in ab if linhas[k][ix["ANÁLISE CRÉDITO"]] == "A ANALISAR"]),
-           ("Acima de 15% sem autorização", [k for k in ab if linhas[k][ix["% DESC."]] >= 16])]
+    faturar = [k for k in ab if linhas[k][ix["% ATENDIDO"]] == 100]
+    mais4 = [k for k in ab if linhas[k][ix["SLA"]] > 4]
     pedidos = [ln[ix["PEDIDO"]] for ln in linhas]
 
     def gerar(t, ks):
@@ -212,13 +220,13 @@ def tabela_pedidos(n=24):
          "mostrar": ["PEDIDO", "CIDADE", "CÓD. PROD.", "DESCRIÇÃO", "QTD", "FALTA", "CLIENTE", "VALOR FALTANTE"],
          "tabela": {"titulo": "Analítico produto", "colunas": _colunas("Analítico produto"), "linhas": analitico}}]
     kp = [_kpi("SLA médio", "3,6 dia(s)", "atencao"), _kpi("Pedidos", str(len(ab))), _kpi("R$ em aberto", "R$ 112 mil"),
-          _kpi("Faturar (100%)", str(len(rec[0][1])), "ok"), _kpi("Mais de 4 dias", str(len(rec[1][1])), "alerta"),
+          _kpi("Faturar (100%)", str(len(faturar)), "ok"), _kpi("Mais de 4 dias", str(len(mais4)), "alerta"),
           _kpi("Volume", "401 un.")]
     return _tabela7("Pedidos", linhas, tons,
                     [{"coluna": "MÊS", "padrao": "NOV/26", "oculto": True},
                      {"coluna": "SITUAÇÃO", "padrao": "EM ABERTO"}, "CIDADE", "VENDEDOR",
                      {"coluna": "PRODUTO", "multi": True}],
-                    recortes_linhas=[{"rotulo": r, "linhas": ks} for r, ks in rec], uf_linhas=ufs, kpis_padrao=kp,
+                    uf_linhas=ufs, kpis_padrao=kp,
                     juntas=juntas, zebra=True)
 
 
@@ -257,9 +265,7 @@ def farol_pedidos_com_abas():
     f = farol_pedidos()
     f["tabelas"] = [tabela_pedidos(), tabela_solicitacao()]
     f["kpis_faixa"] = True
-    f["kpis"] = [_kpi("Pedidos", "119"), _kpi("Em aberto", "82", "atencao"), _kpi("R$ em aberto", "R$ 112 mil"),
-                 _kpi("Faturar (100%)", "19", "ok"), _kpi("Mais de 4 dias", "9", "alerta"),
-                 _kpi("SLA médio", "3,1 dia(s)")]
+    f["kpis"] = deepcopy(f["tabelas"][0]["kpis_padrao"])
     f["recortes"] = {uf: {"kpis": [_kpi("Pedidos", str(40 + k)), _kpi("Em aberto", str(25 + k), "atencao")]}
                      for k, uf in enumerate(UFS3)}
     return f
@@ -272,8 +278,8 @@ def _linhas_entregas(titulo, n, mes, pend=False):
     for i in range(1, n + 1):
         sla = [1, 2, 3, 5, 8][i % 5]
         tom = "ok" if sla <= 2 else "atencao" if sla <= 4 else "alerta"
+        m = (10 if i % 2 else 9) if pend else 11
         mes_i = mes if not pend else ("OUT/26" if i % 2 else "SET/26")
-        m = 10 if pend else 11
         linhas.append(_ln(cols, {
             "MÊS": mes_i, "SITUAÇÃO": "PENDENTE" if pend or i % 3 else "ENTREGUE", "SLA": sla,
             "DT. PED": _iso(i % 17 + 1, m), "DT. NF": _iso(i % 17 + 2, m), "DT. PREVISTA": _iso(i % 17 + 6, m),
@@ -313,9 +319,9 @@ def farol_entregas_com_abas():
 
 
 # ------------------------------------------------------------------ Visita
-def _metricas(i):
-    pct = [95.0, 62.0, 100.0, 78.0, 112.0][i % 5]
-    return {"META": 20.0, "VISIT.": 12 + i % 9, "% META": pct, "% CONV.": 38.5 + i % 6,
+def _metricas(i, sem_visita=False):
+    visit = 0 if sem_visita else 12 + (i * 3) % 11
+    return {"META": 20.0, "VISIT.": visit, "% META": round(100.0 * visit / 20.0, 1), "% CONV.": 38.5 + i % 6,
             "% FORA DE ROTA": 8.0 + i % 4, "CAD.": i % 3, "CAD. C/ COMPRA": i % 2, "PROSP.": i % 4,
             "INÍCIO": f"{8 + i % 2:02d}:{(i * 7) % 60:02d}", "ÚLT. ATIV.": f"17:{(i * 11) % 60:02d}",
             "JORNADA LÍQ.": "7:42", "DIAS < JORN. LÍQ.": i % 5, "INTERV. ALMOÇO": "1:05",
@@ -323,10 +329,20 @@ def _metricas(i):
             "KM/CLIENTE": 6.5 + (i % 5) / 2}
 
 
+def _soma(linhas, cols):
+    """Total que fecha com as linhas: META e VISIT. somadas e % META = visitas ÷ meta."""
+    ix = {c["nome"]: k for k, c in enumerate(cols)}
+    meta = sum(ln[ix["META"]] for ln in linhas)
+    visit = sum(ln[ix["VISIT."]] for ln in linhas)
+    m = _metricas(9)
+    m.update({"META": meta, "VISIT.": visit, "% META": round(100.0 * visit / meta, 1) if meta else 0.0})
+    return m
+
+
 def tabela_supervisor():
     cols = _colunas("Por supervisor")
     linhas = [_ln(cols, {"SUPERVISOR": _sup(i), "REPRES.": 3, **_metricas(i), "CHAVE": f"S{i}"}) for i in range(3)]
-    tot = _ln(cols, {"SUPERVISOR": "TOTAL", "REPRES.": 9, **_metricas(9)})
+    tot = _ln(cols, {"SUPERVISOR": "TOTAL", "REPRES.": 9, **_soma(linhas, cols)})
     return _tabela7("Por supervisor", linhas, [""] * 3, total=tot)
 
 
@@ -335,7 +351,7 @@ def tabela_vendedor():
     linhas = [_ln(cols, {"SUPERVISOR": _sup(i), "VENDEDOR": _vend(i), "CARGO": "REPRESENTANTE",
                          "FILIAL": "FILIAL FICTICIA", "CÓD.": _cod(i), **_metricas(i), "CHAVE": f"V{i}"})
               for i in range(9)]
-    tot = _ln(cols, {"SUPERVISOR": "TOTAL", **_metricas(9)})
+    tot = _ln(cols, {"SUPERVISOR": "TOTAL", **_soma(linhas, cols)})
     return _tabela7("Por vendedor", linhas, [""] * 9, ["SUPERVISOR"], total=tot)
 
 
@@ -343,25 +359,25 @@ def tabela_dia(n=120):
     cols = _colunas("Dia a dia")
     linhas, sem = [], []
     for i in range(n):
-        dia = i % 19 + 1
+        dia = UTEIS[i % len(UTEIS)]
         sit = "SEM VISITA" if i % 11 == 0 else "TRABALHADO"
         if sit == "SEM VISITA":
             sem.append(i)
-        linhas.append(_ln(cols, {"DATA": _iso(dia), "DIA": DIAS_SEM[dia % 5], "SUPERVISOR": _sup(i),
-                                 "VENDEDOR": _vend(i), "CARGO": "REPRESENTANTE", "SITUAÇÃO": sit, **_metricas(i),
-                                 "CHAVE": f"D{i}"}))
+        linhas.append(_ln(cols, {"DATA": _iso(dia), "DIA": _dow(dia), "SUPERVISOR": _sup(i),
+                                 "VENDEDOR": _vend(i), "CARGO": "REPRESENTANTE", "SITUAÇÃO": sit,
+                                 **_metricas(i, sem_visita=sit == "SEM VISITA"), "CHAVE": f"D{i}"}))
     ix = {c["nome"]: k for k, c in enumerate(cols)}
     return _tabela7("Dia a dia", linhas, [""] * n, ["SUPERVISOR", "VENDEDOR", "SITUAÇÃO"],
-                    total=_ln(cols, {"DIA": "TOTAL", **_metricas(9)}),
+                    total=_ln(cols, {"DIA": "TOTAL", **_soma(linhas, cols)}),
                     recortes_linhas=[
                         {"rotulo": "Sem visita em dia útil", "linhas": sem},
-                        {"rotulo": "Abaixo da meta", "linhas": [k for k in range(n) if linhas[k][ix["% META"]] < 70]},
+                        {"rotulo": "Abaixo da meta", "linhas": [k for k in range(n) if linhas[k][ix["% META"]] < 80]},
                         {"rotulo": "Fora de rota acima de 10%",
                          "linhas": [k for k in range(n) if linhas[k][ix["% FORA DE ROTA"]] > 10]}])
 
 
 def tabela_aderencia():
-    dias = [(d, DIAS_SEM[(d - 3) % 5]) for d in range(3, 20) if (d - 1) % 7 not in (0, 6)]
+    dias = [(d, _dow(d)) for d in UTEIS]
     nomes = ([("SUPERVISOR", "texto", False), ("VENDEDOR", "texto", False)]
              + [(f"{d:02d}/11 {s}", "pct", False) for d, s in dias] + [("% ADERÊNCIA ACUM. ATÉ 19/11", "pct", False)])
     cols = _colunas("Aderência dia a dia", nomes)
@@ -383,7 +399,7 @@ def tabela_cliente(n=230):
         if not tem:
             sem.append(i)
         linhas.append(_ln(cols, {
-            "DATA": _iso(i % 19 + 1), "DIA": DIAS_SEM[i % 5], "SUPERVISOR": _sup(i), "VENDEDOR": _vend(i),
+            "DATA": _iso(UTEIS[i % len(UTEIS)]), "DIA": _dow(UTEIS[i % len(UTEIS)]), "SUPERVISOR": _sup(i), "VENDEDOR": _vend(i),
             "SITUAÇÃO": "VISITADO" if tem else "NÃO VISITADO", "CÓD.": f"9{i + 1:05d}-01",
             "CLIENTE": f"9{i + 1:05d} - {_cli(i % 99 + 1)}", "NOME FANTASIA": f"FANTASIA FICTICIA {i % 99 + 1:02d}",
             "SEGMENTO": ["AUTOPEÇAS", "OFICINA", "LOJA"][i % 3], "BAIRRO": f"BAIRRO FICTICIO {i % 7 + 1}",
@@ -403,7 +419,7 @@ def tabela_cliente(n=230):
 def tabela_prospeccao(n=12):
     cols = _colunas("Prospecção")
     linhas = [_ln(cols, {
-        "DATA": _iso(i % 19 + 1), "HORA": f"{9 + i % 8:02d}:{i * 5 % 60:02d}", "DIA": "SEG", "SUPERVISOR": _sup(i),
+        "DATA": _iso(UTEIS[i % len(UTEIS)]), "HORA": f"{9 + i % 8:02d}:{i * 5 % 60:02d}", "DIA": _dow(UTEIS[i % len(UTEIS)]), "SUPERVISOR": _sup(i),
         "VENDEDOR": _vend(i), "STATUS": "NOVO", "FONTE": "RUA", "ESTABELECIMENTO": f"OFICINA FICTICIA {i + 1:02d}",
         "SEGMENTO": "OFICINA", "CIDADE": CIDADES3[i % 3], "UF": UFS3[i % 3],
         "RESULTADO": "VISITA AGENDADA" if i % 2 else "SEM INTERESSE", "LINHAS DE INTERESSE": "FREIOS; SUSPENSÃO",

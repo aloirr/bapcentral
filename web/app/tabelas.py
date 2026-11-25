@@ -30,7 +30,7 @@ ABAS_SO_GERENCIA: dict[str, tuple[str, ...]] = {}      # D1 C: {"vc_visitas": ("
 PERFIS_GERENCIA = ("admin", "gerente")
 
 RIDS = tuple(VE_TABELAS)
-RESUMO = ("resumo", "Resumo gerencial")
+RESUMO = ("resumo", "Resumo")
 # chave na URL -> título da tabela no pacote (§10.7.1), na ordem do PC
 ABAS = {
     "pv_pedidos": (("pedidos", "Pedidos"), ("solicitacao", "Solicitação BAP")),
@@ -43,7 +43,16 @@ SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitaca
            "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir")
 # D5 (recomendação A): estado filtra as linhas só onde o pacote traz `uf_linhas`
 AVISO_SEM_ESTADO = "Sem filtro por estado: esta tabela mostra a BAP inteira."
-AVISO_CARTOES = "Com filtro, os cartões seguem só no PC."
+AVISO_CARTOES = ("Cartões só para a BAP inteira, sem recorte nem filtro. Os números do estado estão no "
+                 "Resumo.")
+# coluna que identifica a linha: fica fixa à esquerda ao rolar para o lado (celular)
+FIXA = {"Por vendedor": "VENDEDOR", "Dia a dia": "VENDEDOR", "Aderência dia a dia": "VENDEDOR",
+        "Cliente a cliente": "VENDEDOR"}
+LIVRES = {"OBSERVAÇÃO", "JUSTIFICATIVA", "RESULTADO", "LINHAS DE INTERESSE", "DESCRIÇÃO"}   # texto livre: quebra
+ROTULO_SUB = {"Solicitacao Lojas": "Lojas", "Solicitacao CD": "CD", "Solicitacao FRW": "FRW",
+              "Solicitacao Manual": "Manual", "DETALHADO_PEDIDO": "Detalhado por pedido",
+              "ProdutosExcluir": "Produtos excluídos", "FiliaisExcluir": "Filiais excluídas"}
+_TROCA_ROTULO = {"COD": "CÓD.", "DESCRICAO": "DESCRIÇÃO", "JA": "JÁ", "UF": "UF", "CD": "CD", "FRW": "FRW"}
 
 
 def ve_tabelas(rid: str, perfil: str) -> bool:
@@ -493,7 +502,7 @@ def fmt_celula(v, tipo, centavos=False) -> str:
     if tipo == "pct1" and _num(v):
         return render.br(v, 1) + "%"
     if tipo in ("data", "dia") and isinstance(v, str) and RE_DATA.match(v):
-        return f"{v[8:10]}/{v[5:7]}/{v[:4]}" if tipo == "data" else f"{v[8:10]}/{v[5:7]}"
+        return f"{v[8:10]}/{v[5:7]}/{v[:4]}"             # sempre com ano (pendência de dezembro vista em janeiro)
     return str(v)
 
 
@@ -594,7 +603,7 @@ def _vista(t, ordem_tela=None):
 def _cabecalho(t, vista):
     cols = t["colunas"]
     return [{"i": k, "nome": cols[k]["nome"], "tipo": cols[k]["tipo"], "num": cols[k]["tipo"] in NUM_TIPOS,
-             "inteira": bool(cols[k].get("inteira"))} for k in vista]
+             "inteira": bool(cols[k].get("inteira")), "livre": cols[k]["nome"] in LIVRES} for k in vista]
 
 
 def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_tam: int = 100,
@@ -648,6 +657,9 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
     paginas = max(1, -(-total // pagina_tam))
     pag = min(pag, paginas)
     visiveis = idxs[(pag - 1) * pagina_tam: pag * pagina_tam]
+    if ordem_tela is None and FIXA.get(t.get("titulo")) in [c["nome"] for c in cols]:
+        f0 = [c["nome"] for c in cols].index(FIXA[t["titulo"]])        # a coluna da linha vai à frente
+        ordem_tela = [f0] + [k for k in range(len(cols)) if k != f0]
     vista = _vista(t, ordem_tela)
     padrao = (rec is None and not uf_aplicada
               and all(set(f["sel"]) == set(f["padrao"]) for f in filtros))
@@ -700,4 +712,6 @@ def subabas_para_tela(t: dict, sub: int, consulta: dict, pagina_tam: int = 100) 
     tela = tabela_para_tela({"titulo": s["titulo"], "colunas": s["colunas"], "linhas": s["linhas"],
                              "tons": s.get("tons")}, consulta, pagina_tam=pagina_tam)
     tela["sub"] = sub
-    return [x["titulo"] for x in subs], tela
+    for c in tela["cols"]:                                 # só na exibição: rótulo legível (o contrato guarda o do arquivo)
+        c["nome"] = " ".join(_TROCA_ROTULO.get(w, w) for w in c["nome"].replace("_", " ").split())
+    return [ROTULO_SUB.get(x["titulo"], x["titulo"]) for x in subs], tela

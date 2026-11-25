@@ -285,7 +285,10 @@ def criar_app() -> FastAPI:
         uf = uf.upper()[:2]
         uf = uf if uf in ufs else ""
         subnomes, sub, juntas = [], None, []
-        if t.get("subabas"):                            # Solicitação BAP: sem estado, sem filtros (D5)
+        solicitacao = bool(t.get("subabas"))
+        if solicitacao:                                 # Solicitação BAP: sem estado, sem cartões do Resumo (D5)
+            ufs = []
+            uf = ""
             try:
                 sub = int(consulta.get("sub", ["0"])[0])
             except ValueError:
@@ -299,7 +302,9 @@ def criar_app() -> FastAPI:
         if rid == "vc_visitas" or (uf and not t.get("uf_linhas")):
             aviso_uf = tabelas.AVISO_SEM_ESTADO
         aviso_kpis = ""
-        if t.get("kpis_padrao") is not None:            # os cartões da aba só no filtro padrão (§10.7.2)
+        if solicitacao:
+            kpis = []
+        elif t.get("kpis_padrao") is not None:          # os cartões da aba só no filtro padrão (§10.7.2)
             if tab["padrao"]:
                 kpis = render.kpis_para_tela(t["kpis_padrao"])
             else:
@@ -307,7 +312,7 @@ def criar_app() -> FastAPI:
         else:
             kpis = render.farol_para_tela(rel, uf or None, rid)["kpis"]
         return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis,
-                      faixa=topo["faixa"], ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
+                      faixa=True, ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
                       aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, titulo_aba=t["titulo"], **ctx)
 
     @app.get("/farol/{rid}", response_class=HTMLResponse)

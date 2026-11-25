@@ -406,5 +406,6 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
             "faixa": bool(rel.get("kpis_faixa")) or rid == "pv_pedidos",   # cartões em faixa fina, como o PC
             "kpis": [k for k in map(_kpi, _lista(kpis)) if k],
             "insights": _insights(rel.get("insights_painel")) or ins_blocos, "blocos": blocos,
-            "avisos": [str(a) for a in _lista(rel.get("avisos"))],
+            "avisos": [str(a) for a in _lista(rel.get("avisos")) if not str(a).startswith("Sem filtro por estado")],
+            "avisos_info": [str(a) for a in _lista(rel.get("avisos")) if str(a).startswith("Sem filtro por estado")],
             "aviso_uf": ((SEM_DADO_UF.format(uf=uf) + " ") if sem_dado else "") + AVISO_UF if uf else "", "baixado_em": rel.get("baixado_em")}

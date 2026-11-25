@@ -4,7 +4,7 @@
 {% set uf_q = ('&uf=' ~ uf) if (uf is defined and uf) else '' %}
 {% set base0 = '/farol/' ~ rid ~ '?aba=' ~ aba %}
 {% set base = base0 ~ sub_q ~ uf_q %}
-<header class="cab-painel"><h1>{{ farol_nome }} · {{ titulo_aba or tabela.titulo }}</h1><span>{{ tabela.total_linhas }} linhas</span></header>
+<header class="cab-painel"><h1>{{ farol_nome }} · {{ titulo_aba or tabela.titulo }}</h1><span>{{ tabela.total_linhas }} {{ "linha" if tabela.total_linhas == 1 else "linhas" }}</span></header>
 {% if ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
   <span class="f-rot">Estado</span>
@@ -13,7 +13,7 @@
 </nav>
 {% endif %}
 {% if aviso_uf %}<p class="aviso info">{{ aviso_uf }}</p>{% endif %}
-{% if kpis is defined %}{{ cartoes(kpis, faixa, "Sem cartões nesta aba.") }}{% endif %}
+{% if kpis and not aviso_kpis %}{{ cartoes(kpis, faixa, "Sem cartões nesta aba.") }}{% endif %}
 {% if aviso_kpis %}<p class="aviso info">{{ aviso_kpis }}</p>{% endif %}
 {% if subnomes %}
 <nav class="subabas" aria-label="Abas do arquivo">{% for n in subnomes %}<a href="{{ base0 }}&amp;sub={{ loop.index0 }}{{ uf_q }}" class="{{ 'ativa' if loop.index0 == sub }}">{{ n }}</a>{% endfor %}</nav>
@@ -39,13 +39,14 @@
       {% if not f.multi %}<option value="">Todos</option>{% endif %}
       {% for o in f.opcoes %}<option value="{{ o }}"{{ ' selected' if o in f.sel }}>{{ o }}</option>{% endfor %}
     </select>
+    {% if f.multi %}<small>Ctrl + clique marca mais de um</small>{% endif %}
   </label>
   {% endfor %}
   <button type="submit">Filtrar</button> <a href="{{ base }}">Limpar</a>
 </form></details>
 {% endif %}
 <p class="dica-rolagem">Role para o lado para ver mais colunas →</p>
-{{ grade(tabela, base, fq) }}
+{{ grade(tabela, base, fq, "Nenhuma linha neste mês." if tabela.padrao else "Nenhuma linha neste filtro.") }}
 {% if tabela.paginas > 1 %}
 {% set q %}{% if tabela.ord is not none %}&amp;ord={{ tabela.ord }}&amp;dir={{ 'desc' if tabela.desc else 'asc' }}{% endif %}{{ fq }}{% endset %}
 <nav class="paginas">{% if tabela.pag > 1 %}<a href="{{ base }}{{ q }}&amp;pag={{ tabela.pag - 1 }}">« Anterior</a>{% endif %}
@@ -53,7 +54,7 @@
   {% if tabela.pag < tabela.paginas %}<a href="{{ base }}{{ q }}&amp;pag={{ tabela.pag + 1 }}">Próxima »</a>{% endif %}</nav>
 {% endif %}
 {% for j in juntas %}
-<section class="junta"><h2>{{ j.titulo }} <small>{{ j.total_linhas }} linhas</small></h2>
+<section class="junta"><h2>{{ j.titulo }} <small>{{ j.total_linhas }} {{ "linha" if j.total_linhas == 1 else "linhas" }}</small></h2>
   {{ grade(j, "", "", "Nenhuma linha ligada às linhas de cima.") }}
   {% if j.mais %}<p class="como">Mostrando as primeiras 200 linhas.</p>{% endif %}
 </section>
