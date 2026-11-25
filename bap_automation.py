@@ -6615,6 +6615,10 @@ _TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
 # vendedor; o estado vem pela regra do proprio farol).
 _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
                        "pl_entregas": "Entregas", "vc_visitas": "Por vendedor"}
+# RN-GER-006: faturamento = filial da nota (coluna FILIAL); fretes, Planner e
+# carteira = UF do CLIENTE (coluna UF). None = a tabela nao tem a UF do
+# cliente: o farol vai sem recortes e com aviso (Visita).
+_COLUNA_UF_RECORTE_WEB = {"pl_entregas": "UF", "vc_visitas": None}
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
 _TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
 # bloco tabela com coluna de pessoa/cliente nunca vai (regra 6)
@@ -6908,8 +6912,7 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
         "avisos": [str(a) for a in (r.get("avisos") or [])
                    if not any(t in str(a).lower() for t in _AVISO_SO_PC_WEB)]
                   + avisos_extra,
-        "recortes": recortes_farol_por_uf(
-            r, _TABELA_RECORTE_WEB.get(rid, "Títulos")),
+        "recortes": _recortes_do_farol_web(rid, r),
         # quando a base foi baixada do ERP (nao a hora da montagem); None = nao sei
         "baixado_em": (_com_fuso_manaus(baixado_em).isoformat()
                        if baixado_em else None)}
@@ -6920,6 +6923,21 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
                                "pacote: vale só o total da BAP.")
     val = _para_json(saida, fora=_CHAVES_FORA_FAROL_WEB)
     return val if isinstance(val, dict) else {}
+
+
+def _recortes_do_farol_web(rid: str, r: dict) -> dict:
+    """Recortes por estado do rid, pela regra da RN-GER-006 (filial da nota no
+    faturamento; UF do cliente em fretes/Planner). Sem a UF do cliente: {}."""
+    tabela = _TABELA_RECORTE_WEB.get(rid, "Títulos")
+    if rid in _COLUNA_UF_RECORTE_WEB:
+        col = _COLUNA_UF_RECORTE_WEB[rid]
+        if not col:
+            return {}
+        return recortes_farol_por_uf(
+            r, tabela, coluna_filial=col,
+            uf_de=lambda v: (str(v or "").strip().upper()
+                             if len(str(v or "").strip()) == 2 else ""))
+    return recortes_farol_por_uf(r, tabela)
 
 
 def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
