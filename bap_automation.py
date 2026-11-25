@@ -6892,6 +6892,14 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
         if tabs and isinstance(cob, dict):
             val["tabelas"] = tabs
             val["cobranca"] = cob
+        else:
+            # colunas fora do contrato: o farol segue sem as abas novas
+            log.warning("Pacote web: as colunas das tabelas do farol nao "
+                        "batem com o contrato 10.6.2; farol sem tabelas e "
+                        "sem cobranca.")
+            val.setdefault("avisos", []).append(
+                "Tabelas e cobrança no WhatsApp ficaram fora desta "
+                "atualização: as colunas do PC não batem com o contrato.")
     return val
 
 
@@ -6901,57 +6909,82 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
 # TELEFONE, CNPJ, CPF ou E-MAIL. Fora das tabelas: edicao, detalhe, kpis_de,
 # recortes, callables e chaves com "_".
 RID_COBRANCA_WEB = "pl_inadimplencia"
-_COLUNAS_COBRANCA_WEB = {
+_COLUNAS_SEM_STATUS_WEB = {
     "Títulos": (
         ("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("FILIAL", "texto"),
         ("NF", "texto"), ("PARC.", "texto"), ("EMISSÃO", "data"),
         ("VENCIMENTO", "data"), ("DIAS ATRASO", "int"),
-        ("CLIENTE", "texto"), ("NOME", "texto"),
-        ("STATUS PROTHEUS", "texto"), ("STATUS", "texto"),
-        ("SITUAÇÃO PLANNER", "texto"), ("CIDADE", "texto"),
+        ("CLIENTE", "texto"), ("NOME", "texto"), ("CIDADE", "texto"),
         ("UF", "texto"), ("VENDEDOR", "texto"), ("SUPERVISOR", "texto"),
         ("CONDIÇÃO", "texto"), ("VALOR", "moeda"), ("SALDO", "moeda")),
     "Por cliente": (
         ("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("CLIENTE", "texto"),
-        ("NOME", "texto"), ("STATUS PROTHEUS", "texto"),
-        ("STATUS", "texto"), ("SITUAÇÃO PLANNER", "texto"),
-        ("CIDADE", "texto"), ("UF", "texto"),
+        ("NOME", "texto"), ("CIDADE", "texto"), ("UF", "texto"),
         ("VENDEDOR", "texto"), ("SUPERVISOR", "texto"),
         ("TÍTULOS VENCIDOS", "int"), ("EM ATRASO", "moeda"),
         ("MAIOR ATRASO", "int"), ("A VENCER", "moeda"),
         ("PRÓX. VENCIMENTO", "data"), ("LIMITE", "moeda"),
         ("PEDIDO EM ABERTO", "moeda"), ("ÚLTIMA COMPRA", "data"))}
+# o bloco de status (as 3 juntas, logo depois de NOME) e opcional (10.6.2)
+_STATUS_WEB = (("STATUS PROTHEUS", "texto"), ("STATUS", "texto"),
+               ("SITUAÇÃO PLANNER", "texto"))
+_STATUS_OCULTAS_WEB = {"STATUS PROTHEUS", "SITUAÇÃO PLANNER"}
+_COLUNAS_COM_CHIP_WEB = ("SITUAÇÃO", "FAIXA", "STATUS")
+
+
+def _colunas_esperadas_web(titulo: str, com_status: bool) -> tuple:
+    base = _COLUNAS_SEM_STATUS_WEB[titulo]
+    if not com_status:
+        return base
+    i = [n for n, _ in base].index("NOME") + 1
+    return base[:i] + _STATUS_WEB + base[i:]
+
+
 _CHAVES_FORA_TABELA_WEB = (_CHAVES_FORA_FAROL_WEB - {"tabelas"}) | {
     "detalhe", "recortes", "exportar", "exportar_protheus"}
 
 
 def tabelas_cobranca_web(r: dict):
     """Funcao pura: [Titulos, Por cliente] do farol montado no formato do
-    contrato 10.2.2, ou None se faltar tabela ou coluna, ou se o tipo da
-    coluna nao for o do contrato (nunca manda tabela torta: a web recusa o
-    pacote inteiro). Projeta as colunas da lista do contrato, na ordem
-    dela, descartando as outras (TELEFONE, STATUS...)."""
+    contrato 10.6.2, ou None se as colunas do PC (menos TELEFONE) nao baterem
+    com a lista do contrato (nome, ordem, tipo e oculta; o bloco de status
+    vai inteiro, depois de NOME, ou nao vai): nunca manda tabela torta, que
+    a web recusaria no pacote inteiro. `chip` e `tons` como o PC entrega
+    (chip so em SITUACAO, FAIXA e STATUS)."""
     por_titulo = {t.get("titulo"): t for t in (r or {}).get("tabelas") or []
                   if isinstance(t, dict)}
     saida = []
-    for titulo, esperado in _COLUNAS_COBRANCA_WEB.items():
+    for titulo in _COLUNAS_SEM_STATUS_WEB:
         t = por_titulo.get(titulo)
         if not t:
             return None
         pc = [c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
               for c in t.get("colunas") or []]
-        pos = {c.get("nome"): i for i, c in enumerate(pc)}
-        idx, colunas = [], []
-        for nome, tipo in esperado:
-            i = pos.get(nome)
-            if i is None or pc[i].get("tipo") != tipo:
-                return None
-            idx.append(i)
-            col = {"nome": nome, "tipo": tipo}
-            if pc[i].get("largura") is not None:
-                col["largura"] = int(pc[i]["largura"])
-            if pc[i].get("oculta"):
+        idx = [i for i, c in enumerate(pc)
+               if str(c.get("nome")).upper() != "TELEFONE"]
+        atuais = [(pc[i].get("nome"), pc[i].get("tipo"),
+                   bool(pc[i].get("oculta"))) for i in idx]
+        esperado = None
+        for com_status in (True, False):
+            lista = _colunas_esperadas_web(titulo, com_status)
+            if atuais == [(n, tp, n in _STATUS_OCULTAS_WEB)
+                          for n, tp in lista]:
+                esperado = lista
+                break
+        if esperado is None:
+            return None
+        colunas = []
+        for i in idx:
+            c = pc[i]
+            col = {"nome": c["nome"], "tipo": c["tipo"]}
+            if c.get("largura") is not None:
+                col["largura"] = int(c["largura"])
+            if c.get("larg_fixa") is not None:
+                col["larg_fixa"] = int(c["larg_fixa"])
+            if c.get("oculta"):
                 col["oculta"] = True
+            if c.get("chip") and c["nome"] in _COLUNAS_COM_CHIP_WEB:
+                col["chip"] = c["chip"]
             colunas.append(col)
         linhas = []
         for ln in t.get("linhas") or []:
