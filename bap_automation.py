@@ -7288,9 +7288,9 @@ _COLUNAS_LIMPAS_WEB = {
         "CLIENTE": "cliente_sem_documento"},
     ("vc_visitas", "Cliente a cliente"): {
         "CLIENTE": "cliente_sem_documento", "NOME FANTASIA": "sem_documento"},
-    ("vc_visitas", "Prospecção"): {"ESTABELECIMENTO": "sem_documento"},
-    ("vc_visitas", "Indicação"): {"CLIENTE QUE INDICOU": "sem_documento",
-                                  "INDICADO": "sem_documento"}}
+    ("vc_visitas", "Prospecção"): {"ESTABELECIMENTO": "nome_sem_contato"},
+    ("vc_visitas", "Indicação"): {"CLIENTE QUE INDICOU": "nome_sem_contato",
+                                  "INDICADO": "nome_sem_contato"}}
 # texto livre (D6 A): telefone, e-mail e CPF/CNPJ viram "[removido]"
 _COLUNAS_TEXTO_LIVRE_WEB = frozenset({
     "JUSTIFICATIVA", "OBSERVAÇÃO", "RESULTADO", "LINHAS DE INTERESSE",
@@ -7317,8 +7317,13 @@ def _mes_padrao(t):
 def _funcoes_limpeza_web() -> dict:
     """As funcoes puras do nucleo (RN-GER-011). Sem elas, levanta."""
     import relatorios_nucleo as _rn                     # noqa: PLC0415
-    return {n: getattr(_rn, n) for n in (
+    funcs = {n: getattr(_rn, n) for n in (
         "sem_documento", "cliente_sem_documento", "texto_sem_contato")}
+    # (25/11, revisor) nome digitado pelo vendedor (prospeccao/indicacao)
+    # pode trazer telefone ou e-mail: sai o documento E o contato
+    funcs["nome_sem_contato"] = lambda v: _rn.texto_sem_contato(
+        _rn.sem_documento(v))
+    return funcs
 
 
 def _limpar_celula_web(valor, fn):
