@@ -1,6 +1,6 @@
 # ADR 0001 — BAP Central na web (Render)
 
-- **Status:** aprovada (R-20261120-114944-alexandre, itens 2 a 6, sobre as decisões do R-20261120-114608-gerente-projetos), com os adendos 1 e 2 no fim, que mandam sobre o texto original
+- **Status:** aprovada (R-20261120-114944-alexandre, itens 2 a 6, sobre as decisões do R-20261120-114608-gerente-projetos), com os adendos 1 a 4 no fim, que mandam sobre o texto original
 - **Data:** 2026-11-20
 - **Tarefa:** T-0006 · **Autor:** engenheiro-software
 - **Depende de:** T-0002 (contrato do relatório), T-0003 (`ATUALIZAR_DO_GITHUB.bat`), T-0007 (recados por git)
@@ -167,7 +167,7 @@ Redação do recado (não é texto literal do Alexandre):
 
 ### 4.4 Versão do código: web × PC
 
-- A web só recebe código novo com **"aprovo deploy vX.Y.Z"**. O PC só recebe com **"instale"**. As duas versões podem ficar diferentes por alguns dias.
+- A web recebe código novo a cada merge no `main`, com o deploy automático (adendo 4; antes era com **"aprovo deploy vX.Y.Z"**). O PC só recebe com **"instale"**. As duas versões podem ficar diferentes por alguns dias.
 - O manifesto traz a versão do PC. A web mostra a versão dela e a do pacote no rodapé de toda tela.
 - Na **conferência**, dia com versões diferentes em código que muda número **não conta** para os 5 dias úteis (seção 5).
 - Recomendação: a mesma tag `vX.Y.Z` para o "instale" e para o deploy, sempre que a mudança tocar número.
@@ -210,7 +210,8 @@ Redação do recado (não é texto literal do Alexandre):
 ### 4.7 Deploy e governança
 
 - `render.yaml` é **governança**: o modulo-web propõe, e só entra com o recado do Alexandre "autorizo o merge do PR #N no commit <sha>".
-- **Deploy automático desligado** (`autoDeploy: false`). O deploy de uma versão só acontece depois da frase do Alexandre **"aprovo deploy vX.Y.Z"**, uma vez por versão, sobre a tag `vX.Y.Z` do `main`. Quem aperta o botão (ou o deploy hook) é definido no desenho da onda 0; o deploy hook, se existir, é segredo e **só o Alexandre cria**.
+- **Deploy automático ligado** (adendo 4, R-20261124-210855-alexandre): o Render publica a cada commit no `main` (Auto-Deploy "On Commit"; `autoDeploy: true`). O merge no `main`, com CI verde e os pareceres, é a liberação do site. Acaba a frase "aprovo deploy vX.Y.Z". O deploy hook, se existir, é segredo e **só o Alexandre cria**.
+  - *Texto original, substituído pelo adendo 4:* "Deploy automático desligado (`autoDeploy: false`). O deploy de uma versão só acontece depois da frase do Alexandre 'aprovo deploy vX.Y.Z', uma vez por versão, sobre a tag `vX.Y.Z` do `main`."
 - **Secrets do Render e do GitHub são criados só pelo Alexandre:** o token do robô, a chave da sessão, a senha inicial do admin e o deploy hook. Os agentes só citam o **nome** da variável, nunca o valor.
 - **Produção do PC inalterada:** nada desta ADR muda a pasta de produção no OneDrive. O passo 4f do robô só chega ao PC pelo "instale" do Alexandre, com o backup `ANTES_<ASSUNTO>_<MÊS><ANO>` e a conferência byte a byte (T-0003).
 
@@ -230,7 +231,7 @@ Redação do recado (não é texto literal do Alexandre):
 2. **Os números batem com o PC por 5 dias úteis seguidos** (DU conforme RN-GER-007). Todo dia, a web compara os números dela com os da conferência que o PC mandou no manifesto (4.3), valor a valor e com os mesmos `MÊS` e `ANO`: do Painel do Diretor, os `kpis_export` de cada uma das **3 abas RRM** (`paineis[i]["kpis_export"]`), e não os `rel["kpis"]` do `vc_painel` (que são os do Painel Executivo); da Inadimplência, os `rel["kpis"]` de `pl_inadimplencia`. Moeda bate ao centavo; contagem e percentual, na casa decimal mostrada na tela.
 3. Qualquer divergência **zera a contagem**, vira recado ao dono do número e só volta a contar depois de explicada. Dia sem pacote ou com versões de código diferentes (4.4) não conta, mas também não zera.
 4. A conferência dos 5 dias fica em `/var/data/conferencia/` e é demonstrada pelo agente `testes` com valor × regra. O número do Diretor bate com o farol de origem.
-5. Antes do deploy, a simulação (PNG das duas telas) vai ao Alexandre (regra 10). Depois, "aprovo deploy vX.Y.Z".
+5. Antes do deploy, a simulação (PNG das duas telas) vai ao Alexandre (regra 10). Depois, ~~"aprovo deploy vX.Y.Z"~~ o merge no `main` (substituído pelo adendo 4: deploy automático).
 
 ## 6. Custos
 
@@ -384,3 +385,40 @@ Vale sobre o adendo 1 onde diverge. Fontes: autorização R-20261124-175008-alex
 - O pacote cresce alguns KB por farol, e o 4f leva cerca de 4 s a mais no PC (inventário do contrato, §8).
 - Visita depende do "Atualizar visitas" manual no PC: o `baixado_em` do farol fica à vista na tela.
 - Os perfis novos da web (`pos_venda`, `pre_venda`, `vendas`) são do desenho do modulo-web, com teste de acesso negado por perfil (§4.5).
+
+## Adendo 3 (24/11/2026): Títulos, Por cliente e "Cobrar no WhatsApp" no Farol de Inadimplência (T-0017)
+
+Vale sobre o adendo 2 **só no `pl_inadimplencia`**; nos outros faróis o adendo 2 continua inteiro. Fontes: pedido R-20261124-181913-alexandre; decisões R-20261124-192008-alexandre ("1 A … 7 A"); regras RN-POS-001 a RN-POS-004 (`docs/produto/03-regras.md`). As regras e os formatos ficam **só** no contrato, §10.6 (`.coord/contratos/relatorio.md`); este adendo registra a decisão.
+
+### A decisão
+1. **Nome, código, cidade e WhatsApp de cliente passam a ir ao Render**, só no `pl_inadimplencia`, nas tabelas "Títulos" e "Por cliente" e no bloco `cobranca` (contrato §10.6.1 a §10.6.3). Isso muda o "nunca vão ao Render" do adendo 2 para esse farol. **CNPJ continua fora** ("2 A"). Cartões e `insights` seguem sem nome de cliente.
+2. **Quem vê e quem cobra** ("1 A"): a tabela de perfis do §10.6.3, com o corte no servidor.
+3. **A web deixa de ser só leitura num ponto:** ela grava o diário da cobrança, e o robô o leva ao PC (§10.6.4 a §10.6.7). O PC continua a fonte da verdade, e os CSV das máquinas ficam intocados (regra 7 do `CLAUDE.md`).
+4. **Retenção** ("3 A"), **atraso PC × site** ("4 A"), **telefone corrigido** ("5 A") e **sem exportar** ("6 A"): como no §10.6.
+5. **Contrato v1, acréscimo compatível**; publicação: a web antes, o robô depois (§10.6.8).
+6. **Continua:** o M2 (o PC monta, a web desenha); sem API de WhatsApp nem disparo automático; nenhum segredo novo (usa o `BAP_WEB_TOKEN`).
+7. **Conta 000040** ("7 A"): no Farol de Inadimplência, o cliente real de código 000040 continua, como no `main`. A exclusão da RN-GER-005 é da conta de testes, não desse cliente.
+
+### Consequências
+- O pacote cresce cerca de 280 KB por rodada (~40 KB compactado) [SUPOSIÇÃO: medida de 24/11, com 539 títulos e 136 clientes na fila]. Cabe no `BAP_WEB_PACOTE_MAX_MB` de 2 MB e no disco de 1 GB.
+- O 4f ganha duas chamadas HTTPS de saída (puxar e confirmar), com o mesmo token.
+- Se o disco do Render se perder, o diário recomeça numa época nova (§10.6.5). Perde-se no máximo o que foi registrado no site desde a última rodada.
+
+## Adendo 4 (24/11/2026): deploy automático do Render a cada commit no `main`
+
+Vale sobre o texto original e os adendos 1 a 3 onde diverge. Fonte: R-20261124-210855-alexandre, texto literal: "Automatize o render . Toda vez que o github publicar ele atualiza".
+
+### A decisão
+- **O serviço `bap-central` no Render publica sozinho a cada commit no `main`** do `aloirr/bapcentral` (Auto-Deploy "On Commit").
+- **Acaba o "aprovo deploy vX.Y.Z"** (§4.4, §4.7, §5 e as citações nos adendos 1 e 2). **O merge no `main` passa a ser a liberação do site.** O merge segue as regras de sempre: só pelo gerente-projetos, squash, CI verde no head SHA, pareceres sem 🔴 nem 🟡 em aberto e `verificar` limpo. A simulação antes do PR (regra 10 do `CLAUDE.md`) continua: o que mudar no site para o Alexandre ou o Diretor vê é aprovado antes do merge.
+- **`render.yaml`** passa a `autoDeploy: true` num **PR de governança à parte** (merge só com o "autorizo o merge do PR #N no commit <sha>"). A chave que vale de fato é a do painel do Render (Settings → Build & Deploy → Auto-Deploy), que o Alexandre liga; o arquivo só acompanha.
+
+### Continua valendo
+- **O "instale" do Alexandre no PC**, por instalação (regra 11 do `CLAUDE.md`), com o backup e a conferência byte a byte (T-0003).
+- **Web antes, robô depois** (adendo 2; contrato §10.1 e §10.6.8): o robô novo só é instalado no PC depois de o site com a versão nova estar no ar, conferido pelo `/saude` (`versao`).
+- **Segredos só pelo Alexandre**, no Render e no GitHub. Os agentes citam só o nome da variável.
+
+### Consequências
+- Todo merge no `main` sobe ao site, mesmo o que só mexe em documento ou no PC. O deploy reinicia o serviço (alguns segundos fora do ar) [SUPOSIÇÃO: aceitável no plano de US$ 7; se incomodar, o modulo-web propõe filtro de caminhos no `render.yaml`, também governança].
+- Um merge que quebra a web chega ao ar sem barreira manual. A barreira passa a ser o CI e a revisão; a volta é um commit de reversão no `main` (por PR), ou o "Rollback" no painel do Render pelo Alexandre.
+- A versão do site (`VERSAO` em `/saude`) precisa subir no PR que muda a web, para o "web antes, robô depois" ser conferível.
