@@ -787,19 +787,23 @@ def chamar_kpis_de(f, linhas, filtro=None):
 # ---------------------------------------------------------------------------
 _CPF_FMT = r"\d{3}\.\d{3}\.\d{3}-\d{2}"
 _CNPJ_FMT = r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"
-_DOC_INI = re.compile(r"^\s*(?=(?:[.\-/\s]*\d){6})[\d.\-/\s]+")
 _DOC_MEIO = re.compile(rf"(?<!\d)(?:{_CNPJ_FMT}|{_CPF_FMT})(?!\d)")
-_DOC_FIM = re.compile(r"[\s\-/.,;:]*(?<!\d)(?:\d{14}|\d{11})\s*$")
+_ROTULO_DOC = r"(?:(?:CNPJ|CPF)\s*[:.\-]?\s*)?"
+_DOC_QUALQUER = re.compile(
+    rf"{_ROTULO_DOC}(?<!\d)(?:{_CNPJ_FMT}|{_CPF_FMT}|\d{{14}}|\d{{11}})(?![\d])",
+    re.IGNORECASE)
+_VALOR_RS = re.compile(r"(R\$\s*\d[\d.]*(?:,\d+)?)")
 _DOC_SOLTO = re.compile(r"(?<!\d)(?:\d{14}|\d{11})(?!\d)")
 _EMAIL = re.compile(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+")
 _FONE = re.compile(
     r"(?<!\d)(?:\+?55[\s.\-]?)?(?:\(?\d{2}\)?[\s.\-]?)?9?\d{4}[\s.\-]?\d{4}"
-    r"(?!\d)")
+    r"(?![\d]|,\d)")
 _COD_CLIENTE = re.compile(r"^\d{6}(?:-\d{2})? - ")
 REMOVIDO = "[removido]"
 
 
 def _limpa_pontas(s: str) -> str:
+    s = re.sub(r"\(\s*\)|\[\s*\]", " ", s)
     s = re.sub(r"\s{2,}", " ", s)
     return s.strip(" \t-/.,;:")
 
@@ -809,10 +813,7 @@ def sem_documento(texto) -> str:
     mascara) e o formatado no meio. RN-GER-011."""
     if texto in (None, ""):
         return ""
-    s = str(texto)
-    s = _DOC_INI.sub("", s)
-    s = _DOC_MEIO.sub(" ", s)
-    s = _DOC_FIM.sub("", s)
+    s = _DOC_QUALQUER.sub(" ", str(texto))
     return _limpa_pontas(s)
 
 
@@ -835,11 +836,14 @@ def texto_sem_contato(texto) -> str:
     CPF/CNPJ por '[removido]'. RN-GER-011."""
     if texto in (None, ""):
         return ""
-    s = str(texto)
-    s = _EMAIL.sub(REMOVIDO, s)
-    s = _DOC_MEIO.sub(REMOVIDO, s)
-    s = _DOC_SOLTO.sub(REMOVIDO, s)
-    return _FONE.sub(REMOVIDO, s)
+    def limpa(parte):
+        parte = _EMAIL.sub(REMOVIDO, parte)
+        parte = _DOC_MEIO.sub(REMOVIDO, parte)
+        parte = _DOC_SOLTO.sub(REMOVIDO, parte)
+        return _FONE.sub(REMOVIDO, parte)
+    # valor em reais (R$ ...) nunca e telefone
+    partes = _VALOR_RS.split(str(texto))
+    return "".join(p if k % 2 else limpa(p) for k, p in enumerate(partes))
 
 
 def _texto_filtro(valor, tipo) -> str:
@@ -854,12 +858,20 @@ def _texto_filtro(valor, tipo) -> str:
     return "" if valor in (None, "") else str(valor)
 
 
+def _indices_em_linhas(t, linhas):
+    """Indices, em t["linhas"], das linhas dadas (por identidade)."""
+    pos = {id(l): k for k, l in enumerate(t["linhas"])}
+    return [pos[id(l)] for l in linhas if id(l) in pos]
+
+
 def linhas_padrao(t, params=None) -> list:
     """Indices (base 0) das linhas que a tela mostra ao abrir a aba: os
     filtros com `padrao`, sem recorte e sem busca. Mesma regra de
     `bap_relatorios.VistaTabela._filtradas` no estado inicial. `params` =
     nomes dos parametros de cima (so decide o filtro repetido que vira
-    oculto); filtros gerais da janela nao entram (sem Tk)."""
+    oculto); filtros gerais da janela nao entram (sem Tk). Os indices sao
+    sempre de `t["linhas"]` (com `linhas_filtro`, a linha da base que nao
+    esta em `t["linhas"]` fica fora)."""
     nomes = [c["nome"] for c in t["colunas"]]
     fora = set(t.get("filtros_fora") or ())
     base = t.get("linhas_filtro") or t["linhas"]
@@ -910,25 +922,34 @@ def linhas_padrao(t, params=None) -> list:
         if t.get("ordem_top"):
             i_m, i_f = t["ordem_top"]
             saida.sort(key=lambda x: (-(x[1][i_m] or 0), -(x[1][i_f] or 0)))
-    return [k for k, _l in saida]
+    return _indices_em_linhas(t, [l for _k, l in saida])
 
 
 def recortes_em_linhas(t) -> list:
     """[{"rotulo", "linhas"}]: para cada recorte por funcao da tabela, na
     ordem do PC, os indices (base 0, em `linhas`) que ele deixa. Recorte
-    {"top": N} fica fora, com aviso no log. Recorte que falha fica vazio."""
+    {"top": N} fica fora, com aviso no log. Recorte que falha fica vazio.
+    Tabela `enxuta` (sem recortes no PC): lista vazia. Os indices sao de
+    `t["linhas"]`, a mesma base de `linhas_padrao`; com `linhas_filtro` o
+    recorte corre na base do filtro e so entram as linhas que estao em
+    `t["linhas"]`."""
     import logging
     saida = []
+    if t.get("enxuta"):
+        return saida
+    base = t.get("linhas_filtro") or t["linhas"]
     for r in t.get("recortes") or ():
         rotulo, regra = r[0], r[1]
         if callable(regra):
             idx = []
-            for k, l in enumerate(t["linhas"]):
+            ok = []
+            for l in base:
                 try:
                     if regra(l):
-                        idx.append(k)
+                        ok.append(l)
                 except Exception:                       # noqa: BLE001
                     continue
+            idx = _indices_em_linhas(t, ok)
             saida.append({"rotulo": rotulo, "linhas": idx})
         else:
             logging.getLogger(__name__).warning(
