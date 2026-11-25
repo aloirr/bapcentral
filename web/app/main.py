@@ -75,6 +75,7 @@ def criar_app() -> FastAPI:
     modelos.env.filters["hhmm"] = hhmm
     modelos.env.filters["fone"] = cobranca.fone_bonito
     modelos.env.globals["ocultas"] = tabelas.colunas_ocultas      # T-0020: coluna que só repete outra
+    modelos.env.globals["datas_proximas"] = render.datas_proximas  # T-0020: uma data só
     diario = cobranca.Diario(cfg.dados)
     diario.limpar()                                   # §10.6.5: também quando o app sobe
 
