@@ -7891,6 +7891,21 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
             uf = ""
         if uf:
             por_uf.setdefault(uf, []).append(ln)
+    if filtro_uf:     # RN-GER-006: o estado so com pendencia de mes anterior
+        for j in tab.get("juntas") or []:       # tambem aparece (como no PC)
+            tj = j.get("tabela") if isinstance(j, dict) else None
+            nj = [c.get("nome") if isinstance(c, dict) else c
+                  for c in (tj or {}).get("colunas") or []]
+            if coluna_filial not in nj:
+                continue
+            ij = nj.index(coluna_filial)
+            for ln in tj.get("linhas") or []:
+                try:
+                    uf = uf_de(ln[ij])
+                except Exception:                       # noqa: BLE001
+                    uf = ""
+                if uf:
+                    por_uf.setdefault(uf, [])
     saida = {}
     for uf in sorted(por_uf):
         try:
