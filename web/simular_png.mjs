@@ -13,6 +13,9 @@ for (const [nome, largura, altura] of [['pc', 1366, 900], ['cel', 390, 844]]) {
   const ctx = await b.newContext({ viewport: { width: largura, height: altura }, deviceScaleFactor: 2 });
   const p = await ctx.newPage();
   await p.goto(pathToFileURL(resolve(html)).href);
+  const larg = await p.evaluate(() => document.documentElement.scrollWidth);
+  console.log(`largura ${nome}: ${larg} px (tela ${largura})`);
+  if (larg > largura) { console.error('FALHA: a página passa da largura da tela'); process.exitCode = 1; }
   await p.screenshot({ path: `${prefixo}-${nome}.png`, fullPage: false });
   await p.screenshot({ path: `${prefixo}-${nome}-inteira.png`, fullPage: true });
   await ctx.close();

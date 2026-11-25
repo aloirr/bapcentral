@@ -126,3 +126,8 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .kpis{align-items:start}
 .kpi-lin b,.kpi-det b{white-space:nowrap}
 .kpi-lin span{min-width:0}
+/* nada estoura a largura da tela: trilhas e cartões podem encolher (T-0017) */
+.kpis>.kpi,.graf{min-width:0}
+.kpi-est .rc-barras{grid-auto-columns:minmax(0,1fr)}
+.kpi-est .txt-b,.kpi-est .rot-b{overflow-wrap:anywhere}
+@media(max-width:600px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi-est{grid-column:1/-1}}
