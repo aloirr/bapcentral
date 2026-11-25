@@ -119,9 +119,12 @@ def test_RN_GER_006_pedidos_sem_tabela_sem_acao_com_faixa_e_vendedor():
     s = ba.selecionar_farol_web("pv_pedidos", r)
     assert s["forma"] == "farol" and s["kpis_faixa"] is True
     texto = json.dumps(s, ensure_ascii=False)
-    for proibido in ("tabelas", "juntas", "editar", "abrir", "edicao",
-                     "detalhe_pedido", "kpis_de", "AUTORIZA"):
-        assert proibido not in texto
+    # lista, não "x not in texto": a diferença de um JSON grande no pytest
+    # leva minutos quando falha
+    presentes = [p for p in ("tabelas", "juntas", "editar", "abrir", "edicao",
+                             "detalhe_pedido", "kpis_de", "AUTORIZA")
+                 if p in texto]
+    assert presentes == []
     # nome de vendedor VAI (D1); bloco tabela não é do Farol de Pedidos
     assert [b["tipo"] for b in s["painel"]["blocos"]] == ["hbarras"]
     assert "Vendedor 01" in texto
@@ -309,7 +312,7 @@ def test_RN_GER_006_visita_sem_UF_do_cliente_vai_sem_recortes_e_com_aviso():
     s = ba.selecionar_farol_web("vc_visitas", r)
     assert s["recortes"] == {}
     assert AVISO_SEM_ESTADO in s["avisos"]
-    assert "abrir" not in json.dumps(s)
+    assert ("abrir" in json.dumps(s)) is False
     assert ("O dia de hoje é parcial: muda até o vendedor sincronizar."
             in s["avisos"])
     assert not any("rospec" in a for a in s["avisos"])

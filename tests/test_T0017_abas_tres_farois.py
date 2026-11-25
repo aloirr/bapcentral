@@ -50,7 +50,14 @@ R = "[removido]"
     ("CLIENTE FICTICIO 123.456.789-01 FILIAL", "CLIENTE FICTICIO FILIAL"),
     # meio, SEM máscara (a RN-GER-011 diz "no começo, no meio ou no fim")
     ("CLIENTE 12345678000190 FICTICIO", "CLIENTE FICTICIO"),
-    ("CLIENTE FICTICIO CPF 12345678901 LOJA 2", "CLIENTE FICTICIO CPF LOJA 2"),
+    # (decisão do gerente, achado 6) o rótulo CPF/CNPJ sai junto
+    ("CLIENTE FICTICIO CPF 12345678901 LOJA 2", "CLIENTE FICTICIO LOJA 2"),
+    # rótulo e parênteses vazios saem junto com o documento
+    ("CLIENTE FICTICIO CNPJ: 12.345.678/0001-90", "CLIENTE FICTICIO"),
+    ("CLIENTE FICTICIO cpf 123.456.789-01 LOJA 2", "CLIENTE FICTICIO LOJA 2"),
+    ("CLIENTE FICTICIO (12.345.678/0001-90)", "CLIENTE FICTICIO"),
+    ("CLIENTE FICTICIO (CNPJ 12345678000190) LOJA 2",
+     "CLIENTE FICTICIO LOJA 2"),
     # dois documentos
     ("CLIENTE FICTICIO 12.345.678/0001-90 - 123.456.789-01",
      "CLIENTE FICTICIO"),
@@ -61,6 +68,12 @@ R = "[removido]"
     ("AUTO PECAS 2000 LTDA", "AUTO PECAS 2000 LTDA"),
     ("3 IRMAOS PECAS FICTICIA", "3 IRMAOS PECAS FICTICIA"),
     ("CLIENTE FICTICIO 1234567890123", "CLIENTE FICTICIO 1234567890123"),
+    # (decisão do gerente) número de 6 a 10 dígitos no começo fica
+    ("100200 PECAS FICTICIA", "100200 PECAS FICTICIA"),
+    ("1234567890 PECAS FICTICIA", "1234567890 PECAS FICTICIA"),
+    # rótulo sem documento fica; parênteses com texto ficam
+    ("LOJA CNPJ FICTICIA", "LOJA CNPJ FICTICIA"),
+    ("CLIENTE FICTICIO (LOJA 2)", "CLIENTE FICTICIO (LOJA 2)"),
     # vazio
     (None, ""),
     ("", ""),
@@ -68,9 +81,13 @@ R = "[removido]"
         "comeco_cpf_mascara", "comeco_cpf_sem_mascara",
         "fim_cnpj_mascara", "fim_cpf_mascara", "fim_cnpj_sem_mascara",
         "fim_cpf_sem_mascara_espaco", "meio_cnpj_mascara", "meio_cpf_mascara",
-        "meio_cnpj_sem_mascara", "meio_cpf_sem_mascara", "dois_documentos",
+        "meio_cnpj_sem_mascara", "meio_cpf_sem_mascara",
+        "rotulo_cnpj_dois_pontos", "rotulo_cpf_minusculo",
+        "parenteses_vazios", "parenteses_com_rotulo", "dois_documentos",
         "so_documento", "so_documento_numero", "numero_curto_fica",
-        "numero_no_comeco_fica", "13_digitos_fica", "none", "vazio"])
+        "numero_no_comeco_fica", "13_digitos_fica", "6_digitos_no_comeco_fica",
+        "10_digitos_no_comeco_fica", "rotulo_sem_documento_fica",
+        "parenteses_com_texto_ficam", "none", "vazio"])
 def test_RN_GER_011_sem_documento_comeco_fim_meio(entrada, esperado):
     assert rn.sem_documento(entrada) == esperado
 
@@ -97,6 +114,10 @@ def test_RN_GER_011_sem_documento_comeco_fim_meio(entrada, esperado):
     ("900001 - ", "900001"),
     # documento sem máscara no meio do nome (RN-GER-011: "no meio")
     ("900004 - CLIENTE 12345678901 FICTICIO", "900004 - CLIENTE FICTICIO"),
+    ("900005 - CLIENTE FICTICIO (CPF: 123.456.789-01)",
+     "900005 - CLIENTE FICTICIO"),
+    # código sem o traço: fica (6 a 10 dígitos no começo não é documento)
+    ("900001 CLIENTE FICTICIO", "900001 CLIENTE FICTICIO"),
     # sem código: limpa como sem_documento
     ("CLIENTE FICTICIO 12345678901", "CLIENTE FICTICIO"),
     (None, ""),
@@ -105,7 +126,8 @@ def test_RN_GER_011_sem_documento_comeco_fim_meio(entrada, esperado):
         "nome_com_numero", "loja_sem_documento", "so_codigo",
         "so_codigo_loja", "so_codigo_espacos", "so_codigo_numero",
         "nome_so_cnpj", "nome_so_cpf", "nome_vazio",
-        "meio_cpf_sem_mascara", "sem_codigo", "none"])
+        "meio_cpf_sem_mascara", "rotulo_e_parenteses", "codigo_sem_traco",
+        "sem_codigo", "none"])
 def test_RN_GER_011_cliente_mantem_codigo(entrada, esperado):
     assert rn.cliente_sem_documento(entrada) == esperado
 
@@ -119,6 +141,9 @@ def test_RN_GER_011_cliente_mantem_codigo(entrada, esperado):
     ("92991234567", R),
     ("tel 3234-5678", f"tel {R}"),
     ("(92) 3234-5678", R),
+    # telefone seguido de vírgula e espaço continua telefone
+    ("Ligar (92) 99123-4567, amanha", f"Ligar {R}, amanha"),
+    ("fone 3234-5678,ramal", f"fone {R},ramal"),
     # e-mail
     ("mandar para fulano.ficticio@exemplo.com.br hoje", f"mandar para {R} hoje"),
     # documento com e sem máscara, no meio do texto
@@ -137,7 +162,8 @@ def test_RN_GER_011_cliente_mantem_codigo(entrada, esperado):
     ("", ""),
 ], ids=["fone_celular_mascara", "fone_celular_sem_mascara", "fone_55",
         "fone_13_digitos", "fone_11_digitos", "fone_fixo_sem_ddd",
-        "fone_fixo_ddd", "email", "cnpj_mascara", "cnpj_sem_mascara",
+        "fone_fixo_ddd", "fone_virgula_espaco", "fone_virgula_texto",
+        "email", "cnpj_mascara", "cnpj_sem_mascara",
         "cpf_mascara", "cpf_sem_mascara", "tudo_junto", "codigo_fica",
         "pedido_e_data_ficam", "nf_9_digitos_fica", "none", "vazio"])
 def test_RN_GER_011_texto_livre_sem_contato(entrada, esperado):
@@ -154,6 +180,15 @@ def test_RN_GER_011_texto_livre_valor_em_reais_fica(valor):
     """Valor em reais no texto livre não é telefone: não vira [removido]."""
     texto = f"saldo de {valor} em aberto"
     assert rn.texto_sem_contato(texto) == texto
+
+
+def test_RN_GER_011_texto_livre_valor_sem_cifrao_e_contato_junto():
+    """Valor sem "R$" com centavos também fica; o contato ao lado sai."""
+    assert (rn.texto_sem_contato("saldo 12345678,90 em aberto")
+            == "saldo 12345678,90 em aberto")
+    assert (rn.texto_sem_contato(
+        "R$ 12345678,90 ligar (92) 99123-4567 ou x@exemplo.com")
+        == f"R$ 12345678,90 ligar {R} ou {R}")
 
 
 def test_RN_GER_011_limpeza_e_idempotente():
@@ -233,8 +268,10 @@ def br():
 
 @pytest.fixture
 def tela(br, monkeypatch):
-    """tela(t, params) -> índices (em linhas_filtro ou linhas) que a
-    VistaTabela mostra ao abrir; recorte=rotulo escolhe um recorte."""
+    """tela(t, params) -> índices, em t["linhas"], das linhas que a
+    VistaTabela mostra ao abrir (decisão do gerente: sempre t["linhas"];
+    linha da tela que não está em t["linhas"] fica fora); recorte=rotulo
+    escolhe um recorte."""
     monkeypatch.setattr(br, "tk", _mod_tk("tk_falso"))
     monkeypatch.setattr(br, "ttk", _mod_tk("ttk_falso"))
     monkeypatch.setattr(br, "caixa_de_filtro", _Coringa)
@@ -248,9 +285,8 @@ def tela(br, monkeypatch):
         v = br.VistaTabela(_Coringa(), t, janela)
         if recorte is not None:
             v.var_recorte.set(recorte)
-        base = t.get("linhas_filtro") or t["linhas"]
-        pos = {id(l): k for k, l in enumerate(base)}
-        return [pos[id(l)] for l, _tom in v._filtradas()]
+        pos = {id(l): k for k, l in enumerate(t["linhas"])}
+        return [pos[id(l)] for l, _tom in v._filtradas() if id(l) in pos]
     return _ver
 
 
@@ -352,17 +388,31 @@ def test_T0017_linhas_padrao_igual_a_tela(nome, tela):
     assert meu == tela(t, params)              # = VistaTabela._filtradas
 
 
+def _t_carteira(linhas_idx, filtros=(), **extra):
+    """Top N: `linhas_filtro` = a carteira inteira; `linhas` = as linhas
+    da carteira em `linhas_idx` (outra ordem, de propósito)."""
+    carteira = _linhas()
+    t = _t(list(filtros), **extra)
+    t["linhas_filtro"], t["tons_filtro"] = carteira, [""] * 5
+    t["linhas"] = [carteira[k] for k in linhas_idx]
+    t["tons"] = [""] * len(linhas_idx)
+    return t
+
+
 def test_T0017_linhas_padrao_top_n_na_carteira_inteira(tela):
     """Top N com `linhas_filtro` (carteira inteira): o filtro corre na
     carteira e o top se refaz dentro dele; os índices são de
-    `linhas_filtro`, como a tela."""
-    carteira = _linhas()
-    t = _t([{"coluna": "SITUAÇÃO", "padrao": "EM ABERTO"}],
-           top_n=2, ordem_top=(7, 6))
-    t["linhas_filtro"], t["tons_filtro"] = carteira, [""] * 5
-    t["linhas"], t["tons"] = carteira[:2], [""] * 2
+    `t["linhas"]` (decisão do gerente)."""
+    em_aberto = [{"coluna": "SITUAÇÃO", "padrao": "EM ABERTO"}]
+    # carteira: EM ABERTO = 0, 1, 3; top 2 = 0, 1; pela meta = 1 (300), 0
+    t = _t_carteira([3, 1, 0], em_aberto, top_n=2, ordem_top=(7, 6))
     meu = rn.linhas_padrao(t)
-    assert meu == [1, 0]
+    assert meu == [1, 2]              # carteira 1 e 0, em t["linhas"]
+    assert meu == tela(t)
+    # a linha da tela que não está em t["linhas"] fica fora
+    t = _t_carteira([0, 3], em_aberto, top_n=2, ordem_top=(7, 6))
+    meu = rn.linhas_padrao(t)
+    assert meu == [0]                 # carteira 1 não está em t["linhas"]
     assert meu == tela(t)
 
 
@@ -417,6 +467,31 @@ def test_T0017_recortes_em_linhas_igual_a_tela(tela):
     for r in rn.recortes_em_linhas(t):
         if r["rotulo"] == "Qtd acima de 3":
             continue        # na tela a linha sem QTD quebra (TypeError)
+        assert r["linhas"] == tela(t, recorte=r["rotulo"]), r["rotulo"]
+
+
+def test_T0017_recortes_em_linhas_tabela_enxuta_nao_manda(tela):
+    """Tabela `enxuta` (aba Pedidos): o PC não mostra recorte, o site
+    também não (decisão do gerente)."""
+    t = _t_recortes()
+    t["enxuta"] = True
+    assert rn.recortes_em_linhas(t) == []
+    # a tela confirma: sem recorte, o recorte escolhido não corta nada
+    assert tela(t, recorte="Só AM") == TODAS
+    t["enxuta"] = False
+    assert rn.recortes_em_linhas(t) != []
+
+
+def test_T0017_recortes_em_linhas_com_linhas_filtro_indices_de_linhas(tela):
+    """Com `linhas_filtro`, o recorte corre na carteira (como a tela) e os
+    índices são de `t["linhas"]`; a linha fora de `t["linhas"]` sai."""
+    t = _t_carteira([3, 1, 0])
+    t["recortes"] = [("Só AM", lambda l: l[3] == "AM"),
+                     ("Com meta", lambda l: (l[7] or 0) > 0)]
+    saida = rn.recortes_em_linhas(t)
+    assert saida == [{"rotulo": "Só AM", "linhas": [2, 1]},
+                     {"rotulo": "Com meta", "linhas": [2, 1, 0]}]
+    for r in saida:
         assert r["linhas"] == tela(t, recorte=r["rotulo"]), r["rotulo"]
 
 
