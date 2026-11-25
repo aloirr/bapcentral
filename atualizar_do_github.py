@@ -22,7 +22,26 @@ Fluxo:
  9. Relatorio final. O log so mostra nomes de arquivo de codigo e hashes curtos.
 
 Codigos de saida: 0 ok (ou nada a fazer) | 1 erro de origem ou argumento |
-2 trava "instalado por fora" | 3 backup falhou | 4 troca falhou (restaurado).
+2 trava "instalado por fora" (limite 5) | 3 backup falhou | 4 troca falhou
+(restaurado) | 10 limite 1: commit do main com menos de 2 h | 11 limite 2: CI
+do PR de origem nao esta verde | 12 limite 3: versao da web no main diferente
+da do ``/saude`` | 13 limite 4: fora da janela 06h00-07h30 (Manaus) | 14
+limite 4: robo rodando | 15 API do GitHub indisponivel ou sem cota (60/h) |
+16 rotina pausada (``SISTEMA BAP\\PAUSAR_ATUALIZACAO``).
+
+Modos (T-0018, ADR 0002, R-20261124-214958-alexandre):
+ - ``--diario``: a tarefa agendada das 06h30 no notebook do robo. So instala
+   se os 5 limites passarem (funcoes puras ``commit_maduro``, ``ci_verde``,
+   ``versoes_batem``, ``dentro_da_janela``/``robo_rodando`` e a trava do
+   ``planejar``). Nunca instala os ``.bat`` de instalacao, o proprio
+   atualizador, o ``tarefa_bap.xml`` nem ``.json`` (esses seguem com
+   "instale"). Baixa o zip do SHA conferido, sem token (repositorio
+   publico). Grava ``SISTEMA BAP\\VERSAO_INSTALADA.txt`` e uma linha por
+   rodada em ``SISTEMA BAP\\LOGS\\atualizacao_diaria.log``.
+ - ``--primeira-vez``: so manual, exige ``--confirmar`` (ou ``--simular``);
+   backup TOTAL dos ``.py``/``.bat`` da raiz e ignora a trava 5.
+ - ``--agendar`` / ``--remover-agendamento``: cria/remove a tarefa do
+   Windows (06h30, usuario atual, so com ele logado).
 
 ``--assunto`` e opcional; o padrao e ``ATUALIZACAO`` (vira
 ``ANTES_ATUALIZACAO_<MES><ANO>``). Use o numero da tarefa, ex.: ``T0003``.
@@ -34,6 +53,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -41,13 +61,15 @@ import struct
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from datetime import time as dtime
 from fnmatch import fnmatch
-from pathlib import Path, PurePath
+from pathlib import Path, PurePath, PureWindowsPath
 
 URL_ZIP_MAIN = "https://github.com/aloirr/bapcentral/archive/refs/heads/main.zip"
 TOLERANCIA_S = 2.0
@@ -74,6 +96,44 @@ CODIGO_ERRO = 1
 CODIGO_TRAVA = 2
 CODIGO_BACKUP = 3
 CODIGO_TROCA = 4
+CODIGO_LIMITE_IDADE = 10      # limite 1
+CODIGO_LIMITE_CI = 11         # limite 2
+CODIGO_LIMITE_VERSAO_WEB = 12  # limite 3
+CODIGO_LIMITE_JANELA = 13     # limite 4 (horario)
+CODIGO_LIMITE_ROBO = 14       # limite 4 (robo rodando)
+CODIGO_API = 15
+CODIGO_PAUSA = 16
+
+# --- Rotina diaria (T-0018) -------------------------------------------------
+REPO = "aloirr/bapcentral"
+URL_API = "https://api.github.com"
+URL_ZIP_SHA = "https://github.com/aloirr/bapcentral/archive/{sha}.zip"
+HORAS_MINIMAS_COMMIT = 2.0
+JANELA_INICIO = dtime(6, 0)
+JANELA_FIM = dtime(7, 30)
+# Trava do robo: bap_automation.NOME_TRAVA dentro de SUBPASTA_DOWNLOADS
+# (SISTEMA BAP/BACKUP_RELATORIOS/BKP_RELATORIOS_BAPTOOLS), valida por
+# IDADE_MAXIMA_TRAVA (4 h). Copiado aqui para nao importar o robo.
+TRAVA_ROBO_REL = PurePath("SISTEMA BAP", "BACKUP_RELATORIOS",
+                          "BKP_RELATORIOS_BAPTOOLS", "_EXECUCAO_EM_ANDAMENTO.txt")
+IDADE_MAXIMA_TRAVA_ROBO_S = 4 * 60 * 60
+ARQ_PAUSA_REL = PurePath("SISTEMA BAP", "PAUSAR_ATUALIZACAO")
+ARQ_VERSAO_REL = PurePath("SISTEMA BAP", "VERSAO_INSTALADA.txt")
+ARQ_LOG_REL = PurePath("SISTEMA BAP", "LOGS", "atualizacao_diaria.log")
+# So com "instale" (regra 11 nova, decisao 4 A): nunca no --diario.
+SO_COM_INSTALE = frozenset(n.lower() for n in (
+    "instalar_bap.bat", "INSTALAR_PDF.bat", "REPARAR_PYTHON_BAP.bat",
+    "VERIFICAR_REQUISITOS.bat", "ATUALIZAR_DO_GITHUB.bat",
+    "INSTALAR_ROTINA_DIARIA.bat", "atualizar_do_github.py", "tarefa_bap.xml",
+))
+REQUISICOES_MINIMAS_API = 4   # rate_limit nao conta; main + pulls + check-runs
+ASSUNTO_DIARIO = "DIARIO"
+ASSUNTO_PRIMEIRA_VEZ = "PRIMEIRA_VEZ"
+NOME_TAREFA = "BAP - Atualizacao diaria do codigo"
+HORA_TAREFA = "06:30"
+LIMITE_TR_SCHTASKS = 261
+_CONCLUSOES_OK = frozenset({"success", "neutral", "skipped"})
+_RE_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 # --------------------------------------------------------------------------
@@ -133,14 +193,169 @@ def _eh_candidato_nome(rel: PurePath) -> bool:
     return len(rel.parts) == 1 and rel.suffix.lower() in EXTENSOES
 
 
-def hoje_manaus() -> date:
-    """Data de hoje no fuso America/Manaus (fallback: UTC-4 fixo)."""
+def _fuso_manaus():
+    """Fuso America/Manaus (fallback: UTC-4 fixo, Manaus nao tem horario de verao)."""
     try:
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-        fuso = ZoneInfo("America/Manaus")
+        return ZoneInfo("America/Manaus")
     except (ImportError, ZoneInfoNotFoundError, ValueError, OSError):  # sem tzdata
-        fuso = timezone(timedelta(hours=-4))
-    return datetime.now(fuso).date()
+        return timezone(timedelta(hours=-4))
+
+
+def agora_manaus() -> datetime:
+    """Agora, com fuso America/Manaus."""
+    return datetime.now(_fuso_manaus())
+
+
+def hoje_manaus() -> date:
+    """Data de hoje no fuso America/Manaus (fallback: UTC-4 fixo)."""
+    return agora_manaus().date()
+
+
+# --- Os 5 limites da rotina diaria (ADR 0002) -------------------------------
+
+def data_iso(texto: str) -> datetime:
+    """Data ISO 8601 da API do GitHub (``...Z``) -> datetime com fuso."""
+    d = datetime.fromisoformat(str(texto).strip().replace("Z", "+00:00"))
+    if d.tzinfo is None:
+        raise ValueError("data sem fuso")
+    return d
+
+
+def commit_maduro(data_commit: datetime, agora: datetime,
+                  horas: float = HORAS_MINIMAS_COMMIT) -> bool:
+    """Limite 1: o commit do ``main`` tem ``horas`` (2) ou mais.
+
+    As duas datas tem de ter fuso. Commit "no futuro" (relogio torto) nao passa.
+    """
+    if data_commit.tzinfo is None or agora.tzinfo is None:
+        raise ValueError("datas sem fuso")
+    return agora - data_commit >= timedelta(hours=horas)
+
+
+def pr_de_origem(pulls: list, sha: str) -> dict | None:
+    """Limite 2 (parte 1): o PR mesclado no ``main`` que gerou o commit ``sha``.
+
+    Prefere o PR cujo ``merge_commit_sha`` e o proprio ``sha``; senao, o
+    primeiro PR mesclado com base ``main``. Sem PR mesclado -> ``None``.
+    """
+    mesclados = [p for p in (pulls or []) if isinstance(p, dict)
+                 and p.get("merged_at")
+                 and (p.get("base") or {}).get("ref") == "main"]
+    for p in mesclados:
+        if p.get("merge_commit_sha") == sha:
+            return p
+    return mesclados[0] if mesclados else None
+
+
+def ci_verde(check_runs: list) -> tuple[bool, str]:
+    """Limite 2 (parte 2): todas as verificacoes do head do PR terminaram verdes.
+
+    Verde = todas ``completed`` com conclusao ``success``/``neutral``/``skipped``
+    e pelo menos uma ``success``. Lista vazia nao passa.
+    """
+    runs = [r for r in (check_runs or []) if isinstance(r, dict)]
+    if not runs:
+        return False, "sem CI no head do PR"
+    andando = [r for r in runs if r.get("status") != "completed"]
+    if andando:
+        return False, f"{len(andando)} verificacao(oes) em andamento"
+    ruins = sorted({str(r.get("name", "?")) for r in runs
+                    if r.get("conclusion") not in _CONCLUSOES_OK})
+    if ruins:
+        return False, "nao verde: " + ", ".join(ruins)[:200]
+    if not any(r.get("conclusion") == "success" for r in runs):
+        return False, "nenhuma verificacao com sucesso"
+    return True, "verde"
+
+
+def versao_do_init(texto: str) -> str | None:
+    """``VERSAO = "x.y.z"`` de ``web/app/__init__.py`` (``None`` se faltar)."""
+    m = re.search(r"""^VERSAO\s*=\s*["']([^"'\s]+)["']""", texto or "", re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def versoes_batem(versao_main: str | None, versao_site: str | None) -> bool:
+    """Limite 3: a versao da web no ``main`` e a mesma do ``/saude``.
+
+    O deploy do Render e automatico a cada publicacao no ``main``
+    (R-20261124-210855-alexandre): versao diferente = deploy ainda nao
+    terminou (ou falhou) -> espera.
+    """
+    if not versao_main or not versao_site:
+        return False
+    return str(versao_main).strip() == str(versao_site).strip()
+
+
+def dentro_da_janela(agora: datetime, inicio: dtime = JANELA_INICIO,
+                     fim: dtime = JANELA_FIM) -> bool:
+    """Limite 4 (horario): ``inicio <= hora <= fim`` no fuso America/Manaus."""
+    if agora.tzinfo is None:
+        raise ValueError("agora sem fuso")
+    hora = agora.astimezone(_fuso_manaus()).time().replace(tzinfo=None)
+    return inicio <= hora <= fim
+
+
+def robo_rodando(idade_trava_s: float | None,
+                 maximo_s: float = IDADE_MAXIMA_TRAVA_ROBO_S) -> bool:
+    """Limite 4 (robo): a trava do ``bap_automation`` existe e e recente.
+
+    ``None`` = sem trava. A regra e a do robo: trava com 4 h ou mais esta
+    presa e e ignorada. Idade negativa (relogio torto) conta como rodando.
+    """
+    if idade_trava_s is None:
+        return False
+    return idade_trava_s < maximo_s
+
+
+def so_com_instale(rel: PurePath) -> bool:
+    """True se o arquivo nunca e instalado pelo ``--diario`` (pede "instale")."""
+    return rel.name.lower() in SO_COM_INSTALE or eh_excluido(rel)
+
+
+def linha_log(agora: datetime, modo: str, codigo: int, motivo: str,
+              sha: str | None) -> str:
+    """Uma linha do log da rotina, sem dado pessoal: data, modo, codigo,
+    SHA curto e o motivo (so nomes de programa e hashes curtos)."""
+    quando = agora.astimezone(_fuso_manaus()).strftime("%Y-%m-%d %H:%M:%S")
+    curto = (sha or "-")[:7]
+    limpo = " ".join(str(motivo).split())
+    return f"{quando} | {modo} | codigo {codigo} | main {curto} | {limpo}"
+
+
+def texto_versao_instalada(sha: str, agora: datetime, n_trocados: int,
+                           modo: str) -> str:
+    """Conteudo do ``VERSAO_INSTALADA.txt`` (1a linha = SHA completo)."""
+    quando = agora.astimezone(_fuso_manaus()).strftime("%Y-%m-%d %H:%M:%S")
+    return (f"{sha}\ninstalado em {quando} (America/Manaus)\n"
+            f"modo {modo}; {n_trocados} arquivo(s) trocado(s)\n")
+
+
+def sha_do_texto_versao(texto: str) -> str | None:
+    """SHA da 1a linha do ``VERSAO_INSTALADA.txt`` (``None`` se invalido)."""
+    primeira = (texto or "").strip().splitlines()[:1]
+    sha = primeira[0].strip().lower() if primeira else ""
+    return sha if _RE_SHA.match(sha) else None
+
+
+def comando_agendar(pasta: Path) -> list[str]:
+    """``schtasks /Create`` da tarefa diaria das 06h30 na ``pasta``.
+
+    Sem ``/RU``: fica com o usuario atual e so roda com ele logado (nao pede
+    nem guarda senha). ``/F`` substitui a tarefa se ja existir.
+    """
+    script = PureWindowsPath(str(pasta)) / "atualizar_do_github.py"
+    tr = f'py -3.12 "{script}" --diario'
+    if len(tr) > LIMITE_TR_SCHTASKS:
+        raise ValueError(f"caminho longo demais para o schtasks ({len(tr)} > "
+                         f"{LIMITE_TR_SCHTASKS} caracteres)")
+    return ["schtasks", "/Create", "/TN", NOME_TAREFA, "/TR", tr,
+            "/SC", "DAILY", "/ST", HORA_TAREFA, "/F"]
+
+
+def comando_remover() -> list[str]:
+    """``schtasks /Delete`` da tarefa diaria."""
+    return ["schtasks", "/Delete", "/TN", NOME_TAREFA, "/F"]
 
 
 # --------------------------------------------------------------------------
@@ -182,7 +397,9 @@ class Plano:
       que a do ``main`` (+ tolerancia) -> trava;
     - ``hash_main`` / ``hash_producao``: SHA-256 por arquivo;
     - ``data_main``: data (epoch) do ``main`` por arquivo, gravada como
-      ``mtime`` do arquivo instalado.
+      ``mtime`` do arquivo instalado;
+    - ``pendentes_instale``: arquivos deixados de fora pelo filtro ``excluir``
+      (``--diario``) que estao diferentes na producao: seguem com "instale".
     """
     origem: Path
     producao: Path
@@ -193,6 +410,7 @@ class Plano:
     hash_main: dict[PurePath, str] = field(default_factory=dict)
     hash_producao: dict[PurePath, str] = field(default_factory=dict)
     data_main: dict[PurePath, float] = field(default_factory=dict)
+    pendentes_instale: list[PurePath] = field(default_factory=list)
 
     @property
     def a_trocar(self) -> list[PurePath]:
@@ -201,16 +419,25 @@ class Plano:
 
 
 def planejar(origem: Path, producao: Path,
-             data_main: Callable[[PurePath], float]) -> Plano:
+             data_main: Callable[[PurePath], float],
+             excluir: Callable[[PurePath], bool] | None = None) -> Plano:
     """Compara ``origem`` (o ``main``) com ``producao``. Nao grava nada.
 
     ``data_main(rel)`` devolve a data (epoch, s) do ``main`` para o arquivo:
-    commit (git), item do zip ou ``mtime`` na origem.
+    commit (git), item do zip ou ``mtime`` na origem. ``excluir(rel)`` tira
+    arquivos do plano (``--diario``: ``so_com_instale``); os que estiverem
+    diferentes vao para ``pendentes_instale``.
     """
     origem = Path(origem)
     producao = Path(producao)
     plano = Plano(origem=origem, producao=producao)
     for rel in candidatos(origem):
+        if excluir is not None and excluir(rel):
+            destino = producao / rel
+            if (not destino.is_file()
+                    or _sha256(destino) != _sha256(origem / rel)):
+                plano.pendentes_instale.append(rel)
+            continue
         h_main = _sha256(origem / rel)
         plano.hash_main[rel] = h_main
         quando = float(data_main(rel))
@@ -284,15 +511,28 @@ def _imprimir_plano(plano: Plano) -> None:
               f" -> {_curto(plano.hash_main[rel])}")
     for rel in plano.novos:
         print(f"  NOVO     {rel.name}: {_curto(plano.hash_main[rel])}")
+    for rel in plano.pendentes_instale:
+        print(f"  PENDENTE {rel.name}: diferente do main, so com \"instale\"")
 
 
 def executar(plano: Plano, producao: Path, assunto: str, simular: bool,
-             hoje: date) -> int:
-    """Aplica o plano (ou so mostra, com ``simular``). Devolve o codigo de saida."""
+             hoje: date, *, ignorar_trava: bool = False,
+             backup_total: bool = False) -> int:
+    """Aplica o plano (ou so mostra, com ``simular``). Devolve o codigo de saida.
+
+    ``ignorar_trava`` e ``backup_total`` sao do ``--primeira-vez``: a trava
+    "instalado por fora" so avisa e o backup leva TODOS os ``.py``/``.bat``
+    da raiz da producao, nao so os que serao substituidos.
+    """
     producao = Path(producao)
     _imprimir_plano(plano)
 
-    if plano.mais_novos_na_producao:
+    if plano.mais_novos_na_producao and ignorar_trava:
+        print("\nTRAVA IGNORADA (--primeira-vez): mais novos na producao,"
+              " vao para o backup total:")
+        for rel in plano.mais_novos_na_producao:
+            print(f"  {rel.name}")
+    elif plano.mais_novos_na_producao:
         print("\nTRAVA: a producao tem arquivo(s) mais novo(s) que o main"
               " (instalado por fora?). Nada foi trocado:")
         for rel in plano.mais_novos_na_producao:
@@ -305,13 +545,14 @@ def executar(plano: Plano, producao: Path, assunto: str, simular: bool,
         print("\nNada a fazer: a producao ja esta igual ao main.")
         return CODIGO_OK
 
-    backup = pasta_backup(producao, assunto, hoje) if plano.alterados else None
+    a_guardar = candidatos(producao) if backup_total else list(plano.alterados)
+    backup = pasta_backup(producao, assunto, hoje) if a_guardar else None
 
     if simular:
         print("\nSIMULACAO: nada foi gravado.")
         if backup is not None:
             print(f"Backup previsto: {_rel_producao(backup, producao)}"
-                  f" ({len(plano.alterados)} arquivo(s))")
+                  f" ({len(a_guardar)} arquivo(s))")
         else:
             print("Sem backup: so arquivos novos.")
         return CODIGO_OK
@@ -321,17 +562,18 @@ def executar(plano: Plano, producao: Path, assunto: str, simular: bool,
         try:
             backup.parent.mkdir(parents=True, exist_ok=True)
             backup.mkdir(exist_ok=False)
-            for rel in plano.alterados:
+            for rel in a_guardar:
+                esperado = plano.hash_producao.get(rel) or _sha256(producao / rel)
                 copia = backup / rel.name
                 shutil.copy2(producao / rel, copia)
-                if _sha256(copia) != plano.hash_producao[rel]:
+                if _sha256(copia) != esperado:
                     raise OSError(f"hash do backup de {rel.name} nao confere")
         except OSError as erro:
             print(f"\nERRO NO BACKUP ({type(erro).__name__}): {erro}")
             print("Nada foi trocado.")
             return CODIGO_BACKUP
         print(f"\nBackup conferido: {_rel_producao(backup, producao)}"
-              f" ({len(plano.alterados)} arquivo(s))")
+              f" ({len(a_guardar)} arquivo(s))")
 
     # 8. Troca.
     trocados: list[PurePath] = []
@@ -410,10 +652,14 @@ def _data_zip(info: zipfile.ZipInfo) -> float:
     return float(calendar.timegm(info.date_time + (0, 0, -1)))
 
 
-def baixar_main(destino: Path, url: str = URL_ZIP_MAIN) -> dict[PurePath, float]:
+def baixar_main(destino: Path, url: str = URL_ZIP_MAIN,
+                info: dict | None = None) -> dict[PurePath, float]:
     """Baixa o zip do ``main`` e extrai so os candidatos para ``destino``.
 
     Item excluido nao e extraido nem lido. Devolve a data de cada candidato.
+    Com ``info``, preenche ``info["sha"]`` (o comentario do zip do GitHub e o
+    SHA do commit) e ``info["versao_web"]`` (``VERSAO`` de
+    ``web/app/__init__.py``), sem extrair mais nada.
     """
     destino.mkdir(parents=True, exist_ok=True)
     arq_zip = destino.parent / "main.zip"
@@ -421,18 +667,26 @@ def baixar_main(destino: Path, url: str = URL_ZIP_MAIN) -> dict[PurePath, float]
         shutil.copyfileobj(resp, f)
     datas: dict[PurePath, float] = {}
     with zipfile.ZipFile(arq_zip) as z:
-        for info in z.infolist():
-            if info.is_dir():
+        if info is not None:
+            comentario = z.comment.decode("ascii", "ignore").strip().lower()
+            info["sha"] = comentario if _RE_SHA.match(comentario) else None
+            info["versao_web"] = None
+        for item in z.infolist():
+            if item.is_dir():
                 continue
-            partes = PurePath(info.filename).parts
+            partes = PurePath(item.filename).parts
+            if info is not None and partes[1:] == ("web", "app", "__init__.py"):
+                texto = z.read(item).decode("utf-8", "replace")
+                info["versao_web"] = versao_do_init(texto)
+                continue
             if len(partes) != 2:  # <raiz-do-zip>/<arquivo>: so a raiz do main
                 continue
             rel = PurePath(partes[1])
             if not _eh_candidato_nome(rel):
                 continue
-            with z.open(info) as src, open(destino / rel.name, "wb") as out:
+            with z.open(item) as src, open(destino / rel.name, "wb") as out:
                 shutil.copyfileobj(src, out)
-            datas[rel] = _data_zip(info)
+            datas[rel] = _data_zip(item)
     return datas
 
 
@@ -448,12 +702,255 @@ def _data_git(origem: Path, rel: PurePath) -> float | None:
     return float(texto) if r.returncode == 0 and texto.isdigit() else None
 
 
+# --------------------------------------------------------------------------
+# Rotina diaria (T-0018): rede, trava do robo, log e versao instalada
+# --------------------------------------------------------------------------
+
+class ErroApi(Exception):
+    """Falha na API publica do GitHub ou no ``/saude`` (sem token, sem segredo)."""
+
+
+def _get_json(url: str, timeout: float = 30):
+    """GET de JSON sem token (repositorio publico; limite de 60 req/h por IP).
+
+    Cota esgotada (403/429 com ``X-RateLimit-Remaining: 0``) ou qualquer erro
+    de rede vira ``ErroApi`` com mensagem curta, sem a URL.
+    """
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "bap-atualizador",
+        "X-GitHub-Api-Version": "2022-11-28",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as erro:
+        if erro.code in (403, 429) and erro.headers.get("X-RateLimit-Remaining") == "0":
+            raise ErroApi("cota da API do GitHub esgotada (60/h)") from None
+        raise ErroApi(f"HTTP {erro.code}") from None
+    except (OSError, ValueError) as erro:
+        raise ErroApi(type(erro).__name__) from None
+
+
+def cota_api() -> int:
+    """Requisicoes restantes na cota sem token (``/rate_limit`` nao gasta cota)."""
+    dados = _get_json(f"{URL_API}/rate_limit")
+    return int(dados["resources"]["core"]["remaining"])
+
+
+def _url_site() -> str | None:
+    """URL da web: ``BAP_WEB_URL`` ou o cofre (servico ``BAP_WEB``, ``url``),
+    a mesma do envio do pacote no ``bap_automation``. Nunca vai para o log."""
+    url = (os.environ.get("BAP_WEB_URL") or "").strip()
+    if not url:
+        try:
+            import keyring
+            url = (keyring.get_password("BAP_WEB", "url") or "").strip()
+        except Exception:  # noqa: BLE001
+            url = ""
+    return url if url.lower().startswith("https://") else None
+
+
+def versao_do_site() -> str | None:
+    """``versao`` do ``/saude`` da web, ou ``None`` (sem URL ou sem resposta)."""
+    url = _url_site()
+    if not url:
+        return None
+    try:
+        dados = _get_json(url.rstrip("/") + "/saude")
+    except ErroApi:
+        return None
+    versao = dados.get("versao") if isinstance(dados, dict) else None
+    return str(versao) if versao else None
+
+
+def idade_trava_robo(producao: Path, agora_epoch: float) -> float | None:
+    """Idade (s) da trava do robo na producao; ``None`` se nao existe.
+
+    So olha a data do arquivo: o conteudo (usuario e maquina) nao e lido.
+    """
+    try:
+        mtime = (Path(producao) / TRAVA_ROBO_REL).stat().st_mtime
+    except FileNotFoundError:
+        return None
+    return agora_epoch - mtime
+
+
+def sha_instalado(producao: Path) -> str | None:
+    """SHA gravado no ``VERSAO_INSTALADA.txt`` (``None`` se nao houver)."""
+    try:
+        texto = (Path(producao) / ARQ_VERSAO_REL).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    return sha_do_texto_versao(texto)
+
+
+def gravar_versao(producao: Path, sha: str, agora: datetime, n_trocados: int,
+                  modo: str) -> None:
+    """Grava ``SISTEMA BAP\\VERSAO_INSTALADA.txt`` (troca atomica)."""
+    destino = Path(producao) / ARQ_VERSAO_REL
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    tmp = destino.with_name(f".{destino.name}.tmp")
+    tmp.write_text(texto_versao_instalada(sha, agora, n_trocados, modo),
+                   encoding="utf-8")
+    os.replace(tmp, destino)
+
+
+def registrar(producao: Path, linha: str) -> None:
+    """Acrescenta uma linha ao ``SISTEMA BAP\\LOGS\\atualizacao_diaria.log``."""
+    arq = Path(producao) / ARQ_LOG_REL
+    try:
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        with open(arq, "a", encoding="utf-8") as f:
+            f.write(linha + "\n")
+    except OSError as erro:
+        print(f"AVISO: nao consegui gravar o log ({type(erro).__name__}).")
+
+
+def rodar_diario(producao: Path, simular: bool = False,
+                 agora: datetime | None = None) -> int:
+    """``--diario``: confere os 5 limites e, se todos passarem, instala.
+
+    Ordem (do mais barato ao mais caro): pausa; limite 4 (janela e robo);
+    cota da API; SHA do ``main`` (ja instalado -> 0); limite 1; limite 2;
+    zip do SHA conferido; limite 3; plano com ``so_com_instale``; limite 5;
+    troca. Limite que falha -> nada trocado, codigo proprio e 1 linha no log.
+    """
+    producao = Path(producao)
+    agora = agora or agora_manaus()
+    modo = "diario-simular" if simular else "diario"
+    sha: str | None = None
+
+    def fim(codigo: int, motivo: str) -> int:
+        print(f"[codigo {codigo}] {motivo}")
+        registrar(producao, linha_log(agora, modo, codigo, motivo, sha))
+        return codigo
+
+    if (producao / ARQ_PAUSA_REL).exists():
+        return fim(CODIGO_PAUSA, "rotina pausada (SISTEMA BAP\\PAUSAR_ATUALIZACAO)")
+    if not dentro_da_janela(agora):
+        hora = agora.astimezone(_fuso_manaus()).strftime("%H:%M")
+        return fim(CODIGO_LIMITE_JANELA,
+                   f"limite 4: {hora} fora da janela 06h00-07h30 (Manaus)")
+    if robo_rodando(idade_trava_robo(producao, agora.timestamp())):
+        return fim(CODIGO_LIMITE_ROBO, "limite 4: robo rodando (trava do bap_automation)")
+
+    try:
+        restantes = cota_api()
+        if restantes < REQUISICOES_MINIMAS_API:
+            return fim(CODIGO_API, f"API do GitHub sem cota ({restantes} restantes)")
+        commit = _get_json(f"{URL_API}/repos/{REPO}/commits/main")
+        candidato = str(commit["sha"]).lower()
+        if not _RE_SHA.match(candidato):
+            raise ValueError("sha invalido")
+        data_commit = data_iso(commit["commit"]["committer"]["date"])
+        sha = candidato
+    except (ErroApi, KeyError, TypeError, ValueError) as erro:
+        return fim(CODIGO_API, f"API do GitHub: {type(erro).__name__} {erro}")
+
+    if sha_instalado(producao) == sha:
+        return fim(CODIGO_OK, "nada a fazer: este main ja esta instalado")
+    if not commit_maduro(data_commit, agora):
+        horas = (agora - data_commit).total_seconds() / 3600
+        return fim(CODIGO_LIMITE_IDADE,
+                   f"limite 1: commit com {horas:.1f} h no main (minimo 2 h)")
+
+    try:
+        pulls = _get_json(f"{URL_API}/repos/{REPO}/commits/{sha}/pulls")
+        pr = pr_de_origem(pulls if isinstance(pulls, list) else [], sha)
+        if pr is None:
+            return fim(CODIGO_LIMITE_CI, "limite 2: commit sem PR de origem mesclado")
+        head = str((pr.get("head") or {}).get("sha", ""))
+        if not _RE_SHA.match(head):
+            return fim(CODIGO_LIMITE_CI, f"limite 2: PR #{pr.get('number')} sem head SHA")
+        runs = _get_json(f"{URL_API}/repos/{REPO}/commits/{head}/check-runs?per_page=100")
+        ok, motivo = ci_verde(runs.get("check_runs", []) if isinstance(runs, dict) else [])
+    except ErroApi as erro:
+        return fim(CODIGO_API, f"API do GitHub: {erro}")
+    if not ok:
+        return fim(CODIGO_LIMITE_CI, f"limite 2: CI do PR #{pr.get('number')} {motivo}")
+
+    temp = Path(tempfile.mkdtemp(prefix="bap_main_"))
+    try:
+        origem = temp / "main"
+        info: dict = {}
+        try:
+            datas = baixar_main(origem, URL_ZIP_SHA.format(sha=sha), info=info)
+        except (OSError, zipfile.BadZipFile) as erro:
+            return fim(CODIGO_ERRO, f"erro ao baixar o zip ({type(erro).__name__})")
+        if info.get("sha") and info["sha"] != sha:
+            return fim(CODIGO_ERRO, "o zip baixado e de outro commit")
+
+        v_main = info.get("versao_web")
+        v_site = versao_do_site()
+        if not versoes_batem(v_main, v_site):
+            return fim(CODIGO_LIMITE_VERSAO_WEB,
+                       f"limite 3: web no main {v_main or '?'} x /saude "
+                       f"{v_site or 'sem resposta'} (deploy pendente?)")
+
+        try:
+            plano = planejar(origem, producao, lambda rel: datas[rel],
+                             excluir=so_com_instale)
+        except (OSError, ValueError) as erro:
+            return fim(CODIGO_ERRO, f"erro ao comparar ({type(erro).__name__})")
+        if plano.mais_novos_na_producao:
+            _imprimir_plano(plano)
+            nomes = ", ".join(r.name for r in plano.mais_novos_na_producao)
+            return fim(CODIGO_TRAVA, f"limite 5: instalado por fora: {nomes}")
+
+        codigo = executar(plano, producao, ASSUNTO_DIARIO, simular, agora.date())
+        trocados = plano.a_trocar
+        resumo = ", ".join(f"{r.name} {plano.hash_main[r][:7]}"
+                           for r in trocados) or "nenhum arquivo diferente"
+        pendentes = ", ".join(r.name for r in plano.pendentes_instale)
+        if pendentes:
+            resumo += f"; pendente de instale: {pendentes}"
+        if codigo == CODIGO_OK and not simular:
+            try:
+                gravar_versao(producao, sha, agora, len(trocados), "diario")
+            except OSError as erro:
+                print(f"AVISO: VERSAO_INSTALADA.txt nao gravado ({type(erro).__name__}).")
+        if simular:
+            prefixo = "simulado"
+        else:
+            prefixo = "instalado" if codigo == CODIGO_OK else "falhou"
+        return fim(codigo, f"{prefixo}: {resumo}")
+    finally:
+        shutil.rmtree(temp, ignore_errors=True)
+
+
+def agendar(pasta: Path, remover: bool = False) -> int:
+    """``--agendar`` / ``--remover-agendamento`` (so no Windows)."""
+    if os.name != "nt":
+        print("ERRO: o agendamento so existe no Windows.")
+        return CODIGO_ERRO
+    try:
+        cmd = comando_remover() if remover else comando_agendar(pasta)
+    except ValueError as erro:
+        print(f"ERRO: {erro}")
+        return CODIGO_ERRO
+    r = subprocess.run(cmd, check=False)
+    if r.returncode != 0:
+        print("ERRO: o schtasks falhou.")
+        return CODIGO_ERRO
+    print("Tarefa removida." if remover else
+          f"Tarefa '{NOME_TAREFA}' criada: todo dia as {HORA_TAREFA}.")
+    return CODIGO_OK
+
+
 def _configurar_saida() -> None:
     for fluxo in (sys.stdout, sys.stderr):
         try:
             fluxo.reconfigure(errors="replace")
         except (AttributeError, ValueError):
             pass
+
+
+def _sha_git(origem: Path) -> str | None:
+    r = subprocess.run(["git", "-C", str(origem), "rev-parse", "HEAD"],
+                       capture_output=True, text=True, check=False)
+    sha = r.stdout.strip().lower()
+    return sha if r.returncode == 0 and _RE_SHA.match(sha) else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -467,17 +964,42 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--producao", type=Path,
                     default=Path(__file__).resolve().parent,
                     help="pasta de producao (padrao: a pasta deste programa)")
-    ap.add_argument("--assunto", default=ASSUNTO_PADRAO,
+    ap.add_argument("--assunto", default=None,
                     help=f"assunto do backup (padrao: {ASSUNTO_PADRAO})")
     ap.add_argument("--simular", action="store_true",
                     help="so mostra o plano; nao grava nada")
+    modos = ap.add_mutually_exclusive_group()
+    modos.add_argument("--diario", action="store_true",
+                       help="rotina agendada: so instala se os 5 limites passarem")
+    modos.add_argument("--primeira-vez", action="store_true",
+                       help="manual: backup total e ignora a trava 'instalado por fora'")
+    modos.add_argument("--agendar", action="store_true",
+                       help="cria a tarefa do Windows das 06h30 nesta pasta")
+    modos.add_argument("--remover-agendamento", action="store_true",
+                       help="remove a tarefa do Windows")
+    ap.add_argument("--confirmar", action="store_true",
+                    help="obrigatorio no --primeira-vez (fora do --simular)")
     try:
         args = ap.parse_args(argv)
     except SystemExit as e:
         return CODIGO_OK if e.code == 0 else CODIGO_ERRO
 
+    if args.agendar or args.remover_agendamento:
+        return agendar(Path(__file__).resolve().parent, args.remover_agendamento)
+
+    if args.diario and (args.origem is not None or args.assunto is not None):
+        print("ERRO: --diario nao aceita --origem nem --assunto.")
+        return CODIGO_ERRO
+    if args.primeira_vez and not (args.confirmar or args.simular):
+        print("ERRO: --primeira-vez troca tudo com backup total e ignora a trava"
+              " 'instalado por fora'. Rode antes com --simular e, depois, com"
+              " --confirmar.")
+        return CODIGO_ERRO
+
+    padrao = ASSUNTO_PRIMEIRA_VEZ if args.primeira_vez else ASSUNTO_PADRAO
+    assunto = args.assunto or padrao
     try:
-        nome_backup(args.assunto, date(2000, 1, 1))
+        nome_backup(assunto, date(2000, 1, 1))
     except ValueError:
         print("ERRO: --assunto invalido (use letras, numeros e _).")
         return CODIGO_ERRO
@@ -487,17 +1009,28 @@ def main(argv: list[str] | None = None) -> int:
         print("ERRO: a pasta de producao nao existe.")
         return CODIGO_ERRO
 
+    if args.diario:
+        return rodar_diario(producao, simular=args.simular)
+
+    agora = agora_manaus()
+    if args.primeira_vez and robo_rodando(idade_trava_robo(producao, agora.timestamp())):
+        print("ERRO: o robo esta rodando (trava do bap_automation). Espere ele terminar.")
+        return CODIGO_LIMITE_ROBO
+
     temp: Path | None = None
+    sha: str | None = None
     try:
         if args.origem is None:
             temp = Path(tempfile.mkdtemp(prefix="bap_main_"))
             origem = temp / "main"
             print("Baixando o main do GitHub...")
+            info: dict = {}
             try:
-                datas = baixar_main(origem)
+                datas = baixar_main(origem, info=info)
             except (OSError, zipfile.BadZipFile) as erro:
                 print(f"ERRO ao baixar o main ({type(erro).__name__}): {erro}")
                 return CODIGO_ERRO
+            sha = info.get("sha")
 
             def data_main(rel: PurePath) -> float:
                 return datas[rel]
@@ -517,6 +1050,7 @@ def main(argv: list[str] | None = None) -> int:
                 if r.returncode != 0:
                     print("ERRO: git pull --ff-only falhou na origem.")
                     return CODIGO_ERRO
+                sha = _sha_git(origem)
 
             def data_main(rel: PurePath) -> float:
                 if usa_git:
@@ -530,8 +1064,22 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as erro:
             print(f"ERRO ao comparar ({type(erro).__name__}): {erro}")
             return CODIGO_ERRO
-        return executar(plano, producao, args.assunto, args.simular,
-                        hoje_manaus())
+        codigo = executar(plano, producao, assunto, args.simular, agora.date(),
+                          ignorar_trava=args.primeira_vez,
+                          backup_total=args.primeira_vez)
+        modo = "primeira-vez" if args.primeira_vez else "manual"
+        if codigo == CODIGO_OK and not args.simular and sha:
+            try:
+                gravar_versao(producao, sha, agora, len(plano.a_trocar), modo)
+            except OSError as erro:
+                print(f"AVISO: VERSAO_INSTALADA.txt nao gravado ({type(erro).__name__}).")
+        if args.primeira_vez:
+            nomes = ", ".join(r.name for r in plano.a_trocar) or "nenhum"
+            if args.simular:
+                modo += "-simular"
+            registrar(producao, linha_log(agora, modo, codigo,
+                                          f"trocados: {nomes}", sha))
+        return codigo
     finally:
         if temp is not None:
             shutil.rmtree(temp, ignore_errors=True)
