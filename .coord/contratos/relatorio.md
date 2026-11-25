@@ -336,6 +336,7 @@ relatorios["pl_inadimplencia"] = {
 | `avisos` | `list[str]` (§2) | os do PC; o robô pode acrescentar (ex.: bloco tirado) |
 | `recortes` | `{"<UF>": {"kpis": list[Kpi]}}` | opcional. UF = 2 letras maiúsculas. **Só os kpis** por estado (abaixo). Atenção: é chaveado direto pela UF, sem o `{"uf": ...}` da forma "abas" |
 | `baixado_em` | `str` ISO 8601 com fuso de Manaus (`-04:00`) ou `null` | a hora em que a base do farol foi baixada do ERP, **não** a hora em que o pacote foi montado (essa é o `gerado_em` do topo do pacote). A tela mostra os dois |
+| `kpis_faixa` | `true` ou ausente | opcional. Igual ao `rel["kpis_faixa"]` do PC (`relatorios_nucleo.farol_pedidos`; hoje só o Farol de Pedidos, `pv_pedidos`): os cartões de cima numa faixa fina, em vez da grade de cartões (`bap_relatorios.py`, `_kpis_em_faixa`). Só muda o desenho; os `kpis` são os mesmos. Ausente = grade de cartões |
 
 **Filtro (o que sai do `rel` do PC):**
 - só as chaves da tabela acima (mais `tabelas` e `cobranca` no `pl_inadimplencia`, §10.6). Fora: `tabelas` (nos outros faróis), `juntas`, `graficos` (os gráficos que a web mostra vêm dentro dos blocos do painel), `paineis`, `painel_pre`, `parametros`, `capa`, `params_usados`, `fonte`, `subtitulo`;
@@ -431,6 +432,8 @@ Lista conferida no `main` em `c8a9267` (nome e tipo):
 
 `CLIENTE` é o código-loja do PC (ex.: `"001234-01"`). CNPJ não vai ("2 A").
 
+**NOME sem documento (só no site; RN-POS-004, "CNPJ não vai ao site"):** a coluna `NOME` das duas tabelas vai com o texto de `cobranca_whatsapp.nome_sem_documento(nome)`, que tira o CPF/CNPJ do começo do nome quando o cadastro o traz ali. O PC continua igual: as abas do Tkinter mostram o nome como está. A "igualdade" com o PC vale com essa troca na coluna `NOME`.
+
 **Igualdade:** célula a célula, a tabela da web é a do PC depois do `montar`, sem a coluna TELEFONE, com os mesmos `tons` e o mesmo `chip` de cada coluna. O `testes` compara.
 
 #### 10.6.3 Bloco `cobranca`
@@ -471,7 +474,7 @@ Lista conferida no `main` em `c8a9267` (nome e tipo):
 | Chave | Tipo | Regra |
 |---|---|---|
 | `cod` | `str` | código-loja, igual à coluna CLIENTE |
-| `nome` | `str` | NOME da aba "Por cliente" |
+| `nome` | `str` | NOME da aba "Por cliente", sem o CPF/CNPJ do começo (`cobranca_whatsapp.nome_sem_documento`, RN-POS-004), igual à coluna `NOME` do site |
 | `nome_msg` | `str` | o nome usado na mensagem (fantasia do cadastro, ou `nome`) |
 | `cidade`, `uf`, `vendedor`, `supervisor` | `str` | da aba "Por cliente" |
 | `em_atraso` | `float` | EM ATRASO |

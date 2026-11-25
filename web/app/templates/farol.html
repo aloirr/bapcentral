@@ -1,10 +1,20 @@
 {% extends "base.html" %}
 {% block titulo %}{{ farol_nome }}{% endblock %}
 {% from "_estados.html" import barras_estados %}
+{% block faixa %}{% if fila is defined %}<div class="aviso info faixa-pc">Situação do PC até {{ pc_ate|hhmm }}. O que você marcar aqui chega ao PC às 08h ou 14h.</div>{% endif %}{% endblock %}
+{% block cabeca %}{% if noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}{% endblock %}
 {% block corpo %}
-{% if not tela %}
+{% if not tela and not tabela and fila is not defined %}
 <h1>{{ farol_nome }}</h1>
 <p class="aviso atencao">{{ indisponivel|capitalize }}.</p>
+{% else %}
+{% if abas %}
+<nav class="abas abas-quebra" aria-label="Abas do farol">{% for c, n in abas %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}" class="{{ 'ativa' if c == aba }}">{{ n }}</a>{% endfor %}</nav>
+{% endif %}
+{% if tabela %}
+{% include "_tabela.html" %}
+{% elif fila is defined %}
+{% include "_fila.html" %}
 {% else %}
 <header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
 {% if tela.ufs %}
@@ -61,5 +71,6 @@
 </article>
 {% endfor %}
 </section>
+{% endif %}
 {% endif %}
 {% endblock %}

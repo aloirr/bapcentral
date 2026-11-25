@@ -1,0 +1,36 @@
+{% macro cartao(c) %}
+<article class="cob{{ ' tratado' if c.situacao }}" data-cod="{{ c.cod }}">
+  <div class="cob-cab">
+    <div class="cob-nome"><b>{{ c.nome }}</b><small>{{ c.cod }} · {{ c.cidade }}/{{ c.uf }}</small></div>
+    <div class="cob-val">R$ {{ '{:,.2f}'.format(c.em_atraso).replace(',', 'X').replace('.', ',').replace('X', '.') }}<small>{{ c.titulos|length }} título(s) · {{ c.maior }} dias</small></div>
+  </div>
+  <div class="cob-sit"><span class="selo cob-sit-txt {{ 'selo-ok' if c.situacao.startswith('ENVIADO') else ('selo-neutro' if c.situacao else 'selo-cobrar') }}">{{ c.situacao or 'A COBRAR' }}</span><span class="cob-desfaz" hidden></span></div>
+  <label>Mensagem
+    <textarea class="cob-msg" rows="5">{{ c.mensagem }}</textarea></label>
+  <label>Outro telefone (só neste envio)
+    <input class="cob-tel" inputmode="tel" autocomplete="off" placeholder="{{ c.whatsapp|fone if c.whatsapp else 'DDD + número' }}"></label>
+  {% if c.aviso %}<p class="cob-aviso">⚠ {{ c.aviso }}</p>{% endif %}
+  <div class="cob-acoes">
+    <a class="cob-link botao" data-base="{{ c.whatsapp }}" href="{{ c.link or '#' }}" target="_blank" rel="noopener noreferrer"{{ ' hidden' if not c.link }}>Abrir WhatsApp</a>
+    <button type="button" class="cob-enviado" data-acao="ENVIADO" hidden>Marquei como enviado</button>
+    <button type="button" class="cob-pulado" data-acao="PULADO">Pular</button>
+  </div>
+  <p class="cob-erro" role="status"></p>
+</article>
+{% endmacro %}
+<header class="cab-painel"><h1>{{ farol_nome }} · Cobrar no WhatsApp</h1><span>{{ n_fila }} clientes{% if n_tratados %} · <a href="/farol/{{ rid }}?aba=cobrar&amp;pag={{ paginas }}#tratados">{{ n_tratados }} já tratados hoje</a>{% endif %}</span></header>
+<section class="fila" data-url="/farol/{{ rid }}/cobranca" data-csrf="{{ csrf }}" data-sha="{{ pacote_sha }}">
+{% for c in fila %}{{ cartao(c) }}{% else %}{% if not tratados %}<p class="aviso atencao">Nenhum cliente na fila.</p>{% endif %}{% endfor %}
+</section>
+{% if paginas > 1 %}
+<nav class="paginas">{% if pag > 1 %}<a href="/farol/{{ rid }}?aba=cobrar&amp;pag={{ pag - 1 }}">« Anterior</a>{% endif %}
+  <span>Página {{ pag }} de {{ paginas }}</span>
+  {% if pag < paginas %}<a href="/farol/{{ rid }}?aba=cobrar&amp;pag={{ pag + 1 }}">Próxima »</a>{% endif %}</nav>
+{% endif %}
+{% if tratados %}
+<details class="tratados" id="tratados"><summary>Já tratados hoje ({{ tratados|length }})</summary>
+<section class="fila" data-url="/farol/{{ rid }}/cobranca" data-csrf="{{ csrf }}" data-sha="{{ pacote_sha }}">
+{% for c in tratados %}{{ cartao(c) }}{% endfor %}
+</section></details>
+{% endif %}
+<script src="/static/cobranca.js"></script>

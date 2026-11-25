@@ -80,8 +80,8 @@ Você é o **Gerente de Projetos Sênior** do BAP Tools.
 - **Proibido:** force push, rebase do `main`, push direto ao `main`, merge com CI vermelho, apagar histórico.
 
 ## Produção (PC Windows) — atenção
-- O BAP Tools de produção continua rodando no PC (robô na DT-AMADMBAP-03, faróis no notebook e no desktop), pela pasta do OneDrive.
-- Código do `main` só chega lá pelo `ATUALIZAR_DO_GITHUB.bat` (tarefa T-0003), com backup `ANTES_<ASSUNTO>_<MÊS><ANO>` e conferência byte a byte, depois do "instale" do Alexandre.
+- O BAP Tools de produção roda no PC, pela pasta de produção no OneDrive (a pessoal, R-20261124-214958-alexandre; a mudança do robô para ela é da T-0018).
+- Código do `main` chega lá pela rotina diária (`atualizar_do_github.py --diario`, regra 11 e ADR 0002), com backup e conferência byte a byte e só se passar nos 5 limites. Os `.bat` de instalação, o `atualizar_do_github.py`, o `tarefa_bap.xml` e as configs continuam com o "instale" do Alexandre.
 - Nunca diga "instalado" antes disso.
 
 ## Regras

@@ -93,6 +93,20 @@ def fone_bonito(n: str) -> str:
 
 
 # ------------------------------------------------------------- a fila
+_DOC_INICIAL = re.compile(r"^\s*(?=(?:[.\-/\s]*\d){6})[\d.\-/\s]+")
+
+
+def nome_sem_documento(nome) -> str:
+    """Nome sem CPF/CNPJ (nem pedaco com 6+ digitos, ponto, traco ou barra)
+    no comeco. MEI: '12.345.678 FULANO' -> 'FULANO' (RN-POS-004)."""
+    return _DOC_INICIAL.sub("", texto(nome)).strip()
+
+
+def nome_saudacao(nome) -> str:
+    """Nome para a saudacao (sem documento no comeco)."""
+    return nome_sem_documento(nome)
+
+
 def fila(farol: dict, nomes=None) -> list[dict]:
     """Os clientes INADIMPLENTES do Farol de Inadimplencia com os titulos
     vencidos (do maior atraso em R$ para o menor). nomes: {cod: nome para
@@ -120,8 +134,9 @@ def fila(farol: dict, nomes=None) -> list[dict]:
         ts = sorted(tits.get(cod, []), key=lambda x: -x["dias"])
         saida.append({
             "cod": cod, "nome": texto(l[ic["NOME"]]),
-            "nome_msg": (nomes or {}).get(cod.split("-")[0]) or texto(
-                l[ic["NOME"]]),
+            "nome_msg": nome_saudacao(
+                (nomes or {}).get(cod.split("-")[0])) or nome_saudacao(
+                l[ic["NOME"]]) or "cliente",
             "cidade": texto(l[ic["CIDADE"]]), "uf": texto(l[ic["UF"]]),
             "vendedor": texto(l[ic["VENDEDOR"]]),
             "supervisor": texto(l[ic["SUPERVISOR"]]),
@@ -146,7 +161,7 @@ def mensagem(cli: dict, modelo: str = MODELO) -> str:
         linhas.append(f"• e mais {len(ts) - 12} título(s)")
     nome = " ".join(w.lower() if w.lower() in ("da", "das", "de", "do",
                                                "dos", "e") else
-                    w.capitalize() for w in cli["nome_msg"].split())
+                    w.capitalize() for w in (nome_saudacao(cli["nome_msg"]) or "cliente").split())
     total = sum(x["saldo"] for x in ts) or cli["em_atraso"]
     return modelo.format(
         cliente=nome, total=moeda(total), titulos="\n".join(linhas),
@@ -201,21 +216,7 @@ def registrar(raiz, cli: dict, acao: str, numero: str = "",
 
 def historico(raiz) -> dict:
     """{cliente: (quando, acao)} - o ultimo registro de cada cliente."""
-    ult = {}
-    p_ = pasta(raiz)
-    if not p_.exists():
-        return ult
-    for arq in sorted(p_.glob("COBRANCA_*.csv")):
-        try:
-            with open(arq, encoding="utf-8-sig", newline="") as f:
-                for r in csv.DictReader(f, delimiter=";"):
-                    c = texto(r.get("cliente"))
-                    q = texto(r.get("quando"))
-                    if c and q >= ult.get(c, ("",))[0]:
-                        ult[c] = (q, texto(r.get("acao")))
-        except (OSError, ValueError, UnicodeDecodeError):
-            continue
-    return ult
+    return {c: v[:2] for c, v in historico_origem(raiz).items()}
 
 
 def situacao(hist: dict, cod: str, hoje=None) -> str:
@@ -235,6 +236,120 @@ def situacao(hist: dict, cod: str, hoje=None) -> str:
     if (hoje - d).days < DIAS_RECENTE:
         return f"ENVIADO {d:%d/%m}"
     return ""
+
+
+# ------------------------------------------------------------- o site (T-0017)
+CAMPOS_WEB = CAMPOS_CSV + ("id",)
+ARQ_WEB = "COBRANCA_WEB.csv"
+
+
+def _iso(v) -> str:
+    if hasattr(v, "strftime"):
+        return f"{v:%Y-%m-%d}"
+    return texto(v)
+
+
+def historico_origem(raiz) -> dict:
+    """{cliente: (quando, acao, maquina)}: como historico(), mas com a
+    maquina do registro (WEB = feito no site). historico() nao muda."""
+    ult = {}
+    p_ = pasta(raiz)
+    if not p_.exists():
+        return ult
+    for arq in sorted(p_.glob("COBRANCA_*.csv")):
+        try:
+            with open(arq, encoding="utf-8-sig", newline="") as f:
+                for r in csv.DictReader(f, delimiter=";"):
+                    c = texto(r.get("cliente"))
+                    q = texto(r.get("quando"))
+                    if c and q >= ult.get(c, ("",))[0]:
+                        ult[c] = (q, texto(r.get("acao")),
+                                  texto(r.get("maquina")))
+        except (OSError, ValueError, UnicodeDecodeError):
+            continue
+    return ult
+
+
+def _gerado_em(hoje) -> str:
+    from datetime import timedelta, timezone               # noqa: PLC0415
+    tz = timezone(timedelta(hours=-4))                     # Manaus
+    if isinstance(hoje, datetime):
+        d = hoje.astimezone(tz) if hoje.tzinfo else hoje.replace(tzinfo=tz)
+    else:
+        d = datetime.now(tz)
+    return d.isoformat(timespec="seconds")
+
+
+def pacote_web(farol: dict, nomes, hist: dict, hoje=None, *,
+               web_ate_seq: int = 0, web_epoca: str = "",
+               gerado_em: str = "") -> dict:
+    """Bloco `cobranca` do contrato (§10.6.3), sem telefone cadastral.
+    hist: historico_origem() (tuplas de 3) ou historico() (tuplas de 2,
+    origem PC). gerado_em, web_epoca e web_ate_seq vem do robo (hora da
+    rodada, epoca do diario e maior seq ja gravado, §10.6.3). Sem gerado_em,
+    usa `hoje` (datetime) ou agora."""
+    itens = []
+    for it in fila(farol, nomes):
+        msg = mensagem(it)
+        h = (hist or {}).get(it["cod"])
+        ult = None
+        if h and h[0]:
+            org = "WEB" if len(h) > 2 and h[2].upper() == "WEB" else "PC"
+            ult = {"quando": h[0], "acao": h[1], "origem": org}
+        itens.append({
+            "cod": it["cod"], "nome": nome_sem_documento(it["nome"]),
+            "nome_msg": it["nome_msg"],
+            "cidade": it["cidade"], "uf": it["uf"],
+            "vendedor": it["vendedor"], "supervisor": it["supervisor"],
+            "em_atraso": float(it["em_atraso"]), "maior": int(it["maior"]),
+            "whatsapp": it["whatsapp"], "aviso": it["aviso"],
+            "titulos": [{"nf": x["nf"], "parc": x["parc"],
+                         "venc": _iso(x["venc"]), "dias": int(x["dias"]),
+                         "saldo": float(x["saldo"])}
+                        for x in it["titulos"]],
+            "mensagem": msg, "ultimo": ult})
+    return {"gerado_em": gerado_em or _gerado_em(hoje),
+            "web_epoca": str(web_epoca), "web_ate_seq": int(web_ate_seq),
+            "dias_recente": DIAS_RECENTE,
+            "modelo": MODELO, "fila": itens}
+
+
+def importar_web(raiz, linhas, nomes=None) -> int:
+    """Acrescenta ao COBRANCA_WEB.csv os registros do diario do site (§10.6.7).
+    Pula `id` ja gravado (idempotente). Erro de disco levanta excecao."""
+    p_ = pasta(raiz)
+    arq = p_ / ARQ_WEB
+    vistos = set()
+    if arq.exists():
+        with open(arq, encoding="utf-8-sig", newline="") as f:
+            vistos = {texto(r.get("id")) for r in
+                      csv.DictReader(f, delimiter=";")}
+    novas = []
+    for r in linhas or []:
+        i = texto(r.get("id"))
+        if not i or i in vistos:
+            continue
+        vistos.add(i)
+        cod = texto(r.get("cliente"))
+        novas.append({
+            "quando": texto(r.get("quando")), "maquina": "WEB",
+            "usuario": texto(r.get("usuario")), "cliente": cod,
+            "nome": (nomes or {}).get(cod, ""),
+            "telefone": texto(r.get("telefone")),
+            "em_atraso": f"{float(r.get('em_atraso') or 0):.2f}",
+            "titulos": int(r.get("titulos") or 0),
+            "acao": texto(r.get("acao")), "id": i})
+    if not novas:
+        return 0
+    p_.mkdir(parents=True, exist_ok=True)
+    novo = not arq.exists()
+    with open(arq, "a", encoding="utf-8-sig" if novo else "utf-8",
+              newline="") as f:
+        w = csv.DictWriter(f, fieldnames=CAMPOS_WEB, delimiter=";")
+        if novo:
+            w.writeheader()
+        w.writerows(novas)
+    return len(novas)
 
 
 # ------------------------------------------------------------- a janela

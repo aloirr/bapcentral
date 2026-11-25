@@ -68,7 +68,7 @@ Python 3.12; as telas atuais são Tkinter (Windows). Tudo em **português do Bra
    - "BAP AUTOPARTS" nos materiais.
 9. **TI da empresa:** nada que dependa de registro de aplicativo no Microsoft 365/Graph.
 10. **"Simule" = mostrar antes.** Tela, PDF, e-mail ou número do Diretor: primeiro a simulação (PNG/PDF), depois o PR.
-11. **Produção no PC:** código do `main` só vai para a pasta de produção depois do **"instale" do Alexandre**, com backup `SISTEMA BAP\BACKUP_RELATORIOS\ANTES_<ASSUNTO>_<MÊS><ANO>` e conferência byte a byte (T-0003).
+11. **Produção no PC:** a rotina diária (`atualizar_do_github.py --diario`, tarefa agendada às 06h30 no notebook do robô) leva os `.py`/`.bat` da raiz do `main` para a pasta de produção (a pessoal, R-20261124-214958), com backup `SISTEMA BAP\BACKUP_RELATORIOS\ANTES_DIARIO_<MÊS><ANO>` e conferência byte a byte. Só instala se: (1) o commit tiver 2 h ou mais no `main`; (2) o PR de origem teve CI verde no head SHA; (3) a versão da web no `main` for igual à do `/saude`; (4) estiver na janela 06h00–07h30 de Manaus, com o robô parado; (5) a trava "instalado por fora" não tiver disparado. Falha = nada trocado + uma linha no log; pausa por `SISTEMA BAP\PAUSAR_ATUALIZACAO`. Os `.bat` de instalação, o `atualizar_do_github.py`, o `tarefa_bap.xml` e as configs continuam com o **"instale" do Alexandre** (ADR 0002).
 
 ## Git e PR
 - Branch `<agente>/T-nnnn-<assunto>`. Commit `T-nnnn: <resumo>` + trailer `Agente: <dono>`.
