@@ -26,22 +26,26 @@ def test_T0020_cartao_so_com_traco_nao_aparece():
 
 
 def test_T0020_resumo_nao_repete_numero_de_cartao():
-    kpis = [{"valor": "R$ 980 mil", "detalhe": "45% dos pedidos", "linhas": [{"valor": "R$ 310 mil"}]}]
+    kpis = [{"valor": "R$ 980 mil", "detalhe": "45% dos pedidos", "linhas": [{"rot": "Acima de 90 dias", "valor": "R$ 310 mil"}]},
+            {"valor": "10", "detalhe": "5 atrasado(s)", "linhas": []}, {"valor": "100%", "detalhe": "", "linhas": []}]
     ins = [{"tom": "info", "texto": "Recebido no mês: R$ 980 mil."},
+           {"tom": "alerta", "texto": "Em aberto: 10 (5 atrasados)."},
            {"tom": "alerta", "texto": "Atraso acima de 90 dias soma R$ 310 mil (45%)."},
-           {"tom": "alerta", "texto": "5 pedidos fora do prazo (R$ 5.837)."},
+           {"tom": "alerta", "texto": "12 clientes acima de 90 dias somam R$ 310 mil."},
+           {"tom": "alerta", "texto": "Vendedor 03 com 100% da carteira vencida."},
            {"tom": "info", "texto": "Pedidos digitados subiram."}]
     assert [i["texto"] for i in render.sem_repeticao(ins, kpis)] == [
-        "5 pedidos fora do prazo (R$ 5.837).", "Pedidos digitados subiram."]
+        "12 clientes acima de 90 dias somam R$ 310 mil.", "Vendedor 03 com 100% da carteira vencida.",
+        "Pedidos digitados subiram."]
 
 
-def test_T0020_coluna_que_so_repete_outra_e_razao_social_com_fantasia():
+def test_T0020_so_a_razao_social_sai_e_so_com_fantasia_preenchida():
     tab = {"cols": [{"nome": "PEDIDO"}, {"nome": "PED. MÁX."}, {"nome": "RAZÃO SOCIAL"}, {"nome": "FANTASIA"},
-                    {"nome": "QTD", "num": True}, {"nome": "ATENDIDO", "num": True}, {"nome": "OBS"}, {"nome": "OBS 2"}],
-           "linhas": [_cel("1", "1", "A LTDA", "A", "2", "2", "", ""), _cel("2", "2", "B LTDA", "B", "3", "3", "", "")]}
-    assert tabelas.colunas_ocultas(tab) == {1, 2}          # número igual e coluna vazia ficam
-    tab["linhas"][1]["cel"][1]["t"] = "9"
-    assert tabelas.colunas_ocultas(tab) == {2}             # PED. MÁX. diferente em uma linha: fica
+                    {"nome": "DT. PREVISTA"}, {"nome": "DT. REAL"}, {"nome": "UF"}, {"nome": "FILIAL"}],
+           "linhas": [_cel("1", "1", "A LTDA", "A", "20/11", "20/11", "AM", "AM")]}
+    assert tabelas.colunas_ocultas(tab) == {2}             # coluna igual por coincidência fica
+    tab["linhas"].append(_cel("2", "2", "B LTDA", "", "21/11", "21/11", "PA", "PA"))
+    assert tabelas.colunas_ocultas(tab) == set()           # FANTASIA vazia numa linha: a RAZÃO SOCIAL fica
     assert tabelas.colunas_ocultas({"cols": [{"nome": "RAZÃO SOCIAL"}], "linhas": []}) == set()
 
 
@@ -52,7 +56,9 @@ def test_T0020_pedidos_juntas_lado_a_lado_titulo_sem_aba_e_sem_rotulo_estado(adm
     assert '<div class="juntas">' in corpo and corpo.count('<section class="junta">') == 3
     assert "<h1>Farol de Pedidos</h1>" in corpo and "Farol de Pedidos · Pedidos" not in corpo
     assert '<span class="f-rot">Estado</span>' not in corpo
-    assert 'class=" oc"' in corpo or ' oc"' in corpo       # RAZÃO SOCIAL escondida (há FANTASIA)
+    import re
+    ocultas = re.findall(r'<th class="[^"]*\boc\b[^"]*"><a [^>]*>([^<]+)</a>', corpo)
+    assert ocultas == ["RAZÃO SOCIAL"]                       # só ela some; FANTASIA e as datas ficam
 
 
 def test_T0020_baixado_do_erp_so_quando_difere_do_pacote(admin):
@@ -60,6 +66,8 @@ def test_T0020_baixado_do_erp_so_quando_difere_do_pacote(admin):
     p["relatorios"]["pl_inadimplencia"]["baixado_em"] = "2026-11-22T18:27:00-04:00"
     assert postar(admin, p).status_code == 200
     assert "Baixado do ERP em 22/11/2026 18:27" in admin.get("/farol/pl_inadimplencia").text
+    assert render.datas_proximas("2026-11-24T08:58:00-04:00", "2026-11-24T09:01:00-04:00")
+    assert not render.datas_proximas("2026-11-22T18:27:00-04:00", "2026-11-24T08:30:00-04:00")
 
 
 def test_T0020_visual_c_marca_bap_sem_azul_nem_laranja():
