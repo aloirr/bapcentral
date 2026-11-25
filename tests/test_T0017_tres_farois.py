@@ -110,25 +110,141 @@ def test_RN_GER_006_pedidos_estado_pela_filial_da_nota_so_do_mes_do_farol():
     assert sum(int(v) for v in _valores(rec).values()) == 3
 
 
-def test_RN_GER_006_pedidos_sem_tabela_sem_acao_com_faixa_e_vendedor():
-    t = _tabela("Pedidos", [("NOV/26", "MANAUS")], mes="NOV/26")
-    r = _farol("Farol de Pedidos", t, kpis_faixa=True, blocos=[
-        {"tipo": "hbarras", "titulo": "Pedidos em aberto por vendedor (R$)",
-         "rotulos": ["Vendedor 01"], "valores": [10.0], "formato": "moeda"},
-        {"tipo": "tabela", "titulo": "outra", "colunas": [], "linhas": []}])
-    s = ba.selecionar_farol_web("pv_pedidos", r)
+# Pedidos conforme o contrato §10.7.3 (lista escrita aqui, à mão: nome, tipo,
+# oculta). Dados fictícios.
+_PED_COLS = (
+    ("DT. PED", "dia", 0), ("FATURAR ATÉ", "dia", 0), ("PEDIDO", "texto", 0),
+    ("PED. MÁX.", "texto", 0), ("CÓD.", "texto", 0),
+    ("RAZÃO SOCIAL", "texto", 0), ("FANTASIA", "texto", 0),
+    ("UF", "texto", 0), ("CIDADE", "texto", 0), ("LIMITE", "moeda", 0),
+    ("DISP.", "moeda", 0), ("ATRASO", "moeda", 0), ("VOL.", "num", 0),
+    ("R$ TABELA", "moeda", 0), ("R$ VENDA", "moeda", 0),
+    ("% DESC.", "pct1", 0), ("SLA", "int", 0), ("% ATENDIDO", "pct", 0),
+    ("ANÁLISE CRÉDITO", "texto", 0), ("COND. PAGTO", "texto", 0),
+    ("SITUAÇÃO", "texto", 0), ("FILIAL", "texto", 0), ("PRAZO", "texto", 0),
+    ("VENDEDOR", "texto", 0), ("NF", "texto", 0), ("DT. NF", "dia", 0),
+    ("R$ TABELA CHEIA", "moeda", 1), ("CÓD. AUTORIZAÇÃO", "texto", 1),
+    ("AUTORIZADO POR", "texto", 1), ("MÊS", "texto", 1),
+    ("ENTREGUE EM", "dia", 1), ("PRODUTO", "texto", 1), ("CHAVE", "texto", 1))
+_GERAR_COLS = (("DATA", "dia"), ("UF", "texto"), ("CIDADE", "texto"),
+               ("PEDIDOS", "texto"), ("FORN.", "texto"),
+               ("CÓD. PROD.", "texto"), ("DESCRIÇÃO", "texto"),
+               ("QTD", "num"), ("COLETAR EM", "texto"),
+               ("FILIAL DEST.", "texto"))
+_ANALITICO_COLS = (
+    ("PEDIDO", "texto", 0), ("DATA", "dia", 0), ("CIDADE", "texto", 0),
+    ("FILIAL", "texto", 0), ("FORN.", "texto", 0), ("CÓD. PROD.", "texto", 0),
+    ("DESCRIÇÃO", "texto", 0), ("QTD", "num", 0), ("EST. FRW", "num", 0),
+    ("PEDIDOS ANTES", "num", 0), ("DISP. P/ ESTE", "num", 0),
+    ("ATENDIDO", "num", 0), ("FALTA", "num", 0), ("CLIENTE", "texto", 0),
+    ("FILIAL BAP", "texto", 1), ("VALOR FALTANTE", "moeda", 0))
+
+
+def _cols(lista):
+    saida = []
+    for n, tp, *o in lista:
+        c = {"nome": n, "tipo": tp}
+        if o and o[0]:
+            c["oculta"] = True
+        if n == "SLA":
+            c["chip"] = rn.CHIP_SLA()
+        if n == "% ATENDIDO":
+            c["barra"] = rn.BARRA_ATENDIDO
+        saida.append(c)
+    return saida
+
+
+def _pedidos_conforme():
+    """A tabela Pedidos do PC no formato do contrato, com as 3 juntas, a
+    edição da autorização (grava) e um pedido fictício de MANAUS."""
+    nomes = [c[0] for c in _PED_COLS]
+    ln = [None] * len(nomes)
+    for n, v in (("DT. PED", date(2026, 11, 3)), ("PEDIDO", "912345"),
+                 ("CÓD.", "900001"), ("RAZÃO SOCIAL",
+                                      "12345678000190 CLIENTE FICTICIO"),
+                 ("FANTASIA", "CLIENTE FICTICIO"), ("UF", "AM"),
+                 ("CIDADE", "MANAUS"), ("R$ VENDA", 100.0), ("SLA", 2),
+                 ("% ATENDIDO", 100.0), ("SITUAÇÃO", "EM ABERTO"),
+                 ("FILIAL", "MANAUS"), ("VENDEDOR", "Vendedor 01"),
+                 ("MÊS", "NOV/26"), ("CHAVE", "x1")):
+        ln[nomes.index(n)] = v
+
+    def junta(quadro, titulo, cols, liga):
+        return {"titulo": quadro, "liga": liga, "mostrar": [],
+                "tabela": {"titulo": titulo, "colunas": _cols(cols),
+                           "linhas": [], "tons": [], "filtros": []}}
+    return {
+        "titulo": "Pedidos", "colunas": _cols(_PED_COLS), "linhas": [ln],
+        "tons": [""], "kpis_de": _kpis_de, "enxuta": True,
+        "filtros": [{"coluna": "MÊS", "padrao": "NOV/26", "oculto": True},
+                    {"coluna": "SITUAÇÃO", "padrao": "EM ABERTO"}],
+        "recortes": [("Mais de 4 dias", lambda l: (l[16] or 0) > 4)],
+        "edicao": {"arquivo": "RELATORIOS/_AUTORIZACOES", "campos": ["x"]},
+        "detalhe": True,
+        "juntas": [
+            junta("Gerar ID de separação CD", "Gerar separação CD",
+                  _GERAR_COLS, ("PEDIDOS", "PEDIDO", "|")),
+            junta("Gerar reversa de lojas", "Gerar reversa de lojas",
+                  _GERAR_COLS, ("PEDIDOS", "PEDIDO", "|")),
+            junta("Analítico por pedido", "Analítico produto",
+                  _ANALITICO_COLS, ("PEDIDO", "PEDIDO", None))]}
+
+
+def _chaves(o, achadas=None):
+    """Todas as chaves de dict, em qualquer nível."""
+    achadas = set() if achadas is None else achadas
+    if isinstance(o, dict):
+        for k, v in o.items():
+            achadas.add(k)
+            _chaves(v, achadas)
+    elif isinstance(o, list):
+        for v in o:
+            _chaves(v, achadas)
+    return achadas
+
+
+def test_RN_GER_006_pedidos_com_tabelas_sem_acao_com_faixa_e_vendedor(
+        tmp_path):
+    """Regra nova (T-0017, entregas 3 a 5, contrato §10.7): o Farol de
+    Pedidos leva `tabelas` (todas as abas do PC), sem nenhuma ação que
+    grava (autorização, Ver pedido, Editar no Excel, troca de coleta);
+    cartões em faixa e nome de vendedor como antes."""
+    r = _farol("Farol de Pedidos", _pedidos_conforme(), kpis_faixa=True,
+               blocos=[{"tipo": "hbarras",
+                        "titulo": "Pedidos em aberto por vendedor (R$)",
+                        "rotulos": ["Vendedor 01"], "valores": [10.0],
+                        "formato": "moeda"},
+                       {"tipo": "tabela", "titulo": "outra", "colunas": [],
+                        "linhas": []}])
+    # raiz sem SOLICITACAO_BAP.xlsx: a aba Solicitação BAP não vai, sem aviso
+    s = ba.selecionar_farol_web("pv_pedidos", r, raiz=tmp_path)
     assert s["forma"] == "farol" and s["kpis_faixa"] is True
-    texto = json.dumps(s, ensure_ascii=False)
-    # lista, não "x not in texto": a diferença de um JSON grande no pytest
-    # leva minutos quando falha
-    presentes = [p for p in ("tabelas", "juntas", "editar", "abrir", "edicao",
-                             "detalhe_pedido", "kpis_de", "AUTORIZA")
-                 if p in texto]
-    assert presentes == []
+    assert [t["titulo"] for t in s["tabelas"]] == ["Pedidos"]
+    ped = s["tabelas"][0]
+    assert [j["titulo"] for j in ped["juntas"]] == [
+        "Gerar ID de separação CD", "Gerar reversa de lojas",
+        "Analítico por pedido"]
+    assert len(ped["linhas"]) == 1
+    # RN-GER-011: o CNPJ sai do nome; o código fica
+    nomes = [c["nome"] for c in ped["colunas"]]
+    assert ped["linhas"][0][nomes.index("RAZÃO SOCIAL")] == "CLIENTE FICTICIO"
+    assert ped["linhas"][0][nomes.index("CÓD.")] == "900001"
+    # nenhuma ação que grava, em nenhum nível
+    acoes = {"editar", "abrir", "edicao", "detalhe", "detalhe_pedido",
+             "kpis_de", "total_de", "totais_por", "recortes",
+             "solicitacao_bap", "garantia", "importar_preenchidos",
+             "ordem_exportar", "cores_celulas", "so_exportar"}
+    assert sorted(acoes & _chaves(s["tabelas"])) == []
+    assert sorted(acoes & set(s)) == ["recortes"]   # o de cima é por estado
+    assert [k for k in _chaves(s) if k.startswith("_")] == []
+    # Pedidos é `enxuta` no PC: sem recortes na tela, sem recortes no site
+    assert "recortes_linhas" not in ped
     # nome de vendedor VAI (D1); bloco tabela não é do Farol de Pedidos
     assert [b["tipo"] for b in s["painel"]["blocos"]] == ["hbarras"]
-    assert "Vendedor 01" in texto
+    assert "Vendedor 01" in json.dumps(s["painel"], ensure_ascii=False)
+    assert ped["linhas"][0][nomes.index("VENDEDOR")] == "Vendedor 01"
     assert set(s["recortes"]) == {"AM"}
+    assert ped["uf_linhas"] == ["AM"]
 
 
 def test_RN_GER_006_pedidos_bloco_frete_nao_entra():
