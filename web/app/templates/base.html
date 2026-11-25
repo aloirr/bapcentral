@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block titulo %}BAP Central{% endblock %} · BAP AUTOPARTS</title>
 <link rel="stylesheet" href="/static/estilo.css">
+{% block cabeca %}{% endblock %}
 </head>
 <body>
 <header class="topo">
@@ -18,7 +19,7 @@
   {% endif %}
 </header>
 {% if usuario %}
-  {% if gerado_em %}<div class="aviso info">Dados de {{ gerado_em|manaus }} (horário de Manaus)</div>
+  {% if gerado_em %}<div class="aviso info">Dados de {{ gerado_em|manaus }} (horário de Manaus)</div>{% block faixa %}{% endblock %}
   {% else %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
 {% endif %}
 <main>{% block corpo %}{% endblock %}</main>
