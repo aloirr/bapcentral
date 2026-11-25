@@ -6850,7 +6850,7 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     em "kpis", no topo). hbarras (ou
     frase) com nome de pessoa sai enquanto WEB_GRAFICOS_COM_NOME for False;
     cliente e CNPJ nunca vao.
-    (T-0017, entrega 2, contrato 10.2) So no pl_inadimplencia, com `cobranca`
+    (T-0017, entrega 2, contrato §10.6) So no pl_inadimplencia, com `cobranca`
     (o bloco de cobranca_whatsapp.pacote_web): acrescenta `tabelas` (Titulos e
     Por cliente, sem TELEFONE) e `cobranca`; as duas chaves vao juntas ou
     nenhuma."""
@@ -6905,7 +6905,7 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
 
 # ---------------------------------------------------------------------------
 # (T-0017, entrega 2) Titulos e Por cliente no pacote do pl_inadimplencia
-# (contrato 10.2.2): so as colunas da lista do contrato (nome e tipo), sem
+# (contrato §10.6.2): so as colunas da lista do contrato (nome e tipo), sem
 # TELEFONE, CNPJ, CPF ou E-MAIL. Fora das tabelas: edicao, detalhe, kpis_de,
 # recortes, callables e chaves com "_".
 RID_COBRANCA_WEB = "pl_inadimplencia"
@@ -7189,7 +7189,7 @@ def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# (T-0017, entrega 2, contrato 10.2.6 e 10.2.7) Cobranca no WhatsApp: o robo
+# (T-0017, entrega 2, contrato §10.6.6 e §10.6.7) Cobranca no WhatsApp: o robo
 # puxa do site o que a assistente marcou, grava no PC (COBRANCA_WEB.csv, pelo
 # modulo-posvenda), so entao confirma, e monta a fila nova do pacote.
 ARQ_ESTADO_COBRANCA_WEB = "ESTADO_COBRANCA_WEB.json"   # fora do glob COBRANCA_*.csv
@@ -7379,7 +7379,7 @@ def nomes_por_cliente_web(r: dict) -> dict:
 
 def montar_cobranca_web(rel: dict, raiz, cw, web_ate_seq: int, agora=None,
                         fantasias=None, web_epoca: str = "") -> dict | None:
-    """O bloco `cobranca` do 10.2.3, lendo o historico DEPOIS da importacao.
+    """O bloco `cobranca` do §10.6.3, lendo o historico DEPOIS da importacao.
     None se o cobranca_whatsapp do PC for antigo (sem pacote_web)."""
     if not (callable(getattr(cw, "pacote_web", None))
             and callable(getattr(cw, "historico_origem", None))):
