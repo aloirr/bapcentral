@@ -162,6 +162,65 @@ def test_RN_GER_006_entregas_leva_frete_por_estado_sem_edicao():
     assert set(s["recortes"]) == {"AM", "MA"}
 
 
+def _entrega(uf, dnf, etapa, valor):
+    """Entrega fictícia do ACOMPANHAMENTO_POS_VENDA (sem pessoa real)."""
+    return {"filial": "0101002", "nf": f"{dnf:%m%d}{uf}{int(valor)}",
+            "data_nf": dnf, "situacao": "NO PRAZO", "etapa": etapa, "uf": uf,
+            "cidade": "CIDADE FICTICIA", "cliente": "CLIENTE FICTICIO 01",
+            "valor": valor, "transportadora": "", "responsavel": "",
+            "cidade_filial": "MANAUS", "chave": ""}
+
+
+def test_RN_GER_006_entregas_pendencias_anteriores_por_estado(tmp_path):
+    """Comportamento: o Farol de Entregas (relatorios_nucleo.entregas) com
+    entregas fictícias; o kpis_de da tabela Entregas, chamado com as linhas
+    de NOV/26 de um estado (UF do cliente), dá as pendências de meses
+    anteriores SÓ daquele estado; a soma dos estados = o cartão da BAP."""
+    ctx = rn.Contexto(tmp_path, hoje=HOJE, params={"ANO": "2026", "MÊS": "11"})
+    ctx._b["posvenda"] = {"existe": True, "devolucoes": [], "entregas": [
+        _entrega("AM", date(2026, 11, 5), "ENTREGUE", 10.0),
+        _entrega("PA", date(2026, 11, 6), "ENTREGUE", 20.0),
+        _entrega("AM", date(2026, 10, 5), "EM ROTA", 1.0),     # pendentes
+        _entrega("AM", date(2026, 10, 6), "EM ROTA", 2.0),
+        _entrega("PA", date(2026, 10, 7), "EM ROTA", 4.0),
+        _entrega("PA", date(2026, 10, 8), "ENTREGUE", 8.0)]}   # concluída
+    ctx._b["tabela"] = {"itens": []}
+    r = rn.entregas(ctx)
+
+    def pend(kpis):
+        k = next(k for k in kpis if k["rotulo"] == "Pendências anteriores")
+        return k["valor"], k["detalhe"]
+    assert pend(r["kpis"]) == ("3", "R$ 7 · meses anteriores")
+    t = next(t for t in r["tabelas"] if t["titulo"] == "Entregas")
+    n = [c["nome"] for c in t["colunas"]]
+    iu, im = n.index("UF"), n.index("MÊS")
+    por_uf = {uf: pend(t["kpis_de"]([l for l in t["linhas"]
+                                     if l[iu] == uf and l[im] == "NOV/26"]))
+              for uf in ("AM", "PA")}
+    assert por_uf == {"AM": ("2", "R$ 3 · meses anteriores"),
+                      "PA": ("1", "R$ 4 · meses anteriores")}
+    assert sum(int(v) for v, _ in por_uf.values()) == 3
+
+
+def test_RN_GER_006_entregas_pendencias_anteriores_so_na_BAP_no_site():
+    """O site tira 'Pendências anteriores' do recorte por estado
+    (_KPIS_SO_BAP_WEB) e o mantém nos cartões da BAP."""
+    def kpis_de(linhas):
+        return [{"rotulo": "Entregues", "valor": str(len(linhas))},
+                {"rotulo": "Pendências anteriores", "valor": "9"}]
+    t = _tabela("Entregas", [("NOV/26", "MANAUS", "AM"),
+                             ("NOV/26", "MANAUS", "PA")], mes="NOV/26")
+    t["kpis_de"] = kpis_de
+    r = _farol("Farol de Entregas", t)
+    r["kpis"] = kpis_de(t["linhas"])
+    s = ba.selecionar_farol_web("pl_entregas", r)
+    assert [k["rotulo"] for k in s["kpis"]] == ["Entregues",
+                                                 "Pendências anteriores"]
+    for uf in ("AM", "PA"):
+        assert [k["rotulo"] for k in s["recortes"][uf]["kpis"]] == [
+            "Entregues"]
+
+
 def test_RN_GER_006_entregas_tabela_com_cliente_fica_so_no_pc():
     t = _tabela("Entregas", [("NOV/26", "MANAUS")], mes="NOV/26")
     cols = ["UF", "CLIENTE"] + COLS_FRETE[2:]
