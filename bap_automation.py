@@ -6618,6 +6618,10 @@ _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
 # RN-GER-006: faturamento = filial da nota (coluna FILIAL); fretes, Planner e
 # carteira = UF do CLIENTE (coluna UF). None = a tabela nao tem a UF do
 # cliente: o farol vai sem recortes e com aviso (Visita).
+# cartao que o PC calcula so para a BAP inteira (o kpis_de ignora as linhas
+# filtradas: relatorios_nucleo, cartoes_mes dentro de entregas, usa `pend`
+# global); no estado a web mostra "so na BAP inteira"
+_KPIS_SO_BAP_WEB = {"pl_entregas": ("Pendências anteriores",)}
 _COLUNA_UF_RECORTE_WEB = {"pl_entregas": "UF", "vc_visitas": None}
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
 _TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
@@ -6950,6 +6954,17 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
 def _recortes_do_farol_web(rid: str, r: dict) -> dict:
     """Recortes por estado do rid, pela regra da RN-GER-006 (filial da nota no
     faturamento; UF do cliente em fretes/Planner). Sem a UF do cliente: {}."""
+    rec = _recortes_do_farol_web_bruto(rid, r)
+    fora = _KPIS_SO_BAP_WEB.get(rid, ())
+    if fora:                 # cartao que o kpis_de do PC nao calcula por estado
+        rec = {uf: dict(v, kpis=[k for k in v.get("kpis") or []
+                                 if not (isinstance(k, dict)
+                                         and k.get("rotulo") in fora)])
+               for uf, v in rec.items()}
+    return rec
+
+
+def _recortes_do_farol_web_bruto(rid: str, r: dict) -> dict:
     tabela = _TABELA_RECORTE_WEB.get(rid, "Títulos")
     if rid in _COLUNA_UF_RECORTE_WEB:
         col = _COLUNA_UF_RECORTE_WEB[rid]
