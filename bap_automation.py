@@ -6950,9 +6950,15 @@ def tabelas_cobranca_web(r: dict):
     com a lista do contrato (nome, ordem, tipo e oculta; o bloco de status
     vai inteiro, depois de NOME, ou nao vai): nunca manda tabela torta, que
     a web recusaria no pacote inteiro. `chip` e `tons` como o PC entrega
-    (chip so em SITUACAO, FAIXA e STATUS)."""
+    (chip so em SITUACAO, FAIXA e STATUS). NOME sai sem CPF/CNPJ no
+    comeco (cobranca_whatsapp.nome_sem_documento, RN-POS-004); sem essa
+    funcao, None."""
     por_titulo = {t.get("titulo"): t for t in (r or {}).get("tabelas") or []
                   if isinstance(t, dict)}
+    try:                # RN-POS-004: NOME sem CPF/CNPJ no comeco. Sem a
+        sem_doc = _cobranca_whatsapp().nome_sem_documento   # funcao, nao vai
+    except Exception:                                   # noqa: BLE001
+        return None
     saida = []
     for titulo in _COLUNAS_SEM_STATUS_WEB:
         t = por_titulo.get(titulo)
@@ -6991,6 +6997,9 @@ def tabelas_cobranca_web(r: dict):
             if len(ln) != len(pc):
                 return None
             linhas.append([ln[i] for i in idx])
+        inome = [c["nome"] for c in colunas].index("NOME")
+        for ln in linhas:
+            ln[inome] = sem_doc(ln[inome]) if ln[inome] else ln[inome]
         total = t.get("total")
         if isinstance(total, (list, tuple)) and len(total) == len(pc):
             total = [total[i] for i in idx]
@@ -7142,7 +7151,6 @@ def _segredo_web(env: str, usuario: str):
 
 def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
     """POST <url>/api/pacote (Bearer), 30 s, 3 tentativas, so https:443."""
-    from urllib.parse import urlparse                   # noqa: PLC0415
     url = (url or _segredo_web("BAP_WEB_URL", "url") or "").strip()
     token = (token or _segredo_web("BAP_WEB_TOKEN", "token") or "").strip()
     if not url or not token:
@@ -7153,16 +7161,12 @@ def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
     def limpa(txt) -> str:
         return str(txt).replace(token, "***")
 
-    try:
-        p = urlparse(url)
-        porta = p.port
-    except Exception:                                   # noqa: BLE001
-        log("Pacote web: BAP_WEB_URL invalida; envio pulado.")
+    base = _base_web(url)
+    if not base:
+        log("Pacote web: BAP_WEB_URL invalida ou nao e https na porta 443; "
+            "envio recusado.")
         return False
-    if p.scheme != "https" or not p.hostname or porta not in (None, 443):
-        log("Pacote web: so https na porta 443; envio recusado.")
-        return False
-    destino = f"https://{p.hostname}{p.path.rstrip('/')}/api/pacote"
+    destino = f"{base}/api/pacote"
     try:
         corpo = json.dumps(pacote, ensure_ascii=False,
                            allow_nan=False).encode("utf-8")
@@ -7196,8 +7200,17 @@ ARQ_ESTADO_COBRANCA_WEB = "ESTADO_COBRANCA_WEB.json"   # fora do glob COBRANCA_*
 _PAGINAS_MAX_COBRANCA_WEB = 200            # 200 x 1000 registros: trava de laco
 
 
+def _cobranca_whatsapp(raiz=None):
+    """O modulo cobranca_whatsapp (modulo-posvenda), da pasta do programa."""
+    raiz = str(raiz or PASTA_LOCAL)
+    if raiz not in sys.path:
+        sys.path.insert(0, raiz)
+    import cobranca_whatsapp as cw                      # noqa: PLC0415
+    return cw
+
+
 def _pasta_cobranca(raiz) -> Path:
-    return Path(raiz) / SUBPASTA_RELATORIOS / "_COBRANCA_WHATSAPP"
+    return _cobranca_whatsapp(raiz).pasta(raiz)         # RELATORIOS/_COBRANCA_WHATSAPP
 
 
 def ler_estado_cobranca(raiz) -> dict:
@@ -7414,7 +7427,7 @@ def preparar_cobranca_web(resultados: dict, raiz, hoje, sincronizar: bool,
     try:
         if str(raiz) not in sys.path:
             sys.path.insert(0, str(raiz))
-        import cobranca_whatsapp as cw                  # noqa: PLC0415
+        cw = _cobranca_whatsapp(raiz)
         estado = ler_estado_cobranca(raiz)
         base = _base_web(url)
         if sincronizar and base and token:
