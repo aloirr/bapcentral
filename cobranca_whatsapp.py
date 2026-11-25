@@ -280,11 +280,13 @@ def _gerado_em(hoje) -> str:
 
 
 def pacote_web(farol: dict, nomes, hist: dict, hoje=None, *,
-               web_ate_seq: int = 0, gerado_em: str = "") -> dict:
-    """Bloco `cobranca` do contrato (§10.2.3), sem telefone cadastral.
+               web_ate_seq: int = 0, web_epoca: str = "",
+               gerado_em: str = "") -> dict:
+    """Bloco `cobranca` do contrato (§10.6.3), sem telefone cadastral.
     hist: historico_origem() (tuplas de 3) ou historico() (tuplas de 2,
-    origem PC). gerado_em e web_ate_seq vem do robo (a hora da rodada e o
-    ate_seq confirmado); sem gerado_em, usa `hoje` (datetime) ou agora."""
+    origem PC). gerado_em, web_epoca e web_ate_seq vem do robo (hora da
+    rodada, epoca do diario e maior seq ja gravado, §10.6.3). Sem gerado_em,
+    usa `hoje` (datetime) ou agora."""
     itens = []
     for it in fila(farol, nomes):
         msg = mensagem(it)
@@ -305,12 +307,13 @@ def pacote_web(farol: dict, nomes, hist: dict, hoje=None, *,
                         for x in it["titulos"]],
             "mensagem": msg, "ultimo": ult})
     return {"gerado_em": gerado_em or _gerado_em(hoje),
-            "web_ate_seq": int(web_ate_seq), "dias_recente": DIAS_RECENTE,
+            "web_epoca": str(web_epoca), "web_ate_seq": int(web_ate_seq),
+            "dias_recente": DIAS_RECENTE,
             "modelo": MODELO, "fila": itens}
 
 
 def importar_web(raiz, linhas, nomes=None) -> int:
-    """Acrescenta ao COBRANCA_WEB.csv os registros do diario do site (§10.2.7).
+    """Acrescenta ao COBRANCA_WEB.csv os registros do diario do site (§10.6.7).
     Pula `id` ja gravado (idempotente). Erro de disco levanta excecao."""
     p_ = pasta(raiz)
     arq = p_ / ARQ_WEB
