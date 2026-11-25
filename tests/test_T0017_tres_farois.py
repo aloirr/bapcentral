@@ -75,11 +75,21 @@ def _valores(recortes):
 
 # --------------------------------------------------------- os quatro faróis
 def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
+    """Os 4 faróis vão ao site, cada um com a base do "baixado em". Tabela
+    de recorte por estado em todos, menos a Visita (RN-GER-006: nenhuma
+    tabela da Visita traz a UF do cliente)."""
     assert set(ba.FAROIS_WEB) == {"pl_inadimplencia", "pv_pedidos",
                                   "pl_entregas", "vc_visitas"}
     for rid in ba.FAROIS_WEB:
         assert rid in ba._FONTE_BAIXADO_WEB
-        assert rid in ba._TABELA_RECORTE_WEB
+    assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
+                                      "pv_pedidos": "Pedidos",
+                                      "pl_entregas": "Entregas"}
+    # a coluna e a regra da UF: filial da nota no Pedidos, UF do cliente no
+    # Entregas (a mesma do uf_linhas)
+    assert ba._UF_LINHAS_WEB[("pv_pedidos", "Pedidos")] == ("FILIAL",
+                                                            "filial")
+    assert ba._UF_LINHAS_WEB[("pl_entregas", "Entregas")] == ("UF", "uf")
 
 
 def test_RN_GER_006_pacote_com_tres_farois_um_com_erro_nao_derruba():
@@ -384,23 +394,57 @@ def test_RN_GER_006_chamar_kpis_de_sem_parametro_recebe_so_as_linhas():
         _kpis_de(t["linhas"])
 
 
-def test_RN_GER_006_entregas_pendencias_anteriores_so_na_BAP_no_site():
-    """O site tira 'Pendências anteriores' do recorte por estado
-    (_KPIS_SO_BAP_WEB) e o mantém nos cartões da BAP."""
-    def kpis_de(linhas):
-        return [{"rotulo": "Entregues", "valor": str(len(linhas))},
-                {"rotulo": "Pendências anteriores", "valor": "9"}]
-    t = _tabela("Entregas", [("NOV/26", "MANAUS", "AM"),
-                             ("NOV/26", "MANAUS", "PA")], mes="NOV/26")
-    t["kpis_de"] = kpis_de
-    r = _farol("Farol de Entregas", t)
-    r["kpis"] = kpis_de(t["linhas"])
-    s = ba.selecionar_farol_web("pl_entregas", r)
-    assert [k["rotulo"] for k in s["kpis"]] == ["Entregues",
-                                                 "Pendências anteriores"]
-    for uf in ("AM", "PA"):
-        assert [k["rotulo"] for k in s["recortes"][uf]["kpis"]] == [
-            "Entregues"]
+def _kjs(ks):
+    return json.loads(json.dumps(ba._para_json(ks), ensure_ascii=False))
+
+
+_ENTREGAS_PEND = [
+    _entrega("AM", date(2026, 11, 5), "ENTREGUE", 10.0),
+    _entrega("PA", date(2026, 11, 6), "ENTREGUE", 20.0),
+    _entrega("PA", date(2026, 11, 7), "EM ROTA", 30.0),
+    _entrega("AM", date(2026, 10, 5), "EM ROTA", 1.0),     # pendentes
+    _entrega("AM", date(2026, 10, 6), "EM ROTA", 2.0),
+    _entrega("PA", date(2026, 10, 7), "EM ROTA", 4.0),
+    _entrega("PA", date(2026, 10, 8), "ENTREGUE", 8.0)]    # concluída
+
+
+def test_RN_GER_006_entregas_pendencias_anteriores_por_UF_bate_com_o_pc(
+        tmp_path):
+    """Regra nova (RD-0019; `_KPIS_SO_BAP_WEB` saiu): no site, o recorte
+    por estado do Entregas traz "Pendências anteriores" daquela UF, e cada
+    cartão do estado é o que o PC mostra com o filtro de UF (kpis_de das
+    linhas do mês da UF, filtro={coluna UF: UF})."""
+    assert not hasattr(ba, "_KPIS_SO_BAP_WEB")
+    r, t, iu, im = _farol_entregas(tmp_path, _ENTREGAS_PEND)
+    s = ba.selecionar_farol_web("pl_entregas", r, raiz=tmp_path)
+    assert sorted(s["recortes"]) == ["AM", "PA"]
+    for uf, v in s["recortes"].items():
+        pc = rn.chamar_kpis_de(t["kpis_de"], _no_mes(t, im, uf, iu), {iu: uf})
+        assert v["kpis"] == _kjs(pc), uf
+    assert _pend(s["recortes"]["AM"]["kpis"]) == ("2",
+                                                  "R$ 3 · meses anteriores")
+    assert _pend(s["recortes"]["PA"]["kpis"]) == ("1",
+                                                  "R$ 4 · meses anteriores")
+    # o total da BAP segue no topo, e a soma dos estados fecha com ele
+    assert _pend(s["kpis"]) == ("3", "R$ 7 · meses anteriores")
+    assert sum(int(_pend(v["kpis"])[0]) for v in s["recortes"].values()) == 3
+
+
+def test_RN_GER_006_entregas_estado_so_com_pendencia_tambem_aparece(
+        tmp_path):
+    """Estado sem nota no mês, mas com pendência de mês anterior (RR): no PC,
+    o filtro UF = RR mostra a pendência (a caixa de UF lista os 12 meses).
+    No site, a soma dos estados tem de fechar com o total da BAP."""
+    r, t, iu, im = _farol_entregas(tmp_path, _ENTREGAS_PEND + [
+        _entrega("RR", date(2026, 10, 9), "EM ROTA", 16.0)])
+    s = ba.selecionar_farol_web("pl_entregas", r, raiz=tmp_path)
+    total = int(_pend(s["kpis"])[0])
+    assert total == 4
+    pc_rr = rn.chamar_kpis_de(t["kpis_de"], _no_mes(t, im, "RR", iu),
+                              {iu: "RR"})
+    assert _pend(pc_rr)[0] == "1"
+    soma = sum(int(_pend(v["kpis"])[0]) for v in s["recortes"].values())
+    assert (sorted(s["recortes"]), soma) == (["AM", "PA", "RR"], total)
 
 
 def test_RN_GER_006_entregas_tabela_com_cliente_fica_so_no_pc():
@@ -414,24 +458,96 @@ def test_RN_GER_006_entregas_tabela_com_cliente_fica_so_no_pc():
 
 
 # ------------------------------------------------------------------- Visita
-def test_RN_GER_006_visita_sem_UF_do_cliente_vai_sem_recortes_e_com_aviso():
-    """Visita (Planner/carteira): estado = UF do cliente; 'Por vendedor' só
-    tem a filial do vendedor, então NÃO se recorta por ela. Prospecção fica
-    no PC."""
-    t = _tabela("Por vendedor", [("", "MANAUS"), ("", "BELÉM"),
-                                 ("", "BELÉM")])
+_METRICAS_VISITA = (
+    ("META", "num"), ("VISIT.", "int"), ("% META", "pct"), ("% CONV.", "pct"),
+    ("% FORA DE ROTA", "pct"), ("CAD.", "int"), ("CAD. C/ COMPRA", "int"),
+    ("PROSP.", "int"), ("INÍCIO", "hora"), ("ÚLT. ATIV.", "hora"),
+    ("JORNADA LÍQ.", "hora"), ("DIAS < JORN. LÍQ.", "int"),
+    ("INTERV. ALMOÇO", "hora"), ("DIAS ALMOÇO > MÁX.", "int"),
+    ("TMA", "hora"), ("TMD", "hora"), ("KM", "num"), ("KM/CLIENTE", "num1"))
+
+
+def _por_vendedor(filiais=("MANAUS",)):
+    """"Por vendedor" conforme o §10.7.3 (24 colunas), dados fictícios."""
+    cols = ([("SUPERVISOR", "texto", 0), ("VENDEDOR", "texto", 0),
+             ("CARGO", "texto", 1), ("FILIAL", "texto", 1),
+             ("CÓD.", "texto", 1)]
+            + [(n, tp, 0) for n, tp in _METRICAS_VISITA]
+            + [("CHAVE", "texto", 1)])
+    colunas = []
+    for n, tp, o in cols:
+        c = {"nome": n, "tipo": tp}
+        if o:
+            c["oculta"] = True
+        if n == "% META":
+            c["chip"] = rn.FAIXA_PCT_META
+        colunas.append(c)
+    linhas = []
+    for k, fil in enumerate(filiais):
+        ln = [None] * len(cols)
+        ln[0], ln[1], ln[2], ln[3], ln[4] = ("Supervisor 01",
+                                             f"Vendedor 0{k + 1}",
+                                             "VENDEDOR", fil, f"90010{k}")
+        ln[6] = 10
+        ln[-1] = f"v{k}"
+        linhas.append(ln)
+    return {"titulo": "Por vendedor", "colunas": colunas, "linhas": linhas,
+            "tons": [""] * len(linhas), "filtros": ["SUPERVISOR", "VENDEDOR",
+                                                     "FILIAL"],
+            "kpis_de": _kpis_de}
+
+
+AVISO_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
+
+
+def test_RN_GER_006_visita_sem_UF_do_cliente_vai_sem_recortes_e_com_aviso(
+        tmp_path):
+    """Visita (Planner/carteira): estado = UF do cliente; "Por vendedor" só
+    tem a filial do vendedor, então NÃO se recorta por ela. A aba vai (tabela
+    válida), sem aviso de aba fora; o aviso da pasta das fotos fica no PC."""
+    t = _por_vendedor(("MANAUS", "BELÉM", "BELÉM"))
     r = _farol("Farol de Visita", t, blocos=[
         {"tipo": "barras", "grafico": {"titulo": "Visitas dia a dia",
                                        "rotulos": ["1"], "series": []}}],
         avisos=["O dia de hoje é parcial: muda até o vendedor sincronizar.",
-                "Prospecção do app BAP Ajuda: a foto fica em RELATORIOS"])
-    s = ba.selecionar_farol_web("vc_visitas", r)
+                "Prospecção do app BAP Ajuda: a foto da fachada (coluna FOTO)"
+                " fica na pasta do PC."])
+    s = ba.selecionar_farol_web("vc_visitas", r, raiz=tmp_path)
     assert s["recortes"] == {}
-    assert AVISO_SEM_ESTADO in s["avisos"]
+    assert [x["titulo"] for x in s["tabelas"]] == ["Por vendedor"]
+    assert "uf_linhas" not in s["tabelas"][0]
     assert ("abrir" in json.dumps(s)) is False
-    assert ("O dia de hoje é parcial: muda até o vendedor sincronizar."
-            in s["avisos"])
-    assert not any("rospec" in a for a in s["avisos"])
+    # ordem nova (contrato §10.7.6): estado antes dos outros; teto de 2
+    assert s["avisos"] == [
+        AVISO_SEM_ESTADO,
+        "O dia de hoje é parcial: muda até o vendedor sincronizar."]
+
+
+_AVISOS_VISITA = [
+    "O dia de hoje é parcial: muda até o vendedor sincronizar.",
+    "Sem o arquivo de 2 dia(s) útil(eis): 20/11, 23/11",
+    "Aderência = programados do Planner do dia (ROTA_PROTHEUS 2026)",
+    "Prospecção: 1 resposta(s) da conta de teste"]
+
+
+def test_RN_GER_006_visita_avisos_curtos_sem_arquivo_de_rota_nem_formula(
+        tmp_path):
+    """Celular: no máximo 2 avisos, sem nome de arquivo de rota nem fórmula,
+    na ordem do contrato §10.7.6: aba fora, "Sem o arquivo", "Sem filtro por
+    estado", os outros (cortando do fim)."""
+    r = _farol("Farol de Visita", _por_vendedor(), avisos=_AVISOS_VISITA)
+    s = ba.selecionar_farol_web("vc_visitas", r, raiz=tmp_path)
+    assert s["avisos"] == ["Sem o arquivo de 2 dia(s) útil(eis): 20/11, 23/11",
+                           AVISO_SEM_ESTADO]
+    # com uma aba torta, o aviso de aba fora vem primeiro e nunca é cortado
+    torta = _por_vendedor()
+    torta["colunas"] = [dict(torta["colunas"][0], nome="COLUNA NOVA")] + \
+        torta["colunas"][1:]
+    r = _farol("Farol de Visita", torta, avisos=_AVISOS_VISITA)
+    s = ba.selecionar_farol_web("vc_visitas", r, raiz=tmp_path)
+    assert "tabelas" not in s or s["tabelas"] == []
+    assert s["avisos"] == [AVISO_FORA.format(lista="Por vendedor"),
+                           "Sem o arquivo de 2 dia(s) útil(eis): 20/11, 23/11"]
 
 
 def test_RN_GER_006_inadimplencia_segue_pela_filial_sem_aviso_novo():
@@ -449,26 +565,10 @@ def test_RN_GER_006_visita_cartao_por_estado_sem_dado_sai(monkeypatch):
     monkeypatch.setattr(rn, "estados_do_cartao", lambda r, k: {
         "barras": [["AM", 10.0, "10", "", ""], ["RR", None, "", "", ""]],
         "legenda": "x"})
-    r = _farol("Farol de Visita", _tabela("Por vendedor", [("", "MANAUS")]))
+    r = _farol("Farol de Visita", _por_vendedor())
     s = ba.selecionar_farol_web("vc_visitas", r)
     assert [b[0] for b in s["kpis"][0]["estados"]["barras"]] == ["AM"]
     assert s["kpis"][0]["estados"]["legenda"] == "x"
-
-
-def test_RN_GER_006_visita_avisos_curtos_sem_arquivo_de_rota_nem_formula():
-    """Celular: no máximo 2 linhas, sem nome de arquivo de rota nem fórmula;
-    'Sem o arquivo' vem primeiro."""
-    av = ["O dia de hoje é parcial: muda até o vendedor sincronizar.",
-          "Sem o arquivo de 2 dia(s) útil(eis): 20/11, 23/11",
-          "Aderência = programados do Planner do dia (ROTA_PROTHEUS 2026)",
-          "Prospecção: 1 resposta(s) da conta de teste"]
-    r = _farol("Farol de Visita", _tabela("Por vendedor", [("", "MANAUS")]),
-               avisos=av)
-    s = ba.selecionar_farol_web("vc_visitas", r)
-    assert len(s["avisos"]) <= 2
-    assert s["avisos"][0].startswith("Sem o arquivo")
-    assert not any("ROTA_PROTHEUS" in a or "Aderência =" in a
-                   for a in s["avisos"])
 
 
 # -------------------------------------------------- RN-GER-007: datas/hoje

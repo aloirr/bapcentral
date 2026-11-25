@@ -65,6 +65,9 @@ RE_DOC = re.compile(r"(?<!\d)(?:\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"
                     r"|\d{3}\.\d{3}\.\d{3}-\d{2}|\d{14}|\d{11})(?!\d)")
 RE_EMAIL = re.compile(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+")
 TETO_MB = 20
+# §10.7.6 do contrato (textos de aviso, fonte única)
+AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
+AVISO_CARTOES = "Cartões sem filtro. Com filtro, veja as linhas na tabela."
 
 
 def _sem_acento(s):
@@ -145,9 +148,50 @@ def test_T0017_pacote_real_tem_todas_as_abas_e_a_web_aceita(real, web_app):
         assert [t["titulo"] for t in r["tabelas"]] == ABAS[rid], rid
         assert web_app.tabelas.validar(rid, r) == [], rid
         # nenhuma aba ficou fora: sem o aviso de aba fora
-        assert not [a for a in r.get("avisos") or [] if "ficou fora" in a
-                    or "ficaram fora" in a], rid
+        assert not [a for a in r.get("avisos") or []
+                    if a.startswith("Abas fora")], rid
     assert web_app.pacotes.validar(p) == []
+
+
+def test_T0017_ponta_a_ponta_web_aceita_e_nao_tira_aba(real, web_app):
+    """Ponta a ponta: o pacote real, montado pelo robô, passa na validação
+    da web sem erro e a defesa de documento (W2) não tira nenhuma aba."""
+    _rels, p = real
+    q = json.loads(json.dumps(p, ensure_ascii=False))   # o que o site recebe
+    assert web_app.tabelas.tirar_abas_com_documento(q) == []
+    assert web_app.pacotes.validar(q) == []
+    for rid in RIDS:
+        assert [t["titulo"] for t in q["relatorios"][rid]["tabelas"]] == \
+            ABAS[rid], rid
+
+
+def test_RN_GER_011_web_documento_numa_aba_tira_so_aquela_aba(real,
+                                                              web_app):
+    """CPF/CNPJ formatado numa célula: a web tira só aquela aba, com o
+    aviso único de abas fora (primeiro); as outras abas e faróis seguem."""
+    _rels, p = real
+    q = json.loads(json.dumps(p, ensure_ascii=False))
+    t = next(x for x in q["relatorios"]["vc_visitas"]["tabelas"]
+             if x["titulo"] == "Cliente a cliente")
+    i = [c["nome"] for c in t["colunas"]].index("NOME FANTASIA")
+    t["linhas"][0][i] = "CLIENTE FICTICIO 123.456.789-01"
+    assert web_app.tabelas.tirar_abas_com_documento(q) == ["Cliente a cliente"]
+    assert [x["titulo"] for x in q["relatorios"]["vc_visitas"]["tabelas"]] \
+        == [a for a in ABAS["vc_visitas"] if a != "Cliente a cliente"]
+    assert q["relatorios"]["vc_visitas"]["avisos"][0] == \
+        AVISO_ABAS_FORA.format(lista="Cliente a cliente")
+    for rid in ("pv_pedidos", "pl_entregas"):
+        assert [x["titulo"] for x in q["relatorios"][rid]["tabelas"]] == \
+            ABAS[rid]
+    assert web_app.pacotes.validar(q) == []
+
+
+def test_T0017_entregas_filtro_mes_oculto(real):
+    """O filtro MÊS do Entregas vai oculto (só o mês do pacote)."""
+    _rels, p = real
+    f = next(f for f in _tab_web(p, "pl_entregas", "Entregas")["filtros"]
+             if isinstance(f, dict) and f.get("coluna") == "MÊS")
+    assert f.get("oculto") is True and f.get("padrao") == MES_ROT
 
 
 # ============================================ RN-GER-011: nada de documento
@@ -157,18 +201,34 @@ def test_RN_GER_011_pacote_sem_coluna_proibida_nem_chave_de_acao(real):
         nomes = [_sem_acento(c["nome"]) for c in t["colunas"]]
         assert not COLUNAS_FORA & set(nomes), (rid, titulo)
 
-    def chaves(o, caminho):
+    def chaves(o, caminho, permitidas=frozenset()):
         if isinstance(o, dict):
             for k, v in o.items():
-                assert k not in CHAVES_FORA, (caminho, k)
+                assert k in permitidas or k not in CHAVES_FORA, (caminho, k)
                 assert not k.startswith("_"), (caminho, k)
                 assert not k.startswith("pdf"), (caminho, k)
-                chaves(v, caminho + (k,))
+                if k == "kpis_padrao" and isinstance(v, list):
+                    # §10.7.2: o cartão vai inteiro; o `detalhe` do Kpi não
+                    # é o detalhe de pedido da tabela (só no nível do cartão)
+                    for card in v:
+                        chaves(card, caminho + (k,), frozenset({"detalhe"}))
+                else:
+                    chaves(v, caminho + (k,))
         elif isinstance(o, list):
             for v in o:
                 chaves(v, caminho)
+    n_cartoes = 0
     for rid in RIDS:
         chaves(p["relatorios"][rid]["tabelas"], (rid,))
+        for t in p["relatorios"][rid]["tabelas"]:
+            for card in t.get("kpis_padrao") or []:
+                assert set(card) <= {"rotulo", "valor", "cor", "detalhe",
+                                     "linhas"}, (rid, t["titulo"])
+                n_cartoes += 1
+    assert n_cartoes > 0
+    # o `detalhe` de pedido da tabela (a chave da tabela) continua fora
+    for rid, titulo, t in _todas_web(p):
+        assert "detalhe" not in t, (rid, titulo)
     json.dumps(p, allow_nan=False)                  # nada de callable/NaN
 
 
@@ -259,6 +319,62 @@ def test_T0017_tabelas_iguais_ao_pc_celula_a_celula(real, rid):
                       *_esperado(rid, jp["tabela"], junta=True))
             assert j["liga"] == (list(jp["liga"]) if jp.get("liga")
                                  else None)
+
+
+def _total_esperado(t_pc):
+    """§10.7.2.1: a linha TOTAL do PC normalizada (os 4 passos)."""
+    cols = t_pc["colunas"]
+    idx = [i for i, c in enumerate(cols)
+           if _sem_acento(c["nome"]) not in COLUNAS_FORA]
+    tot = t_pc.get("total")
+    if not isinstance(tot, (list, tuple)) or len(tot) != len(cols):
+        return None
+    tipos = [cols[i]["tipo"] for i in idx]
+    ocultas = [bool(cols[i].get("oculta")) for i in idx]
+    cel = [_js(tot[i]) for i in idx]
+    cel = [None if v in ("", None) else v for v in cel]          # passo 1
+    rot = tot[0] if isinstance(tot[0], str) and tot[0] else None
+    if rot is not None:                                          # passo 2
+        alvo = next(j for j, (tp, o) in enumerate(zip(tipos, ocultas))
+                    if tp == "texto" and not o)
+        if idx[0] == 0 and cel[0] == rot and alvo != 0:
+            cel[0] = None
+        cel[alvo] = rot
+
+    def casa(v, tp):                                             # passo 4
+        if v is None:
+            return True
+        if tp in ("texto", "hora"):
+            return isinstance(v, str)
+        if tp in ("data", "dia"):
+            return isinstance(v, str) and bool(re.match(r"^\d{4}-\d{2}-\d{2}",
+                                                        v))
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+    return [v if casa(v, tp) else None for v, tp in zip(cel, tipos)]
+
+
+def test_T0017_total_normalizado_igual_ao_pc(real):
+    """§10.7.2.1: o `total` é a linha TOTAL do PC depois dos 4 passos
+    (vazio = null; rótulo na 1ª coluna visível de texto; null onde o tipo
+    não casa). Hoje só o Visita tem total."""
+    rels, p = real
+    com = []
+    for rid in RIDS:
+        for titulo in ABAS[rid]:
+            if titulo == "Solicitação BAP":
+                continue
+            t_pc = _tab_pc(rels, rid, titulo)
+            esperado = _total_esperado(t_pc)
+            assert _tab_web(p, rid, titulo).get("total") == esperado, titulo
+            if esperado is not None:
+                com.append(titulo)
+                assert "TOTAL" in esperado, titulo
+    assert com == ["Por supervisor", "Por vendedor", "Dia a dia",
+                   "Aderência dia a dia"]
+    dia = _tab_web(p, "vc_visitas", "Dia a dia")
+    nomes = [c["nome"] for c in dia["colunas"]]
+    assert dia["total"][nomes.index("DATA")] is None
+    assert dia["total"][nomes.index("DIA")] == "TOTAL"
 
 
 def test_T0017_solicitacao_bap_igual_ao_arquivo(real):
@@ -472,9 +588,10 @@ def test_T0017_aba_torta_fica_fora_sozinha_com_1_aviso(real):
     s = ba.selecionar_farol_web("vc_visitas", r, raiz=RAIZ)
     assert [t["titulo"] for t in s["tabelas"]] == [
         a for a in ABAS["vc_visitas"] if a != "Dia a dia"]
-    fora = [a for a in s["avisos"] if "ficou fora" in a or "ficaram fora" in a]
-    assert len(fora) == 1 and "Dia a dia" in fora[0]
-    assert len(s["avisos"]) <= 2                    # teto do celular
+    # §10.7.6: um aviso só, o primeiro, e o teto do celular corta do fim
+    assert s["avisos"][0] == AVISO_ABAS_FORA.format(lista="Dia a dia")
+    assert sum("Abas fora" in a for a in s["avisos"]) == 1
+    assert len(s["avisos"]) <= 2
 
 
 def test_T0017_duas_abas_tortas_um_aviso_so(real):
@@ -492,10 +609,10 @@ def test_T0017_duas_abas_tortas_um_aviso_so(real):
     titulos = [t["titulo"] for t in s["tabelas"]]
     assert titulos == [a for a in ABAS["vc_visitas"]
                        if a not in ("Por supervisor", "Prospecção")]
-    fora = [a for a in s["avisos"] if "fora" in a]
-    assert len(fora) == 1
-    assert "Por supervisor" in fora[0] and "Prospecção" in fora[0]
-    assert len(s["avisos"]) <= 2                    # teto do celular
+    assert s["avisos"][0] == AVISO_ABAS_FORA.format(
+        lista="Por supervisor, Prospecção")         # ordem do §10.7.1
+    assert sum("Abas fora" in a for a in s["avisos"]) == 1
+    assert len(s["avisos"]) <= 2
 
 
 def test_T0017_pedidos_torto_solicitacao_segue(real):
@@ -506,7 +623,8 @@ def test_T0017_pedidos_torto_solicitacao_segue(real):
     r["tabelas"] = tabs
     s = ba.selecionar_farol_web("pv_pedidos", r, raiz=RAIZ)
     assert [t["titulo"] for t in s["tabelas"]] == ["Solicitação BAP"]
-    assert sum("Pedidos" in a and "fora" in a for a in s["avisos"]) == 1
+    assert s["avisos"][0] == AVISO_ABAS_FORA.format(lista="Pedidos")
+    assert sum("Abas fora" in a for a in s["avisos"]) == 1
 
 
 # ===================================================== tamanho e o corte
@@ -534,6 +652,10 @@ def test_T0017_corte_em_3_passos_na_ordem(real):
         return {rid: [a for a in q["relatorios"][rid].get("avisos") or []
                       if "caber no pacote" in a] for rid in RIDS}
 
+    def fora(q, rid):
+        return [a for a in q["relatorios"][rid].get("avisos") or []
+                if a.startswith("Abas fora desta atualização")]
+
     # passo 1
     p1 = ba._cortar_pacote_web(p, teto_mb=(_tam(p) - 1) / MB)
     sol = _tab_web(p1, "pv_pedidos", "Solicitação BAP")
@@ -547,30 +669,36 @@ def test_T0017_corte_em_3_passos_na_ordem(real):
     assert "Cliente a cliente" in [t["titulo"] for t in
                                    p1["relatorios"]["vc_visitas"]["tabelas"]]
     av = avisos(p1)
-    assert len(av["pv_pedidos"]) == 1 and not av["vc_visitas"]
+    assert av["pv_pedidos"] == ["A Solicitação BAP foi reduzida aos pedidos "
+                                "em aberto para caber no pacote."]
+    assert not fora(p1, "vc_visitas")
     # passo 2
     p2 = ba._cortar_pacote_web(p, teto_mb=(_tam(p1) - 1) / MB)
     assert "Cliente a cliente" not in [
         t["titulo"] for t in p2["relatorios"]["vc_visitas"]["tabelas"]]
     n_abas = len(p2["relatorios"]["vc_visitas"]["tabelas"])
     assert n_abas == 6
-    av = avisos(p2)
-    assert len(av["pv_pedidos"]) == 1 and len(av["vc_visitas"]) == 1
+    # passo 2: a aba sai com o aviso único de abas fora, o primeiro
+    assert p2["relatorios"]["vc_visitas"]["avisos"][0] == \
+        AVISO_ABAS_FORA.format(lista="Cliente a cliente")
+    assert len(p2["relatorios"]["vc_visitas"]["avisos"]) <= 2
     # passo 3
     p3 = ba._cortar_pacote_web(p, teto_mb=(_tam(p2) - 1) / MB)
     for rid in RIDS:
         assert "tabelas" not in p3["relatorios"][rid], rid
         assert p3["relatorios"][rid]["kpis"] == p["relatorios"][rid]["kpis"]
-    assert any("As tabelas ficaram fora" in a
-               for a in avisos(p3)["pl_entregas"])
+        # um aviso só, com todas as abas do farol, na ordem do §10.7.1
+        assert p3["relatorios"][rid]["avisos"][0] == AVISO_ABAS_FORA.format(
+            lista=", ".join(ABAS[rid])), rid
+        assert len(fora(p3, rid)) == 1, rid
     # a entrada não mudou
     assert json.dumps(p, ensure_ascii=False, sort_keys=True) == antes
 
 
 # ==================================================== lista de colunas
 def _contrato_1073():
-    """{titulo: [(nome, tipo, oculta, selo)]} do §10.7.3 do contrato, ou
-    None se o checkout ainda não tem a seção."""
+    """{titulo: [(nome, tipo, oculta, selo)]} do §10.7.3 do contrato (None
+    se a seção não existe: o teste falha)."""
     arq = RAIZ / ".coord" / "contratos" / "relatorio.md"
     txt = arq.read_text(encoding="utf-8") if arq.exists() else ""
     if "#### 10.7.3" not in txt:
@@ -642,9 +770,7 @@ def test_T0017_colunas_robo_igual_web(web_app):
 
 def test_T0017_colunas_robo_igual_contrato_1073():
     contrato = _contrato_1073()
-    if contrato is None:
-        pytest.skip("o §10.7.3 ainda não está em .coord/contratos/"
-                    "relatorio.md deste checkout")
+    assert contrato is not None, "§10.7.3 ausente no contrato"
     robo = _robo()
     assert sorted(contrato) == sorted(robo)
     for titulo in robo:
@@ -782,3 +908,43 @@ def test_T0017_visita_cartoes_pelas_tabelas(real):
     for titulo in ("Por supervisor", "Por vendedor", "Dia a dia"):
         assert _rvc(_tab_web(p, "vc_visitas", titulo)["kpis_padrao"]) == \
             _rvc(r["kpis"]), titulo
+
+
+# ================================================ fontes únicas do contrato
+def _contrato_txt():
+    return (RAIZ / ".coord" / "contratos" / "relatorio.md").read_text(
+        encoding="utf-8")
+
+
+def _bloco_colunas_fora():
+    m = re.search(r"```text colunas-fora\n(.*?)\n\s*```", _contrato_txt(),
+                  re.S)
+    assert m, "bloco `colunas-fora` ausente no contrato"
+    return {ln.strip() for ln in m.group(1).splitlines() if ln.strip()}
+
+
+def test_RN_GER_011_colunas_fora_contrato_igual_robo_e_web(web_app):
+    """§10.7.4: o bloco `colunas-fora` do contrato é a fonte única; o robô
+    e a web (render.COLUNAS_FORA, de onde o tabelas importa) são cópias."""
+    from app import render
+    lista = _bloco_colunas_fora()
+    assert lista == COLUNAS_FORA                # a cópia deste teste também
+    assert set(ba._COLUNAS_FORA_WEB) == lista
+    assert set(render.COLUNAS_FORA) == lista
+    assert web_app.tabelas.COLUNAS_FORA is render.COLUNAS_FORA
+    # a comparação é sem acento e em maiúsculas, nos dois lados
+    for nome in ("Endereço", "e-mail", " Telefone "):
+        assert ba._coluna_proibida_web(nome), nome
+        assert render.coluna_fora(nome), nome
+
+
+def test_T0017_avisos_robo_e_web_iguais_ao_contrato(web_app):
+    """§10.7.6: os textos AVISO_ABAS_FORA e AVISO_CARTOES são os do
+    contrato, no robô e na web."""
+    txt = _contrato_txt()
+    assert f"`{AVISO_ABAS_FORA}`" in txt
+    assert f"`{AVISO_CARTOES}`" in txt
+    assert ba.AVISO_ABAS_FORA == AVISO_ABAS_FORA
+    assert web_app.tabelas.AVISO_CARTOES == AVISO_CARTOES
+    assert getattr(web_app.tabelas, "AVISO_ABAS_FORA", AVISO_ABAS_FORA) == \
+        AVISO_ABAS_FORA

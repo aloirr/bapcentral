@@ -93,6 +93,46 @@ def test_RN_GER_011_sem_documento_comeco_fim_meio(entrada, esperado):
 
 
 @pytest.mark.parametrize("entrada, esperado", [
+    # máscara parcial (contrato 1b3d902), no começo, no meio e no fim
+    ("12345678/0001-90 CLIENTE FICTICIO", "CLIENTE FICTICIO"),
+    ("123456789-01 CLIENTE FICTICIO", "CLIENTE FICTICIO"),
+    ("CLIENTE 12.345678/0001-90 FICTICIO", "CLIENTE FICTICIO"),
+    ("CLIENTE FICTICIO 12345678/0001-90", "CLIENTE FICTICIO"),
+    ("CLIENTE FICTICIO 123456789-01", "CLIENTE FICTICIO"),
+    # CNPJ cortado no começo (o PC corta o texto da coluna)
+    ("2.345.678/0001-90 CLIENTE FICTICIO", "CLIENTE FICTICIO"),
+    ("345.678/0001-90 CLIENTE FICTICIO", "CLIENTE FICTICIO"),
+    ("5.678/0001-90 CLIENTE FICTICIO", "CLIENTE FICTICIO"),
+    ("678/0001-90 CLIENTE FICTICIO", "CLIENTE FICTICIO"),
+    ("/0001-90 CLIENTE FICTICIO", "CLIENTE FICTICIO"),
+    ("0001-90 CLIENTE FICTICIO", "CLIENTE FICTICIO"),
+    # código com letra (A999999999-99A) não é documento: fica inteiro
+    ("A999999999-99A", "A999999999-99A"),
+    ("CLIENTE FICTICIO A999999999-99A", "CLIENTE FICTICIO A999999999-99A"),
+    ("PECA A999999999-99A FICTICIA", "PECA A999999999-99A FICTICIA"),
+    # número puro de 6 a 10 dígitos no começo continua ficando
+    ("100200 PECAS FICTICIA", "100200 PECAS FICTICIA"),
+], ids=["parcial_cnpj_comeco", "parcial_cpf_comeco", "parcial_cnpj_meio",
+        "parcial_cnpj_fim", "parcial_cpf_fim", "cortado_13", "cortado_12",
+        "cortado_10", "cortado_9", "cortado_6_barra", "cortado_6",
+        "codigo_letra_so", "codigo_letra_fim", "codigo_letra_meio",
+        "6_digitos_fica"])
+def test_RN_GER_011_sem_documento_mascara_parcial_e_cnpj_cortado(entrada,
+                                                                 esperado):
+    assert rn.sem_documento(entrada) == esperado
+
+
+def test_RN_GER_011_codigo_com_letra_intacto_nas_tres_funcoes():
+    assert rn.cliente_sem_documento("900001 - A999999999-99A") == \
+        "900001 - A999999999-99A"
+    assert rn.cliente_sem_documento(
+        "900001 - 345.678/0001-90 CLIENTE FICTICIO") == \
+        "900001 - CLIENTE FICTICIO"
+    assert rn.texto_sem_contato("ref A999999999-99A ok") == \
+        "ref A999999999-99A ok"
+
+
+@pytest.mark.parametrize("entrada, esperado", [
     ("900001 - CLIENTE FICTICIO 12.345.678/0001-90",
      "900001 - CLIENTE FICTICIO"),
     ("900001 - 12.345.678/0001-90 CLIENTE FICTICIO",
