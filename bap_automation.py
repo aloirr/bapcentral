@@ -6598,7 +6598,7 @@ _DESCARTAR = object()
 
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
 # o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
-FAROIS_WEB = ("pl_inadimplencia",)
+FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas")
 # D1 do Alexandre ("2 A", 24/11): grafico e frase com nome de vendedor ou
 # supervisor VAO no pacote (True). Cliente e CNPJ nunca vao. Com False, o
 # grafico e as frases com nome de pessoa saem (1 linha).
@@ -6610,6 +6610,22 @@ _TERMOS_PESSOA_WEB = ("vendedor", "supervisor")
 # (frase "136 clientes" e contagem, nao nome: so o grafico por cliente sai)
 _TERMOS_CLIENTE_WEB = ("devedor", "cnpj")
 _TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
+# (T-0017, entregas 3 a 5) tabela do farol que o cartao por estado usa
+# (kpis_de; RN-GER-006). A coluna da UF e a conversao (filial da nota ou UF do
+# cliente) vem de _UF_LINHAS_WEB: uma regra so, para o cartao e para o
+# `uf_linhas` das tabelas. Visita fica fora: nenhuma tabela traz a UF do
+# cliente, o farol vai sem recortes e com aviso.
+_TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
+                       "pl_entregas": "Entregas"}
+# bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
+_TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
+# bloco tabela com coluna de pessoa/cliente nunca vai (regra 6)
+_COLUNAS_PESSOA_TABELA_WEB = ("cliente", "cnpj", "cpf", "razão", "razao",
+                              "fantasia", "nome", "telefone", "e-mail",
+                              "email", "contato")
+# (T-0017, entrega 5) a Prospeccao agora vai ao site; fica no PC so o aviso
+# da pasta das fotos (a coluna FOTO nunca vai)
+_AVISO_SO_PC_WEB = ("foto da fachada", "(coluna foto)")
 
 
 def _para_json(obj, _nivel: int = 0, fora=_PACOTE_WEB_CHAVES_ACAO):
@@ -6693,7 +6709,16 @@ def _com_fuso_manaus(quando=None) -> datetime:
 # (Pedidos, Entregas, Visita) ganham a propria fonte aqui.
 _FONTE_BAIXADO_WEB = {
     "pl_inadimplencia": (Path(BKP_BAPTOOLS),
-                         "Relatorio_Titulos_em_Abertos_*.xlsx")}
+                         "Relatorio_Titulos_em_Abertos_*.xlsx"),
+    # Pedidos e Entregas nascem dos Movimentos do Protheus (aba ftPedidos)
+    "pv_pedidos": (Path(BKP_BAPTOOLS),
+                   "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pl_entregas": (Path(BKP_BAPTOOLS),
+                    "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    # Visita: o "Atualizar visitas" e manual no PC; vale a ultima gravacao do
+    # VISITAS_POR_CLIENTE (o passo final do visitas_maxima)
+    "vc_visitas": (Path(SUBPASTA_RELATORIOS) / "Visitas",
+                   "VISITAS_POR_CLIENTE.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
@@ -6816,7 +6841,35 @@ def _linhas_insight(linhas, titulos_fora, grafico_com_nome) -> list:
     return saida
 
 
-def _kpis_com_estados(r: dict) -> list:
+_AVISO_TECNICO_WEB = ("aderência =", "aderencia =", "rota_protheus")
+
+
+AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
+
+
+def _ordenar_avisos_web(avisos) -> list:
+    """Funcao pura (contrato 10.7.6, ordem dos avisos do farol): 1 abas fora
+    (falta de dado), 2 "Sem o arquivo", 3 "Sem filtro por estado", 4 os
+    outros, na ordem do PC."""
+    def peso(a):
+        a = str(a)
+        return (0 if a.startswith(AVISO_ABAS_FORA.split("{")[0]) else
+                1 if a.startswith("Sem o arquivo") else
+                2 if a.startswith("Sem filtro por estado") else 3)
+    return sorted(avisos, key=peso)           # sorted e estavel
+
+
+def _avisos_curtos_visita_web(avisos, maximo: int = 2) -> list:
+    """Funcao pura: no celular o aviso do Farol de Visita e no maximo 2
+    linhas, em linguagem de quem usa: sai o que traz nome de arquivo de rota
+    ou a formula da aderencia. Ordem do contrato 10.7.6 (abas fora, arquivo
+    faltando, estado, o resto); corta do fim, entao "abas fora" nunca sai."""
+    ok = [a for a in avisos
+          if not any(t in str(a).lower() for t in _AVISO_TECNICO_WEB)]
+    return _ordenar_avisos_web(ok)[:maximo]
+
+
+def _kpis_com_estados(r: dict, sem_dado_fora: bool = False) -> list:
     """Os cartoes do farol; cada um com "estados" ({"barras": [[UF, numero,
     texto, "% na barra", tom]], "legenda"}) quando o PC desenha as mini-barras
     por estado (relatorios_nucleo.estados_do_cartao, filial da nota). So
@@ -6831,15 +6884,19 @@ def _kpis_com_estados(r: dict) -> list:
             est = _rn.estados_do_cartao(r, k) or {}
         except Exception:                               # noqa: BLE001
             est = {}
-        if est.get("barras"):
-            k["estados"] = {"barras": est["barras"],
+        barras = est.get("barras") or []
+        if sem_dado_fora:          # estado sem dado (ex.: sem vendedor) sai
+            barras = [b for b in barras if len(b) > 1 and b[1] is not None]
+        if barras:
+            k["estados"] = {"barras": barras,
                             "legenda": est.get("legenda", "")}
         saida.append(k)
     return saida
 
 
 def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
-                         grafico_com_nome=None, cobranca=None) -> dict:
+                         grafico_com_nome=None, cobranca=None,
+                         raiz=None) -> dict:
     """Funcao pura (T-0017): do farol montado, so a parte dado da forma "farol"
     (contrato, secao 10): {"forma", "titulo", "kpis", "painel": {"blocos"},
     "insights_painel", "avisos", "recortes", "baixado_em"}. baixado_em = a
@@ -6853,14 +6910,26 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     (T-0017, entrega 2, contrato §10.6) So no pl_inadimplencia, com `cobranca`
     (o bloco de cobranca_whatsapp.pacote_web): acrescenta `tabelas` (Titulos e
     Por cliente, sem TELEFONE) e `cobranca`; as duas chaves vao juntas ou
-    nenhuma."""
+    nenhuma.
+    (T-0017, entregas 3 a 5, contrato §10.7) Nos 3 rid de RIDS_TABELAS_WEB
+    acrescenta `tabelas` com todas as abas do PC (tabelas_farol_web; `raiz` =
+    onde esta o SOLICITACAO_BAP.xlsx, padrao PASTA_LOCAL); a aba que nao
+    bate com o contrato fica fora, com aviso."""
     if grafico_com_nome is None:
         grafico_com_nome = WEB_GRAFICOS_COM_NOME
     r = r or {}
-    blocos, titulos_fora = [], []
+    blocos, titulos_fora, avisos_extra = [], [], []
+    tipos = _TIPOS_BLOCO_FAROL_WEB + _TIPOS_BLOCO_EXTRA_WEB.get(rid, ())
     for b in ((r.get("painel") or {}).get("blocos") or []):
-        if not isinstance(b, dict) or b.get("tipo") not in _TIPOS_BLOCO_FAROL_WEB:
+        if not isinstance(b, dict) or b.get("tipo") not in tipos:
             continue
+        if b.get("tipo") == "tabela":
+            nomes = [str(c.get("nome") if isinstance(c, dict) else c).lower()
+                     for c in b.get("colunas") or []]
+            if any(t in n for n in nomes for t in _COLUNAS_PESSOA_TABELA_WEB):
+                avisos_extra.append(f"Bloco {b.get('titulo') or 'tabela'} "
+                                    "fica so no PC (traz cliente).")
+                continue
         if b.get("tipo") == "hbarras" and _texto_com_pessoa(
                 b.get("titulo"), grafico_com_nome, titulo=True):
             titulos_fora.append(str(b.get("titulo") or ""))
@@ -6875,15 +6944,22 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     saida = {
         "forma": "farol",
         "titulo": r.get("titulo"),
-        "kpis": _kpis_com_estados(r),
+        "kpis": _kpis_com_estados(r, sem_dado_fora=(rid == "vc_visitas")),
         "painel": {"blocos": blocos},
         "insights_painel": _linhas_insight(
             r.get("insights_painel"), titulos_fora, grafico_com_nome),
-        "avisos": [str(a) for a in (r.get("avisos") or [])],
-        "recortes": recortes_farol_por_uf(r),
+        "avisos": [str(a) for a in (r.get("avisos") or [])
+                   if not any(t in str(a).lower() for t in _AVISO_SO_PC_WEB)]
+                  + avisos_extra,
+        "recortes": _recortes_do_farol_web(rid, r),
         # quando a base foi baixada do ERP (nao a hora da montagem); None = nao sei
         "baixado_em": (_com_fuso_manaus(baixado_em).isoformat()
                        if baixado_em else None)}
+    if r.get("kpis_faixa"):          # Pedidos: cartoes em faixa, como o PC
+        saida["kpis_faixa"] = True
+    if not saida["recortes"] and rid != "pl_inadimplencia":
+        saida["avisos"].append("Sem filtro por estado: os cartões "
+                               "mostram a BAP inteira.")
     val = _para_json(saida, fora=_CHAVES_FORA_FAROL_WEB)
     val = val if isinstance(val, dict) else {}
     if rid == RID_COBRANCA_WEB and val and isinstance(cobranca, dict):
@@ -6900,6 +6976,21 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
             val.setdefault("avisos", []).append(
                 "Tabelas e cobrança no WhatsApp ficaram fora desta "
                 "atualização: as colunas do PC não batem com o contrato.")
+    if rid in RIDS_TABELAS_WEB and val:
+        try:
+            tabs, avs = tabelas_farol_web(rid, r, raiz)
+        except Exception as erro:                       # noqa: BLE001
+            log.warning("Pacote web: tabelas do farol %s fora do pacote "
+                        "(%s).", rid, type(erro).__name__)
+            tabs, avs = [], [AVISO_ABAS_FORA.format(
+                lista=", ".join(_ABAS_TABELAS_WEB[rid]))]
+        if tabs:
+            val["tabelas"] = tabs
+        val["avisos"] = (val.get("avisos") or []) + avs
+        # ordem do contrato 10.7.6; na Visita, no maximo 2 (celular)
+        val["avisos"] = (_avisos_curtos_visita_web(val["avisos"])
+                         if rid == "vc_visitas"
+                         else _ordenar_avisos_web(val["avisos"]))
     return val
 
 
@@ -7020,14 +7111,755 @@ def tabelas_cobranca_web(r: dict):
     return val if isinstance(val, list) and len(val) == 2 else None
 
 
+# ---------------------------------------------------------------------------
+# (T-0017, entregas 3 a 5, contrato §10.7) Todas as abas de tabela do PC nos
+# Farois de Pedidos, Entregas e Visita. Regras das tabelas da Inadimplencia
+# ("1 A", "2 A", "6 A"): sem CPF/CNPJ, telefone, e-mail, contato e foto; sem
+# exportar; o que grava (autorizar, trocar loja de coleta, editar entrega,
+# atualizar visitas) fica so no PC. RN-GER-011: nome de cliente limpo de
+# documento (o codigo fica) e texto livre sem telefone/e-mail/documento.
+# Decisoes tomadas com a recomendacao A (D1 a D6, ainda com o Alexandre):
+# D2 so o mes; D3 Solicitacao BAP inteira; D6 texto livre vai com
+# texto_sem_contato.
+# ---------------------------------------------------------------------------
+WEB_PACOTE_TETO_MB = 20            # trava do robo (o teto da web e 25: render.yaml)
+RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas")
+# colunas que nunca vao (sem acento, maiusculas), em qualquer tabela/junta/sub-aba
+_COLUNAS_FORA_WEB = frozenset({
+    "TELEFONE", "CELULAR", "WHATSAPP", "CNPJ", "CPF", "E-MAIL", "EMAIL",
+    "CONTATO", "FOTO", "ENDERECO"})
+# a aba da web -> o titulo da tabela do PC (ordem do contrato 10.7.1)
+_ABAS_TABELAS_WEB = {
+    "pv_pedidos": ("Pedidos", "Solicitação BAP"),
+    "pl_entregas": ("Entregas",),
+    "vc_visitas": ("Por supervisor", "Por vendedor", "Dia a dia",
+                   "Aderência dia a dia", "Cliente a cliente", "Prospecção",
+                   "Indicação")}
+TITULO_SOLICITACAO_WEB = "Solicitação BAP"
+# tabelas que o PC carrega com 12 meses e a web recebe so do mes (D2 A)
+_TABELAS_SO_MES_WEB = ("Pedidos", "Entregas")
+# UF de cada linha (RN-GER-006): (coluna, "filial" = filial da nota |
+# "uf" = UF do cliente)
+_UF_LINHAS_WEB = {
+    ("pl_inadimplencia", "Títulos"): ("FILIAL", "filial"),
+    ("pv_pedidos", "Pedidos"): ("FILIAL", "filial"),
+    ("pl_entregas", "Entregas"): ("UF", "uf"),
+    ("pl_entregas", "Pendências dos meses anteriores"): ("UF", "uf")}
+
+
+def _c(nome, tipo, oculta=False, selo=None):
+    """(nome, tipo, oculta, selo); selo = None | "faixa" (chip por faixa de
+    numero) | "texto" (chip por texto) | "barra" | "tom" (chip_tom)."""
+    return (nome, tipo, oculta, selo)
+
+
+_SEPARACAO_WEB = (
+    _c("DATA", "dia"), _c("UF", "texto"), _c("CIDADE", "texto"),
+    _c("PEDIDOS", "texto"), _c("FORN.", "texto"), _c("CÓD. PROD.", "texto"),
+    _c("DESCRIÇÃO", "texto"), _c("QTD", "num"), _c("COLETAR EM", "texto"),
+    _c("FILIAL DEST.", "texto"))
+_ENTREGAS_WEB = (
+    _c("SITUAÇÃO", "texto"), _c("SLA", "int", selo="tom"),
+    _c("DT. PED", "dia"), _c("DT. NF", "dia"), _c("DT. PREVISTA", "dia"),
+    _c("DT. REAL", "dia"), _c("UF", "texto"), _c("CIDADE", "texto"),
+    _c("CLIENTE", "texto"), _c("VLR NF", "moeda"), _c("VLR FRETE", "moeda"),
+    _c("TRANSPORTADORA", "texto"), _c("RESPONSÁVEL", "texto"),
+    _c("TBL FRETE", "moeda"), _c("VLR REAL FRETE", "moeda"),
+    _c("ETAPA", "texto"), _c("NF", "texto"), _c("FILIAL", "texto"),
+    _c("LOCAL/FRETE", "texto", True), _c("TOM SLA", "texto", True),
+    _c("PRAZO", "texto", True, "texto"))
+_METRICAS_VISITA_WEB = (
+    _c("META", "num"), _c("VISIT.", "int"),
+    _c("% META", "pct", selo="faixa"), _c("% CONV.", "pct"),
+    _c("% FORA DE ROTA", "pct"), _c("CAD.", "int"),
+    _c("CAD. C/ COMPRA", "int"), _c("PROSP.", "int"),
+    _c("INÍCIO", "hora"), _c("ÚLT. ATIV.", "hora"),
+    _c("JORNADA LÍQ.", "hora"), _c("DIAS < JORN. LÍQ.", "int"),
+    _c("INTERV. ALMOÇO", "hora"), _c("DIAS ALMOÇO > MÁX.", "int"),
+    _c("TMA", "hora"), _c("TMD", "hora"), _c("KM", "num"),
+    _c("KM/CLIENTE", "num1"))
+
+# contrato 10.7.3: {rid: {titulo da tabela: colunas depois do corte}}
+_COLUNAS_TABELAS_WEB = {
+    "pv_pedidos": {
+        "Pedidos": (
+            _c("DT. PED", "dia"), _c("FATURAR ATÉ", "dia"),
+            _c("PEDIDO", "texto"), _c("PED. MÁX.", "texto"),
+            _c("CÓD.", "texto"), _c("RAZÃO SOCIAL", "texto"),
+            _c("FANTASIA", "texto"), _c("UF", "texto"),
+            _c("CIDADE", "texto"), _c("LIMITE", "moeda"),
+            _c("DISP.", "moeda"), _c("ATRASO", "moeda"),
+            _c("VOL.", "num"), _c("R$ TABELA", "moeda"),
+            _c("R$ VENDA", "moeda"), _c("% DESC.", "pct1"),
+            _c("SLA", "int", selo="faixa"),
+            _c("% ATENDIDO", "pct", selo="barra"),
+            _c("ANÁLISE CRÉDITO", "texto"), _c("COND. PAGTO", "texto"),
+            _c("SITUAÇÃO", "texto"), _c("FILIAL", "texto"),
+            _c("PRAZO", "texto"), _c("VENDEDOR", "texto"), _c("NF", "texto"),
+            _c("DT. NF", "dia"), _c("R$ TABELA CHEIA", "moeda", True),
+            _c("CÓD. AUTORIZAÇÃO", "texto", True),
+            _c("AUTORIZADO POR", "texto", True), _c("MÊS", "texto", True),
+            _c("ENTREGUE EM", "dia", True), _c("PRODUTO", "texto", True),
+            _c("CHAVE", "texto", True)),
+        "Gerar separação CD": _SEPARACAO_WEB,
+        "Gerar reversa de lojas": _SEPARACAO_WEB,
+        "Analítico produto": (
+            _c("PEDIDO", "texto"), _c("DATA", "dia"), _c("CIDADE", "texto"),
+            _c("FILIAL", "texto"), _c("FORN.", "texto"),
+            _c("CÓD. PROD.", "texto"), _c("DESCRIÇÃO", "texto"),
+            _c("QTD", "num"), _c("EST. FRW", "num"),
+            _c("PEDIDOS ANTES", "num"), _c("DISP. P/ ESTE", "num"),
+            _c("ATENDIDO", "num"), _c("FALTA", "num"),
+            _c("CLIENTE", "texto"), _c("FILIAL BAP", "texto", True),
+            _c("VALOR FALTANTE", "moeda"))},
+    "pl_entregas": {
+        "Entregas": (_c("MÊS", "texto", True),) + _ENTREGAS_WEB,
+        "Pendências dos meses anteriores": (
+            (_c("MÊS", "texto"),) + _ENTREGAS_WEB)},
+    "vc_visitas": {
+        "Por supervisor": (
+            _c("SUPERVISOR", "texto"), _c("REPRES.", "int"))
+        + _METRICAS_VISITA_WEB + (_c("CHAVE", "texto", True),),
+        "Por vendedor": (
+            _c("SUPERVISOR", "texto"), _c("VENDEDOR", "texto"),
+            _c("CARGO", "texto", True), _c("FILIAL", "texto", True),
+            _c("CÓD.", "texto", True))
+        + _METRICAS_VISITA_WEB + (_c("CHAVE", "texto", True),),
+        "Dia a dia": (
+            _c("DATA", "data"), _c("DIA", "texto"),
+            _c("SUPERVISOR", "texto"), _c("VENDEDOR", "texto"),
+            _c("CARGO", "texto", True), _c("SITUAÇÃO", "texto"))
+        + _METRICAS_VISITA_WEB + (_c("CHAVE", "texto", True),),
+        "Cliente a cliente": (
+            _c("DATA", "data"), _c("DIA", "texto"),
+            _c("SUPERVISOR", "texto"), _c("VENDEDOR", "texto"),
+            _c("SITUAÇÃO", "texto"), _c("CÓD.", "texto"),
+            _c("CLIENTE", "texto"), _c("NOME FANTASIA", "texto"),
+            _c("SEGMENTO", "texto"), _c("BAIRRO", "texto"),
+            _c("CIDADE", "texto"), _c("CURVA", "texto"),
+            _c("STATUS", "texto"), _c("DIAS S/ COMPRA", "int"),
+            _c("ATRASO", "moeda"), _c("SEQ. PREV.", "texto"),
+            _c("SEQ. REAL", "texto"), _c("INÍCIO", "hora"),
+            _c("FIM", "hora"), _c("ATEND.", "hora"),
+            _c("PEDIDO NO DIA", "texto"), _c("VALOR PEDIDO", "moeda"),
+            _c("JUSTIFICATIVA", "texto"), _c("ATEND. SEG.", "int", True)),
+        "Prospecção": (
+            _c("DATA", "data"), _c("HORA", "hora"), _c("DIA", "texto"),
+            _c("SUPERVISOR", "texto"), _c("VENDEDOR", "texto"),
+            _c("STATUS", "texto"), _c("FONTE", "texto"),
+            _c("ESTABELECIMENTO", "texto"), _c("SEGMENTO", "texto"),
+            _c("CIDADE", "texto"), _c("UF", "texto"),
+            _c("RESULTADO", "texto"), _c("LINHAS DE INTERESSE", "texto"),
+            _c("OBSERVAÇÃO", "texto")),
+        "Indicação": (
+            _c("DATA", "data"), _c("DIA", "texto"),
+            _c("SUPERVISOR", "texto"), _c("VENDEDOR", "texto"),
+            _c("SITUAÇÃO", "texto"), _c("CÓD. QUEM INDICOU", "texto"),
+            _c("CLIENTE QUE INDICOU", "texto"), _c("INDICADO", "texto"),
+            _c("CIDADE", "texto"), _c("BAIRRO", "texto"),
+            _c("SEGMENTO", "texto"), _c("VISITADA EM", "data"),
+            _c("OBSERVAÇÃO", "texto"), _c("REGISTRADO EM", "texto"))}}
+# "Aderência dia a dia": as colunas dos dias mudam com o mes (padrao de nome)
+_ADERENCIA_WEB = ("Aderência dia a dia",
+                  r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$",
+                  r"^% ADERÊNCIA ACUM\. ATÉ \d{2}/\d{2}$")
+# a junta: titulo da tabela de cima -> [(titulo do quadro no PC, titulo da
+# tabela, liga [col_junta, col_tabela, sep])]
+_JUNTAS_WEB = {
+    ("pv_pedidos", "Pedidos"): (
+        ("Gerar ID de separação CD", "Gerar separação CD",
+         ("PEDIDOS", "PEDIDO", "|")),
+        ("Gerar reversa de lojas", "Gerar reversa de lojas",
+         ("PEDIDOS", "PEDIDO", "|")),
+        ("Analítico por pedido", "Analítico produto",
+         ("PEDIDO", "PEDIDO", None))),
+    ("pl_entregas", "Entregas"): (
+        ("Pendências dos meses anteriores",
+         "Pendências dos meses anteriores", None),)}
+# nome de cliente/estabelecimento: "sem_documento" (so o texto) ou
+# "cliente_sem_documento" ("codigo - nome": o codigo fica)
+_COLUNAS_LIMPAS_WEB = {
+    ("pv_pedidos", "Pedidos"): {"RAZÃO SOCIAL": "sem_documento",
+                                "FANTASIA": "sem_documento"},
+    ("pv_pedidos", "Analítico produto"): {
+        "CLIENTE": "cliente_sem_documento"},
+    ("pl_entregas", "Entregas"): {"CLIENTE": "cliente_sem_documento"},
+    ("pl_entregas", "Pendências dos meses anteriores"): {
+        "CLIENTE": "cliente_sem_documento"},
+    ("vc_visitas", "Cliente a cliente"): {
+        "CLIENTE": "cliente_sem_documento", "NOME FANTASIA": "sem_documento"},
+    ("vc_visitas", "Prospecção"): {"ESTABELECIMENTO": "sem_documento"},
+    ("vc_visitas", "Indicação"): {"CLIENTE QUE INDICOU": "sem_documento",
+                                  "INDICADO": "sem_documento"}}
+# texto livre (D6 A): telefone, e-mail e CPF/CNPJ viram "[removido]"
+_COLUNAS_TEXTO_LIVRE_WEB = frozenset({
+    "JUSTIFICATIVA", "OBSERVAÇÃO", "RESULTADO", "LINHAS DE INTERESSE",
+    "MOTIVO"})
+_COLUNAS_LARGAS_SOLICITACAO_WEB = ("ID_PRODUTO", "CHAVE", "MOTIVO", "PEDIDOS")
+
+
+class _TabelaTortaWeb(Exception):
+    """A tabela do PC nao bate com o contrato 10.7.3 (a aba fica fora)."""
+
+
+def _coluna_proibida_web(nome) -> bool:
+    import bap_dados as _bd                             # noqa: PLC0415
+    return _bd.sem_acento(nome) in _COLUNAS_FORA_WEB
+
+
+def _mes_padrao(t):
+    """O padrao do filtro MÊS da tabela do PC (ex.: "NOV/26"), ou None."""
+    return next((f.get("padrao") for f in (t or {}).get("filtros") or []
+                 if isinstance(f, dict) and f.get("coluna") == "MÊS"
+                 and f.get("padrao")), None)
+
+
+def _funcoes_limpeza_web() -> dict:
+    """As funcoes puras do nucleo (RN-GER-011). Sem elas, levanta."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    return {n: getattr(_rn, n) for n in (
+        "sem_documento", "cliente_sem_documento", "texto_sem_contato")}
+
+
+def _limpar_celula_web(valor, fn):
+    if valor in (None, ""):
+        return valor
+    return fn(valor)
+
+
+def _esperado_web(rid: str, titulo: str, nomes: list):
+    """As colunas esperadas (nome, tipo, oculta, selo) da tabela depois do
+    corte, ou levanta _TabelaTortaWeb."""
+    if rid == "vc_visitas" and titulo == _ADERENCIA_WEB[0]:
+        import re                                       # noqa: PLC0415
+        meio = nomes[2:-1]
+        if (len(nomes) < 4 or nomes[:2] != ["SUPERVISOR", "VENDEDOR"]
+                or not all(re.match(_ADERENCIA_WEB[1], n) for n in meio)
+                or not re.match(_ADERENCIA_WEB[2], nomes[-1])):
+            raise _TabelaTortaWeb("colunas")
+        return ((_c("SUPERVISOR", "texto"), _c("VENDEDOR", "texto"))
+                + tuple(_c(n, "pct") for n in nomes[2:]))
+    esperado = _COLUNAS_TABELAS_WEB.get(rid, {}).get(titulo)
+    if esperado is None:
+        raise _TabelaTortaWeb("titulo")
+    return esperado
+
+
+def _selo_web(col: dict, selo, nomes_pc: list, ocultas_pc: set) -> dict:
+    """O selo da coluna no formato do contrato 10.7.2 (a cor sai do PC).
+    Forma diferente da esperada: levanta."""
+    saida = {}
+    chip, barra, tom = col.get("chip"), col.get("barra"), col.get("chip_tom")
+    if selo is None:
+        return saida                       # selo fora da lista: nao vai
+    if selo == "faixa":
+        if not (isinstance(chip, (list, tuple)) and chip and all(
+                isinstance(f, (list, tuple)) and len(f) == 3 for f in chip)):
+            raise _TabelaTortaWeb("selo")
+        saida["chip"] = [[f[0], f[1], f[2]] for f in chip]
+    elif selo == "texto":
+        if not (isinstance(chip, dict) and chip and all(
+                isinstance(v, (list, tuple)) and len(v) == 2
+                for v in chip.values())):
+            raise _TabelaTortaWeb("selo")
+        saida["chip"] = {str(k): [v[0], v[1]] for k, v in chip.items()}
+    elif selo == "barra":
+        if not (isinstance(barra, dict) and "max" in barra
+                and isinstance(barra.get("faixas"), (list, tuple))):
+            raise _TabelaTortaWeb("selo")
+        saida["barra"] = {"max": barra["max"],
+                          "faixas": [[f[0], f[1], f[2]]
+                                     for f in barra["faixas"]]}
+    elif selo == "tom":
+        if not (isinstance(tom, int) and not isinstance(tom, bool)
+                and 0 <= tom < len(nomes_pc) and nomes_pc[tom] in ocultas_pc):
+            raise _TabelaTortaWeb("selo")
+        saida["chip_tom"] = nomes_pc[tom]
+    return saida
+
+
+def _uf_valida_web(v) -> str:
+    v = str(v or "").strip().upper()
+    return v if len(v) == 2 and v.isalpha() else ""
+
+
+_TIPOS_NUM_WEB = frozenset({"int", "num", "num1", "num2", "moeda", "moeda2",
+                            "pct", "pct1", "valor"})
+_RE_DATA_WEB = re.compile(r"^\d{4}-\d{2}-\d{2}")
+# CPF/CNPJ formatado dentro de uma celula: a web recusa o pacote inteiro
+_RE_DOC_WEB = re.compile(
+    r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}")
+
+
+def _numero_web(v) -> bool:
+    return (isinstance(v, (int, float)) and not isinstance(v, bool)
+            and v == v and v not in (float("inf"), float("-inf")))
+
+
+def _celula_ok_web(v, tipo: str) -> bool:
+    """A celula segue o tipo da coluna (contrato 10.7.6; a mesma regra da web)."""
+    if v is None:
+        return True
+    if tipo in _TIPOS_NUM_WEB:
+        return _numero_web(v)
+    if tipo in ("dia", "data"):
+        return isinstance(v, str) and (v == "" or bool(_RE_DATA_WEB.match(v)))
+    if tipo == "hora":
+        return isinstance(v, str) and len(v) <= 12
+    if isinstance(v, str):
+        return len(v) <= 2000 and not _RE_DOC_WEB.search(v)
+    return _numero_web(v)
+
+
+def normalizar_total_web(colunas: list, total):
+    """Funcao pura (contrato 10.7.2.1): a linha de total do PC, ja cortada
+    nas colunas do pacote, no formato da web: "" e None viram None; o rotulo
+    (a 1a celula, quando e texto) vai para a 1a coluna visivel de tipo texto
+    (ex.: "TOTAL" sai de DATA e vai para DIA); celula com tipo errado para a
+    coluna vira None. Sem total: None. O total nunca vai em `linhas`."""
+    if not isinstance(total, (list, tuple)) or len(total) != len(colunas):
+        return None
+    cel = [None if (v is None or v == "" or (isinstance(v, float) and v != v))
+           else v for v in total]
+    if isinstance(cel[0], str):
+        k = next((i for i, c in enumerate(colunas)
+                  if c.get("tipo") == "texto" and not c.get("oculta")), None)
+        if k is not None and k != 0:
+            rotulo, cel[0] = cel[0], None
+            cel[k] = rotulo
+    saida = []
+    for v, c in zip(cel, colunas):
+        tp = c.get("tipo")
+        if v is not None and tp in ("dia", "data") and not isinstance(v, str):
+            v = v.isoformat() if hasattr(v, "isoformat") else None
+        elif v is not None and tp == "texto" and _numero_web(v):
+            v = str(v)
+        saida.append(v if _celula_ok_web(v, tp) else None)
+    return saida
+
+
+def _conferir_tabela_web(t: dict) -> None:
+    """A mesma conferencia de celulas da web (R1): linha e total seguem o tipo
+    da coluna e nao trazem CPF/CNPJ formatado. Levanta _TabelaTortaWeb (so a
+    aba sai)."""
+    tipos = [c.get("tipo") for c in t["colunas"]]
+    for ln in t["linhas"]:
+        if not all(_celula_ok_web(v, tp) for v, tp in zip(ln, tipos)):
+            raise _TabelaTortaWeb("celulas")
+    if t.get("total") is not None and not (
+            len(t["total"]) == len(tipos) and all(
+                _celula_ok_web(v, tp) for v, tp in zip(t["total"], tipos))):
+        raise _TabelaTortaWeb("total")
+
+
+def tabela_web7(rid: str, t: dict, mes_rot=None, _junta: bool = False):
+    """Funcao pura (T-0017, contrato 10.7): a tabela do PC (depois do
+    `montar`) no formato TabelaWeb7, ou None se as colunas nao baterem com a
+    lista do contrato 10.7.3 (so essa aba fica fora; a linha do log nao tem
+    dado pessoal).
+
+    - corta as colunas que nunca vao (_COLUNAS_FORA_WEB) e a celula a mais
+      da linha (a chave da entrega);
+    - D2 A: em "Pedidos" e "Entregas" so as linhas do mes (`mes_rot`, padrao
+      = o filtro MÊS da tabela);
+    - limpa nome de cliente (sem_documento / cliente_sem_documento) e texto
+      livre (texto_sem_contato) do nucleo;
+    - `kpis_padrao`, `recortes_linhas` e `uf_linhas` saem das linhas
+      ORIGINAIS do PC e so depois sao remapeados para as linhas do mes.
+    A tabela de junta (`_junta`) nao leva kpis_padrao."""
+    titulo = (t or {}).get("titulo")
+    try:
+        return _tabela_web7(rid, t, mes_rot, _junta)
+    except _TabelaTortaWeb as erro:
+        log.warning("Pacote web: tabela '%s' do farol %s fora do pacote (%s "
+                    "nao batem com o contrato 10.7.3).", titulo, rid, erro)
+        return None
+    except Exception as erro:                           # noqa: BLE001
+        log.warning("Pacote web: tabela '%s' do farol %s fora do pacote "
+                    "(%s).", titulo, rid, type(erro).__name__)
+        return None
+
+
+def _tabela_web7(rid, t, mes_rot, junta):
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    titulo = t.get("titulo")
+    pc = [c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
+          for c in t.get("colunas") or []]
+    nomes_pc = [c.get("nome") for c in pc]
+    idx = [i for i, n in enumerate(nomes_pc) if not _coluna_proibida_web(n)]
+    atuais = [(pc[i]["nome"], pc[i].get("tipo"), bool(pc[i].get("oculta")))
+              for i in idx]
+    esperado = _esperado_web(rid, titulo, [a[0] for a in atuais])
+    if atuais != [(n, tp, o) for n, tp, o, _s in esperado]:
+        raise _TabelaTortaWeb("colunas")
+    ocultas_pc = {c["nome"] for c in pc if c.get("oculta")}
+    colunas = []
+    for i, (_n, _tp, _o, selo) in zip(idx, esperado):
+        c = pc[i]
+        col = {"nome": c["nome"], "tipo": c["tipo"]}
+        if c.get("largura") is not None:
+            col["largura"] = int(c["largura"])
+        if c.get("larg_fixa") is not None:
+            col["larg_fixa"] = int(c["larg_fixa"])
+        if c.get("oculta"):
+            col["oculta"] = True
+        if c.get("inteira"):
+            col["inteira"] = True
+        col.update(_selo_web(c, selo, nomes_pc, ocultas_pc))
+        colunas.append(col)
+    nomes = [c["nome"] for c in colunas]
+    brutas = t.get("linhas") or []
+    for ln in brutas:
+        if len(ln) < len(pc):
+            raise _TabelaTortaWeb("linhas")
+    # indices ORIGINAIS: filtros padrao, recortes, UF (antes de cortar/limpar)
+    tons_pc = [str(x or "") for x in t.get("tons") or []]
+    if len(tons_pc) != len(brutas):
+        tons_pc = [""] * len(brutas)
+    manter = list(range(len(brutas)))
+    if titulo in _TABELAS_SO_MES_WEB and "MÊS" in nomes_pc:
+        ix_mes = nomes_pc.index("MÊS")
+        mes_rot = mes_rot or _mes_padrao(t)
+        if not mes_rot:
+            raise _TabelaTortaWeb("mes")
+        manter = [k for k in manter
+                  if str(brutas[k][ix_mes]) == str(mes_rot)]
+    novo = {k: j for j, k in enumerate(manter)}
+    saida = {"titulo": titulo, "colunas": colunas}
+    funcs = _funcoes_limpeza_web()
+    limpas = {n: funcs[f] for n, f in _COLUNAS_LIMPAS_WEB.get(
+        (rid, titulo), {}).items()}
+    for n in nomes:
+        if n in _COLUNAS_TEXTO_LIVRE_WEB:
+            limpas[n] = funcs["texto_sem_contato"]
+    pos_limpa = [(nomes.index(n), fn) for n, fn in limpas.items()
+                 if n in nomes]
+    linhas = []
+    for k in manter:
+        ln = [brutas[k][i] for i in idx]
+        for j, fn in pos_limpa:
+            ln[j] = _limpar_celula_web(ln[j], fn)
+        linhas.append(ln)
+    saida["linhas"] = linhas
+    saida["tons"] = [tons_pc[k] for k in manter]
+    total = t.get("total")
+    saida["total"] = normalizar_total_web(
+        colunas, [total[i] for i in idx]
+        if isinstance(total, (list, tuple)) and len(total) == len(pc)
+        else None)
+    saida["filtros"] = []
+    for f in t.get("filtros") or []:
+        if (f.get("coluna") if isinstance(f, dict) else f) not in nomes:
+            continue
+        if (titulo in _TABELAS_SO_MES_WEB and isinstance(f, dict)
+                and f.get("coluna") == "MÊS"):
+            f = dict(f, oculto=True)      # o pacote so tem o mes: sem caixa
+        saida["filtros"].append(f)
+    if t.get("zebra"):
+        saida["zebra"] = True
+    kpis_de = t.get("kpis_de")
+    kpis_padrao = None
+    if callable(kpis_de) and not junta:
+        try:
+            padrao = _rn.linhas_padrao(t)
+            ks = _rn.chamar_kpis_de(kpis_de, [brutas[k] for k in padrao])
+        except Exception as erro:                       # noqa: BLE001
+            log.warning("Pacote web: cartoes da aba '%s' do farol %s fora "
+                        "(%s).", titulo, rid, type(erro).__name__)
+            ks = None
+        if ks:      # o cartao inteiro, com o `detalhe` do Kpi (achado 12)
+            kpis_padrao = _para_json(
+                ks, fora=_CHAVES_FORA_TABELA_WEB - {"detalhe"})
+    rec = []
+    for r in _rn.recortes_em_linhas(t):
+        rec.append({"rotulo": r["rotulo"],
+                    "linhas": [novo[k] for k in r["linhas"] if k in novo]})
+    if rec:
+        saida["recortes_linhas"] = rec
+    uf_cfg = _UF_LINHAS_WEB.get((rid, titulo))
+    if uf_cfg:
+        ix = nomes_pc.index(uf_cfg[0])
+        conv = _rn.uf_do_nome_da_filial if uf_cfg[1] == "filial" \
+            else _uf_valida_web
+        saida["uf_linhas"] = [_uf_valida_web(conv(brutas[k][ix]))
+                              for k in manter]
+    val = _para_json(saida, fora=_CHAVES_FORA_TABELA_WEB)
+    if not isinstance(val, dict):
+        raise _TabelaTortaWeb("tabela")
+    # o _para_json tira celula que nao e JSON: o numero de celulas nao muda
+    if (len(val.get("colunas", [])) != len(colunas)
+            or len(val.get("linhas", [])) != len(linhas)
+            or any(len(a) != len(colunas) for a in val["linhas"])):
+        raise _TabelaTortaWeb("linhas")
+    if kpis_padrao:
+        val["kpis_padrao"] = kpis_padrao
+    _conferir_tabela_web(val)         # a mesma conferencia da web (R1)
+    return val
+
+
+def _celula_solicitacao_web(v, tipo: str):
+    """Celula da Solicitacao BAP em JSON: data/hora viram texto, numero em
+    coluna de texto vira texto (como a tela mostra)."""
+    from datetime import time as _time                  # noqa: PLC0415
+    if v is None or isinstance(v, bool):
+        return v
+    if isinstance(v, datetime):
+        return (v.date().isoformat() if tipo == "data"
+                else (v.strftime("%d/%m/%Y") if not (v.hour or v.minute)
+                      else v.strftime("%d/%m/%Y %H:%M")))
+    if isinstance(v, date):
+        return v.isoformat() if tipo == "data" else v.strftime("%d/%m/%Y")
+    if isinstance(v, _time):
+        return v.strftime("%H:%M:%S")
+    if isinstance(v, float):
+        if v != v or v in (float("inf"), float("-inf")):
+            return None
+        if tipo == "texto":
+            return str(int(v)) if v.is_integer() else str(v)
+        return v
+    if isinstance(v, int):
+        return str(v) if tipo == "texto" else v
+    return v if isinstance(v, str) else str(v)
+
+
+def solicitacao_web(raiz):
+    """(T-0017, contrato 10.7.3) A aba "Solicitação BAP" (TabelaWeb7 com 7
+    `subabas`) a partir de RELATORIOS/SOLICITACAO_BAP.xlsx
+    (solicitacao_bap.ler), as linhas inteiras (D3 A; a trava de tamanho corta
+    depois). Sem as colunas que nunca vao; CLIENTE sem documento; MOTIVO sem
+    contato. A troca de loja de coleta (grava) fica no PC. Sem o arquivo ou
+    sem aba: None."""
+    import solicitacao_bap as _sb                       # noqa: PLC0415
+    dados = _sb.ler(raiz)
+    if not dados:
+        return None
+    funcs = _funcoes_limpeza_web()
+    subabas = []
+    for aba in _sb.ABAS_TELA:
+        d = dados.get(aba)
+        if not d:
+            continue
+        cols = list(d["colunas"])
+        tipos = _sb.tipos_colunas(cols, d["linhas"])
+        idx = [i for i, c in enumerate(cols)
+               if c and not _coluna_proibida_web(c)]
+        colunas = [{"nome": cols[i], "tipo": tipos[i],
+                    "largura": 170 if cols[i] in
+                    _COLUNAS_LARGAS_SOLICITACAO_WEB else 90} for i in idx]
+        limpas = [(j, funcs["cliente_sem_documento"] if cols[i] == "CLIENTE"
+                   else funcs["texto_sem_contato"])
+                  for j, i in enumerate(idx)
+                  if cols[i] == "CLIENTE"
+                  or cols[i] in _COLUNAS_TEXTO_LIVRE_WEB]
+        linhas = []
+        for ln in d["linhas"]:
+            nova = [_celula_solicitacao_web(ln[i] if i < len(ln) else None,
+                                            tipos[i]) for i in idx]
+            for j, fn in limpas:
+                nova[j] = _limpar_celula_web(nova[j], fn)
+            if not all(_celula_ok_web(v, "texto") for v in nova):
+                raise _TabelaTortaWeb("celulas")
+            linhas.append(nova)
+        subabas.append({"titulo": aba, "colunas": colunas, "linhas": linhas,
+                        "tons": [""] * len(linhas)})
+    if not subabas:
+        return None
+    val = _para_json({"titulo": TITULO_SOLICITACAO_WEB, "colunas": [],
+                      "linhas": [], "tons": [], "total": None,
+                      "filtros": [], "subabas": subabas},
+                     fora=_CHAVES_FORA_TABELA_WEB)
+    for sa in (val or {}).get("subabas", []):
+        if any(len(a) != len(sa["colunas"]) for a in sa["linhas"]):
+            raise _TabelaTortaWeb("linhas")
+    return val
+
+
+def _junta_web7(rid, titulo_mae, pc_juntas, mes_rot):
+    """As juntas da tabela de cima no formato do contrato, ou None se uma
+    junta faltar, estiver com outra `liga` ou torta."""
+    saida = []
+    for quadro, titulo_tab, liga in _JUNTAS_WEB.get((rid, titulo_mae), ()):
+        j = next((x for x in pc_juntas or [] if isinstance(x, dict)
+                  and x.get("titulo") == quadro), None)
+        if j is None or not isinstance(j.get("tabela"), dict):
+            return None
+        pc_liga = j.get("liga")
+        if (tuple(pc_liga) if pc_liga else None) != liga:
+            return None
+        tab = tabela_web7(rid, j["tabela"], mes_rot, _junta=True)
+        if tab is None or tab.get("titulo") != titulo_tab:
+            return None
+        nomes = [c["nome"] for c in tab["colunas"]]
+        item = {"titulo": quadro, "liga": list(liga) if liga else None,
+                "tabela": tab}
+        mostrar = [n for n in j.get("mostrar") or [] if n in nomes]
+        if mostrar:
+            item["mostrar"] = mostrar
+        saida.append(item)
+    return saida
+
+
+def tabelas_farol_web(rid: str, r: dict, raiz=None):
+    """Funcao (T-0017, contrato 10.7): (lista de TabelaWeb7, avisos) das abas
+    de tabela do farol, na ordem do contrato 10.7.1. Cada aba e independente:
+    a que nao bater com o contrato fica fora, com aviso no farol e uma linha
+    de log sem dado pessoal; as outras seguem. O Pedidos leva as 3 juntas, o
+    Entregas leva a das pendencias, e o Pedidos leva a Solicitacao BAP."""
+    recusadas, saida = [], []
+    por_titulo = {t.get("titulo"): t for t in (r or {}).get("tabelas") or []
+                  if isinstance(t, dict)}
+
+    def fora(titulo):
+        recusadas.append(titulo)
+    for titulo in _ABAS_TABELAS_WEB.get(rid, ()):
+        if titulo == TITULO_SOLICITACAO_WEB:
+            try:
+                tab = solicitacao_web(raiz or PASTA_LOCAL)
+            except Exception as erro:                   # noqa: BLE001
+                log.warning("Pacote web: Solicitacao BAP fora do pacote "
+                            "(%s).", type(erro).__name__)
+                fora(titulo)
+                continue
+            if tab:
+                saida.append(tab)
+            continue
+        t = por_titulo.get(titulo)
+        if not t:                    # aba que nao existe no farol: sem aviso
+            continue
+        tab = tabela_web7(rid, t)
+        if tab is not None and (rid, titulo) in _JUNTAS_WEB:
+            juntas = _junta_web7(rid, titulo, t.get("juntas"),
+                                 _mes_padrao(t))
+            if juntas is None:
+                tab = None
+            else:
+                tab["juntas"] = juntas
+        if tab is None:
+            fora(titulo)
+            continue
+        saida.append(tab)
+    avisos = []
+    if recusadas:         # um aviso so (teto de 2 avisos no celular)
+        log.warning("Pacote web: abas fora do pacote no farol %s: %s.", rid,
+                    ", ".join(recusadas))
+        avisos.append(AVISO_ABAS_FORA.format(lista=", ".join(recusadas)))
+    return saida, avisos
+
+
+def _tamanho_pacote_web(pacote: dict) -> int:
+    return len(json.dumps(pacote, ensure_ascii=False).encode("utf-8"))
+
+
+def _cortar_pacote_web(pacote: dict, teto_mb=None) -> dict:
+    """Funcao pura (T-0017, contrato 10.7.8): se o pacote serializado passar
+    de `teto_mb` (WEB_PACOTE_TETO_MB), corta nesta ordem, ate caber, com um
+    aviso no farol e uma linha no log: (1) "Solicitação BAP" so com as linhas
+    de pedido EM ABERTO (ProdutosExcluir e FiliaisExcluir vao inteiras);
+    (2) "Cliente a cliente" fora; (3) todas as `tabelas` dos tres farois
+    fora (o farol cai no 10.1). Nunca muda a `tabelas` do pl_inadimplencia.
+    Devolve outro dicionario; o de entrada nao muda."""
+    import copy                                         # noqa: PLC0415
+    limite = int((teto_mb if teto_mb is not None
+                  else WEB_PACOTE_TETO_MB) * 1024 * 1024)
+    if _tamanho_pacote_web(pacote) <= limite:
+        return pacote
+    novo = copy.deepcopy(pacote)
+    rels = novo.get("relatorios") or {}
+
+    def avisar(rid, texto):
+        log.warning("Pacote web: %s (farol %s).", texto, rid)
+        av = rels[rid].setdefault("avisos", [])
+        av.append(texto)
+        rels[rid]["avisos"] = (_avisos_curtos_visita_web(av)
+                               if rid == "vc_visitas"
+                               else _ordenar_avisos_web(av))
+
+    def abas_fora(rid, titulos):
+        """Junta os titulos no aviso unico de abas fora (contrato 10.7.6)."""
+        pre, pos = AVISO_ABAS_FORA.split("{lista}")
+        av = rels[rid].setdefault("avisos", [])
+        antes = []
+        for a in list(av):
+            if str(a).startswith(pre):
+                antes = [x for x in str(a)[len(pre):-len(pos)].split(", ")
+                         if x]
+                av.remove(a)
+        ordem = _ABAS_TABELAS_WEB.get(rid, ())
+        todos = antes + [x for x in titulos if x not in antes]
+        todos.sort(key=lambda x: ordem.index(x) if x in ordem else 99)
+        avisar(rid, AVISO_ABAS_FORA.format(lista=", ".join(todos)))
+
+    def passo1():
+        for rid in RIDS_TABELAS_WEB:
+            for t in (rels.get(rid) or {}).get("tabelas") or []:
+                if t.get("titulo") != TITULO_SOLICITACAO_WEB:
+                    continue
+                for sa in t.get("subabas") or []:
+                    nomes = [c["nome"] for c in sa["colunas"]]
+                    if "SITUACAO_PEDIDO" not in nomes:
+                        continue        # as listas de exclusao vao inteiras
+                    i = nomes.index("SITUACAO_PEDIDO")
+                    sa["linhas"] = [ln for ln in sa["linhas"]
+                                    if str(ln[i]).strip().upper()
+                                    == "EM ABERTO"]
+                    sa["tons"] = [""] * len(sa["linhas"])
+                avisar(rid, "A Solicitação BAP foi reduzida aos pedidos em "
+                       "aberto para caber no pacote.")
+
+    def passo2():
+        for rid in RIDS_TABELAS_WEB:
+            tabs = (rels.get(rid) or {}).get("tabelas")
+            if tabs and any(t.get("titulo") == "Cliente a cliente"
+                            for t in tabs):
+                rels[rid]["tabelas"] = [t for t in tabs if t.get(
+                    "titulo") != "Cliente a cliente"]
+                abas_fora(rid, ["Cliente a cliente"])
+
+    def passo3():
+        for rid in RIDS_TABELAS_WEB:
+            if (rels.get(rid) or {}).get("tabelas"):
+                titulos = [t.get("titulo") for t in rels[rid].pop("tabelas")]
+                abas_fora(rid, titulos)
+    for passo in (passo1, passo2, passo3):
+        passo()
+        if _tamanho_pacote_web(novo) <= limite:
+            break
+    else:
+        log.warning("Pacote web: continua acima do teto de %s MB depois dos "
+                    "3 cortes.", teto_mb if teto_mb is not None
+                    else WEB_PACOTE_TETO_MB)
+    return novo
+
+
+def _recortes_do_farol_web(rid: str, r: dict) -> dict:
+    """Recortes por estado do rid, pela regra da RN-GER-006 (filial da nota no
+    faturamento; UF do cliente em fretes/Planner), com a coluna e a conversao
+    de _UF_LINHAS_WEB. Sem a UF do cliente (Visita): {}. No Entregas o
+    cartao e calculado como o PC: kpis_de(linhas da UF, filtro={coluna UF: UF}),
+    e "Pendências anteriores" entra no recorte (RD-0019)."""
+    titulo = _TABELA_RECORTE_WEB.get(rid)
+    cfg = _UF_LINHAS_WEB.get((rid, titulo))
+    if not cfg:
+        return {}
+    col, modo = cfg
+    if modo == "uf":
+        return recortes_farol_por_uf(r, titulo, coluna_filial=col,
+                                     uf_de=_uf_valida_web, filtro_uf=True)
+    return recortes_farol_por_uf(r, titulo, coluna_filial=col)
+
+
 def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
-                          coluna_filial: str = "FILIAL", uf_de=None) -> dict:
+                          coluna_filial: str = "FILIAL", uf_de=None,
+                          filtro_uf: bool = False) -> dict:
     """Funcao pura (T-0017, RN-GER-006: estado = filial da nota): os cartoes
     do farol por estado, prontos. Chama o kpis_de da tabela com as linhas
     daquela filial, como o filtro da tela do PC. Sem kpis_de, sem a tabela
-    ou sem a coluna: {}. Filial que nao e de um estado conhecido fica fora
+    ou sem a coluna: {}. Com filtro padrao MES na tabela (Pedidos, Entregas), so
+    as linhas desse mes (o mesmo escopo dos cartoes do topo). Filial que nao e de um estado conhecido fica fora
     (o total do farol segue inteiro em "kpis"). uf_de: nome/codigo da filial
-    -> UF (padrao: relatorios_nucleo.uf_do_nome_da_filial).
+    -> UF (padrao: relatorios_nucleo.uf_do_nome_da_filial). filtro_uf: chama
+    relatorios_nucleo.chamar_kpis_de(kpis_de, linhas, filtro={indice da
+    coluna: UF}), como o filtro de UF da tela (Entregas).
     Devolve {"<UF>": {"kpis": [...]}}."""
     tab = next((t for t in (r or {}).get("tabelas") or []
                 if isinstance(t, dict) and t.get("titulo") == titulo_tabela),
@@ -7043,18 +7875,45 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
     if uf_de is None:
         import relatorios_nucleo as _rn                 # noqa: PLC0415
         uf_de = _rn.uf_do_nome_da_filial
+    # o recorte parte do MESMO escopo dos cartoes do topo: o filtro padrao MES
+    # da tabela (Pedidos e Entregas abrem no mes); os outros padroes sao so
+    # visao da tela (ex.: SITUACAO = EM ABERTO) e nao entram no farol
+    mes_val = _mes_padrao(tab)
+    mes_ix = nomes.index("MÊS") if mes_val and "MÊS" in nomes else None
     por_uf = {}
     for ln in tab.get("linhas") or []:
+        if mes_ix is not None and (len(ln) <= mes_ix
+                                   or str(ln[mes_ix]) != str(mes_val)):
+            continue
         try:
             uf = uf_de(ln[ix])
         except Exception:                               # noqa: BLE001
             uf = ""
         if uf:
             por_uf.setdefault(uf, []).append(ln)
+    if filtro_uf:     # RN-GER-006: o estado so com pendencia de mes anterior
+        for j in tab.get("juntas") or []:       # tambem aparece (como no PC)
+            tj = j.get("tabela") if isinstance(j, dict) else None
+            nj = [c.get("nome") if isinstance(c, dict) else c
+                  for c in (tj or {}).get("colunas") or []]
+            if coluna_filial not in nj:
+                continue
+            ij = nj.index(coluna_filial)
+            for ln in tj.get("linhas") or []:
+                try:
+                    uf = uf_de(ln[ij])
+                except Exception:                       # noqa: BLE001
+                    uf = ""
+                if uf:
+                    por_uf.setdefault(uf, [])
     saida = {}
     for uf in sorted(por_uf):
         try:
-            ks = kpis_de(por_uf[uf])
+            if filtro_uf:
+                import relatorios_nucleo as _rn         # noqa: PLC0415
+                ks = _rn.chamar_kpis_de(kpis_de, por_uf[uf], {ix: uf})
+            else:
+                ks = kpis_de(por_uf[uf])
         except Exception:                               # noqa: BLE001
             continue
         saida[uf] = {"kpis": ks or []}
@@ -7087,32 +7946,37 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         try:
             val = selecionar_farol_web(rid, rel, _baixado_em_da_base(
                 rid, raiz, (arquivos_base or {}).get(rid)),
-                cobranca=(cobranca or {}).get(rid))
+                cobranca=(cobranca or {}).get(rid), raiz=raiz)
         except Exception as erro:                       # noqa: BLE001
             log.warning("Pacote web: farol %s fora do pacote (%s).", rid,
                         type(erro).__name__)
             continue
         if val:
             limpos[rid] = val
-    return {"versao_contrato": versao, "gerado_em": agora.isoformat(),
-            "ano": int(ano), "mes": int(mes), "relatorios": limpos}
+    return _cortar_pacote_web({
+        "versao_contrato": versao, "gerado_em": agora.isoformat(),
+        "ano": int(ano), "mes": int(mes), "relatorios": limpos})
 
 
-def simular_pacote_farol(rid: str, raiz, destino, ano: int, mes: int,
+def simular_pacote_farol(rid, raiz, destino, ano: int, mes: int,
                          hoje=None) -> dict:
     """Apoio da SIMULACAO (T-0017): monta o farol a partir das bases da pasta
     `raiz` (as congeladas do repositorio) e grava o pacote em `destino`.
-    O JSON pode ter dado pessoal (nome de vendedor com a D1 ligada): nao vai
-    para o repositorio. Devolve o pacote."""
+    `rid` = um id ou uma lista (os 3 faroes de tabelas, entregas 3 a 5: o
+    pacote sai com as abas, para medir o tamanho). O JSON pode ter dado
+    pessoal (nome de vendedor com a D1 ligada): nao vai para o repositorio.
+    Devolve o pacote."""
     import relatorios_nucleo as _rn                     # noqa: PLC0415
-    rel = _rn.montar(rid, Path(raiz), hoje=hoje,
-                     params={"ANO": str(ano), "MÊS": str(mes)})
-    cobranca = (preparar_cobranca_web({rid: rel}, raiz, hoje, False,
-                                      log=lambda m: None)
-                if rid == RID_COBRANCA_WEB else {})
-    pacote = montar_pacote_web(
-        {rid: rel}, ano, mes,
-        raiz=raiz, cobranca=cobranca)
+    rids = [rid] if isinstance(rid, str) else list(rid)
+    hoje = hoje or _agora_manaus().date()
+    rels, cobranca = {}, {}
+    for r_id in rids:
+        rels[r_id] = _rn.montar(r_id, Path(raiz), hoje=hoje,
+                                params={"ANO": str(ano), "MÊS": str(mes)})
+        if r_id == RID_COBRANCA_WEB:
+            cobranca.update(preparar_cobranca_web(
+                {r_id: rels[r_id]}, raiz, hoje, False, log=lambda m: None))
+    pacote = montar_pacote_web(rels, ano, mes, raiz=raiz, cobranca=cobranca)
     Path(destino).write_text(json.dumps(pacote, ensure_ascii=False,
                                         indent=1), encoding="utf-8")
     return pacote

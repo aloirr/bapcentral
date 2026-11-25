@@ -37,6 +37,30 @@ ABAS_TROCA = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW")
 STATUS_NOVO = "ABRIR SOLICITAÇÃO"
 
 
+COLUNAS_NUM = ("QUANTIDADE", "DEMANDA_PEDIDO", "JA_SOLICITADO",
+               "SALDO_A_SOLICITAR", "ESTOQUE_NA_ORIGEM")
+
+
+def tipos_colunas(colunas, linhas) -> list:
+    """Funcao pura: o tipo de cada coluna das abas da tela e do site. "num"
+    nas colunas de quantidade; "data" em DATA quando toda celula preenchida e
+    data (tem .year); "texto" no resto. A tela (bap_relatorios) e o robo
+    (bap_automation.solicitacao_web) usam esta regra (RD-0020)."""
+    colunas = list(colunas)
+    i_data = colunas.index("DATA") if "DATA" in colunas else None
+    saida = []
+    for c in colunas:
+        if c in COLUNAS_NUM:
+            saida.append("num")
+        elif c == "DATA" and all(
+                hasattr(l[i_data], "year") for l in linhas
+                if l[i_data] not in (None, "")):
+            saida.append("data")
+        else:
+            saida.append("texto")
+    return saida
+
+
 def texto(v) -> str:
     if v is None:
         return ""
