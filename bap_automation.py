@@ -7346,18 +7346,10 @@ def montar_cobranca_web(rel: dict, raiz, cw, web_ate_seq: int, agora=None,
             and callable(getattr(cw, "historico_origem", None))):
         return None
     agora = _com_fuso_manaus(agora).replace(microsecond=0)
-    extra = {}
-    try:                # pos-venda ainda pode nao ter o parametro web_epoca
-        import inspect                                  # noqa: PLC0415
-        if "web_epoca" in inspect.signature(cw.pacote_web).parameters:
-            extra["web_epoca"] = str(web_epoca or "")
-    except (TypeError, ValueError):
-        pass
-    bloco = cw.pacote_web(rel, fantasias or {}, cw.historico_origem(raiz),
-                          agora, web_ate_seq=int(web_ate_seq),
-                          gerado_em=agora.isoformat(), **extra)
-    bloco["web_epoca"] = str(web_epoca or "")   # contrato 10.6.3
-    return bloco
+    return cw.pacote_web(rel, fantasias or {}, cw.historico_origem(raiz),
+                         agora, web_ate_seq=int(web_ate_seq),
+                         web_epoca=str(web_epoca or ""),
+                         gerado_em=agora.isoformat())
 
 
 def _fantasias_clientes(raiz) -> dict:
