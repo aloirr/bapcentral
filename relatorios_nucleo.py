@@ -758,12 +758,23 @@ def _sem_internos(nome, bloco):
     return bloco
 
 
+def hoje_manaus() -> date:
+    """Data de hoje no fuso America/Manaus (regra 4); sem tzdata, UTC-4 fixo."""
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+        fuso = ZoneInfo("America/Manaus")
+    except Exception:                                   # noqa: BLE001
+        fuso = timezone(timedelta(hours=-4))
+    return datetime.now(fuso).date()
+
+
 class Contexto:
     """Os blocos de dado que um relatorio pede, carregados sob demanda."""
 
     def __init__(self, raiz, hoje=None, log=None, params=None):
         self.raiz = Path(raiz)
-        self.hoje = hoje or date.today()
+        self.hoje = hoje or hoje_manaus()
         self.log = log
         self.params = dict(params or {})
         self._b = {}
@@ -13332,7 +13343,8 @@ def farol_visitas(ctx):
     if not todos:
         r["avisos"].append("Nenhum dia baixado ainda: clique em "
                            "“Atualizar visitas”.")
-    falta = vn.dias_faltando(ctx.raiz, de, min(ate, hoje))
+    falta = vn.dias_faltando(ctx.raiz, de,
+                             min(ate, hoje - timedelta(days=1)))
     if falta and todos:
         txt = ", ".join(f"{d:%d/%m}" for d in falta[:8])
         r["avisos"].append(f"Sem o arquivo de {len(falta)} dia(s) útil(eis): "
