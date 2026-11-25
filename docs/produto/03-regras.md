@@ -13,6 +13,7 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 - RN-GER-008 · Vendedor INATIVO no Planner do mês e sem movimento fica oculto nas tabelas e parciais (06/11). Sem meta e sem RV (03/11).
 - RN-GER-009 · Nome nos materiais: "BAP AUTOPARTS".
 - RN-GER-010 · O cadastro em lote de 16/10 não conta como visita.
+- RN-GER-011 · No site, nome e texto de cliente vão sem CPF/CNPJ (no começo, no meio ou no fim do nome) e o texto livre vai sem telefone, e-mail e documento (trocados por "[removido]"); o código do cliente fica (25/11, T-0017; base: regra 6 e o 2 A do R-20261124-192008-alexandre).
 
 ## Rota (RN-ROT): item 0 do `docs/legado/INSTALACAO_ROTA_1710.md`
 - Teto 12/dia; sexta 12 desde NOV/26.
