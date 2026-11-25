@@ -6975,11 +6975,15 @@ def entregas(ctx):
                  for l in pend]
 
     def cartoes_mes(ls):
+        # RN-GER-006: as pendencias seguem o recorte (UF do cliente)
+        ls = list(ls)
+        pd = pend if len(ls) == len(no_mes_) else \
+            [l for l in pend if l[E_UF] in {x[E_UF] for x in ls}]
         return cartoes(ls) + [kpi(
-            "Pendências anteriores", br(len(pend)),
-            "alerta" if pend else "ok",
-            f"{moeda(sum(l[E_VNF] or 0 for l in pend))} · meses anteriores"
-            if pend else "nada pendente")]
+            "Pendências anteriores", br(len(pd)),
+            "alerta" if pd else "ok",
+            f"{moeda(sum(l[E_VNF] or 0 for l in pd))} · meses anteriores"
+            if pd else "nada pendente")]
     r["kpis"] = cartoes_mes(no_mes_)
     etapas = Counter(l[E_ETAPA].upper() or "(vazio)" for l in linhas
                      if rotulo_no_periodo(ctx, l[E_MES]))
