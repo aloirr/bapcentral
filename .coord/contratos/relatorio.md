@@ -392,11 +392,17 @@ Chaves (e só elas):
 | Chave | Tipo | Regra |
 |---|---|---|
 | `titulo` | `str` | `"Títulos"` ou `"Por cliente"`, com acento, igual ao PC |
-| `colunas` | `list[{"nome": str, "tipo": str, "largura"?: int, "oculta"?: bool}]` | **exatamente** a lista abaixo, na ordem e com o mesmo `tipo` |
+| `colunas` | `list[{"nome": str, "tipo": str, "largura"?: int, "larg_fixa"?: int, "oculta"?: bool, "chip"?: Chip}]` | **exatamente** a lista abaixo, na ordem e com o mesmo `tipo` e `oculta` (o bloco de status é opcional, abaixo) |
 | `linhas` | `list[list[Celula]]` | uma célula por coluna (o mesmo tamanho de `colunas`). Célula: `str`, `int`, `float` ou `null`; data em ISO `"AAAA-MM-DD"` |
-| `tons` | `list[str]` | um por linha, como no §3.3 |
+| `tons` | `list[str]` | um por linha, como o PC entrega. No `pl_inadimplencia` vêm **todos `""`**: o `montar` (`_sinal_nas_colunas`) tira a cor da linha nos faróis fora de `LINHA_PINTADA` e põe o selo na coluna (`chip`). A web aceita qualquer valor do §3.3 e pinta a linha só quando não é `""` |
 | `total` | `list[Celula] \| null` | a linha de total do PC, sem a célula de TELEFONE |
 | `filtros` | `list[str \| {"coluna", "padrao"?, "multi"?}]` | os do PC (§3.1); só citam colunas da lista abaixo |
+
+**`Chip`** (o selo colorido da célula, §3.2), como o PC entrega:
+- forma: `{"<VALOR>": [fundo, texto]}`, com `fundo` e `texto` em `"#RRGGBB"` (no PC é tupla; no JSON vira lista). É o `relatorios_nucleo.CORES_SINAL` inteiro;
+- quem leva: só colunas de `COLUNAS_SINAL`; nesta tabela, `SITUAÇÃO`, `FAIXA` e `STATUS`, e só quando alguma das primeiras 2000 linhas tem valor que é chave do `CORES_SINAL`. Coluna sem selo não leva a chave. Em outra coluna, a web recusa;
+- significado: a célula cujo texto, sem espaços nas pontas e em maiúsculas, é chave do `chip` aparece como selo com aquele fundo e aquela cor de letra. As outras células da coluna aparecem como texto comum. As cores são de alerta (vermelho: ex. `VENCIDO`, `INADIMPLENTE`, `+180 DIAS`), atenção (amarelo: ex. `VENCE HOJE`, `91-180 DIAS`) e ok (verde: ex. `EM DIA`, `NO PRAZO`);
+- com o `chip` vem `larg_fixa` (a largura em que o selo não corta). A web pode usar ou ignorar.
 
 **Fora, sempre:** `edicao`, `editar`, `abrir`, `detalhe`, `kpis_de`, `recortes`, `exportar_*`, chave com `_` e qualquer callable. Nesta entrega, a tabela da web não tem cartões que seguem o filtro nem recortes.
 
@@ -405,20 +411,27 @@ Chaves (e só elas):
 - `STATUS` (o STATUS PLANNER renomeado: ATIVO/INATIVO);
 - `SITUAÇÃO PLANNER` (oculta).
 
-Não são dado pessoal e vão no pacote. A web não desenha coluna com `oculta: true`, mas a célula vem na linha. Lista conferida no `main` em `c8a9267` (nome e tipo):
+Não são dado pessoal e vão no pacote. A web não desenha coluna com `oculta: true`, mas a célula vem na linha.
+
+**O bloco de status é opcional, as três juntas:** se o status falha no PC, o `_status_nas_tabelas` só põe um aviso, e a tabela sai sem as três colunas. Por isso a web aceita a tabela **com as três juntas, na posição e na ordem de baixo, ou sem nenhuma delas**. Qualquer outra combinação (uma ou duas das três, ou fora da posição) é recusada. As outras colunas são sempre obrigatórias, na ordem do PC. Sem o bloco: "Títulos" com 17 colunas e "Por cliente" com 16.
+
+Lista conferida no `main` em `c8a9267` (nome e tipo):
 - **"Títulos"** (20): `SITUAÇÃO` texto · `FAIXA` texto · `FILIAL` texto · `NF` texto · `PARC.` texto · `EMISSÃO` data · `VENCIMENTO` data · `DIAS ATRASO` int · `CLIENTE` texto · `NOME` texto · `STATUS PROTHEUS` texto (oculta) · `STATUS` texto · `SITUAÇÃO PLANNER` texto (oculta) · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto · `CONDIÇÃO` texto · `VALOR` moeda · `SALDO` moeda.
 - **"Por cliente"** (19): `SITUAÇÃO` texto · `FAIXA` texto · `CLIENTE` texto · `NOME` texto · `STATUS PROTHEUS` texto (oculta) · `STATUS` texto · `SITUAÇÃO PLANNER` texto (oculta) · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto · `TÍTULOS VENCIDOS` int · `EM ATRASO` moeda · `MAIOR ATRASO` int · `A VENCER` moeda · `PRÓX. VENCIMENTO` data · `LIMITE` moeda · `PEDIDO EM ABERTO` moeda · `ÚLTIMA COMPRA` data.
 
-**A web recusa o pacote inteiro** (com o motivo no log, sem dado pessoal) quando:
+**O PC confere antes de mandar:** o `pacote_web` (com o 4f) confere as duas tabelas por estas mesmas regras. Se não baterem, o farol vai **sem** `tabelas` e `cobranca` (cai no §10.1), com aviso no log sem dado pessoal, e os outros relatórios do pacote seguem.
+
+**A web recusa o pacote inteiro** (com o motivo no log, sem dado pessoal; é a defesa, caso o PC não tenha conferido) quando:
 - o `titulo` não é um dos dois;
-- a lista de colunas não é igual à de cima (nome, ordem e tipo). Se a coluna mudar no PC, primeiro muda este contrato (acréscimo, PR do engenheiro-software), depois o código;
+- a lista de colunas não é igual à de cima (nome, ordem, `tipo` e `oculta`, com o bloco de status inteiro ou ausente);
+- há `chip` fora de `SITUAÇÃO`, `FAIXA` e `STATUS`. Se a coluna mudar no PC, primeiro muda este contrato (acréscimo, PR do engenheiro-software), depois o código;
 - aparece coluna `TELEFONE`, `CNPJ`, `CPF`, `E-MAIL` ou `EMAIL`;
 - uma linha tem número de células diferente do número de colunas;
 - há chave proibida.
 
 `CLIENTE` é o código-loja do PC (ex.: `"001234-01"`). CNPJ não vai ("2 A").
 
-**Igualdade:** célula a célula, a tabela da web é a do PC depois do `montar`, sem a coluna TELEFONE. O `testes` compara.
+**Igualdade:** célula a célula, a tabela da web é a do PC depois do `montar`, sem a coluna TELEFONE, com os mesmos `tons` e o mesmo `chip` de cada coluna. O `testes` compara.
 
 #### 10.6.3 Bloco `cobranca`
 

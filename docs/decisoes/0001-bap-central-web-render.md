@@ -231,7 +231,7 @@ Redação do recado (não é texto literal do Alexandre):
 2. **Os números batem com o PC por 5 dias úteis seguidos** (DU conforme RN-GER-007). Todo dia, a web compara os números dela com os da conferência que o PC mandou no manifesto (4.3), valor a valor e com os mesmos `MÊS` e `ANO`: do Painel do Diretor, os `kpis_export` de cada uma das **3 abas RRM** (`paineis[i]["kpis_export"]`), e não os `rel["kpis"]` do `vc_painel` (que são os do Painel Executivo); da Inadimplência, os `rel["kpis"]` de `pl_inadimplencia`. Moeda bate ao centavo; contagem e percentual, na casa decimal mostrada na tela.
 3. Qualquer divergência **zera a contagem**, vira recado ao dono do número e só volta a contar depois de explicada. Dia sem pacote ou com versões de código diferentes (4.4) não conta, mas também não zera.
 4. A conferência dos 5 dias fica em `/var/data/conferencia/` e é demonstrada pelo agente `testes` com valor × regra. O número do Diretor bate com o farol de origem.
-5. Antes do deploy, a simulação (PNG das duas telas) vai ao Alexandre (regra 10). Depois, "aprovo deploy vX.Y.Z".
+5. Antes do deploy, a simulação (PNG das duas telas) vai ao Alexandre (regra 10). Depois, ~~"aprovo deploy vX.Y.Z"~~ o merge no `main` (substituído pelo adendo 4: deploy automático).
 
 ## 6. Custos
 
