@@ -422,3 +422,19 @@ Vale sobre o texto original e os adendos 1 a 3 onde diverge. Fonte: R-20261124-2
 - Todo merge no `main` sobe ao site, mesmo o que só mexe em documento ou no PC. O deploy reinicia o serviço (alguns segundos fora do ar) [SUPOSIÇÃO: aceitável no plano de US$ 7; se incomodar, o modulo-web propõe filtro de caminhos no `render.yaml`, também governança].
 - Um merge que quebra a web chega ao ar sem barreira manual. A barreira passa a ser o CI e a revisão; a volta é um commit de reversão no `main` (por PR), ou o "Rollback" no painel do Render pelo Alexandre.
 - A versão do site (`VERSAO` em `/saude`) precisa subir no PR que muda a web, para o "web antes, robô depois" ser conferível.
+
+## Adendo 5 (25/11/2026): todas as abas de Pedidos, Entregas e Visita no site (T-0017, entregas 3 a 5)
+
+Vale sobre o adendo 2 **só no `pv_pedidos`, `pl_entregas` e `vc_visitas`**. Fontes: R-20261124-223741-alexandre (Pedidos: "Quero todas") e R-20261124-223958-alexandre (Entregas e Visita: "1 B"), com as regras das tabelas da Inadimplência (R-20261124-192008-alexandre: "1 A", "2 A", "6 A"). As regras e os formatos ficam **só** no contrato, §10.7 (`.coord/contratos/relatorio.md`); este adendo registra a decisão. **Status: aceito no que o Alexandre já decidiu; D1 a D6 do §10.7.9 em aberto.**
+
+### A decisão
+1. **Cada um dos três faróis leva ao site todas as abas do PC**, com as tabelas linha a linha, além de cartões, resumo e gráficos. Substitui o "3 A" do R-20261124-175838-alexandre nesses faróis.
+2. **Código e nome de cliente passam a ir ao Render** nesses faróis, **só** em `tabelas`, limpos de CPF/CNPJ (§10.7.4). Isso muda o "nunca vão ao Render" do adendo 2 para eles. Telefone, e-mail, contato, foto e CNPJ continuam fora. Cartões e frases seguem sem nome de cliente.
+3. **Quem vê:** o corte por perfil do §10.7.5, no servidor ("1 A"; o caso do perfil de cada farol é a D1).
+4. **O site continua só leitura nesses faróis:** autorização de venda, edição de entrega (`_EDICOES_POS_VENDA`), troca de loja de coleta, "Atualizar visitas" e parciais ficam no PC, sem botão no site. Sem exportar ("6 A").
+5. **Contrato v1, acréscimo compatível.** Publicação: a web antes, o robô depois (§10.7.10).
+
+### Consequências
+- O pacote passa de cerca de 0,3 MB para cerca de 2,2 MB no fim do mês [SUPOSIÇÃO: medida de 25/11 nas bases do repositório, com as recomendações de D2 e D3], dentro do `BAP_WEB_PACOTE_MAX_MB` de 25 do `render.yaml`. O robô tem trava própria de 20 MB (§10.7.8).
+- A função de limpeza de documento do núcleo (`relatorios_nucleo.sem_documento`) passa a valer para as tabelas desses faróis. Ela acha o CPF no fim do nome, que o `cobranca_whatsapp.nome_sem_documento` da Inadimplência não acha (84 nomes de 2.216 no Farol de Pedidos). Fica a recomendação ao modulo-posvenda de usar a mesma função na Inadimplência.
+- Mais dado de cliente no disco do Render (7 pacotes). O acesso continua com login, corte no servidor, `no-store`, `noindex` e registro de acesso.

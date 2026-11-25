@@ -91,6 +91,7 @@ Tipos (`:52-54`) e formato na tela (`bap_visual.formatar`, `bap_visual.py:133`):
 | `int`, `num`, `num1`, `num2` | `int`/`float` | `1.250` / `1.250,5` |
 | `data` | `date`/`datetime` | `19/11/2026` |
 | `dia` | `date` | `19/11` |
+| `hora` | `str` já formatado (`"08:15"`, `"0:12:30"` ou `"—"`) | como está (Farol de Visita; acrescentado em 25/11/2026, §10.7) |
 | `valor` | número | número |
 
 ### 3.3 `Celula` e `tons`
@@ -339,7 +340,7 @@ relatorios["pl_inadimplencia"] = {
 | `kpis_faixa` | `true` ou ausente | opcional. Igual ao `rel["kpis_faixa"]` do PC (`relatorios_nucleo.farol_pedidos`; hoje só o Farol de Pedidos, `pv_pedidos`): os cartões de cima numa faixa fina, em vez da grade de cartões (`bap_relatorios.py`, `_kpis_em_faixa`). Só muda o desenho; os `kpis` são os mesmos. Ausente = grade de cartões |
 
 **Filtro (o que sai do `rel` do PC):**
-- só as chaves da tabela acima (mais `tabelas` e `cobranca` no `pl_inadimplencia`, §10.6). Fora: `tabelas` (nos outros faróis), `juntas`, `graficos` (os gráficos que a web mostra vêm dentro dos blocos do painel), `paineis`, `painel_pre`, `parametros`, `capa`, `params_usados`, `fonte`, `subtitulo`;
+- só as chaves da tabela acima (mais `tabelas` e `cobranca` no `pl_inadimplencia`, §10.6, e `tabelas` no `pv_pedidos`, `pl_entregas` e `vc_visitas`, §10.7). Fora: `tabelas` (nos outros faróis), `juntas` (fora de `tabelas`, §10.7), `graficos` (os gráficos que a web mostra vêm dentro dos blocos do painel), `paineis`, `painel_pre`, `parametros`, `capa`, `params_usados`, `fonte`, `subtitulo`;
 - nenhum callable (§10, item 1; §11);
 - nenhuma chave que comece com `_`, em qualquer nível;
 - nunca `edicao`, `editar` nem `abrir`, em qualquer nível. **A web recusa o pacote** que trouxer uma delas (dado digitado intocável, regra 7 do `CLAUDE.md`);
@@ -352,6 +353,7 @@ relatorios["pl_inadimplencia"] = {
 - nome de cliente e CNPJ **nunca** vão ao Render nesta fase (regra 6 do `CLAUDE.md`), em nenhum nível: nem em bloco, nem em `kpis[].detalhe`/`linhas`, nem em frase de `insights`/`insights_painel`. A frase "Maiores devedores: ..." do `_painel_inadimplencia` (lista clientes) sai das duas listas no PC, antes do envio;
 - as tabelas (`tabelas`, `juntas` e o bloco `tabela` com cliente) ficam fora ("3 A"). Tabela com cliente na web só numa onda futura, com ADR própria.
 - **Exceção (ADR 0001, adendo 3):** no `pl_inadimplencia`, código, nome, cidade e WhatsApp de cliente vão **só** em `tabelas` e `cobranca` (§10.6). Cartões, blocos e `insights` continuam sem nome de cliente. CNPJ nunca vai.
+- **Exceção (ADR 0001, adendo 5):** no `pv_pedidos`, `pl_entregas` e `vc_visitas`, código e nome de cliente vão **só** em `tabelas` (§10.7), limpos de CPF/CNPJ. Telefone, e-mail, contato e CNPJ nunca vão.
 
 **Mini-gráficos por estado dos cartões:** vão no pacote, em `kpis[i]["estados"] = {"barras": [[UF, numero, "texto", "% na barra", "tom"], ...], "legenda": ""}`, **só** nos cartões que o PC desenha assim (`estados_do_cartao`, §4). `numero` é `float` (ou `null` sem dado), `texto` é o valor já formatado, `"% na barra"` é o texto da barra (pode ser `""`) e `tom` segue o §4 (`"ok"`, `"atencao"`, `"alerta"` ou `""`). Cartão sem mini-gráfico não leva a chave `estados` (ou leva `null`). É a mesma forma das barras que a T-0014 já lê (`bap_automation.recortes_por_uf`).
 
@@ -361,9 +363,9 @@ relatorios["pl_inadimplencia"] = {
 
 ### 10.6 Títulos, Por cliente e "Cobrar no WhatsApp" (só `pl_inadimplencia`, T-0017)
 
-Acrescentada em 24/11/2026 e revista em 25/11/2026 (revisão do PR #56). Fontes: ADR 0001, adendo 3; pedido R-20261124-181913-alexandre; decisões R-20261124-192008-alexandre ("1 A … 7 A"); RN-POS-001 a RN-POS-004. **Acréscimo compatível: o contrato continua na v1** (`versao_contrato = 1`). Vale sobre o §10.1, **só** em `relatorios["pl_inadimplencia"]`. Em qualquer outro `rid`, `tabelas` e `cobranca` continuam proibidas, e a web recusa o pacote.
+Acrescentada em 24/11/2026 e revista em 25/11/2026 (revisão do PR #56). Fontes: ADR 0001, adendo 3; pedido R-20261124-181913-alexandre; decisões R-20261124-192008-alexandre ("1 A … 7 A"); RN-POS-001 a RN-POS-004. **Acréscimo compatível: o contrato continua na v1** (`versao_contrato = 1`). Vale sobre o §10.1, **só** em `relatorios["pl_inadimplencia"]`. Em qualquer outro `rid`, `cobranca` continua proibida, e `tabelas` também, fora os três faróis do §10.7; a web recusa o pacote.
 
-**Como citar:** os itens numerados do §10 se citam "§10, item N" (ex.: `web/app/pacotes.py:202`, "chaves com `_`" = §10, item 2). As subseções são §10.1 (forma "farol") e §10.6 (esta). Os números 10.2 a 10.5 não são usados como subseção.
+**Como citar:** os itens numerados do §10 se citam "§10, item N" (ex.: `web/app/pacotes.py:202`, "chaves com `_`" = §10, item 2). As subseções são §10.1 (forma "farol"), §10.6 (esta) e §10.7 (as abas de Pedidos, Entregas e Visita). Os números 10.2 a 10.5 não são usados como subseção.
 
 Donos: o PC monta (modulo-posvenda: `cobranca_whatsapp.pacote_web`, `historico_origem` e `importar_web`; modulo-robo: o 4f). A web valida e desenha (modulo-web).
 
@@ -623,6 +625,187 @@ A web publicada hoje recusa `tabelas` no farol (§10.1). Por isso:
 2. **robô depois**: o "instale" do Alexandre no PC (regra 11 do `CLAUDE.md`).
 
 Web nova com robô antigo: o farol segue como no §10.1 (sem abas novas), e o GET não é chamado. A versão fica em 1. Renomear ou tirar chave desta seção = v2 com ADR.
+
+### 10.7 Todas as abas de Pedidos, Entregas e Visita (`pv_pedidos`, `pl_entregas`, `vc_visitas`; T-0017, entregas 3 a 5)
+
+Acrescentada em 25/11/2026. Fontes: R-20261124-223741-alexandre (Pedidos: "Quero todas"), R-20261124-223958-alexandre (Entregas e Visita: "1 B"), as regras das tabelas da Inadimplência (R-20261124-192008-alexandre: "1 A", "2 A", "6 A") e a RN-GER-006. Substitui, nesses três faróis, o "3 A" do R-20261124-175838-alexandre. ADR 0001, adendo 5. **Acréscimo compatível: o contrato continua na v1.** Vale sobre o §10.1, **só** nesses três `rid`.
+
+**Decisões em aberto:** D1 a D6 (§10.7.9). Onde o texto depende de uma delas, a marca é **[Dn]**, e o texto segue a recomendação. Se o Alexandre escolher outra opção, esta seção muda antes do código.
+
+Donos: o núcleo do PC dá as funções puras (modulo-farois: `relatorios_nucleo`); o robô monta e confere (modulo-robo: o 4f, `bap_automation`); a web valida e desenha (modulo-web).
+
+#### 10.7.1 Chave nova no farol e as abas da web
+
+```python
+relatorios["pv_pedidos"] = {
+    "forma": "farol", ...,                  # as chaves do §10.1, sem mudança
+    "tabelas": [TabelaWeb7("Pedidos"), TabelaWeb7("Solicitação BAP")],
+}
+```
+
+| Chave | Tipo | Regra |
+|---|---|---|
+| `tabelas` | `list[TabelaWeb7]` (§10.7.2) | opcional. Cada aba é independente: vão as que passaram na conferência do PC (§10.7.6), na ordem da tabela abaixo, sem repetir. Sem a chave, o farol se comporta como no §10.1 (robô antigo) |
+
+As abas da web, na ordem do PC. A chave vai na URL (`/farol/<rid>?aba=<chave>`). Aba sem tabela no pacote não aparece.
+
+| `rid` | `resumo` (cartões, painel; §10.1) | abas de tabela: chave → `titulo` |
+|---|---|---|
+| `pv_pedidos` | "Resumo gerencial" | `pedidos` → "Pedidos" (com 3 juntas) · `solicitacao` → "Solicitação BAP" (7 sub-abas) |
+| `pl_entregas` | "Resumo gerencial" | `entregas` → "Entregas" (com 1 junta) |
+| `vc_visitas` | "Resumo gerencial" | `supervisor` → "Por supervisor" · `vendedor` → "Por vendedor" · `dia` → "Dia a dia" · `aderencia` → "Aderência dia a dia" · `cliente` → "Cliente a cliente" · `prospeccao` → "Prospecção" · `indicacao` → "Indicação" |
+
+#### 10.7.2 `TabelaWeb7`: o `TabelaWeb` do §10.6.2 com 7 chaves opcionais
+
+Chaves do §10.6.2, com o mesmo sentido: `titulo`, `colunas`, `linhas`, `tons`, `total`, `filtros`. **Diferenças em relação ao §10.6.2:**
+- `tons`: no `pv_pedidos` (que está em `LINHA_PINTADA`) vêm com cor (`"grave"`, `"alerta"`, `"atencao"`, `"ok"`, `""`) e a web pinta a linha. No `pl_entregas` e no `vc_visitas` vêm todos `""`;
+- `filtros`: o item `dict` pode ter `"oculto": true` = filtro aplicado com o `padrao` e sem caixa na tela (o MÊS do Farol de Pedidos). Filtro que cita coluna cortada sai.
+
+| Chave nova | Tipo | Regra |
+|---|---|---|
+| `juntas` | `list[Junta]` | só em "Pedidos" (3) e "Entregas" (1). Abaixo |
+| `subabas` | `list[TabelaWeb7]` | só em "Solicitação BAP": uma por aba do arquivo. Aí `colunas` e `linhas` da tabela-mãe vêm `[]` |
+| `kpis_padrao` | `list[Kpi]` (§4) | os cartões que o PC mostra ao abrir a aba: `relatorios_nucleo.chamar_kpis_de(kpis_de, linhas_padrao)`, com as linhas dos filtros padrão e sem recorte (§11.2). Ausente quando a tabela do PC não tem `kpis_de`: aí a aba mostra os `kpis` de cima. A web mostra `kpis_padrao` só enquanto os filtros estão no padrão, sem recorte e sem estado; com outro filtro, os cartões da aba mostram "—" e o aviso "Com filtro, os cartões seguem só no PC." |
+| `recortes_linhas` | `list[{"rotulo": str, "linhas": list[int]}]` | os recortes do PC (`recortes`, §11.4), prontos: para cada rótulo, na ordem do PC, os índices (base 0, em `linhas`) das linhas que o recorte deixa. Só recorte por função. Recorte `{"top": N}` não existe nessas tabelas hoje: se aparecer, fica fora, com aviso no log |
+| `uf_linhas` | `list[str]` | uma UF por linha (`""` = sem UF), pela RN-GER-006: no "Pedidos", a UF da **filial da nota** (`relatorios_nucleo.uf_do_nome_da_filial` da coluna FILIAL); no "Entregas" e na junta de pendências, a UF do **cliente** (coluna UF). Ausente no Visita e nas juntas do Pedidos. Usada pelo filtro de estado [D5] |
+| `zebra` | `bool` | só apresentação ("Pedidos") |
+| `inteira` (em `Coluna`) | `bool` | o texto da coluna não encolhe (ETAPA do "Entregas") |
+
+**`Junta`** (a tabela de baixo, na mesma aba; `bap_relatorios.VistaTabela._ligadas`):
+
+| Chave | Tipo | Regra |
+|---|---|---|
+| `titulo` | `str` | o título do quadro no PC (pode diferir do `tabela.titulo`; lista no §10.7.3) |
+| `liga` | `[col_junta, col_tabela, sep \| null] \| null` | com `liga`, a junta mostra só as linhas cujo valor em `col_junta` (partido por `sep`, cada pedaço sem espaços e sem zeros à esquerda) está entre os valores de `col_tabela` das linhas visíveis da tabela de cima, **todas as páginas**, depois de filtro, recorte e estado. `null` = todas as linhas da junta |
+| `mostrar` | `list[str]`, opcional | as colunas que o PC mostra no quadro. A web mostra só essas (o pacote leva todas) |
+| `tabela` | `TabelaWeb7` | sem `juntas` e sem `subabas` |
+
+**`Coluna`: as formas de selo além do `chip` por texto do §10.6.2** (a cor sai do PC; a web não inventa cor):
+- **`chip` por faixa** (`list`), só em coluna de número: `[[ate | null, fundo | null, texto | null], ...]`. Vale a primeira faixa com `valor <= ate` (`null` = sem teto); `fundo` `null` = número sem selo (`bap_visual.Tabela._faixa_de`). No PC: `relatorios_nucleo.CHIP_SLA()` e `FAIXA_PCT_META`;
+- **`barra`**: `{"max": número, "faixas": [[ate | null, fundo, texto], ...]}`: barra de progresso com o número ao lado (`relatorios_nucleo.BARRA_ATENDIDO`);
+- **`chip_tom`**: `str`, o **nome** da coluna oculta da mesma tabela cujo valor dá o selo. No PC é o índice; no pacote vai o nome, para não depender da posição depois do corte. Paleta fixa (`bap_visual.py`, selo pela linha): `ok` `["#E5F3DF", "#2F7D32"]`, `atencao` `["#FFF1C7", "#8A5A00"]`, `alerta` `["#B3261E", "#FFFFFF"]`, `cinza` `["#E4E7E4", "#69736D"]`; outro valor = número sem selo.
+
+Selo só nas colunas marcadas no §10.7.3. Em outra coluna, a web recusa.
+
+**Fora, sempre** (em qualquer nível de `tabelas`): `edicao`, `editar`, `abrir`, `detalhe`, `kpis_de`, `total_de`, `totais_por`, `recortes` (a forma do PC, com callable), `ordem_exportar`, `cores_celulas` (só Excel/PDF), `so_exportar`, `solicitacao_bap`, `pdf*`, `nota_pdf`, chave com `_` e qualquer callable. O "Ver pedido" (`detalhe_pedido`, §11.1) fica no PC [D4].
+
+**Total:** a web mostra `total` só quando as linhas visíveis são todas as da tabela (a regra do §11.3, item 2). Com filtro, recorte ou estado, sem total.
+
+#### 10.7.3 Colunas por tabela
+
+Conferidas no `main` em `2d182bd`, com `montar(rid, raiz, hoje=20/11/2026, params={"ANO": "2026", "MÊS": "11"})` nas bases do repositório. Formato: `NOME` tipo; (o) = oculta; selo entre colchetes. A lista é a do PC **depois do `montar`**, menos as colunas que saem (§10.7.4), na mesma ordem, com o mesmo `tipo` e `oculta`. **Limpa** = a célula passa pela limpeza de documento do §10.7.4.
+
+**`pv_pedidos`**
+- **"Pedidos"** (33; não sai nenhuma): `DT. PED` dia · `FATURAR ATÉ` dia · `PEDIDO` texto · `PED. MÁX.` texto · `CÓD.` texto · `RAZÃO SOCIAL` texto (limpa) · `FANTASIA` texto (limpa) · `UF` texto · `CIDADE` texto · `LIMITE` moeda · `DISP.` moeda · `ATRASO` moeda · `VOL.` num · `R$ TABELA` moeda · `R$ VENDA` moeda · `% DESC.` pct1 · `SLA` int [chip por faixa] · `% ATENDIDO` pct [barra] · `ANÁLISE CRÉDITO` texto · `COND. PAGTO` texto · `SITUAÇÃO` texto · `FILIAL` texto · `PRAZO` texto · `VENDEDOR` texto · `NF` texto · `DT. NF` dia · `R$ TABELA CHEIA` moeda (o) · `CÓD. AUTORIZAÇÃO` texto (o) · `AUTORIZADO POR` texto (o) · `MÊS` texto (o) · `ENTREGUE EM` dia (o) · `PRODUTO` texto (o) · `CHAVE` texto (o). Sem o bloco de status (o `STATUS_NAS_TABELAS` não tem `pv_pedidos`). Filtros: `MÊS` (padrão = mês do pacote, oculto), `SITUAÇÃO` (padrão `EM ABERTO`), `CIDADE`, `VENDEDOR`, `PRODUTO` (multi). Recortes: os 4 do PC.
+  - Junta "Gerar ID de separação CD" → tabela "Gerar separação CD" (10): `DATA` dia · `UF` texto · `CIDADE` texto · `PEDIDOS` texto · `FORN.` texto · `CÓD. PROD.` texto · `DESCRIÇÃO` texto · `QTD` num · `COLETAR EM` texto · `FILIAL DEST.` texto. `liga = ["PEDIDOS", "PEDIDO", "|"]`.
+  - Junta "Gerar reversa de lojas" → tabela "Gerar reversa de lojas" (10): as mesmas colunas. `liga = ["PEDIDOS", "PEDIDO", "|"]`.
+  - Junta "Analítico por pedido" → tabela "Analítico produto" (16): `PEDIDO` texto · `DATA` dia · `CIDADE` texto · `FILIAL` texto · `FORN.` texto · `CÓD. PROD.` texto · `DESCRIÇÃO` texto · `QTD` num · `EST. FRW` num · `PEDIDOS ANTES` num · `DISP. P/ ESTE` num · `ATENDIDO` num · `FALTA` num · `CLIENTE` texto (limpa, código e nome) · `FILIAL BAP` texto (o) · `VALOR FALTANTE` moeda. `liga = ["PEDIDO", "PEDIDO", null]`.
+- **"Solicitação BAP"**: não é tabela do `montar`. O robô lê `solicitacao_bap.ler(raiz)` (o `RELATORIOS/SOLICITACAO_BAP.xlsx` que ele mesmo grava) e manda uma `subaba` por aba do arquivo, na ordem de `solicitacao_bap.ABAS_TELA`: "Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitacao Manual", "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir" (aba ausente no arquivo não vai). Colunas = o cabeçalho da aba, como o PC mostra; o `tipo` segue a regra da tela (`bap_relatorios.AbaSolicitacaoBap.carregar`): `num` em QUANTIDADE, DEMANDA_PEDIDO, JA_SOLICITADO, SALDO_A_SOLICITAR e ESTOQUE_NA_ORIGEM; `data` em DATA quando todas as células são data; `texto` no resto. Como o cabeçalho é do arquivo, aqui não há lista fixa: valem as colunas que saem (§10.7.4) e a limpeza em `CLIENTE` (DETALHADO_PEDIDO). Sem filtros nem recortes (o PC só tem a busca). A troca de loja de coleta (duplo clique, grava) fica no PC. Linhas [D3].
+
+**`pl_entregas`**
+- **"Entregas"** (22; não sai nenhuma): `MÊS` texto (o) · `SITUAÇÃO` texto · `SLA` int [`chip_tom` = `"TOM SLA"`] · `DT. PED` dia · `DT. NF` dia · `DT. PREVISTA` dia · `DT. REAL` dia · `UF` texto · `CIDADE` texto · `CLIENTE` texto (limpa, código e nome) · `VLR NF` moeda · `VLR FRETE` moeda · `TRANSPORTADORA` texto · `RESPONSÁVEL` texto [D6] · `TBL FRETE` moeda · `VLR REAL FRETE` moeda · `ETAPA` texto (inteira) · `NF` texto · `FILIAL` texto · `LOCAL/FRETE` texto (o) · `TOM SLA` texto (o) · `PRAZO` texto (o) [chip por texto]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote), `SITUAÇÃO`, `ETAPA`, `PRAZO`, `FILIAL`. A edição (duplo clique, grava em `ACOMPANHAMENTO_POS_VENDA.xlsx`/`_EDICOES_POS_VENDA`) fica no PC.
+  - Junta "Pendências dos meses anteriores" → tabela com o mesmo título (22): as mesmas colunas, com `MÊS` **visível**. `liga = null`. Sem filtros próprios.
+
+**`vc_visitas`** (sem o bloco de status; `tons` todos `""`)
+- **"Por supervisor"** (21): `SUPERVISOR` texto · `REPRES.` int · as **18 de métrica** · `CHAVE` texto (o).
+- **"Por vendedor"** (24): `SUPERVISOR` texto · `VENDEDOR` texto · `CARGO` texto (o) · `FILIAL` texto (o) · `CÓD.` texto (o) · as 18 de métrica · `CHAVE` texto (o).
+- **"Dia a dia"** (25): `DATA` data · `DIA` texto · `SUPERVISOR` texto · `VENDEDOR` texto · `CARGO` texto (o) · `SITUAÇÃO` texto · as 18 de métrica · `CHAVE` texto (o).
+  - As **18 de métrica**, nesta ordem: `META` num · `VISIT.` int · `% META` pct [chip por faixa] · `% CONV.` pct · `% FORA DE ROTA` pct · `CAD.` int · `CAD. C/ COMPRA` int · `PROSP.` int · `INÍCIO` hora · `ÚLT. ATIV.` hora · `JORNADA LÍQ.` hora · `DIAS < JORN. LÍQ.` int · `INTERV. ALMOÇO` hora · `DIAS ALMOÇO > MÁX.` int · `TMA` hora · `TMD` hora · `KM` num · `KM/CLIENTE` num1.
+- **"Aderência dia a dia"** (2 + N + 1; as colunas mudam com o mês): `SUPERVISOR` texto · `VENDEDOR` texto · N colunas `dd/mm DIA` pct (cada dia com agenda de vendedor, até hoje; `DIA` em SEG, TER, QUA, QUI, SEX, SÁB, DOM; N de 1 a 31) · `% ADERÊNCIA ACUM. ATÉ dd/mm` pct. A web confere pelo padrão `^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$` e `^% ADERÊNCIA ACUM\. ATÉ \d{2}/\d{2}$`.
+- **"Cliente a cliente"** (24): `DATA` data · `DIA` texto · `SUPERVISOR` texto · `VENDEDOR` texto · `SITUAÇÃO` texto · `CÓD.` texto (código-loja) · `CLIENTE` texto (limpa) · `NOME FANTASIA` texto (limpa) · `SEGMENTO` texto · `BAIRRO` texto · `CIDADE` texto · `CURVA` texto · `STATUS` texto · `DIAS S/ COMPRA` int · `ATRASO` moeda · `SEQ. PREV.` texto · `SEQ. REAL` texto · `INÍCIO` hora · `FIM` hora · `ATEND.` hora · `PEDIDO NO DIA` texto · `VALOR PEDIDO` moeda · `JUSTIFICATIVA` texto [D6] · `ATEND. SEG.` int (o).
+- **"Prospecção"** (14 de 18; saem `CNPJ`, `CONTATO`, `TELEFONE` e `FOTO`): `DATA` data · `HORA` hora · `DIA` texto · `SUPERVISOR` texto · `VENDEDOR` texto · `STATUS` texto · `FONTE` texto · `ESTABELECIMENTO` texto (limpa) · `SEGMENTO` texto · `CIDADE` texto · `UF` texto · `RESULTADO` texto [D6] · `LINHAS DE INTERESSE` texto [D6] · `OBSERVAÇÃO` texto [D6].
+- **"Indicação"** (14 de 17; saem `CONTATO`, `TELEFONE` e `CNPJ`): `DATA` data · `DIA` texto · `SUPERVISOR` texto · `VENDEDOR` texto · `SITUAÇÃO` texto · `CÓD. QUEM INDICOU` texto · `CLIENTE QUE INDICOU` texto (limpa) · `INDICADO` texto (limpa) · `CIDADE` texto · `BAIRRO` texto · `SEGMENTO` texto · `VISITADA EM` data · `OBSERVAÇÃO` texto [D6] · `REGISTRADO EM` texto.
+
+Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do cliente) e mantém o aviso "Sem filtro por estado: os cartões mostram a BAP inteira." (§10.1).
+
+**Mudou no PC?** Primeiro muda esta lista (acréscimo, PR do engenheiro-software), depois o código. Até lá, o PC deixa a aba fora (§10.7.6), e as outras seguem.
+
+#### 10.7.4 Dado pessoal: o que sai e a limpeza (no PC, antes do envio)
+
+- **Colunas que nunca vão**, em nenhuma tabela, junta ou sub-aba destes três `rid` (nome comparado sem acento e em maiúsculas): `TELEFONE`, `CELULAR`, `WHATSAPP`, `CNPJ`, `CPF`, `E-MAIL`, `EMAIL`, `CONTATO`, `FOTO` (o nome do arquivo da foto traz o CNPJ), `ENDEREÇO`. A web recusa o pacote que trouxer uma delas.
+- **Nome de cliente ou estabelecimento (as colunas "limpa"):** a célula passa por uma função pura do núcleo (modulo-farois; regra proposta RN-GER-011, §10.7.9):
+  - `relatorios_nucleo.sem_documento(texto) -> str`: tira o CPF/CNPJ do **começo** (como `cobranca_whatsapp.nome_sem_documento`), do **fim** (11 ou 14 dígitos, com ou sem pontuação: o MEI "NOME 12345678900") e qualquer CPF/CNPJ **formatado** no meio;
+  - `relatorios_nucleo.cliente_sem_documento(texto) -> str`: para as colunas "código - nome" (`ctx.nome_cliente`, ex.: `"001234 - NOME"`). Mantém o código do começo (`^\d{6}(-\d{2})? - `) e aplica `sem_documento` só ao nome;
+  - **por quê:** o `nome_sem_documento` de hoje (1) apaga o código do começo (`"001234 - NOME"` vira `"NOME"`), e (2) não vê o CPF no fim. Medido nas bases: "Pedidos" `RAZÃO SOCIAL` 222 com documento no começo e **84 com CPF no fim** (de 2.216 linhas); "Cliente a cliente" `CLIENTE` 198 e 30 (de 1.441); "Entregas" `CLIENTE` 19 e 4 (de 1.390).
+- **Texto livre** (`JUSTIFICATIVA`, `OBSERVAÇÃO`, `RESULTADO`, `LINHAS DE INTERESSE`) [D6]: vai, depois de `relatorios_nucleo.texto_sem_contato(texto)`, que troca telefone, e-mail e CPF/CNPJ achados no texto por `"[removido]"`. Nas bases, nenhum caso hoje.
+- **Nome de pessoa da equipe:** `VENDEDOR` e `SUPERVISOR` vão ("2 A"). `AUTORIZADO POR` (oculta) e `RESPONSÁVEL` (o motorista da entrega) vão como o nome do vendedor [D6].
+- **Cartões, blocos e frases:** como no §10.1, sem nome de cliente.
+- **Igualdade:** célula a célula, a tabela da web é a do PC depois do `montar`, sem as colunas que saem e com as células limpas. O `testes` compara.
+
+#### 10.7.5 Quem vê (corte no servidor, antes do HTML)
+
+| Perfil | Resumo (cartões e gráficos) | Abas de tabela |
+|---|---|---|
+| `admin` | sim | todas |
+| `gerente` | sim | todas (não há telefone nem botão nesses faróis) |
+| perfil do farol: `pre_venda` (Pedidos), `pos_venda` (Entregas), `vendas` (Visita) | sim | todas [D1] |
+| `diretor` | sim | nenhuma |
+
+- Quem não vê o farol continua sem ver (`web/app/render.FAROIS`).
+- Aba fora do perfil = **403**, com teste por perfil e por aba. Sem exportar ("6 A").
+- Página com tabela: `Cache-Control: no-store` e `<meta name="robots" content="noindex">`. Registro de acesso como no §10.6.3 (login, rid, aba e hora; sem cliente).
+
+#### 10.7.6 Conferência no PC e defesa na web
+
+**O PC confere cada aba antes de mandar** (`bap_automation`, modulo-robo): as colunas depois do corte batem com o §10.7.3 (nome, ordem, `tipo`, `oculta` e a forma do selo); cada linha tem o número de colunas (o robô corta a célula a mais); `recortes_linhas` e `uf_linhas` coerentes com `linhas`. Se uma aba não bate, **só ela** fica fora (com as juntas), com o aviso "A aba <título> ficou fora desta atualização: as colunas do PC não batem com o contrato." e uma linha no log sem dado pessoal. As outras abas e os outros relatórios seguem.
+
+**A web recusa o pacote inteiro** (motivo no log, sem dado pessoal) quando, num destes três `rid`:
+- uma tabela tem `titulo` fora da lista do §10.7.1, fora da ordem ou repetido; uma junta ou sub-aba está fora do lugar do §10.7.3;
+- as colunas não são as do §10.7.3 (no "Solicitação BAP": coluna que sai, ou `tipo` fora de `texto`, `num` e `data`);
+- aparece coluna que sai (§10.7.4), selo fora das colunas marcadas, ou `chip_tom` que não aponta para coluna oculta da mesma tabela;
+- uma linha tem número de células diferente do de colunas; um índice de `recortes_linhas` está fora de `linhas`; `uf_linhas` tem tamanho diferente de `linhas` ou valor que não é UF (`^[A-Z]{2}$`) nem `""`;
+- uma tabela passa de 60.000 linhas (`MAX_LINHAS`, como no §10.6);
+- há chave proibida (§10.7.2) em qualquer nível.
+
+#### 10.7.7 Período das linhas e filtro por estado
+
+- **Período [D2]:** as tabelas levam **só o mês do pacote**, como o PC abre (`ano`/`mes` do topo do pacote):
+  - "Pedidos": as linhas com `MÊS` = mês do pacote (o PC já mostra só essas: o filtro MÊS é oculto e segue o Mês/Ano de cima). As juntas vão inteiras (já são só do que está em aberto);
+  - "Entregas": as linhas com `MÊS` = mês do pacote; as pendências dos meses anteriores vão na junta;
+  - Visita: as tabelas do `montar` já são do mês.
+- **Filtro por estado [D5]:** com um estado escolhido, a web também filtra as linhas pelas `uf_linhas` (a mesma regra dos cartões, RN-GER-006): "Pedidos" pela filial da nota, "Entregas" e a junta de pendências pela UF do cliente. As juntas do "Pedidos" seguem a `liga`. Os `kpis_padrao` não seguem o estado (mostram "—", como com filtro). O "Solicitação BAP" e as abas do Visita não têm estado: a web mostra a tabela da BAP inteira, com o aviso do §10.1.
+
+#### 10.7.8 Tamanho do pacote
+
+Medido nas bases do repositório (NOV/26, dados até 20/11), JSON compacto, com as colunas que saem já fora:
+
+| Parte | Linhas | Tamanho |
+|---|---|---|
+| `vc_painel` (T-0014) | — | 41 KB |
+| `pl_inadimplencia` com `tabelas` e `cobranca` (§10.6) | 539 + 193 | 287 KB |
+| "Pedidos", só o mês [D2 A] (12 meses: 2.216 linhas, 745 KB) | 119 | 42 KB |
+| As 3 juntas do "Pedidos" | 19 + 9 + 34 | 12 KB |
+| "Solicitação BAP", as 7 abas inteiras [D3 A] (só as linhas de pedido EM ABERTO, com as 2 listas de exclusão inteiras: 364 linhas, cerca de 25 KB) | 4.370 | 830 KB |
+| "Entregas", só o mês, e a junta [D2 A] (12 meses: 1.390 linhas, 259 KB) | 59 + 0 | 16 KB |
+| Visita: "Cliente a cliente" (até 19/11; mês cheio estimado em 2.200 linhas, cerca de 620 KB) | 1.441 | 406 KB |
+| Visita: as outras 6 abas | 236 | 50 KB |
+| `recortes_linhas`, `uf_linhas`, `kpis_padrao` e a forma "farol" dos três faróis [SUPOSIÇÃO: estimativa] | — | 150 KB |
+
+- **Total estimado no fim do mês, com as recomendações: cerca de 2,2 MB** (2,5 MB com os espaços do `json.dumps` padrão do robô). Com D2 B e D3 A: cerca de 3,5 MB. O teto é `BAP_WEB_PACOTE_MAX_MB = 25` (`render.yaml`): folga de 7 a 10 vezes. Disco: 7 pacotes guardados (§10.6.1) = cerca de 25 MB.
+- **Trava do robô:** `bap_automation.WEB_PACOTE_TETO_MB = 20`. Se o pacote serializado passar disso, o robô corta, nesta ordem, até caber, com um aviso no farol e uma linha no log: (1) "Solicitação BAP" só com as linhas de pedido EM ABERTO; (2) "Cliente a cliente" fora; (3) todas as `tabelas` dos três faróis fora (cai no §10.1). Nunca manda pacote que a web recusaria pelo tamanho.
+- A web pagina no servidor (100 linhas por página, como no §10.6). A página leva só a página da tabela, não o pacote.
+
+#### 10.7.9 Decisões em aberto (do Alexandre) e regra nova
+
+| | Pergunta | Opções | Recomendação |
+|---|---|---|---|
+| **D1** | O perfil do farol vê as tabelas? (`pre_venda` em Pedidos, `pos_venda` em Entregas, `vendas` em Visita; o "1 A" só fala de admin, pós-venda, gerente e diretor) | (A) sim, todas as abas, como o pós-venda na Inadimplência; (B) só `admin` e `gerente` veem tabelas; o perfil do farol vê só o resumo; (C) como A, mas `vendas` não vê "Cliente a cliente", "Prospecção" e "Indicação" (carteira e prospecção de outros vendedores) | **A**: é quem opera o farol no PC; o filtro por vendedor de cada login fica para o perfil supervisor (R-20261123-191448-alexandre) |
+| **D2** | Quantos meses de linhas? | (A) só o mês do pacote, como o PC abre; as pendências antigas de entrega vão na junta; (B) os 12 meses que o PC carrega (+1 MB), com o filtro MÊS no site | **A**: os cartões batem com as linhas, e o pacote fica menor |
+| **D3** | "Solicitação BAP": quais linhas? | (A) as 7 abas inteiras, como o PC (830 KB hoje, cresce com o arquivo; a trava do §10.7.8 corta se precisar); (B) só as linhas de pedido EM ABERTO (cerca de 25 KB); (C) a aba fica só no PC | **A**: é o "todas as abas" do Alexandre, e cabe com folga. A troca de loja de coleta fica no PC em qualquer opção |
+| **D4** | "Ver pedido" (duplo clique no PC: itens, saldo e autorização) | (A) fica no PC nesta entrega; (B) o robô manda pronto o detalhe dos pedidos do mês, só leitura, sem a caixa de autorização (cerca de 300 KB a mais) | **A**: não é aba; vira uma entrega própria se o Alexandre quiser |
+| **D5** | O estado escolhido em cima filtra as linhas? | (A) sim, pela mesma regra dos cartões (RN-GER-006); Visita e "Solicitação BAP" com aviso; (B) não: tabelas sempre da BAP inteira, com aviso | **A**: o número do cartão e as linhas contam a mesma história |
+| **D6** | Texto livre e nome de motorista | (A) vão: o texto livre passa pela limpeza (telefone, e-mail e CPF/CNPJ viram "[removido]"); `RESPONSÁVEL` vai como o nome do vendedor; (B) `OBSERVAÇÃO`, `JUSTIFICATIVA`, `RESULTADO`, `LINHAS DE INTERESSE` e `RESPONSÁVEL` ficam só no PC | **A**: é o que o gerente lê no PC; nas bases não há telefone nem documento nesses textos |
+
+**Regra nova proposta ao gerente-projetos** (dono do `docs/produto/03-regras.md`), com o número que ele der: "RN-GER-011 · Tabela no site: sem CPF/CNPJ, telefone, e-mail, contato e foto. O nome de cliente ou estabelecimento vai limpo de CPF/CNPJ no começo, no fim e formatado no meio; o código do cliente fica. Texto livre vai sem telefone, e-mail e documento." Os testes citam `test_RN_GER_011_...`.
+
+#### 10.7.10 Ordem de publicação
+
+1. **Contrato** (este §10.7) com as decisões D1 a D6 respondidas.
+2. **Núcleo** (modulo-farois): as funções puras (`sem_documento`, `cliente_sem_documento`, `texto_sem_contato`, `linhas_padrao`, `recortes_em_linhas`). Não muda nenhuma tela do PC.
+3. **Web antes:** aceita, valida e desenha `tabelas` nos três `rid`, com o corte por perfil; `VERSAO` nova no `/saude`. Sobe com o merge (ADR 0001, adendo 4). A web publicada hoje recusa `tabelas` fora do `pl_inadimplencia`: **o robô novo antes da web derruba o pacote inteiro** (o `vc_painel` também para de atualizar).
+4. **Robô depois:** o "instale" no PC (regra 11 do `CLAUDE.md`), só com o `/saude` na versão nova.
+
+Web nova com robô antigo: só a aba Resumo (§10.1). A versão do contrato fica em 1. Renomear ou tirar chave desta seção = v2 com ADR.
 
 ## 11. Parte ação: os callables e a web v1
 
