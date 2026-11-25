@@ -400,20 +400,25 @@ Chaves (e só elas):
 
 **Fora, sempre:** `edicao`, `editar`, `abrir`, `detalhe`, `kpis_de`, `recortes`, `exportar_*`, chave com `_` e qualquer callable. Nesta entrega, a tabela da web não tem cartões que seguem o filtro nem recortes.
 
-**Colunas permitidas** (as do `relatorios_nucleo.farol_inadimplencia`, **menos TELEFONE**; nome e tipo):
-- **"Títulos"** (17): `SITUAÇÃO` texto · `FAIXA` texto · `FILIAL` texto · `NF` texto · `PARC.` texto · `EMISSÃO` data · `VENCIMENTO` data · `DIAS ATRASO` int · `CLIENTE` texto · `NOME` texto · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto · `CONDIÇÃO` texto · `VALOR` moeda · `SALDO` moeda.
-- **"Por cliente"** (16): `SITUAÇÃO` texto · `FAIXA` texto · `CLIENTE` texto · `NOME` texto · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto · `TÍTULOS VENCIDOS` int · `EM ATRASO` moeda · `MAIOR ATRASO` int · `A VENCER` moeda · `PRÓX. VENCIMENTO` data · `LIMITE` moeda · `PEDIDO EM ABERTO` moeda · `ÚLTIMA COMPRA` data.
+**Colunas permitidas.** A regra: as colunas da tabela do PC **depois do `montar`**, **menos TELEFONE**, na mesma ordem e com o mesmo `tipo` e `oculta`. O `montar` (`_status_nas_tabelas` e `_so_status`, com `STATUS_NAS_TABELAS["pl_inadimplencia"]`) põe três colunas de status logo depois de NOME:
+- `STATUS PROTHEUS` (oculta);
+- `STATUS` (o STATUS PLANNER renomeado: ATIVO/INATIVO);
+- `SITUAÇÃO PLANNER` (oculta).
+
+Não são dado pessoal e vão no pacote. A web não desenha coluna com `oculta: true`, mas a célula vem na linha. Lista conferida no `main` em `c8a9267` (nome e tipo):
+- **"Títulos"** (20): `SITUAÇÃO` texto · `FAIXA` texto · `FILIAL` texto · `NF` texto · `PARC.` texto · `EMISSÃO` data · `VENCIMENTO` data · `DIAS ATRASO` int · `CLIENTE` texto · `NOME` texto · `STATUS PROTHEUS` texto (oculta) · `STATUS` texto · `SITUAÇÃO PLANNER` texto (oculta) · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto · `CONDIÇÃO` texto · `VALOR` moeda · `SALDO` moeda.
+- **"Por cliente"** (19): `SITUAÇÃO` texto · `FAIXA` texto · `CLIENTE` texto · `NOME` texto · `STATUS PROTHEUS` texto (oculta) · `STATUS` texto · `SITUAÇÃO PLANNER` texto (oculta) · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto · `TÍTULOS VENCIDOS` int · `EM ATRASO` moeda · `MAIOR ATRASO` int · `A VENCER` moeda · `PRÓX. VENCIMENTO` data · `LIMITE` moeda · `PEDIDO EM ABERTO` moeda · `ÚLTIMA COMPRA` data.
 
 **A web recusa o pacote inteiro** (com o motivo no log, sem dado pessoal) quando:
 - o `titulo` não é um dos dois;
-- a lista de colunas não é igual à de cima (nome, ordem e tipo);
+- a lista de colunas não é igual à de cima (nome, ordem e tipo). Se a coluna mudar no PC, primeiro muda este contrato (acréscimo, PR do engenheiro-software), depois o código;
 - aparece coluna `TELEFONE`, `CNPJ`, `CPF`, `E-MAIL` ou `EMAIL`;
 - uma linha tem número de células diferente do número de colunas;
 - há chave proibida.
 
 `CLIENTE` é o código-loja do PC (ex.: `"001234-01"`). CNPJ não vai ("2 A").
 
-**Igualdade:** célula a célula, a tabela da web é a do PC sem a coluna TELEFONE. O `testes` compara.
+**Igualdade:** célula a célula, a tabela da web é a do PC depois do `montar`, sem a coluna TELEFONE. O `testes` compara.
 
 #### 10.6.3 Bloco `cobranca`
 
@@ -481,14 +486,14 @@ A tela mostra "situação do PC até hh:mm" (o `gerado_em`).
 - Pedido de aba ou de ação fora do perfil = **403**, com teste por perfil.
 - Sem exportar tabela, fila ou diário ("6 A").
 - Página com tabela ou fila: `Cache-Control: no-store` e `<meta name="robots" content="noindex">`.
-- Registro de acesso em `<BAP_WEB_DADOS>/acessos/`, guardado por 90 dias: login, rid, aba, ação e hora, sem cliente nem telefone.
+- Registro de acesso em `<BAP_WEB_DADOS>/acessos/`, guardado por 90 dias [SUPOSIÇÃO: 90 dias, a confirmar com o Alexandre]: login, rid, aba, ação e hora, sem cliente nem telefone.
 
 #### 10.6.4 Rota do site: `POST /farol/pl_inadimplencia/cobranca`
 
 - Sessão com login (cookie); **não aceita Bearer**. Perfil `admin` ou `pos_venda`, senão 403. CSRF obrigatório no campo `csrf` (o mesmo da sessão, como nas outras rotas POST); sem ele, 403.
 - Corpo `application/x-www-form-urlencoded`:
   - `csrf`;
-  - `pacote_sha`: o sha256 do pacote com que a página foi desenhada (a página manda sempre);
+  - `pacote_sha`: o sha256 (hex) do pacote com que a página foi desenhada (a página manda sempre). É o sha256 dos **bytes do arquivo guardado** em `<BAP_WEB_DADOS>/pacotes/<nome>.json`, como a web gravou (depois do `_enxuto` e com o `recebido_em`), e não do corpo recebido do robô: assim a web recalcula o valor a qualquer momento;
   - `cliente`: o `cod` do item;
   - `acao`: `ENVIADO` ou `PULADO` (senão 400);
   - `telefone`: opcional, só com `ENVIADO`. É o número corrigido na tela ("5 A"), normalizado pelo `celular()`: celular ou fixo são aceitos. Se o `celular()` devolve `""`, a resposta é 400. Vale só para esse envio. O site é mais estrito que o PC, que aceita o número digitado sem normalizar.
@@ -510,7 +515,7 @@ A tela mostra "situação do PC até hh:mm" (o `gerado_em`).
 - `estado.json`: o estado do diário, gravado de forma atômica (arquivo temporário + `fsync` + `os.replace`):
   `{"epoca": str, "ultimo_seq": int, "confirmado_ate": int, "confirmado_em": "AAAA-MM-DD HH:MM:SS", "arquivos": {"COBRANCA_WEB_<AAAA-MM>.jsonl": {"maior_seq": int, "confirmado_em": "AAAA-MM-DD HH:MM:SS" | null}}}`.
   - O contador de `seq` mora aqui (`ultimo_seq`). Ele sobrevive à limpeza dos jsonl e nunca volta atrás dentro da mesma época.
-  - **`epoca`**: `uuid4().hex`, criada quando o `estado.json` não existe (primeiro uso ou disco perdido). Nesse caso, o `seq` recomeça em 1, mas numa época nova.
+  - **`epoca`**: `uuid4().hex`, criada quando o `estado.json` não existe (primeiro uso ou disco perdido). Sem `estado.json` e sem jsonl, o `seq` recomeça em 1, numa época nova.
   - Se há jsonl sem `estado.json`, a web não inventa estado: cria época nova e começa o `seq` acima do maior `seq` dos jsonl que ainda existem.
 
 **Registro** (uma linha do jsonl):
@@ -534,8 +539,13 @@ A tela mostra "situação do PC até hh:mm" (o `gerado_em`).
 
 **Retenção ("3 A"), por arquivo:**
 - Só arquivo de **mês já fechado** pode sair.
-- Quando uma confirmação cobre o `maior_seq` de um mês fechado, a web grava `arquivos[<nome>].confirmado_em`.
-- O arquivo é apagado quando passam 30 dias desse `confirmado_em`. Cada linha fica, portanto, **no mínimo** 30 dias depois de confirmada.
+- `arquivos[<nome>].maior_seq` é o maior `seq` do arquivo; num mês fechado, ele não muda mais (é o `maior_seq` final).
+- **A rotina de limpeza** roda em todo `POST /api/cobranca/confirmar` aceito (200, mesmo o repetido) e na partida do app. Ela faz, nesta ordem:
+  1. para todo arquivo de **mês fechado** (em Manaus) com `maior_seq <= confirmado_ate` e `confirmado_em` nulo: grava `confirmado_em` = agora. Isso cobre os dois casos: a primeira confirmação que alcança o `maior_seq` final, e o mês que fecha já coberto por uma confirmação anterior;
+  2. apaga os arquivos com `confirmado_em` de 30 dias ou mais e tira a entrada deles de `arquivos` (o `ultimo_seq` fica);
+  3. grava o `estado.json` (atômico) só se algo mudou.
+- Cada linha fica, portanto, **no mínimo** 30 dias depois de confirmada.
+- Arquivo de mês aberto nunca é apagado.
 - Arquivo com linha não confirmada nunca é apagado.
 
 #### 10.6.6 API do robô (Bearer `BAP_WEB_TOKEN`, só HTTPS)
@@ -554,7 +564,7 @@ A tela mostra "situação do PC até hh:mm" (o `gerado_em`).
 
 **`POST /api/cobranca/confirmar`**, corpo `application/json` `{"epoca": str, "ate_seq": int}`
 - Marca como confirmados todos os registros com `seq <= ate_seq`.
-- Idempotente: confirmar de novo o mesmo valor, ou um menor, responde 200 e não muda nada.
+- Idempotente: confirmar de novo o mesmo valor, ou um menor, responde 200 e não muda `confirmado_ate`. A rotina de limpeza do §10.6.5 roda do mesmo jeito; ela não conta como mudança para a idempotência.
 - Erros:
   - `epoca` diferente da atual = 409 `{"erro": "epoca"}`;
   - `ate_seq` maior que `ultimo_seq` = 409;
@@ -593,7 +603,7 @@ A tela mostra "situação do PC até hh:mm" (o `gerado_em`).
 #### 10.6.8 Ordem de publicação
 
 A web publicada hoje recusa `tabelas` no farol (§10.1). Por isso:
-1. **web antes**: aceita e valida `tabelas` e `cobranca` no `pl_inadimplencia`, desenha as abas, abre a rota do §10.6.4 e a API do §10.6.6, e passa a guardar 7 pacotes ("aprovo deploy vX.Y.Z");
+1. **web antes**: aceita e valida `tabelas` e `cobranca` no `pl_inadimplencia`, desenha as abas, abre a rota do §10.6.4 e a API do §10.6.6, e passa a guardar 7 pacotes. Sobe ao Render com o merge no `main` (deploy automático, ADR 0001, adendo 4), e o `/saude` mostra a versão nova;
 2. **robô depois**: o "instale" do Alexandre no PC (regra 11 do `CLAUDE.md`).
 
 Web nova com robô antigo: o farol segue como no §10.1 (sem abas novas), e o GET não é chamado. A versão fica em 1. Renomear ou tirar chave desta seção = v2 com ADR.
