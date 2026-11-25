@@ -6839,7 +6839,7 @@ def _kpis_com_estados(r: dict) -> list:
 
 
 def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
-                         grafico_com_nome=None) -> dict:
+                         grafico_com_nome=None, cobranca=None) -> dict:
     """Funcao pura (T-0017): do farol montado, so a parte dado da forma "farol"
     (contrato, secao 10): {"forma", "titulo", "kpis", "painel": {"blocos"},
     "insights_painel", "avisos", "recortes", "baixado_em"}. baixado_em = a
@@ -6849,7 +6849,11 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     edicao. Blocos do painel mantidos: insights, barras, hbarras (os cartoes vao
     em "kpis", no topo). hbarras (ou
     frase) com nome de pessoa sai enquanto WEB_GRAFICOS_COM_NOME for False;
-    cliente e CNPJ nunca vao."""
+    cliente e CNPJ nunca vao.
+    (T-0017, entrega 2, contrato §10.6) So no pl_inadimplencia, com `cobranca`
+    (o bloco de cobranca_whatsapp.pacote_web): acrescenta `tabelas` (Titulos e
+    Por cliente, sem TELEFONE) e `cobranca`; as duas chaves vao juntas ou
+    nenhuma."""
     if grafico_com_nome is None:
         grafico_com_nome = WEB_GRAFICOS_COM_NOME
     r = r or {}
@@ -6881,7 +6885,139 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
         "baixado_em": (_com_fuso_manaus(baixado_em).isoformat()
                        if baixado_em else None)}
     val = _para_json(saida, fora=_CHAVES_FORA_FAROL_WEB)
-    return val if isinstance(val, dict) else {}
+    val = val if isinstance(val, dict) else {}
+    if rid == RID_COBRANCA_WEB and val and isinstance(cobranca, dict):
+        tabs = tabelas_cobranca_web(r)
+        cob = _para_json(cobranca, fora=_CHAVES_FORA_TABELA_WEB)
+        if tabs and isinstance(cob, dict):
+            val["tabelas"] = tabs
+            val["cobranca"] = cob
+        else:
+            # colunas fora do contrato: o farol segue sem as abas novas
+            log.warning("Pacote web: as colunas das tabelas do farol nao "
+                        "batem com o contrato 10.6.2; farol sem tabelas e "
+                        "sem cobranca.")
+            val.setdefault("avisos", []).append(
+                "Tabelas e cobrança no WhatsApp ficaram fora desta "
+                "atualização: as colunas do PC não batem com o contrato.")
+    return val
+
+
+# ---------------------------------------------------------------------------
+# (T-0017, entrega 2) Titulos e Por cliente no pacote do pl_inadimplencia
+# (contrato §10.6.2): so as colunas da lista do contrato (nome e tipo), sem
+# TELEFONE, CNPJ, CPF ou E-MAIL. Fora das tabelas: edicao, detalhe, kpis_de,
+# recortes, callables e chaves com "_".
+RID_COBRANCA_WEB = "pl_inadimplencia"
+_COLUNAS_SEM_STATUS_WEB = {
+    "Títulos": (
+        ("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("FILIAL", "texto"),
+        ("NF", "texto"), ("PARC.", "texto"), ("EMISSÃO", "data"),
+        ("VENCIMENTO", "data"), ("DIAS ATRASO", "int"),
+        ("CLIENTE", "texto"), ("NOME", "texto"), ("CIDADE", "texto"),
+        ("UF", "texto"), ("VENDEDOR", "texto"), ("SUPERVISOR", "texto"),
+        ("CONDIÇÃO", "texto"), ("VALOR", "moeda"), ("SALDO", "moeda")),
+    "Por cliente": (
+        ("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("CLIENTE", "texto"),
+        ("NOME", "texto"), ("CIDADE", "texto"), ("UF", "texto"),
+        ("VENDEDOR", "texto"), ("SUPERVISOR", "texto"),
+        ("TÍTULOS VENCIDOS", "int"), ("EM ATRASO", "moeda"),
+        ("MAIOR ATRASO", "int"), ("A VENCER", "moeda"),
+        ("PRÓX. VENCIMENTO", "data"), ("LIMITE", "moeda"),
+        ("PEDIDO EM ABERTO", "moeda"), ("ÚLTIMA COMPRA", "data"))}
+# o bloco de status (as 3 juntas, logo depois de NOME) e opcional (10.6.2)
+_STATUS_WEB = (("STATUS PROTHEUS", "texto"), ("STATUS", "texto"),
+               ("SITUAÇÃO PLANNER", "texto"))
+_STATUS_OCULTAS_WEB = {"STATUS PROTHEUS", "SITUAÇÃO PLANNER"}
+_COLUNAS_COM_CHIP_WEB = ("SITUAÇÃO", "FAIXA", "STATUS")
+
+
+def _colunas_esperadas_web(titulo: str, com_status: bool) -> tuple:
+    base = _COLUNAS_SEM_STATUS_WEB[titulo]
+    if not com_status:
+        return base
+    i = [n for n, _ in base].index("NOME") + 1
+    return base[:i] + _STATUS_WEB + base[i:]
+
+
+_CHAVES_FORA_TABELA_WEB = (_CHAVES_FORA_FAROL_WEB - {"tabelas"}) | {
+    "detalhe", "recortes", "exportar", "exportar_protheus"}
+
+
+def tabelas_cobranca_web(r: dict):
+    """Funcao pura: [Titulos, Por cliente] do farol montado no formato do
+    contrato 10.6.2, ou None se as colunas do PC (menos TELEFONE) nao baterem
+    com a lista do contrato (nome, ordem, tipo e oculta; o bloco de status
+    vai inteiro, depois de NOME, ou nao vai): nunca manda tabela torta, que
+    a web recusaria no pacote inteiro. `chip` e `tons` como o PC entrega
+    (chip so em SITUACAO, FAIXA e STATUS). NOME sai sem CPF/CNPJ no
+    comeco (cobranca_whatsapp.nome_sem_documento, RN-POS-004); sem essa
+    funcao, None."""
+    por_titulo = {t.get("titulo"): t for t in (r or {}).get("tabelas") or []
+                  if isinstance(t, dict)}
+    try:                # RN-POS-004: NOME sem CPF/CNPJ no comeco. Sem a
+        sem_doc = _cobranca_whatsapp().nome_sem_documento   # funcao, nao vai
+    except Exception:                                   # noqa: BLE001
+        return None
+    saida = []
+    for titulo in _COLUNAS_SEM_STATUS_WEB:
+        t = por_titulo.get(titulo)
+        if not t:
+            return None
+        pc = [c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
+              for c in t.get("colunas") or []]
+        idx = [i for i, c in enumerate(pc)
+               if str(c.get("nome")).upper() != "TELEFONE"]
+        atuais = [(pc[i].get("nome"), pc[i].get("tipo"),
+                   bool(pc[i].get("oculta"))) for i in idx]
+        esperado = None
+        for com_status in (True, False):
+            lista = _colunas_esperadas_web(titulo, com_status)
+            if atuais == [(n, tp, n in _STATUS_OCULTAS_WEB)
+                          for n, tp in lista]:
+                esperado = lista
+                break
+        if esperado is None:
+            return None
+        colunas = []
+        for i in idx:
+            c = pc[i]
+            col = {"nome": c["nome"], "tipo": c["tipo"]}
+            if c.get("largura") is not None:
+                col["largura"] = int(c["largura"])
+            if c.get("larg_fixa") is not None:
+                col["larg_fixa"] = int(c["larg_fixa"])
+            if c.get("oculta"):
+                col["oculta"] = True
+            if c.get("chip") and c["nome"] in _COLUNAS_COM_CHIP_WEB:
+                col["chip"] = c["chip"]
+            colunas.append(col)
+        linhas = []
+        for ln in t.get("linhas") or []:
+            if len(ln) != len(pc):
+                return None
+            linhas.append([ln[i] for i in idx])
+        inome = [c["nome"] for c in colunas].index("NOME")
+        for ln in linhas:
+            ln[inome] = sem_doc(ln[inome]) if ln[inome] else ln[inome]
+        total = t.get("total")
+        if isinstance(total, (list, tuple)) and len(total) == len(pc):
+            total = [total[i] for i in idx]
+        else:
+            total = None
+        nomes = {n for n, _ in esperado}
+        filtros = []
+        for f in t.get("filtros") or []:
+            col = f.get("coluna") if isinstance(f, dict) else f
+            if col in nomes:
+                filtros.append(f)
+        tons = [str(x or "") for x in t.get("tons") or []]
+        if len(tons) != len(linhas):
+            tons = [""] * len(linhas)
+        saida.append({"titulo": titulo, "colunas": colunas, "linhas": linhas,
+                      "tons": tons, "total": total, "filtros": filtros})
+    val = _para_json(saida, fora=_CHAVES_FORA_TABELA_WEB)
+    return val if isinstance(val, list) and len(val) == 2 else None
 
 
 def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
@@ -6926,9 +7062,12 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
 
 
 def montar_pacote_web(resultados: dict, ano: int, mes: int,
-                      agora=None, raiz=None, arquivos_base=None) -> dict:
+                      agora=None, raiz=None, arquivos_base=None,
+                      cobranca=None) -> dict:
     """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
-    resultado e produtividade, limpas para JSON."""
+    resultado e produtividade, limpas para JSON. `cobranca` ({rid: bloco},
+    T-0017 entrega 2): o bloco de cobranca_whatsapp.pacote_web do
+    pl_inadimplencia, que leva junto as tabelas Titulos e Por cliente."""
     try:
         import relatorios_nucleo as _rn                 # noqa: PLC0415
         versao = int(getattr(_rn, "VERSAO_CONTRATO", 1))
@@ -6947,7 +7086,8 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
             continue
         try:
             val = selecionar_farol_web(rid, rel, _baixado_em_da_base(
-                rid, raiz, (arquivos_base or {}).get(rid)))
+                rid, raiz, (arquivos_base or {}).get(rid)),
+                cobranca=(cobranca or {}).get(rid))
         except Exception as erro:                       # noqa: BLE001
             log.warning("Pacote web: farol %s fora do pacote (%s).", rid,
                         type(erro).__name__)
@@ -6967,9 +7107,12 @@ def simular_pacote_farol(rid: str, raiz, destino, ano: int, mes: int,
     import relatorios_nucleo as _rn                     # noqa: PLC0415
     rel = _rn.montar(rid, Path(raiz), hoje=hoje,
                      params={"ANO": str(ano), "MÊS": str(mes)})
+    cobranca = (preparar_cobranca_web({rid: rel}, raiz, hoje, False,
+                                      log=lambda m: None)
+                if rid == RID_COBRANCA_WEB else {})
     pacote = montar_pacote_web(
         {rid: rel}, ano, mes,
-        raiz=raiz)
+        raiz=raiz, cobranca=cobranca)
     Path(destino).write_text(json.dumps(pacote, ensure_ascii=False,
                                         indent=1), encoding="utf-8")
     return pacote
@@ -7008,7 +7151,6 @@ def _segredo_web(env: str, usuario: str):
 
 def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
     """POST <url>/api/pacote (Bearer), 30 s, 3 tentativas, so https:443."""
-    from urllib.parse import urlparse                   # noqa: PLC0415
     url = (url or _segredo_web("BAP_WEB_URL", "url") or "").strip()
     token = (token or _segredo_web("BAP_WEB_TOKEN", "token") or "").strip()
     if not url or not token:
@@ -7019,16 +7161,12 @@ def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
     def limpa(txt) -> str:
         return str(txt).replace(token, "***")
 
-    try:
-        p = urlparse(url)
-        porta = p.port
-    except Exception:                                   # noqa: BLE001
-        log("Pacote web: BAP_WEB_URL invalida; envio pulado.")
+    base = _base_web(url)
+    if not base:
+        log("Pacote web: BAP_WEB_URL invalida ou nao e https na porta 443; "
+            "envio recusado.")
         return False
-    if p.scheme != "https" or not p.hostname or porta not in (None, 443):
-        log("Pacote web: so https na porta 443; envio recusado.")
-        return False
-    destino = f"https://{p.hostname}{p.path.rstrip('/')}/api/pacote"
+    destino = f"{base}/api/pacote"
     try:
         corpo = json.dumps(pacote, ensure_ascii=False,
                            allow_nan=False).encode("utf-8")
@@ -7054,6 +7192,256 @@ def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# (T-0017, entrega 2, contrato §10.6.6 e §10.6.7) Cobranca no WhatsApp: o robo
+# puxa do site o que a assistente marcou, grava no PC (COBRANCA_WEB.csv, pelo
+# modulo-posvenda), so entao confirma, e monta a fila nova do pacote.
+ARQ_ESTADO_COBRANCA_WEB = "ESTADO_COBRANCA_WEB.json"   # fora do glob COBRANCA_*.csv
+_PAGINAS_MAX_COBRANCA_WEB = 200            # 200 x 1000 registros: trava de laco
+
+
+def _cobranca_whatsapp(raiz=None):
+    """O modulo cobranca_whatsapp (modulo-posvenda), da pasta do programa."""
+    raiz = str(raiz or PASTA_LOCAL)
+    if raiz not in sys.path:
+        sys.path.insert(0, raiz)
+    import cobranca_whatsapp as cw                      # noqa: PLC0415
+    return cw
+
+
+def _pasta_cobranca(raiz) -> Path:
+    return _cobranca_whatsapp(raiz).pasta(raiz)         # RELATORIOS/_COBRANCA_WHATSAPP
+
+
+def ler_estado_cobranca(raiz) -> dict:
+    """{"epoca": str, "ate_seq": int}: a epoca do diario do site e o maior seq
+    dela ja gravado no COBRANCA_WEB.csv (contrato 10.6.7). Sem arquivo (ou
+    estragado): epoca "" e 0 (puxa desde=0; o `id` evita repetir)."""
+    try:
+        d = json.loads((_pasta_cobranca(raiz) / ARQ_ESTADO_COBRANCA_WEB)
+                       .read_text(encoding="utf-8"))
+        n = int(d.get("ate_seq"))
+        ep = d.get("epoca")
+        if n < 0 or not isinstance(ep, str):
+            raise ValueError("estado")
+        return {"epoca": ep, "ate_seq": n}
+    except Exception:                                   # noqa: BLE001
+        return {"epoca": "", "ate_seq": 0}
+
+
+def gravar_estado_cobranca(raiz, epoca: str, ate_seq: int, agora=None) -> None:
+    """Grava o estado inteiro numa copia e troca (nunca fica pela metade)."""
+    pasta = _pasta_cobranca(raiz)
+    pasta.mkdir(parents=True, exist_ok=True)
+    alvo = pasta / ARQ_ESTADO_COBRANCA_WEB
+    tmp = alvo.with_suffix(".tmp")
+    tmp.write_text(json.dumps({
+        "epoca": str(epoca), "ate_seq": int(ate_seq),
+        "em": _com_fuso_manaus(agora).replace(microsecond=0).isoformat()}),
+        encoding="utf-8")
+    os.replace(tmp, alvo)
+
+
+def _base_web(url) -> str | None:
+    """https://host[/caminho] sem barra no fim, ou None (so https, porta 443)."""
+    from urllib.parse import urlparse                   # noqa: PLC0415
+    try:
+        p = urlparse((url or "").strip())
+        if p.scheme != "https" or not p.hostname or p.port not in (None, 443):
+            return None
+        return f"https://{p.hostname}{p.path.rstrip('/')}"
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def _msg_http(codigo: int) -> str:
+    if codigo == 401:
+        return "token da web recusado (troque o BAP_WEB_TOKEN)"
+    if codigo == 404:
+        return "o site ainda nao tem /api/cobranca (404)"
+    return f"o site respondeu {codigo}"
+
+
+def baixar_cobranca_web(desde: int, base: str, token: str, sessao=None,
+                        log=print) -> dict | None:
+    """GET <base>/api/cobranca?desde=<seq> (Bearer), repetindo enquanto
+    `mais`. Devolve {"epoca", "linhas", "ate_seq"}. None = nao deu para puxar
+    (404 = web antiga, 401, 5xx, rede, resposta torta): quem chama segue sem
+    importar. Falha depois da primeira pagina, ou epoca que muda no meio,
+    devolve o que ja veio (ate_seq da ultima pagina boa). Log sem dado
+    pessoal e sem token."""
+    sessao = sessao or __import__("requests")
+    cab = {"Authorization": f"Bearer {token}"}
+    linhas, atual, epoca = [], int(desde), None
+    for _ in range(_PAGINAS_MAX_COBRANCA_WEB):
+        try:
+            r = sessao.get(f"{base}/api/cobranca", params={"desde": atual},
+                           headers=cab, timeout=30)
+            if r.status_code != 200:
+                log(f"Cobranca web: {_msg_http(r.status_code)}; sigo sem "
+                    "importar" + (" o resto." if epoca is not None else "."))
+                break
+            d = r.json()
+            pag, ate, ep = d["linhas"], int(d["ate_seq"]), str(d["epoca"])
+            if not isinstance(pag, list) or (
+                    epoca is not None and ep != epoca):
+                raise ValueError("resposta")
+        except Exception as erro:                       # noqa: BLE001
+            log("Cobranca web: falha ao puxar o diario do site "
+                f"({type(erro).__name__}); sigo sem importar"
+                + (" o resto." if epoca is not None else "."))
+            break
+        epoca = ep
+        linhas.extend(pag)
+        mais = bool(d.get("mais"))
+        if ate < atual or (mais and ate == atual):
+            mais = False                    # servidor nao andou: nao laca
+        atual = max(atual, ate)
+        if not mais:
+            break
+    if epoca is None:
+        return None
+    return {"epoca": epoca, "linhas": linhas, "ate_seq": atual}
+
+
+def confirmar_cobranca_web(epoca: str, ate_seq: int, base: str, token: str,
+                           sessao=None, log=print) -> bool:
+    """POST <base>/api/cobranca/confirmar {"epoca", "ate_seq"} (idempotente).
+    So depois de gravar no PC."""
+    sessao = sessao or __import__("requests")
+    try:
+        r = sessao.post(f"{base}/api/cobranca/confirmar",
+                        json={"epoca": str(epoca), "ate_seq": int(ate_seq)},
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=30)
+        if r.status_code == 200:
+            return True
+        log(f"Cobranca web: a confirmacao voltou {r.status_code} "
+            f"({_msg_http(r.status_code)}); confirmo de novo na proxima "
+            "rodada.")
+    except Exception as erro:                           # noqa: BLE001
+        log(f"Cobranca web: falha ao confirmar ({type(erro).__name__}); "
+            "confirmo de novo na proxima rodada.")
+    return False
+
+
+def sincronizar_cobranca_web(raiz, nomes, cw, base: str, token: str,
+                             sessao=None, log=print) -> dict:
+    """Passos 1 a 3 do 10.6.7. Devolve o estado da rodada {"epoca", "ate_seq"}
+    = o maior seq da epoca ja gravado no COBRANCA_WEB.csv (vira o
+    `web_ate_seq` do pacote, tenha a confirmacao dado certo ou nao).
+    - epoca da resposta diferente da do estado: descarta e puxa de novo com
+      desde=0 (o `id` evita repetir no CSV);
+    - erro de disco no importar: nao confirma e nao mexe no estado;
+    - confirma em toda rodada com ate_seq > 0 (refaz a que falhou).
+    Nunca levanta."""
+    estado = ler_estado_cobranca(raiz)
+    try:
+        desde = estado["ate_seq"] if estado["epoca"] else 0
+        res = baixar_cobranca_web(desde, base, token, sessao, log)
+        if res and estado["epoca"] != res["epoca"]:
+            if estado["epoca"]:
+                log("Cobranca web: o diario do site recomecou (epoca nova); "
+                    "puxo tudo de novo.")
+            estado = {"epoca": res["epoca"], "ate_seq": 0}
+            if desde:                   # com desde=0 a resposta ja vale
+                res = baixar_cobranca_web(0, base, token, sessao, log)
+                if res and res["epoca"] != estado["epoca"]:
+                    res = None
+        if not res:
+            return estado               # sem rede/web antiga: estado de antes
+        if res["linhas"]:
+            novas = cw.importar_web(raiz, res["linhas"], nomes)
+            log(f"Cobranca web: {novas} registro(s) novo(s) do site gravados "
+                "no PC.")
+        maior = max([int(x.get("seq") or 0) for x in res["linhas"]] or [0])
+        novo = {"epoca": res["epoca"],
+                "ate_seq": max(estado["ate_seq"], maior)
+                if estado["epoca"] == res["epoca"] else maior}
+    except Exception as erro:                           # noqa: BLE001
+        log("Cobranca web: nao gravei no PC "
+            f"({type(erro).__name__}); nao confirmo, tento de novo na "
+            "proxima rodada.")
+        return estado
+    try:
+        gravar_estado_cobranca(raiz, novo["epoca"], novo["ate_seq"])
+    except Exception as erro:                           # noqa: BLE001
+        log(f"Cobranca web: nao guardei o estado ({type(erro).__name__}); "
+            "a proxima rodada puxa de novo (o id evita repetir).")
+    if novo["ate_seq"] > 0:
+        confirmar_cobranca_web(novo["epoca"], novo["ate_seq"], base, token,
+                               sessao, log)
+    return novo
+
+
+def nomes_por_cliente_web(r: dict) -> dict:
+    """{CLIENTE (cod-loja): NOME} da aba Por cliente (para o COBRANCA_WEB.csv)."""
+    t = next((x for x in (r or {}).get("tabelas") or []
+              if isinstance(x, dict) and x.get("titulo") == "Por cliente"),
+             None)
+    if not t:
+        return {}
+    nm = [c.get("nome") if isinstance(c, dict) else c
+          for c in t.get("colunas") or []]
+    if "CLIENTE" not in nm or "NOME" not in nm:
+        return {}
+    ic, inome = nm.index("CLIENTE"), nm.index("NOME")
+    return {str(ln[ic]).strip(): str(ln[inome] or "").strip()
+            for ln in t.get("linhas") or []}
+
+
+def montar_cobranca_web(rel: dict, raiz, cw, web_ate_seq: int, agora=None,
+                        fantasias=None, web_epoca: str = "") -> dict | None:
+    """O bloco `cobranca` do §10.6.3, lendo o historico DEPOIS da importacao.
+    None se o cobranca_whatsapp do PC for antigo (sem pacote_web)."""
+    if not (callable(getattr(cw, "pacote_web", None))
+            and callable(getattr(cw, "historico_origem", None))):
+        return None
+    agora = _com_fuso_manaus(agora).replace(microsecond=0)
+    return cw.pacote_web(rel, fantasias or {}, cw.historico_origem(raiz),
+                         agora, web_ate_seq=int(web_ate_seq),
+                         web_epoca=str(web_epoca or ""),
+                         gerado_em=agora.isoformat())
+
+
+def _fantasias_clientes(raiz) -> dict:
+    """{cod (sem loja): fantasia ou nome} do cadastro, o mesmo nome que a
+    janela do PC usa na mensagem. Falhou = {} (a mensagem usa o NOME)."""
+    try:
+        import relatorios_nucleo as _rn                 # noqa: PLC0415
+        ctx = _rn.Contexto(Path(raiz), date.today(), None, {})
+        return {_rn.texto(c.get("cod")): _rn.texto(c.get("fantasia"))
+                or _rn.texto(c.get("nome"))
+                for c in ctx.base.get("clientes") or []}
+    except Exception:                                   # noqa: BLE001
+        return {}
+
+
+def preparar_cobranca_web(resultados: dict, raiz, hoje, sincronizar: bool,
+                          url=None, token=None, log=print):
+    """Passo 4f, parte da cobranca: devolve {RID: bloco} para o
+    montar_pacote_web (ou {} se nao der: o farol vai sem as abas novas)."""
+    rel = (resultados or {}).get(RID_COBRANCA_WEB)
+    if not isinstance(rel, dict) or rel.get("erro_montagem"):
+        return {}
+    try:
+        if str(raiz) not in sys.path:
+            sys.path.insert(0, str(raiz))
+        cw = _cobranca_whatsapp(raiz)
+        estado = ler_estado_cobranca(raiz)
+        base = _base_web(url)
+        if sincronizar and base and token:
+            estado = sincronizar_cobranca_web(
+                raiz, nomes_por_cliente_web(rel), cw, base, token, log=log)
+        bloco = montar_cobranca_web(rel, raiz, cw, estado["ate_seq"],
+                                    _agora_manaus(), _fantasias_clientes(raiz),
+                                    estado["epoca"])
+        return {RID_COBRANCA_WEB: bloco} if bloco else {}
+    except Exception as erro:                           # noqa: BLE001
+        log(f"Cobranca web: a fila ficou fora do pacote ({type(erro).__name__}).")
+        return {}
+
+
 def passo_pacote_web(simular_pacote: bool = False) -> dict:
     """4f: monta, e envia (ou so grava o simulado). Nunca levanta."""
     try:
@@ -7066,9 +7454,17 @@ def passo_pacote_web(simular_pacote: bool = False) -> dict:
                      "passo 4f pulado (o Painel nao e montado).")
             return {"enviado": False, "pulado": True}
         hoje = _agora_manaus()
-        pacote = montar_pacote_web(
-            coletar_relatorios_web(hoje.year, hoje.month),
-            hoje.year, hoje.month, hoje)
+        resultados = coletar_relatorios_web(hoje.year, hoje.month)
+        # (T-0017, entrega 2) GET -> importar -> confirmar -> fila; na
+        # simulacao nao toca na rede nem no disco do diario
+        cobranca = preparar_cobranca_web(
+            resultados, PASTA_LOCAL, hoje, not simular_pacote,
+            _segredo_web("BAP_WEB_URL", "url"),
+            _segredo_web("BAP_WEB_TOKEN", "token"),
+            log=lambda m: log.info("%s", str(m).replace(
+                _segredo_web("BAP_WEB_TOKEN", "token") or "\0", "***")))
+        pacote = montar_pacote_web(resultados, hoje.year, hoje.month, hoje,
+                                   cobranca=cobranca)
         tam = len(json.dumps(pacote, ensure_ascii=False).encode("utf-8"))
         if simular_pacote:
             pasta = Path(tempfile.gettempdir()) / "BAP_PACOTE_WEB"
