@@ -100,3 +100,27 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .gb-rotv{height:310px}.gb-rotv .gb-rot{height:76px;overflow:visible;writing-mode:vertical-rl;transform:rotate(180deg);text-overflow:clip;padding:0 0 4px;font-size:.6rem;text-align:right;align-self:center}
 .gb-denso .gb-rot{overflow:visible}.gb-denso:not(.gb-rotv) .gb-rot{height:1.3rem}.gb-denso{padding-right:8px}
 @media(max-width:600px){.kpi-est{grid-column:1/-1}}
+/* T-0017: abas Títulos, Por cliente e fila de cobrança */
+.filtros-tab{display:flex;flex-wrap:wrap;gap:.6rem;align-items:end;margin:.4rem 0 .8rem}
+.filtros-tab a{align-self:center;font-size:.85rem}
+.tab-dados th a{color:inherit;text-decoration:none;white-space:nowrap}
+.tab-dados td.num,.tab-dados th.num{text-align:right;white-space:nowrap}
+.tab-dados tr.tom-alerta td{background:#fdecea}.tab-dados tr.tom-atencao td{background:#fff8e1}
+.tab-dados tfoot td{background:#e7edf5}
+.paginas{display:flex;gap:1rem;align-items:center;justify-content:center;margin:.8rem 0}
+.fila{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;margin:.8rem 0}
+.cob{background:#fff;border:2px solid #8f9c93;padding:12px 14px;display:grid;gap:.5rem;min-width:0}
+.cob.feito{border-color:var(--ok)}
+.cob-cab{display:flex;justify-content:space-between;gap:.6rem;flex-wrap:wrap}
+.cob-cab small,.cob-val small{display:block;color:#5e6b62;font-weight:400}
+.cob-val{font-weight:800;text-align:right}
+.cob-sit-txt{display:inline-block;padding:.1rem .6rem;border-radius:12px;background:#e9ecef;font-size:.8rem;font-weight:700}
+.cob.feito .cob-sit-txt{background:#d3f9d8}
+.cob textarea{font:inherit;padding:.5rem;border:1px solid #adb5bd;border-radius:6px;width:100%}
+.cob-acoes{display:flex;gap:.5rem;flex-wrap:wrap}
+.cob-acoes .botao,.cob-acoes button{min-height:44px;padding:.5rem 1rem;border-radius:6px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center}
+.botao{background:#25a244;color:#fff}
+.cob-pulado{background:#fff;color:var(--azul)}
+.cob-acoes [hidden]{display:none}
+.cob-erro{color:var(--al);margin:0;min-height:1em;font-size:.85rem}
+@media(max-width:600px){.fila{grid-template-columns:1fr}.cob-acoes>*{flex:1}}

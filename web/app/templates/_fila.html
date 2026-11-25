@@ -1,0 +1,25 @@
+<header class="cab-painel"><h1>{{ farol_nome }} · Cobrar no WhatsApp</h1><span>{{ fila|length }} clientes, do maior atraso ao menor</span></header>
+<p class="aviso info">Situação do PC até {{ pc_ate|hhmm }}. O que você registrar aqui volta ao PC na próxima rodada (08h e 14h).</p>
+<section class="fila" data-url="/farol/{{ rid }}/cobranca" data-csrf="{{ csrf }}" data-sha="{{ pacote_sha }}">
+{% for c in fila %}
+<article class="cob" data-cod="{{ c.cod }}">
+  <div class="cob-cab">
+    <div><b>{{ c.nome }}</b> <small>{{ c.cod }} · {{ c.cidade }}/{{ c.uf }}</small></div>
+    <div class="cob-val">R$ {{ '{:,.2f}'.format(c.em_atraso).replace(',', 'X').replace('.', ',').replace('X', '.') }} <small>{{ c.titulos|length }} título(s) · {{ c.maior }} dias</small></div>
+  </div>
+  <div class="cob-sit"><span class="cob-sit-txt">{{ c.situacao or 'a cobrar' }}</span></div>
+  {% if c.aviso %}<p class="aviso atencao">{{ c.aviso }}</p>{% endif %}
+  <label>Mensagem (pode editar; o texto editado não é guardado)
+    <textarea class="cob-msg" rows="6">{{ c.mensagem }}</textarea></label>
+  <label>Telefone só para este envio (opcional)
+    <input class="cob-tel" inputmode="tel" autocomplete="off" placeholder="{{ c.whatsapp|fone if c.whatsapp else 'sem número válido no cadastro' }}"></label>
+  <div class="cob-acoes">
+    <a class="cob-link botao" data-base="{{ c.whatsapp }}" href="{{ c.link or '#' }}" target="_blank" rel="noopener noreferrer"{{ ' hidden' if not c.link }}>Abrir WhatsApp</a>
+    <button type="button" class="cob-enviado" data-acao="ENVIADO">ENVIADO</button>
+    <button type="button" class="cob-pulado" data-acao="PULADO">PULADO</button>
+  </div>
+  <p class="cob-erro" role="status"></p>
+</article>
+{% else %}<p class="aviso atencao">Nenhum cliente na fila.</p>{% endfor %}
+</section>
+<script src="/static/cobranca.js"></script>

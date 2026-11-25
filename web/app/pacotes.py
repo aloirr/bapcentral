@@ -1,13 +1,14 @@
 """Pacote do robô (parte dado do contrato, §10): validar, guardar, ler."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import render
+from . import cobranca, render
 from .arquivos import gravar_json
 
 FAROIS = tuple(render.FAROIS)                   # T-0017: forma "farol"
@@ -15,7 +16,7 @@ ACEITOS = ("vc_painel",) + FAROIS
 PROIBIDAS = ("tabelas", "juntas", "edicao", "editar", "abrir")   # a web é só leitura
 ABAS = render.CHAVES_ABAS                      # fonte única
 MANAUS = ZoneInfo("America/Manaus")
-GUARDAR = 15
+GUARDAR = 7                                    # RN-POS-003: o Render guarda os 7 últimos
 
 
 def nome_arquivo(gerado_em: str) -> str:
@@ -109,7 +110,10 @@ def validar_farol(rid: str, r) -> list[str]:
     """Forma "farol" (T-0017): só formato; kpis e blocos vêm prontos do PC (contrato §8)."""
     if not isinstance(r, dict) or r.get("forma") != "farol":
         return [f"{rid}: forma precisa ser farol"]
-    achou = _chave_proibida(r)
+    erros_t = cobranca.validar(rid, r)           # §10.6: tabelas e cobranca, só no pl_inadimplencia
+    if erros_t:
+        return erros_t
+    achou = _chave_proibida({k: v for k, v in r.items() if k not in ("tabelas", "cobranca")})
     if achou:
         return [f"{rid}: chave não aceita na web: {achou}"]
     if not isinstance(r.get("titulo"), str):
@@ -199,7 +203,7 @@ def validar(c) -> list[str]:
 
 
 def _sem_internas(o):
-    """Chaves com _ são internas do contrato (§10.2): nunca guardadas."""
+    """Chaves com _ são internas do contrato (§10, item 2): nunca guardadas."""
     if isinstance(o, dict):
         return {k: _sem_internas(v) for k, v in o.items()
                 if not (isinstance(k, str) and k.startswith("_"))}
@@ -247,6 +251,12 @@ class Ultimo:
         self.dados = dados
         self._chave = None
         self._val = None
+        self._sha = ""
+
+    def sha(self) -> str:
+        """sha256 (hex) do pacote ativo, para o diário da cobrança."""
+        self.get()
+        return self._sha
 
     def get(self) -> dict | None:
         arqs = listar(self.dados)
@@ -255,6 +265,24 @@ class Ultimo:
         a = arqs[-1]
         chave = (a.name, a.stat().st_mtime_ns)
         if chave != self._chave:
-            self._val = json.loads(a.read_text(encoding="utf-8"))
+            bruto = a.read_bytes()
+            self._sha = hashlib.sha256(bruto).hexdigest()
+            self._val = json.loads(bruto.decode("utf-8"))
             self._chave = chave
         return self._val
+
+
+_MEMO_SHA: dict = {}
+
+
+def por_sha(dados: Path, sha: str) -> dict | None:
+    """O pacote guardado (entre os 7 últimos) cujo sha256 é `sha`; None se já saiu (§10.6.4)."""
+    if not re.fullmatch(r"[0-9a-f]{64}", sha or ""):
+        return None
+    for a in reversed(listar(dados)):
+        chave = (str(a), a.stat().st_mtime_ns)
+        if chave not in _MEMO_SHA:
+            _MEMO_SHA[chave] = hashlib.sha256(a.read_bytes()).hexdigest()
+        if _MEMO_SHA[chave] == sha:
+            return json.loads(a.read_text(encoding="utf-8"))
+    return None
