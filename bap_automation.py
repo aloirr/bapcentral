@@ -6842,7 +6842,24 @@ def _linhas_insight(linhas, titulos_fora, grafico_com_nome) -> list:
     return saida
 
 
-def _kpis_com_estados(r: dict) -> list:
+_AVISO_TECNICO_WEB = ("aderência =", "aderencia =", "rota_protheus")
+
+
+def _avisos_curtos_visita_web(avisos, maximo: int = 2) -> list:
+    """Funcao pura: no celular o aviso do Farol de Visita e no maximo 2
+    linhas, em linguagem de quem usa: sai o que traz nome de arquivo de rota
+    ou a formula da aderencia. Ordem: arquivo faltando, estado, o resto."""
+    ok = [a for a in avisos
+          if not any(t in str(a).lower() for t in _AVISO_TECNICO_WEB)]
+
+    def peso(a):
+        a = str(a)
+        return 0 if a.startswith("Sem o arquivo") else (
+            1 if a.startswith("Cartões por estado") else 2)
+    return sorted(ok, key=peso)[:maximo]
+
+
+def _kpis_com_estados(r: dict, sem_dado_fora: bool = False) -> list:
     """Os cartoes do farol; cada um com "estados" ({"barras": [[UF, numero,
     texto, "% na barra", tom]], "legenda"}) quando o PC desenha as mini-barras
     por estado (relatorios_nucleo.estados_do_cartao, filial da nota). So
@@ -6857,8 +6874,11 @@ def _kpis_com_estados(r: dict) -> list:
             est = _rn.estados_do_cartao(r, k) or {}
         except Exception:                               # noqa: BLE001
             est = {}
-        if est.get("barras"):
-            k["estados"] = {"barras": est["barras"],
+        barras = est.get("barras") or []
+        if sem_dado_fora:          # estado sem dado (ex.: sem vendedor) sai
+            barras = [b for b in barras if len(b) > 1 and b[1] is not None]
+        if barras:
+            k["estados"] = {"barras": barras,
                             "legenda": est.get("legenda", "")}
         saida.append(k)
     return saida
@@ -6905,7 +6925,7 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     saida = {
         "forma": "farol",
         "titulo": r.get("titulo"),
-        "kpis": _kpis_com_estados(r),
+        "kpis": _kpis_com_estados(r, sem_dado_fora=(rid == "vc_visitas")),
         "painel": {"blocos": blocos},
         "insights_painel": _linhas_insight(
             r.get("insights_painel"), titulos_fora, grafico_com_nome),
@@ -6921,6 +6941,8 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     if not saida["recortes"] and rid != "pl_inadimplencia":
         saida["avisos"].append("Cartões por estado indisponíveis neste "
                                "pacote: vale só o total da BAP.")
+    if rid == "vc_visitas":
+        saida["avisos"] = _avisos_curtos_visita_web(saida["avisos"])
     val = _para_json(saida, fora=_CHAVES_FORA_FAROL_WEB)
     return val if isinstance(val, dict) else {}
 
@@ -7033,6 +7055,7 @@ def simular_pacote_farol(rid: str, raiz, destino, ano: int, mes: int,
     O JSON pode ter dado pessoal (nome de vendedor com a D1 ligada): nao vai
     para o repositorio. Devolve o pacote."""
     import relatorios_nucleo as _rn                     # noqa: PLC0415
+    hoje = hoje or _agora_manaus().date()
     rel = _rn.montar(rid, Path(raiz), hoje=hoje,
                      params={"ANO": str(ano), "MÊS": str(mes)})
     pacote = montar_pacote_web(
