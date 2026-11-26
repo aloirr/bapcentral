@@ -6598,7 +6598,8 @@ _DESCARTAR = object()
 
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
 # o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
-FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas")
+FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas",
+              "pl_garantias", "pl_devolucoes", "pl_ncc")   # T-0023: os 3 do pos-venda
 # D1 do Alexandre ("2 A", 24/11): grafico e frase com nome de vendedor ou
 # supervisor VAO no pacote (True). Cliente e CNPJ nunca vao. Com False, o
 # grafico e as frases com nome de pessoa saem (1 linha).
@@ -6616,7 +6617,11 @@ _TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
 # `uf_linhas` das tabelas. Visita fica fora: nenhuma tabela traz a UF do
 # cliente, o farol vai sem recortes e com aviso.
 _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
-                       "pl_entregas": "Entregas"}
+                       "pl_entregas": "Entregas",
+                       "pl_devolucoes": "Devoluções",      # T-0023 (UF do cliente)
+                       "pl_ncc": "NCC pendentes"}          # T-0023 (UF do cliente)
+# T-0023: farois sem painel no PC: os `graficos` vao como blocos de barras
+_GRAFICOS_NO_PAINEL_WEB = ("pl_ncc",)
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
 _TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
 # bloco tabela com coluna de pessoa/cliente nunca vai (regra 6)
@@ -6718,7 +6723,14 @@ _FONTE_BAIXADO_WEB = {
     # Visita: o "Atualizar visitas" e manual no PC; vale a ultima gravacao do
     # VISITAS_POR_CLIENTE (o passo final do visitas_maxima)
     "vc_visitas": (Path(SUBPASTA_RELATORIOS) / "Visitas",
-                   "VISITAS_POR_CLIENTE.xlsx")}
+                   "VISITAS_POR_CLIENTE.xlsx"),
+    # T-0023: Devolucoes e o Historico de compra das Garantias nascem dos
+    # Movimentos (ftPedidos); a NCC, do relatorio NCC Pendentes
+    "pl_devolucoes": (Path(BKP_BAPTOOLS),
+                      "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pl_garantias": (Path(BKP_BAPTOOLS),
+                     "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pl_ncc": (Path(BKP_BAPTOOLS), "Relatorio_NCC_Pendentes*.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
@@ -6920,7 +6932,15 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     r = r or {}
     blocos, titulos_fora, avisos_extra = [], [], []
     tipos = _TIPOS_BLOCO_FAROL_WEB + _TIPOS_BLOCO_EXTRA_WEB.get(rid, ())
-    for b in ((r.get("painel") or {}).get("blocos") or []):
+    pblocos = list(((r.get("painel") or {}).get("blocos") or []))
+    if rid in _GRAFICOS_NO_PAINEL_WEB and not pblocos:
+        # T-0023: o farol sem Resumo gerencial no PC mostra os `graficos`
+        # (mes a mes, semana, dia, faixas); na web viram os mesmos blocos
+        pblocos = [{"tipo": "barras", "col": i % 2, "row": i // 2,
+                    "grafico": g} for i, g in enumerate(
+                        x for x in (r.get("graficos") or [])
+                        if isinstance(x, dict))]
+    for b in pblocos:
         if not isinstance(b, dict) or b.get("tipo") not in tipos:
             continue
         if b.get("tipo") == "tabela":
@@ -7123,18 +7143,29 @@ def tabelas_cobranca_web(r: dict):
 # texto_sem_contato.
 # ---------------------------------------------------------------------------
 WEB_PACOTE_TETO_MB = 20            # trava do robo (o teto da web e 25: render.yaml)
-RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas")
+RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas", "pl_garantias",
+                    "pl_devolucoes", "pl_ncc")
 # colunas que nunca vao (sem acento, maiusculas), em qualquer tabela/junta/sub-aba
 _COLUNAS_FORA_WEB = frozenset({
     "TELEFONE", "CELULAR", "WHATSAPP", "CNPJ", "CPF", "E-MAIL", "EMAIL",
     "CONTATO", "FOTO", "ENDERECO"})
+# T-0023: coluna que o contrato nao lista mas que traz telefone: o CONTATO
+# CLIENTE das garantias ("nome · telefone") nunca vai (regra 6)
+_COLUNAS_FORA_TABELA_WEB = {("pl_garantias", "Garantias"): ("CONTATO CLIENTE",)}
 # a aba da web -> o titulo da tabela do PC (ordem do contrato 10.7.1)
 _ABAS_TABELAS_WEB = {
     "pv_pedidos": ("Pedidos", "Solicitação BAP"),
     "pl_entregas": ("Entregas",),
     "vc_visitas": ("Por supervisor", "Por vendedor", "Dia a dia",
                    "Aderência dia a dia", "Cliente a cliente", "Prospecção",
-                   "Indicação")}
+                   "Indicação"),
+    # T-0023: as abas do PC, na ordem da tela
+    "pl_garantias": ("Garantias", "Histórico de compra", "Por produto",
+                     "Status x resultado"),
+    "pl_devolucoes": ("Devoluções", "Por motivo", "Por vendedor (12 meses)",
+                      "Por cliente (12 meses)", "Por produto (12 meses)"),
+    "pl_ncc": ("NCC pendentes", "Por cliente", "Por filial", "Por vendedor",
+               "Por supervisor")}
 TITULO_SOLICITACAO_WEB = "Solicitação BAP"
 # tabelas que o PC carrega com 12 meses e a web recebe so do mes (D2 A)
 _TABELAS_SO_MES_WEB = ("Pedidos", "Entregas")
@@ -7144,7 +7175,10 @@ _UF_LINHAS_WEB = {
     ("pl_inadimplencia", "Títulos"): ("FILIAL", "filial"),
     ("pv_pedidos", "Pedidos"): ("FILIAL", "filial"),
     ("pl_entregas", "Entregas"): ("UF", "uf"),
-    ("pl_entregas", "Pendências dos meses anteriores"): ("UF", "uf")}
+    ("pl_entregas", "Pendências dos meses anteriores"): ("UF", "uf"),
+    ("pl_devolucoes", "Devoluções"): ("UF", "uf"),       # T-0023
+    ("pl_ncc", "NCC pendentes"): ("UF", "uf"),
+    ("pl_ncc", "Por cliente"): ("UF", "uf")}
 
 
 def _c(nome, tipo, oculta=False, selo=None):
@@ -7259,6 +7293,93 @@ _COLUNAS_TABELAS_WEB = {
             _c("CIDADE", "texto"), _c("BAIRRO", "texto"),
             _c("SEGMENTO", "texto"), _c("VISITADA EM", "data"),
             _c("OBSERVAÇÃO", "texto"), _c("REGISTRADO EM", "texto"))}}
+# T-0023: Garantias, Devolucoes e NCC (colunas apos o corte; o CONTATO CLIENTE
+# das garantias, o TELEFONE da NCC e a coluna que nunca vai ficam de fora).
+_GARANTIAS_WEB = (
+    _c("STATUS", "texto", selo="texto"), _c("RESULTADO ANÁLISE", "texto"),
+    _c("TICKET", "texto"), _c("DT. SOLICITAÇÃO", "data"),
+    _c("DT. FECHAMENTO", "data"), _c("SLA ATUAL", "int", selo="tom"),
+    _c("PRAZO", "texto", selo="texto"), _c("CÓD. CLIENTE", "texto"),
+    _c("CLIENTE", "texto"), _c("CIDADE", "texto"), _c("CÓD. PRODUTO", "texto"),
+    _c("DESCRIÇÃO PRODUTO", "texto", True), _c("QTD", "num"),
+    _c("PENDÊNCIAS", "texto", True), _c("RETORNO DO CLIENTE", "texto", True),
+    _c("VENDEDOR", "texto", True), _c("SUPERVISOR", "texto", True),
+    _c("SITUAÇÃO DO PRAZO", "texto", True), _c("TOM SLA", "texto", True),
+    _c("DT. FECHOU", "data", True), _c("RECLAMAÇÃO", "texto", True),
+    _c("OBSERVAÇÃO", "texto", True), _c("DT. RETORNO", "data", True))
+_ABATE_NCC_WEB = (
+    _c("NCC", "int"), _c("CLIENTES", "int"), _c("0-30 DIAS", "moeda"),
+    _c("31-90 DIAS", "moeda"), _c("91-180 DIAS", "moeda"),
+    _c("+180 DIAS", "moeda"), _c("SALDO", "moeda"),
+    _c("COMPENSAR JÁ", "moeda"))
+_COLUNAS_TABELAS_WEB.update({
+    "pl_garantias": {
+        "Garantias": _GARANTIAS_WEB,
+        "Histórico de compra": (
+            _c("CÓD. CLIENTE", "texto"), _c("RAZÃO SOCIAL", "texto"),
+            _c("FANTASIA", "texto"), _c("CIDADE", "texto"),
+            _c("PEDIDO", "texto"), _c("PED. MÁXIMA", "texto"),
+            _c("NF", "texto"), _c("PRAZO", "texto"), _c("DT. PEDIDO", "dia"),
+            _c("DT. NF", "dia"), _c("DT. ENTREGA", "dia"),
+            _c("TRANSPORTADORA", "texto"), _c("RESPONSÁVEL", "texto"),
+            _c("CÓD. PRODUTO", "texto"), _c("DESCRIÇÃO", "texto"),
+            _c("QTD", "num"), _c("VALOR", "moeda"), _c("VENDEDOR", "texto"),
+            _c("FILIAL", "texto")),
+        "Por produto": (
+            _c("CÓD. PRODUTO", "texto"), _c("DESCRIÇÃO", "texto"),
+            _c("GARANTIAS", "int"), _c("EM ABERTO", "int"),
+            _c("PROCEDENTES", "int"), _c("IMPROCEDENTES", "int")),
+        "Status x resultado": (
+            _c("STATUS", "texto", selo="texto"), _c("PENDENTE", "int"),
+            _c("PROCEDENTE", "int"), _c("IMPROCEDENTE", "int"),
+            _c("TOTAL", "int"))},
+    "pl_devolucoes": {
+        "Devoluções": (
+            _c("MÊS", "texto"), _c("DATA", "data"), _c("NF DEV.", "texto"),
+            _c("FILIAL", "texto"), _c("CLIENTE", "texto"),
+            _c("CIDADE", "texto"), _c("UF", "texto"),
+            _c("VENDEDOR", "texto"), _c("VALOR", "moeda"),
+            _c("ITENS", "int"), _c("PRODUTOS", "texto"),
+            _c("ETAPA", "texto"), _c("MOTIVO", "texto"),
+            _c("AUTORIZADO POR", "texto"), _c("RECEBIDA EM", "data"),
+            _c("CRÉDITO", "texto"), _c("CRÉDITO EM", "data"),
+            _c("RESPONSÁVEL", "texto")),
+        "Por motivo": (_c("MÊS", "texto"), _c("MOTIVO", "texto"),
+                       _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda")),
+        "Por vendedor (12 meses)": (
+            _c("VENDEDOR", "texto"), _c("DEVOLUÇÕES", "int"),
+            _c("VALOR", "moeda"), _c("FATURADO 12M", "moeda"),
+            _c("% DEVOLVIDO", "pct")),
+        "Por cliente (12 meses)": (
+            _c("CLIENTE", "texto"), _c("DEVOLUÇÕES", "int"),
+            _c("VALOR", "moeda")),
+        "Por produto (12 meses)": (
+            _c("PRODUTO", "texto"), _c("DESCRIÇÃO", "texto"),
+            _c("QTD", "num"), _c("VALOR", "moeda"))},
+    "pl_ncc": {
+        "NCC pendentes": (
+            _c("A COMPENSAR", "texto"), _c("SLA NCC", "texto", selo="texto"),
+            _c("DT. ÚLT. MOV.", "data"), _c("D.U. S/ MOV.", "int"),
+            _c("IDADE", "texto"), _c("FILIAL", "texto"), _c("NCC", "texto"),
+            _c("PARC.", "texto"), _c("EMISSÃO", "data"), _c("DIAS", "int"),
+            _c("CLIENTE", "texto"), _c("NOME", "texto"),
+            _c("CIDADE", "texto"), _c("UF", "texto"),
+            _c("VENDEDOR", "texto"), _c("SUPERVISOR", "texto", True),
+            _c("VALOR NCC", "moeda"), _c("JÁ ABATIDO", "moeda"),
+            _c("SALDO", "moeda"), _c("TÍTULOS EM ABERTO", "moeda"),
+            _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")),
+        "Por cliente": (
+            _c("A COMPENSAR", "texto"), _c("IDADE", "texto"),
+            _c("CLIENTE", "texto"), _c("NOME", "texto"),
+            _c("CIDADE", "texto"), _c("UF", "texto"),
+            _c("VENDEDOR", "texto"), _c("SUPERVISOR", "texto", True),
+            _c("NCC", "int"), _c("SALDO", "moeda"),
+            _c("NCC MAIS ANTIGA (DIAS)", "int"),
+            _c("TÍTULOS EM ABERTO", "moeda"),
+            _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")),
+        "Por filial": (_c("FILIAL", "texto"),) + _ABATE_NCC_WEB,
+        "Por vendedor": (_c("VENDEDOR", "texto"),) + _ABATE_NCC_WEB,
+        "Por supervisor": (_c("SUPERVISOR", "texto"),) + _ABATE_NCC_WEB}})
 # "Aderência dia a dia": as colunas dos dias mudam com o mes (padrao de nome)
 _ADERENCIA_WEB = ("Aderência dia a dia",
                   r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$",
@@ -7290,11 +7411,20 @@ _COLUNAS_LIMPAS_WEB = {
         "CLIENTE": "cliente_sem_documento", "NOME FANTASIA": "sem_documento"},
     ("vc_visitas", "Prospecção"): {"ESTABELECIMENTO": "nome_sem_contato"},
     ("vc_visitas", "Indicação"): {"CLIENTE QUE INDICOU": "nome_sem_contato",
-                                  "INDICADO": "nome_sem_contato"}}
+                                  "INDICADO": "nome_sem_contato"},
+    # T-0023: nome do cliente (texto digitado ou da base) sem documento/contato
+    ("pl_garantias", "Garantias"): {"CLIENTE": "nome_sem_contato"},
+    ("pl_garantias", "Histórico de compra"): {
+        "RAZÃO SOCIAL": "sem_documento", "FANTASIA": "sem_documento"},
+    ("pl_devolucoes", "Devoluções"): {"CLIENTE": "cliente_sem_documento"},
+    ("pl_devolucoes", "Por cliente (12 meses)"): {
+        "CLIENTE": "cliente_sem_documento"},
+    ("pl_ncc", "NCC pendentes"): {"NOME": "sem_documento"},
+    ("pl_ncc", "Por cliente"): {"NOME": "sem_documento"}}
 # texto livre (D6 A): telefone, e-mail e CPF/CNPJ viram "[removido]"
 _COLUNAS_TEXTO_LIVRE_WEB = frozenset({
     "JUSTIFICATIVA", "OBSERVAÇÃO", "RESULTADO", "LINHAS DE INTERESSE",
-    "MOTIVO"})
+    "MOTIVO", "PENDÊNCIAS", "RETORNO DO CLIENTE", "RECLAMAÇÃO"})
 _COLUNAS_LARGAS_SOLICITACAO_WEB = ("ID_PRODUTO", "CHAVE", "MOTIVO", "PEDIDOS")
 
 
@@ -7474,13 +7604,42 @@ EDICOES_WEB = {
         "aba": "ENTREGAS", "acao": "Editar"},
     ("pl_entregas", "Pendências dos meses anteriores"): {
         "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
-        "aba": "ENTREGAS", "acao": "Editar"}}
-# os campos de cada modulo e o tipo de conferencia no robo
+        "aba": "ENTREGAS", "acao": "Editar"},
+    # T-0023: NCC (diario _NCC), Devolucoes (aba DEVOLUCOES) e Garantias
+    # (diario _GARANTIAS; a garantia nova tambem entra pela web)
+    ("pl_ncc", "NCC pendentes"): {
+        "modulo": "ncc", "arquivo": "RELATORIOS/_NCC", "aba": "",
+        "acao": "Editar"},
+    ("pl_devolucoes", "Devoluções"): {
+        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
+        "aba": "DEVOLUCOES", "acao": "Editar", "campos": "devolucao"},
+    ("pl_garantias", "Garantias"): {
+        "modulo": "garantias", "arquivo": "RELATORIOS/_GARANTIAS", "aba": "",
+        "acao": "Editar", "novo": True}}
+# os campos de cada modulo e o tipo de conferencia no robo: "lista" (a lista
+# fechada tem o mesmo nome do campo), ("lista", chave das opcoes), "livre"
+# (texto curto), "longo" (varias linhas, ate 600), "data", "valor", "ticket"
 CAMPOS_EDICAO_WEB = {
     "autorizacoes": {"codigo": "livre", "por": "lista"},
     "pos_venda": {"etapa": "lista", "transportadora": "lista",
                   "prevista_manual": "data", "entregue_em": "data",
-                  "responsavel": "livre", "frete_real": "valor"}}
+                  "responsavel": "livre", "frete_real": "valor"},
+    "ncc": {"status": ("lista", "ncc_status"), "dt_mov": "data"},
+    "garantias": {
+        "ticket": "ticket", "dt_solicitacao": "data",
+        "status": ("lista", "gar_status"),
+        "resultado": ("lista", "gar_resultado"), "dt_prazo": "data",
+        "dt_retorno": "data", "cod_cliente": "livre", "cod_produto": "livre",
+        "descricao": "livre", "qtd": "livre", "reclamacao": "longo",
+        "pendencias": "longo", "retorno_cliente": "longo",
+        "observacao": "longo"}}
+# a aba DEVOLUCOES do acompanhamento: a etapa e outra lista que a da entrega
+CAMPOS_LUGAR_WEB = {
+    "devolucao": {"etapa": ("lista", "etapa_dev"),
+                  "motivo": ("lista", "motivo_dev"), "autorizado_por": "livre",
+                  "recebida_em": "data", "credito": ("lista", "credito"),
+                  "credito_em": "data", "responsavel": "livre"}}
+MAX_TEXTO_LONGO_WEB = 600
 _RE_CHAVE_EDICAO_WEB = re.compile(r"^[\w .|/-]{1,80}$")
 _RE_PESSOAL_EDICAO_WEB = re.compile(
     r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|@|"
@@ -7491,6 +7650,89 @@ _MAX_OPCOES_EDICAO_WEB = 400
 def _ops_web(lista) -> list:
     return [str(o) for o in (lista or []) if o not in (None, "")][
         :_MAX_OPCOES_EDICAO_WEB]
+
+
+def _campos_do_lugar_web(lugar: dict) -> dict:
+    """{campo: tipo ou (tipo, chave das opcoes)} que o lugar aceita."""
+    return (CAMPOS_LUGAR_WEB[lugar["campos"]] if lugar.get("campos")
+            else CAMPOS_EDICAO_WEB[lugar["modulo"]])
+
+
+def _tipo_opcoes_web(campos: dict, campo: str) -> tuple:
+    t = campos[campo]
+    return (t, campo) if isinstance(t, str) else t
+
+
+# a Garantia (DialogoGarantia): os campos que a web edita; o cadastro do
+# cliente (endereco, telefone...) e o contato ficam so no PC (dado pessoal,
+# regra 6). (campo, rotulo, coluna da tabela, tipo, max, multilinha, caixa)
+_CAMPOS_GARANTIA_WEB = (
+    ("ticket", "Ticket", "TICKET", "texto", 40, False, True),
+    ("dt_solicitacao", "Dt. solicitação", "DT. SOLICITAÇÃO", "data", 0, False,
+     False),
+    ("status", "Status", "STATUS", "lista", 0, False, False),
+    ("resultado", "Resultado análise", "RESULTADO ANÁLISE", "lista", 0, False,
+     False),
+    ("dt_prazo", "Dt. fechamento (prazo)", "DT. FECHAMENTO", "data", 0, False,
+     False),
+    ("dt_retorno", "Dt. último retorno", "DT. RETORNO", "data", 0, False,
+     False),
+    ("cod_cliente", "Cód. cliente", "CÓD. CLIENTE", "texto", 20, False,
+     False),
+    ("cod_produto", "Cód. produto", "CÓD. PRODUTO", "texto", 30, False,
+     False),
+    ("descricao", "Descrição produto", "DESCRIÇÃO PRODUTO", "texto", 60, False,
+     True),
+    ("qtd", "Quantidade", "QTD", "texto", 10, False, False),
+    ("reclamacao", "Reclamação do cliente", "RECLAMAÇÃO", "texto", 600, True,
+     True),
+    ("pendencias", "Pendências (o que falta)", "PENDÊNCIAS", "texto", 600,
+     True, True),
+    ("retorno_cliente", "Retorno do cliente", "RETORNO DO CLIENTE", "texto",
+     600, True, True),
+    ("observacao", "Observação", "OBSERVAÇÃO", "texto", 600, True, True))
+_PADRAO_NOVA_GARANTIA_WEB = {"status": "ABERTO", "resultado": "PENDENTE",
+                             "dt_solicitacao": "@hoje"}
+
+
+def _edicao_garantias_web(linhas: list, nomes_pc: list, nomes_web: list):
+    """Funcao pura (T-0023): a `edicao` do Farol de Garantias. O PC nao manda
+    `edicao` nessa tabela (a janela da garantia e propria): a especificacao
+    sai de garantias.py. A chave de cada linha e o TICKET; `novo.chave` e o
+    proximo numero (G-nnnn) para a garantia nova."""
+    import garantias as gm                              # noqa: PLC0415
+    if "TICKET" not in nomes_pc:
+        return None
+    i_t = nomes_pc.index("TICKET")
+    chaves = []
+    for ln in linhas:
+        ch = str(ln[i_t] if len(ln) > i_t and ln[i_t] is not None
+                 else "").strip()
+        chaves.append(ch if _RE_CHAVE_EDICAO_WEB.match(ch) else "")
+    campos = []
+    for campo, rotulo, coluna, tipo, mx, multi, caixa in _CAMPOS_GARANTIA_WEB:
+        item = {"campo": campo, "rotulo": rotulo,
+                "coluna": coluna if coluna in nomes_web else None,
+                "tipo": tipo}
+        if tipo == "lista":
+            item["opcoes"] = list(gm.STATUS if campo == "status"
+                                  else gm.RESULTADOS)
+        else:
+            item["opcoes"] = []
+        if mx:
+            item["max"] = mx
+        if multi:
+            item["multilinha"] = True
+        if caixa:
+            item["caixa"] = True
+        if campo in _PADRAO_NOVA_GARANTIA_WEB:
+            item["padrao"] = _PADRAO_NOVA_GARANTIA_WEB[campo]
+        campos.append(item)
+    usados = [int(m.group(1)) for t in chaves
+              for m in [re.fullmatch(r"G-(\d+)", t)] if m]
+    return {"modulo": "garantias", "acao": "Editar", "chaves": chaves,
+            "novo": {"chave": f"G-{(max(usados) + 1) if usados else 1:04d}"},
+            "campos": campos}
 
 
 def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
@@ -7505,6 +7747,8 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
     if not lugar:
         return None
     nomes_pc = [c.get("nome") if isinstance(c, dict) else c for c in pc]
+    if lugar["modulo"] == "garantias":
+        return _edicao_garantias_web(linhas, nomes_pc, nomes_web)
     if lugar["modulo"] == "autorizacoes":
         import relatorios_nucleo as _rn                 # noqa: PLC0415
         precisa = ("CHAVE", "CÓD. AUTORIZAÇÃO", "AUTORIZADO POR")
@@ -7523,7 +7767,7 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
         ch = str(ln[i_ch] if len(ln) > i_ch and ln[i_ch] is not None
                  else "").strip()
         chaves.append(ch if _RE_CHAVE_EDICAO_WEB.match(ch) else "")
-    permitidos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
+    permitidos = _campos_do_lugar_web(lugar)
     campos = []
     for c in ed_pc.get("campos") or []:
         if c.get("campo") not in permitidos:
@@ -7599,7 +7843,9 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     pc = [c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
           for c in t.get("colunas") or []]
     nomes_pc = [c.get("nome") for c in pc]
-    idx = [i for i, n in enumerate(nomes_pc) if not _coluna_proibida_web(n)]
+    fora_ = _COLUNAS_FORA_TABELA_WEB.get((rid, titulo), ())
+    idx = [i for i, n in enumerate(nomes_pc)
+           if not _coluna_proibida_web(n) and n not in fora_]
     atuais = [(pc[i]["nome"], pc[i].get("tipo"), bool(pc[i].get("oculta")))
               for i in idx]
     esperado = _esperado_web(rid, titulo, [a[0] for a in atuais])
@@ -8447,6 +8693,17 @@ MOTIVO_DATA_WEB = "data inválida"
 MOTIVO_VALOR_WEB = "valor inválido"
 MOTIVO_TEXTO_WEB = "texto inválido (até 60 caracteres, sem CPF, CNPJ, telefone ou e-mail)"
 MOTIVO_LINHA_WEB = "linha não encontrada no PC"
+MOTIVO_JA_EXISTE_WEB = "já existe uma garantia com esse número"
+MOTIVO_TICKET_WEB = "ticket inválido (até 40 caracteres, sem ; nem quebra de linha)"
+MOTIVO_NOVO_WEB = "garantia nova só no Farol de Garantias"
+
+
+class ErroGravacaoWeb(ValueError):
+    """Recusa do PC com frase fixa (sem dado pessoal): vai ao site."""
+
+    def __init__(self, motivo: str):
+        super().__init__(motivo)
+        self.motivo = motivo
 
 
 def _pasta_edicoes_web(raiz) -> Path:
@@ -8475,6 +8732,9 @@ def gravar_edicoes_pc(raiz, modulo: str, arquivo: str, aba: str,
                                                                     edicoes)
     if modulo == "ncc":
         return _importar_do_pc("ncc_controle", raiz).gravar(raiz, edicoes)
+    if modulo == "garantias":
+        return sum(_gravar_garantia_pc(raiz, tk, dict(vals))
+                   for tk, vals in edicoes.items())
     if modulo == "farol":
         return _importar_do_pc("farol_ddr", raiz).gravar_marcacoes(
             raiz / arquivo, aba, edicoes)
@@ -8484,13 +8744,62 @@ def gravar_edicoes_pc(raiz, modulo: str, arquivo: str, aba: str,
     raise ValueError("modulo sem gravacao no robo")
 
 
+def _gravar_garantia_pc(raiz, ticket: str, valores: dict) -> int:
+    """A MESMA gravacao da janela da garantia (DialogoGarantia.salvar): so
+    acrescenta linhas no diario (garantias.gravar). A DT. FECHAMENTO igual a
+    padrao (15 dias uteis da solicitacao) fica em branco, para acompanhar a
+    solicitacao. `_novo` (garantia nova) recusa numero que ja existe."""
+    gm = _importar_do_pc("garantias", raiz)
+    novo = bool(valores.pop("_novo", False))
+    dados = gm.ler(raiz)
+    if novo and ticket in dados:
+        raise ErroGravacaoWeb(MOTIVO_JA_EXISTE_WEB)
+    if not novo and ticket not in dados:
+        raise ErroGravacaoWeb(MOTIVO_LINHA_WEB)
+    n = 0
+    novo_t = valores.pop("ticket", None)
+    if novo_t is not None and novo_t != ticket and not novo:
+        erro = gm.renomear(raiz, ticket, novo_t)
+        if erro:
+            raise ErroGravacaoWeb(MOTIVO_JA_EXISTE_WEB
+                                  if "já existe" in erro else MOTIVO_TICKET_WEB)
+        ticket, n = novo_t, 1                # a historia segue no numero novo
+    if "dt_prazo" in valores or "dt_solicitacao" in valores:
+        base = (valores.get("dt_solicitacao")
+                or (gm.ler(raiz).get(ticket) or {}).get("dt_solicitacao"))
+        try:
+            fer = _importar_do_pc("bap_dados", raiz).feriados(raiz)
+        except Exception:                               # noqa: BLE001
+            fer = set()
+        padrao = gm.prazo_padrao(gm.data(base), fer)
+        if (valores.get("dt_prazo") and padrao
+                and valores["dt_prazo"] == f"{padrao:%d/%m/%Y}"):
+            valores["dt_prazo"] = ""
+    if novo:
+        valores.setdefault("status", "ABERTO")
+        valores.setdefault("resultado", "PENDENTE")
+        valores.setdefault("dt_solicitacao",
+                           _agora_manaus().strftime("%d/%m/%Y"))
+        valores["origem"] = "FAROL DE GARANTIAS"
+    return n + gm.gravar(raiz, ticket, valores)
+
+
 def opcoes_edicao_web(raiz) -> dict:
     """As listas fechadas do PC para conferir a edicao: {campo: set}."""
     rn_ = _importar_do_pc("relatorios_nucleo", raiz)
     pv = _importar_do_pc("pos_venda", raiz)
     tr = _importar_do_pc("transportadoras", raiz)
+    gm = _importar_do_pc("garantias", raiz)
+    nc = _importar_do_pc("ncc_controle", raiz)
     return {"por": set(rn_.QUEM_AUTORIZA), "etapa": set(pv.ETAPAS_ENTREGA),
-            "transportadora": set(tr.nomes(tr.carregar(Path(raiz))))}
+            "transportadora": set(tr.nomes(tr.carregar(Path(raiz)))),
+            # T-0023
+            "etapa_dev": set(pv.ETAPAS_DEVOLUCAO),
+            "motivo_dev": set(pv.MOTIVOS_DEVOLUCAO),
+            "credito": set(pv.FORMAS_CREDITO),
+            "ncc_status": set(rn_.NCC_SUGESTOES) | set(nc.STATUS_NOVOS),
+            "gar_status": set(gm.STATUS),
+            "gar_resultado": set(gm.RESULTADOS)}
 
 
 def validar_edicao_web(reg: dict, opcoes: dict) -> str:
@@ -8508,17 +8817,30 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
         return MOTIVO_CHAVE_WEB
     if lugar["modulo"] == "pos_venda" and chave.count("|") != 2:
         return MOTIVO_CHAVE_WEB
+    if lugar["modulo"] == "ncc" and chave.count("|") != 3:
+        return MOTIVO_CHAVE_WEB
+    if lugar["modulo"] == "garantias" and ("|" in chave or len(chave) > 40):
+        return MOTIVO_TICKET_WEB
+    if reg.get("novo") and not lugar.get("novo"):
+        return MOTIVO_NOVO_WEB
     valores = reg.get("valores")
-    campos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
+    campos = _campos_do_lugar_web(lugar)
     if not (isinstance(valores, dict) and valores
             and set(valores) <= set(campos)):
         return MOTIVO_LUGAR_WEB
     for campo, v in valores.items():
-        if not isinstance(v, str) or len(v) > 60 or re.search(
-                r"[\x00-\x1f\x7f]", v):
+        tipo, chave_op = _tipo_opcoes_web(campos, campo)
+        longo = tipo == "longo"
+        if (not isinstance(v, str)
+                or len(v) > (MAX_TEXTO_LONGO_WEB if longo else 60)
+                or re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]" if longo
+                             else r"[\x00-\x1f\x7f]", v)):
             return MOTIVO_TEXTO_WEB
-        tipo = campos[campo]
-        if tipo == "lista" and v and v not in (opcoes.get(campo) or ()):
+        if tipo == "ticket" and not (
+                v and not re.search(r"[;\r\n]", v) and len(v) <= 40
+                and _RE_CHAVE_EDICAO_WEB.match(v) and "|" not in v):
+            return MOTIVO_TICKET_WEB
+        if tipo == "lista" and v and v not in (opcoes.get(chave_op) or ()):
             return MOTIVO_OPCAO_WEB
         if tipo == "data" and v:
             try:
@@ -8532,7 +8854,8 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
                 return MOTIVO_VALOR_WEB
             if n is not None and n < 0:
                 return MOTIVO_VALOR_WEB
-        if tipo == "livre" and _RE_PESSOAL_EDICAO_WEB.search(v):
+        if tipo in ("livre", "longo", "ticket") and \
+                _RE_PESSOAL_EDICAO_WEB.search(v):
             return MOTIVO_TEXTO_WEB
     return ""
 
@@ -8545,11 +8868,16 @@ def aplicar_edicao_web(raiz, reg: dict, opcoes: dict,
     if motivo:
         return "erro", motivo
     lugar = EDICOES_WEB[(reg["rid"], reg["tabela"])]
+    vals = dict(reg["valores"])
+    if reg.get("novo"):
+        vals["_novo"] = True             # so a garantia nova (validado acima)
     try:
         gravar(raiz, lugar["modulo"], lugar["arquivo"], lugar["aba"],
-               {reg["chave"]: dict(reg["valores"])})
+               {reg["chave"]: vals})
     except PermissionError:
         return "pendente", "arquivo aberto no Excel"
+    except ErroGravacaoWeb as erro:
+        return "erro", erro.motivo
     except ValueError:
         return "erro", MOTIVO_LINHA_WEB
     except OSError:
