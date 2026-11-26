@@ -1,4 +1,6 @@
-"""T-0026 (robô): parciais em imagem e as 5 tabelas de resumo da Inadimplência no pacote web."""
+"""T-0026 (robô): parciais em imagem e as 5 tabelas de resumo da Inadimplência no pacote web.
+
+Rodado de novo sobre o main com o robô da T-0026 (#80) já dentro."""
 import base64
 from datetime import datetime
 
