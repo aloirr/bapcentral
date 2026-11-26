@@ -51,9 +51,10 @@
   // PC: Farol com as tabelas de baixo numa tela só
   var juntas = document.querySelector(".bc3-juntas");
   // a tabela de cima: a que liga as de baixo (Pedidos) ou a tabela da aba (os outros faróis)
-  // T-0031: por enquanto só o Farol de Pedidos (a tabela que liga as de baixo); os outros faróis seguem com o
-  // layout normal até ganharem o ajuste de colunas de cada um
-  var cima = document.querySelector(".rolagem-dados.sem-rolagem");
+  // T-0031 (Alexandre, 26/11: "Todos os farois devem ser nesse formato do farol de pedido"): a tabela de cima é a
+  // que liga as de baixo (Pedidos) ou a tabela da aba (os outros faróis)
+  var cima = document.querySelector(".rolagem-dados.sem-rolagem") ||
+             document.querySelector(".bc3-corpo > .rolagem-dados");
   function umaTela() {
     if (!PC.matches || !cima) return;
     cima.classList.add("bc3-cima");

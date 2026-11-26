@@ -458,10 +458,11 @@ body.uma-tela .filtros-det{margin:0 0 6px}body.uma-tela .filtros-det summary{fon
 .bc3-chk[aria-checked=true] i{background:#2F7D32;border-color:#2F7D32}
 
 /* T-0031 (Alexandre, 26/11): rolagem por dentro da tabela, com o cabeçalho fixo, no lugar das páginas */
-body.uma-tela .rolagem-dados.bc3-cima{overflow-y:auto;overflow-x:hidden;border-radius:10px 10px 0 0}
+body.uma-tela .rolagem-dados.bc3-cima{overflow:auto;border-radius:10px 10px 0 0}
 body.uma-tela .bc3-rola thead th{position:sticky;top:0;z-index:2;background:#fff;box-shadow:0 1px 0 #E3E8E4}
-body.uma-tela .bc3-juntas .rolagem-dados.bc3-rola{overflow-y:auto;overflow-x:hidden}
+body.uma-tela .bc3-juntas .rolagem-dados.bc3-rola{overflow:auto}
 body.uma-tela .bc3-cima+.bc3-rod{border:1px solid #E3E8E4;border-top:0;border-radius:0 0 10px 10px;flex:none}
 @media(max-width:700px){.bc3-abas{overflow-x:auto;scrollbar-width:none;max-width:100%}.bc3-abas::-webkit-scrollbar{display:none}.bc3-abas a{flex:1 0 auto;padding:7px 12px;white-space:nowrap}.bc3-sub{min-width:0}}
 .bc3-juntas{grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
 body:not(.uma-tela) .bc3-juntas .rolagem-dados{max-height:420px;overflow:auto}
+body.uma-tela .dica-rolagem{display:none}
