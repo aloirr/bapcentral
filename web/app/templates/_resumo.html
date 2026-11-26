@@ -1,7 +1,7 @@
 {# Cartões, resumo e gráficos de um farol ou de uma aba do Painel Executivo: `tela` = render.farol_para_tela #}
 {% from "_estados.html" import cartoes %}
-{% from "_grade.html" import grade %}
-{{ cartoes(tela.kpis, tela.faixa) }}
+{% from "_grade.html" import grade with context %}
+{% if not bc3 %}{{ cartoes(tela.kpis, tela.faixa) }}{% endif %}
 {% if tela.insights %}
 <section class="resumo"><h2>{{ rot_resumo or "Resumo gerencial" }}</h2>
   <ul>{% for i in tela.insights %}<li class="ins t-{{ i.tom }}"><span>{{ i.texto }}</span></li>{% endfor %}</ul>

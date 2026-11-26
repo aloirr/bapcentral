@@ -53,7 +53,7 @@ def test_T0020_pedidos_juntas_lado_a_lado_titulo_sem_aba_e_sem_rotulo_estado(adm
     assert postar(admin, pacote_tres_farois()).status_code == 200
     h = admin.get("/farol/pv_pedidos?aba=pedidos").text
     corpo = h.split("<main")[1]
-    assert '<div class="juntas">' in corpo and corpo.count('<section class="junta">') == 3
+    assert '<div class="juntas bc3-juntas">' in corpo and corpo.count('<details class="junta bc3-junta"') == 3   # T-0030
     assert "<h1>Farol de Pedidos</h1>" in corpo and "Farol de Pedidos · Pedidos" not in corpo
     assert '<span class="f-rot">Estado</span>' not in corpo
     import re
@@ -101,5 +101,5 @@ def test_T0028_pedidos_sem_rolagem_com_popup_e_juntas_enxutas(admin):
     assert "LIMITE" in nomes and "COND. PAGTO" in nomes        # vai ao popup
     cab = corpo.split('<table')[1].split('</thead>')[0]
     assert '<th class=" oc"><a' in cab or ' oc"' in cab           # e sai da grade
-    juntas = corpo.split('<div class="juntas">')[1]
+    juntas = corpo.split('<div class="juntas bc3-juntas">')[1]
     assert juntas.count('<th class=" oc">CIDADE</th>') + juntas.count('<th class=" oc">UF</th>') >= 2

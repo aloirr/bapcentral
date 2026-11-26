@@ -78,6 +78,7 @@ def criar_app() -> FastAPI:
     modelos.env.globals["no_popup"] = tabelas.colunas_no_popup    # T-0028: colunas que só aparecem no popup
     modelos.env.globals["dados_popup"] = tabelas.dados_do_popup
     modelos.env.globals["fora_da_junta"] = tabelas.colunas_fora_da_junta
+    modelos.env.globals["cols_celular"] = tabelas.colunas_do_celular
     modelos.env.globals["datas_proximas"] = render.datas_proximas  # T-0020: uma data só
     diario = cobranca.Diario(cfg.dados)
     diario.limpar()                                   # §10.6.5: também quando o app sobe
@@ -139,6 +140,13 @@ def criar_app() -> FastAPI:
         info = ultimo.get()
         ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, indisponivel=render.INDISPONIVEL,
                    gerado_em=info["gerado_em"] if info else None)
+        # T-0030 (Alexandre, 26/11: "BC3 para o pc e celular", "M3 aprovado"): barra lateral + faixa verde;
+        # liga por farol (render.BC3) até todos passarem para o padrão novo
+        ctx.setdefault("bc3", bool(u) and ctx.get("rid") in render.BC3)
+        if ctx["bc3"]:
+            no_pacote = ((info or {}).get("relatorios")) or {}
+            ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ctx.get("rid"),
+                                             painel=u["perfil"] in VERES, admin=u["perfil"] == "admin")
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
 
     async def formulario(request: Request) -> dict:
