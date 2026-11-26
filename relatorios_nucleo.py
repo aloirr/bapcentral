@@ -7556,7 +7556,10 @@ def garantias(ctx):
             bd.numero(g.get("qtd")) or None, contato,
             texto(g.get("pendencias")), texto(g.get("retorno_cliente")),
             cad["cli_vendedor"], cad["cli_supervisor"],
-            st["chave_prazo"], st["tom_sla"], st["fim"]])
+            st["chave_prazo"], st["tom_sla"], st["fim"],
+            # (T-0023) o que a edicao da web precisa mostrar (ocultas na tela)
+            texto(g.get("reclamacao")), texto(g.get("observacao")),
+            gm.data(g.get("dt_retorno"))])
         tons.append("alerta" if st["atrasada"] else (
             "atencao" if st["tom_sla"] == "atencao" else ""))
     ordem = sorted(range(len(linhas)), key=lambda i: (
@@ -7620,7 +7623,10 @@ def garantias(ctx):
             col("SUPERVISOR", "texto", 160, oculta=True),
             col("SITUAÇÃO DO PRAZO", "texto", 140, oculta=True),
             col("TOM SLA", "texto", 60, oculta=True),
-            col("DT. FECHOU", "data", 85, oculta=True)]
+            col("DT. FECHOU", "data", 85, oculta=True),
+            col("RECLAMAÇÃO", "texto", 200, oculta=True),
+            col("OBSERVAÇÃO", "texto", 200, oculta=True),
+            col("DT. RETORNO", "data", 85, oculta=True)]
     t_ = tabela("Garantias", cols, linhas, tons,
                 filtros=("STATUS", "RESULTADO ANÁLISE", "PRAZO", "CIDADE",
                          "VENDEDOR"),
