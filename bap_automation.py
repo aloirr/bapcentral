@@ -7107,8 +7107,57 @@ def tabelas_cobranca_web(r: dict):
             tons = [""] * len(linhas)
         saida.append({"titulo": titulo, "colunas": colunas, "linhas": linhas,
                       "tons": tons, "total": total, "filtros": filtros})
+    for titulo, lista in _COLUNAS_EXTRAS_COBRANCA_WEB.items():   # T-0026
+        t = por_titulo.get(titulo)
+        extra = _tabela_extra_cobranca_web(t, titulo, lista) if t else None
+        if extra is None:
+            break                       # so a sequencia inteira vai (a web confere a ordem)
+        saida.append(extra)
     val = _para_json(saida, fora=_CHAVES_FORA_TABELA_WEB)
-    return val if isinstance(val, list) and len(val) == 2 else None
+    return val if isinstance(val, list) and len(val) >= 2 else None
+
+
+# (T-0026) As 5 tabelas de resumo da Inadimplencia (sem cliente nem telefone):
+# lista fechada de colunas, como as duas de cima; se nao bater, ficam fora.
+_FAIXAS_COBRANCA_WEB = (
+    ("CARTEIRA ABERTA", "moeda"), ("A VENCER", "moeda"),
+    ("1–15 DIAS", "moeda"), ("16–30 DIAS", "moeda"),
+    ("31–60 DIAS", "moeda"), ("61–90 DIAS", "moeda"),
+    ("91–180 DIAS", "moeda"), ("+180 DIAS", "moeda"),
+    ("EM ATRASO", "moeda"), ("% INADIMPL.", "pct"),
+    ("CLIENTES INADIMPL.", "int"))
+_COLUNAS_EXTRAS_COBRANCA_WEB = {
+    "Por vendedor": (("VENDEDOR", "texto"),) + _FAIXAS_COBRANCA_WEB,
+    "Por supervisor": (("SUPERVISOR", "texto"),) + _FAIXAS_COBRANCA_WEB,
+    "Por filial": (("FILIAL", "texto"),) + _FAIXAS_COBRANCA_WEB,
+    "Por UF": (("UF", "texto"),) + _FAIXAS_COBRANCA_WEB,
+    "Dia a dia": (("DATA", "data"), ("CARTEIRA ABERTA", "moeda"),
+                  ("A VENCER", "moeda"), ("EM ATRASO", "moeda"),
+                  ("% INADIMPL.", "pct"), ("CLIENTES INADIMPL.", "int"),
+                  ("TÍTULOS VENCIDOS", "int"), ("RECEBIDO", "moeda"),
+                  ("RECUPERADO", "moeda")),
+}
+
+
+def _tabela_extra_cobranca_web(t: dict, titulo: str, lista):
+    """Funcao pura: a tabela de resumo no formato do contrato, ou None se as
+    colunas do PC nao baterem com a lista."""
+    pc = [c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
+          for c in t.get("colunas") or []]
+    if [(c.get("nome"), c.get("tipo")) for c in pc] != list(lista):
+        return None
+    linhas = [list(ln) for ln in t.get("linhas") or []]
+    if any(len(ln) != len(pc) for ln in linhas):
+        return None
+    total = t.get("total")
+    total = list(total) if isinstance(total, (list, tuple)) and len(
+        total) == len(pc) else None
+    tons = [str(x or "") for x in t.get("tons") or []]
+    if len(tons) != len(linhas):
+        tons = [""] * len(linhas)
+    return {"titulo": titulo,
+            "colunas": [{"nome": n, "tipo": tp} for n, tp in lista],
+            "linhas": linhas, "tons": tons, "total": total, "filtros": []}
 
 
 # ---------------------------------------------------------------------------
@@ -7825,13 +7874,18 @@ def _cortar_pacote_web(pacote: dict, teto_mb=None) -> dict:
             if (rels.get(rid) or {}).get("tabelas"):
                 titulos = [t.get("titulo") for t in rels[rid].pop("tabelas")]
                 abas_fora(rid, titulos)
-    for passo in (passo1, passo2, passo3):
+    def passo4():               # T-0026: por ultimo, as imagens das parciais
+        for rid in rels:
+            if rels[rid].pop("parciais", None):
+                avisar(rid, "As parciais em imagem ficaram fora desta "
+                       "atualização (pacote grande). Veja no PC.")
+    for passo in (passo1, passo2, passo3, passo4):
         passo()
         if _tamanho_pacote_web(novo) <= limite:
             break
     else:
         log.warning("Pacote web: continua acima do teto de %s MB depois dos "
-                    "3 cortes.", teto_mb if teto_mb is not None
+                    "4 cortes.", teto_mb if teto_mb is not None
                     else WEB_PACOTE_TETO_MB)
     return novo
 
@@ -7925,9 +7979,47 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
     return saida
 
 
+# (T-0026) PARCIAL em imagem (WhatsApp): a mesma imagem do PC (parcial_imagem.py,
+# o resumo, sem o detalhe por vendedor), pronta no robo, uma por periodo, em PNG
+# base64 dentro do farol (`parciais`). A web so mostra, baixa e monta o PDF.
+PARCIAIS_WEB = {"pv_pedidos": "parcial_pedidos", "pl_entregas": "parcial_entregas",
+                "vc_visitas": "parcial_visitas"}
+QUANDOS_PARCIAL_WEB = ("acum", "d1", "hoje")
+
+
+def parciais_web(raiz, hoje=None, log=None) -> dict:
+    """{rid: {quando: {"rotulo", "png" (base64)}}} dos 3 faroes com parcial.
+    Cada imagem num try proprio: a que falhar fica de fora (aviso no log);
+    nunca levanta."""
+    log = log or (lambda m: None)
+    saida: dict = {}
+    try:
+        import io                                       # noqa: PLC0415
+        import relatorios_nucleo as _rn                 # noqa: PLC0415
+        import parcial_imagem as _pi                    # noqa: PLC0415
+        hoje = hoje or _agora_manaus().date()
+        hoje = hoje.date() if isinstance(hoje, datetime) else hoje
+        ctx = _rn.Contexto(Path(raiz), hoje, None, {})
+    except Exception as erro:                           # noqa: BLE001
+        log(f"Parciais web: fora do pacote ({type(erro).__name__}).")
+        return saida
+    for rid, nome in PARCIAIS_WEB.items():
+        for q in QUANDOS_PARCIAL_WEB:
+            try:
+                p = getattr(_rn, nome)(ctx, q)
+                buf = io.BytesIO()
+                _pi.desenhar(p, 1.5).save(buf, "PNG", optimize=True)
+                saida.setdefault(rid, {})[q] = {
+                    "rotulo": str(p.get("quando") or q),
+                    "png": base64.b64encode(buf.getvalue()).decode("ascii")}
+            except Exception as erro:                   # noqa: BLE001
+                log(f"Parciais web: {rid}/{q} fora ({type(erro).__name__}).")
+    return saida
+
+
 def montar_pacote_web(resultados: dict, ano: int, mes: int,
                       agora=None, raiz=None, arquivos_base=None,
-                      cobranca=None) -> dict:
+                      cobranca=None, parciais=None) -> dict:
     """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
     resultado e produtividade, limpas para JSON. `cobranca` ({rid: bloco},
     T-0017 entrega 2): o bloco de cobranca_whatsapp.pacote_web do
@@ -7957,6 +8049,8 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
                         type(erro).__name__)
             continue
         if val:
+            if isinstance(parciais, dict) and parciais.get(rid):
+                val["parciais"] = parciais[rid]         # T-0026
             limpos[rid] = val
     return _cortar_pacote_web({
         "versao_contrato": versao, "gerado_em": agora.isoformat(),
@@ -7981,7 +8075,8 @@ def simular_pacote_farol(rid, raiz, destino, ano: int, mes: int,
         if r_id == RID_COBRANCA_WEB:
             cobranca.update(preparar_cobranca_web(
                 {r_id: rels[r_id]}, raiz, hoje, False, log=lambda m: None))
-    pacote = montar_pacote_web(rels, ano, mes, raiz=raiz, cobranca=cobranca)
+    pacote = montar_pacote_web(rels, ano, mes, raiz=raiz, cobranca=cobranca,
+                               parciais=parciais_web(raiz, hoje))
     Path(destino).write_text(json.dumps(pacote, ensure_ascii=False,
                                         indent=1), encoding="utf-8")
     return pacote
@@ -8332,8 +8427,10 @@ def passo_pacote_web(simular_pacote: bool = False) -> dict:
             _segredo_web("BAP_WEB_TOKEN", "token"),
             log=lambda m: log.info("%s", str(m).replace(
                 _segredo_web("BAP_WEB_TOKEN", "token") or "\0", "***")))
-        pacote = montar_pacote_web(resultados, hoje.year, hoje.month, hoje,
-                                   cobranca=cobranca)
+        pacote = montar_pacote_web(
+            resultados, hoje.year, hoje.month, hoje, cobranca=cobranca,
+            parciais=parciais_web(PASTA_LOCAL, hoje.date(), log=lambda m:
+                                  log.warning("%s", m)))
         tam = len(json.dumps(pacote, ensure_ascii=False).encode("utf-8"))
         if simular_pacote:
             pasta = Path(tempfile.gettempdir()) / "BAP_PACOTE_WEB"
