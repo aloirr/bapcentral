@@ -36,18 +36,24 @@ LUGARES = {
     ("pv_pedidos", "Pedidos"): "autorizacoes",
     ("pl_entregas", "Entregas"): "pos_venda",
     ("pl_entregas", "Pendências dos meses anteriores"): "pos_venda",
+    # T-0023: NCC (o diário _NCC), Devoluções (aba DEVOLUCOES do acompanhamento) e Garantias (o diário _GARANTIAS)
+    ("pl_ncc", "NCC pendentes"): "ncc",
+    ("pl_devolucoes", "Devoluções"): "pos_venda",
+    ("pl_garantias", "Garantias"): "garantias",
 }
 TIPOS = ("lista", "data", "texto", "numero")
 STATUS = ("pendente", "aplicada", "erro")
 MSG_ENVIADA = "Edição enviada. Ela chega ao PC na próxima rodada do robô (a cada 30 min)."
 MSG_AGUARDA = "Aguardando o PC"
 MSG_ERRO = "O PC recusou"
+PADRAO_HOJE = "@hoje"                       # padrão de data da garantia nova: hoje, em Manaus
 MSG_SEM_CHAVE = "Nota concluída (anterior ao controle de 01/10/2026)."
 ERRO_VISIVEL_DIAS = 3                       # a marca "O PC recusou" fica 3 dias (ou até nova edição)
-MAX_CAMPOS = 10
+MAX_CAMPOS = 16
 MAX_OPCOES = 400
 MAX_GRUPOS = 300
 MAX_TEXTO = 60
+MAX_TEXTO_CAMPO = 600                       # teto de `max` (garantia: pendências, retorno, reclamação)
 RE_CAMPO = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
 RE_CHAVE = re.compile(r"^[\w .|/-]{0,80}$")
 RE_DATA_BR = re.compile(r"^(\d{2})/(\d{2})/(\d{4})$")
@@ -55,7 +61,9 @@ RE_ISO = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 # texto livre não leva documento, e-mail nem telefone (regra 6)
 RE_PESSOAL = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|@|"
                         r"\(?\d{2}\)?\s?9?\d{4}-\d{4}")
+RE_TICKET = re.compile(r"^[\w .-]{1,40}$")
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
+_CTRL_ML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")      # texto de várias linhas aceita \n, \r e \t
 
 
 def agora() -> datetime:
@@ -76,7 +84,7 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
     modulo = LUGARES.get((rid, titulo))
     if modulo is None:
         return "edicao fora dos lugares aceitos"
-    if not isinstance(ed, dict) or set(ed) - {"modulo", "acao", "chaves", "campos"}:
+    if not isinstance(ed, dict) or set(ed) - {"modulo", "acao", "chaves", "campos", "novo"}:
         return "edicao com chave não aceita"
     if ed.get("modulo") != modulo or modulo not in MODULOS:
         return "edicao com modulo diferente do lugar"
@@ -86,13 +94,18 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
     if not (isinstance(ch, list) and len(ch) == n_linhas
             and all(isinstance(x, str) and RE_CHAVE.match(x) for x in ch)):
         return "edicao.chaves precisa ter uma chave (texto curto) por linha"
+    nv = ed.get("novo")
+    if nv is not None and not (isinstance(nv, dict) and set(nv) == {"chave"}
+                               and isinstance(nv["chave"], str) and RE_CHAVE.match(nv["chave"])):
+        return "edicao.novo inválido"
     cs = ed.get("campos")
     if not (isinstance(cs, list) and 0 < len(cs) <= MAX_CAMPOS):
         return "edicao.campos inválidos"
     vistos = set()
     for c in cs:
         if not isinstance(c, dict) or set(c) - {"campo", "rotulo", "coluna", "tipo", "opcoes", "caixa",
-                                                 "grupos", "grupo_linhas", "linhas", "sugestoes_linhas"}:
+                                                 "grupos", "grupo_linhas", "linhas", "sugestoes_linhas", "max",
+                                                 "multilinha", "padrao"}:
             return "edicao: campo com chave não aceita"
         if not (isinstance(c.get("campo"), str) and RE_CAMPO.match(c["campo"])) or c["campo"] in vistos:
             return "edicao: nome de campo inválido ou repetido"
@@ -107,6 +120,14 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
             return "edicao: opções inválidas"
         if c.get("caixa") is not None and not isinstance(c["caixa"], bool):
             return "edicao: caixa inválida"
+        if c.get("padrao") is not None and not (isinstance(c["padrao"], str) and len(c["padrao"]) <= 80
+                                                 and (c["padrao"] == PADRAO_HOJE or not _CTRL.search(c["padrao"]))):
+            return "edicao: padrao inválido"
+        if c.get("max") is not None and not (_int(c["max"]) and 0 < c["max"] <= MAX_TEXTO_CAMPO
+                                              and c["tipo"] in ("texto", "numero")):
+            return "edicao: max inválido"
+        if c.get("multilinha") is not None and not (isinstance(c["multilinha"], bool) and c["tipo"] == "texto"):
+            return "edicao: multilinha inválida"
         if c["tipo"] == "data" and not all(RE_DATA_BR.match(x) for x in c.get("opcoes", [])):
             return "edicao: data fora de dd/mm/aaaa"
         gr, gl = c.get("grupos"), c.get("grupo_linhas")
@@ -173,6 +194,15 @@ def iso_de_br(s: str) -> str:
     return f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else ""
 
 
+def data_valida(s: str) -> bool:
+    """dd/mm/aaaa que existe no calendário (data livre, sem lista de opções)."""
+    try:
+        datetime.strptime(s, "%d/%m/%Y")
+        return True
+    except ValueError:
+        return False
+
+
 def numero_br(txt) -> float | None:
     """O valor escrito (R$ 1.234,56 · 278,4 · 278.40) como número; vazio = None; ValueError se não for."""
     if txt is None or isinstance(txt, (int, float)) and not isinstance(txt, bool):
@@ -205,17 +235,38 @@ def atual_txt(c: dict, v) -> str:
     return "" if v is None else str(v)
 
 
-def valores_do_form(ed: dict, k: int, linha: list, nomes: list[str], form: dict) -> tuple[dict, dict, str]:
-    """(mudou {campo: valor no formato do PC}, antes {campo: valor}, erro). Só o que mudou, como o PC."""
+def campos_do_novo(ed: dict) -> list[dict]:
+    """Os campos da linha nova (garantia nova): todos, com as opções gerais e o padrão (data "@hoje" = hoje)."""
+    out = []
+    for c in ed["campos"]:
+        if c.get("linhas") is not None:
+            continue
+        pad = c.get("padrao") or ""
+        if c["campo"] == "ticket":                      # o próximo número, sugerido pelo PC
+            pad = (ed.get("novo") or {}).get("chave", "")
+        if pad == PADRAO_HOJE:
+            pad = agora().strftime("%d/%m/%Y")
+        out.append({**c, "opcoes_linha": list(c.get("opcoes") or []), "sugestao": "", "padrao_txt": pad})
+    return out
+
+
+def valores_do_form(ed: dict, k: int | None, linha: list | None, nomes: list[str], form: dict,
+                    campos: list[dict] | None = None) -> tuple[dict, dict, str]:
+    """(mudou {campo: valor no formato do PC}, antes {campo: valor}, erro). Só o que mudou, como o PC.
+    `campos` (linha nova): a lista de `campos_do_novo`, sem linha de origem."""
     mudou, antes = {}, {}
-    for c in campos_da_linha(ed, k):
+    for c in (campos if campos is not None else campos_da_linha(ed, k)):
         chave = "c_" + c["campo"]
         if chave not in form:
             continue
         bruto = str(form.get(chave, ""))
-        if len(bruto) > 200 or _CTRL.search(bruto):
+        mx = c.get("max") or MAX_TEXTO
+        ml = bool(c.get("multilinha"))
+        if ml:
+            bruto = bruto.replace("\r\n", "\n").replace("\r", "\n")
+        if len(bruto) > max(200, mx + 100) or (_CTRL_ML if ml else _CTRL).search(bruto):
             return {}, {}, f"{c['rotulo']}: valor inválido."
-        v_atual = linha[nomes.index(c["coluna"])] if c.get("coluna") in nomes else None
+        v_atual = linha[nomes.index(c["coluna"])] if linha is not None and c.get("coluna") in nomes else None
         atual = atual_txt(c, v_atual)
         tipo = c["tipo"]
         if tipo == "lista":
@@ -226,7 +277,9 @@ def valores_do_form(ed: dict, k: int, linha: list, nomes: list[str], form: dict)
             v = br_data(bruto.strip()) if bruto.strip() else ""
             if v and not RE_DATA_BR.match(v):
                 return {}, {}, f"{c['rotulo']}: data inválida."
-            if v and v not in c["opcoes_linha"] and v != atual:
+            if v and not c["opcoes_linha"] and not data_valida(v):
+                return {}, {}, f"{c['rotulo']}: data inválida."
+            if v and c["opcoes_linha"] and v not in c["opcoes_linha"] and v != atual:
                 ops = c["opcoes_linha"]
                 faixa = f" (de {min(ops, key=iso_de_br)} a {max(ops, key=iso_de_br)})" if ops else ""
                 return {}, {}, f"{c['rotulo']}: data fora das permitidas{faixa}."
@@ -249,10 +302,12 @@ def valores_do_form(ed: dict, k: int, linha: list, nomes: list[str], form: dict)
             continue
         else:                                           # texto livre (a lista só sugere)
             v = bruto.strip() if c.get("caixa") else bruto.strip().upper()
-            if len(v) > MAX_TEXTO:
-                return {}, {}, f"{c['rotulo']}: até {MAX_TEXTO} caracteres."
+            if len(v) > mx:
+                return {}, {}, f"{c['rotulo']}: até {mx} caracteres."
             if RE_PESSOAL.search(v):
                 return {}, {}, f"{c['rotulo']}: sem CPF, CNPJ, telefone ou e-mail."
+            if c["campo"] == "ticket" and not (v and RE_TICKET.match(v)):
+                return {}, {}, f"{c['rotulo']}: até 40 letras, números, espaço, ponto, hífen ou barra."
         if v == atual:
             continue
         mudou[c["campo"]], antes[c["campo"]] = v, atual
@@ -319,7 +374,7 @@ class Fila:
             os.fsync(f.fileno())
 
     def registrar(self, *, usuario: str, rid: str, tabela: str, modulo: str, chave: str,
-                  valores: dict, antes: dict, agora_=None) -> dict:
+                  valores: dict, antes: dict, agora_=None, novo: bool = False) -> dict:
         quando = (agora_ or agora()).astimezone(MANAUS).strftime("%Y-%m-%d %H:%M:%S")
         with self._tranca():
             e = self._estado()
@@ -328,6 +383,8 @@ class Fila:
             reg = {"tipo": "edicao", "seq": e["ultimo_seq"], "id": str(uuid.uuid4()), "quando": quando,
                    "usuario": usuario, "rid": rid, "tabela": tabela, "modulo": modulo, "chave": chave,
                    "valores": valores, "antes": antes}
+            if novo:
+                reg["novo"] = True                       # linha nova (garantia): o PC recusa se o número já existe
             self._acrescentar(reg, quando)
             return reg
 
