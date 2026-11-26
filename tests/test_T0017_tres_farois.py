@@ -79,12 +79,15 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     de recorte por estado em todos, menos a Visita (RN-GER-006: nenhuma
     tabela da Visita traz a UF do cliente)."""
     assert set(ba.FAROIS_WEB) == {"pl_inadimplencia", "pv_pedidos",
-                                  "pl_entregas", "vc_visitas"}
+                                  "pl_entregas", "vc_visitas",
+                                  "pl_garantias", "pl_devolucoes", "pl_ncc"}
     for rid in ba.FAROIS_WEB:
         assert rid in ba._FONTE_BAIXADO_WEB
     assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
                                       "pv_pedidos": "Pedidos",
-                                      "pl_entregas": "Entregas"}
+                                      "pl_entregas": "Entregas",
+                                      "pl_devolucoes": "Devoluções",
+                                      "pl_ncc": "NCC pendentes"}
     # a coluna e a regra da UF: filial da nota no Pedidos, UF do cliente no
     # Entregas (a mesma do uf_linhas)
     assert ba._UF_LINHAS_WEB[("pv_pedidos", "Pedidos")] == ("FILIAL",
