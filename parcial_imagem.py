@@ -202,7 +202,7 @@ def desenhar(p: dict, escala: float = 1.5, agora: datetime | None = None):
     # trata); o periodo embaixo, menor
     ret(0, 0, LARGURA, 116, CAB)
     ret(0, 113, LARGURA, 116, VERDE)
-    texto(PAD, 16, "BAP AUTO PARTS", F(12, "bold"), VERDE_ESC)
+    texto(PAD, 16, "BAP AUTOPARTS", F(12, "bold"), VERDE_ESC)
     f_tit = _caber(d, p["tipo"].upper(), 32, "black", s, S(LU), 22)
     texto(PAD, 32, p["tipo"].upper(), f_tit)
     texto(PAD, 80, p["titulo"], F(17, "semi"), SUAVE)
@@ -573,7 +573,7 @@ def _desenhar_exec(p, escala=1.5, com_detalhe=None):
     PAD = 40
     LU = X_LARG - 2 * PAD
     # ---- cabecalho: so o nome e o periodo
-    tx(PAD, 30, "BAP AUTO PARTS", F(13, "bold"), X_VESC)
+    tx(PAD, 30, "BAP AUTOPARTS", F(13, "bold"), X_VESC)
     f_t = _caber(d, p["tipo"].upper(), 30, "black", s, S(LU * .68), 20)
     tx(PAD, 50, p["tipo"].upper(), f_t)
     tx(PAD + LU, 62, p["titulo"], F(17, "semi"), X_SUAVE, "ra")
@@ -1023,7 +1023,7 @@ def desenhar_supervisor(p, g, escala=1.5, blocos=None, parte=""):
         d.line([S(x0), S(y), S(x1), S(y)], fill=cor, width=max(1, S(w)))
     PAD = 40
     LU = X_LARG - 2 * PAD
-    tx(PAD, 30, "BAP AUTO PARTS · " + det["titulo"].upper(), F(13, "bold"),
+    tx(PAD, 30, "BAP AUTOPARTS · " + det["titulo"].upper(), F(13, "bold"),
        X_VESC)
     tit = (f"SUPERVISOR {g['supervisor']}" if g.get("supervisor")
            else det["titulo"].upper())
@@ -1083,7 +1083,7 @@ def desenhar_detalhe(p, bloco, escala=1.5):
         d.line([S(x0), S(y), S(x1), S(y)], fill=cor, width=max(1, S(w)))
     PAD = 40
     LU = X_LARG - 2 * PAD
-    tx(PAD, 30, "BAP AUTO PARTS", F(13, "bold"), X_VESC)
+    tx(PAD, 30, "BAP AUTOPARTS", F(13, "bold"), X_VESC)
     tit = det["titulo"].upper()
     f_t = _caber(d, tit, 26, "black", s, S(LU * .66), 18)
     tx(PAD, 50, tit, f_t)

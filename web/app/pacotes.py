@@ -122,6 +122,9 @@ def _tabela_ok(b) -> bool:
 
 PARCIAIS_RIDS = ("pv_pedidos", "pl_entregas", "vc_visitas")
 QUANDOS_PARCIAL = ("acum", "d1", "hoje")
+# T-0021: CSVs de importação no Protheus (reversa de loja / separação de CD), mandados pelo robô
+RE_CSV = re.compile(r"^\d{6}_\d{1,4}_[A-Z0-9]{1,30}_(BAPReversaLoja|BAPSeparacaoCD)\.csv$")
+MAX_CSVS, MAX_CSV_BYTES, MAX_CSVS_TOTAL = 60, 200_000, 1_500_000
 MAX_PNG_B64 = 3_000_000                          # por imagem (a do PC tem uns 100 a 400 KB)
 
 
@@ -146,6 +149,111 @@ def _parciais_erro(rid: str, p) -> str | None:
     return None
 
 
+
+def _csvs_erro(rid: str, c) -> str | None:
+    """T-0021: lista de {nome, conteudo}; nome no padrão do robô, texto UTF-8, tetos de tamanho. Só em Pedidos."""
+    if c is None:
+        return None
+    if rid != "pv_pedidos":
+        return f"{rid}: csvs_protheus só no Farol de Pedidos"
+    if not isinstance(c, list) or len(c) > MAX_CSVS:
+        return f"{rid}: csvs_protheus inválido"
+    total, nomes = 0, set()
+    for x in c:
+        if not (isinstance(x, dict) and set(x) == {"nome", "conteudo"} and isinstance(x["nome"], str)
+                and isinstance(x["conteudo"], str) and RE_CSV.match(x["nome"]) and x["nome"] not in nomes):
+            return f"{rid}: csvs_protheus com item inválido"
+        n = len(x["conteudo"].encode("utf-8"))
+        total += n
+        if n > MAX_CSV_BYTES or total > MAX_CSVS_TOTAL or "\x00" in x["conteudo"]:
+            return f"{rid}: csvs_protheus grande demais"
+        nomes.add(x["nome"])
+    return None
+
+
+def _painel_erro(rid: str, painel) -> str | None:
+    """Blocos do painel (farol, aba do Painel Executivo, recorte por estado): só formato."""
+    bl = painel.get("blocos") if isinstance(painel, dict) else None
+    if not (isinstance(bl, list) and len(bl) <= 30 and all(isinstance(b, dict) and isinstance(b.get("tipo"), str) for b in bl)):
+        return f"{rid}: painel.blocos inválido"
+    for b in bl:
+        if b["tipo"] == "tabela" and not _tabela_ok(b):
+            return f"{rid}: bloco tabela inválido ou com coluna de cliente/CNPJ/telefone"
+        if b["tipo"] == "placar" and not (isinstance(b.get("cartoes"), list) and len(b["cartoes"]) <= 30 and all(
+                isinstance(c, dict) and isinstance(c.get("farol"), str) for c in b["cartoes"])):
+            return f"{rid}: bloco placar inválido"
+    return None
+
+
+def _corpo_erro(rid: str, c, com_tabelas: bool = False) -> str | None:
+    """T-0022: `kpis` + `painel` (+ `insights_painel`, + `tabelas` no Farol de Metas) de uma aba do Painel Executivo
+    ou de um recorte por estado. Chave de edição ou interna nunca entra."""
+    if not isinstance(c, dict):
+        return f"{rid}: recorte inválido"
+    extras = {"kpis", "painel", "insights_painel", "titulo", "so_bap", "avisos", "recortes"} | ({"tabelas"} if com_tabelas else set())
+    if set(c) - extras:
+        return f"{rid}: chave não aceita: {sorted(set(c) - extras)[0][:20]}"
+    achou = _chave_proibida({k: v for k, v in c.items() if k not in ("recortes", "tabelas")})
+    if achou:
+        return f"{rid}: chave não aceita na web: {achou}"
+    if not _kpis_ok(c.get("kpis")):
+        return f"{rid}: kpis inválidos"
+    erro = _painel_erro(rid, c.get("painel"))
+    if erro:
+        return erro
+    ins = c.get("insights_painel")
+    if ins is not None and not (isinstance(ins, list) and len(ins) <= 40 and all(
+            isinstance(x, list) and len(x) >= 2 and isinstance(x[1], str) for x in ins)):
+        return f"{rid}: insights_painel inválido"
+    return None
+
+
+def _recortes_meta_erro(rid: str, rec) -> str | None:
+    """Recortes por estado do Farol de Metas: cada estado leva cartões, painel e as abas de tabela dele."""
+    if not isinstance(rec, dict) or len(rec) > MAX_RECORTES:
+        return f"{rid}: recortes inválidos"
+    for uf, v in rec.items():
+        if not RE_UF.match(str(uf)):
+            return f"{rid}: recorte {str(uf)[:4]} inválido"
+        erro = _corpo_erro(f"{rid}.{uf}", v, com_tabelas=True)
+        if erro:
+            return erro
+        if "tabelas" in v:
+            er = tabelas.validar(rid, {"tabelas": v["tabelas"]})
+            if er:
+                return f"{rid}.{uf}: {er[0]}"
+    return None
+
+
+def _paineis_erros(k: str, ps) -> list[str]:
+    """T-0022: `paineis` do vc_painel = as 9 abas de painel, na forma do farol."""
+    if not isinstance(ps, dict):
+        return [f"{k}: paineis precisa ser objeto"]
+    validos = dict(render.PAINEIS)
+    for chave, a in ps.items():
+        if chave not in validos:
+            return [f"{k}.paineis: aba não aceita: {str(chave)[:20]}"]
+        if not (isinstance(a, dict) and isinstance(a.get("titulo"), str)):
+            return [f"{k}.paineis.{chave}: titulo ausente"]
+        erro = _corpo_erro(f"{k}.paineis.{chave}", a)
+        if erro:
+            return [erro]
+        if a.get("so_bap") is not None and not isinstance(a["so_bap"], bool):
+            return [f"{k}.paineis.{chave}: so_bap inválido"]
+        av = a.get("avisos")
+        if av is not None and not (isinstance(av, list) and all(isinstance(x, str) for x in av)):
+            return [f"{k}.paineis.{chave}: avisos inválidos"]
+        rec = a.get("recortes")
+        if rec is not None:
+            if not isinstance(rec, dict) or len(rec) > MAX_RECORTES:
+                return [f"{k}.paineis.{chave}: recortes inválidos"]
+            for uf, v in rec.items():
+                erro = _corpo_erro(f"{k}.paineis.{chave}.{str(uf)[:4]}", v)
+                if not RE_UF.match(str(uf)) or erro:
+                    return [erro or f"{k}.paineis.{chave}: recorte {str(uf)[:4]} inválido"]
+    return []
+
+
 def validar_farol(rid: str, r) -> list[str]:
     """Forma "farol" (T-0017): só formato; kpis e blocos vêm prontos do PC (contrato §8)."""
     if not isinstance(r, dict) or r.get("forma") != "farol":
@@ -154,19 +262,17 @@ def validar_farol(rid: str, r) -> list[str]:
     erros_t = tabelas.validar(rid, r) if rid in tabelas.RIDS else cobranca.validar(rid, r)
     if erros_t:
         return erros_t
-    achou = _chave_proibida({k: v for k, v in r.items() if k not in ("tabelas", "cobranca")})
+    achou = _chave_proibida({k: v for k, v in r.items()
+                             if k not in ("tabelas", "cobranca") and not (rid == "vc_meta" and k == "recortes")})
     if achou:
         return [f"{rid}: chave não aceita na web: {achou}"]
     if not isinstance(r.get("titulo"), str):
         return [f"{rid}: titulo ausente"]
     if not _kpis_ok(r.get("kpis")):
         return [f"{rid}: kpis inválidos"]
-    bl = (r.get("painel") or {}).get("blocos") if isinstance(r.get("painel"), dict) else None
-    if not (isinstance(bl, list) and len(bl) <= 30 and all(isinstance(b, dict) and isinstance(b.get("tipo"), str) for b in bl)):
-        return [f"{rid}: painel.blocos inválido"]
-    for b in bl:
-        if b["tipo"] == "tabela" and not _tabela_ok(b):
-            return [f"{rid}: bloco tabela inválido ou com coluna de cliente/CNPJ/telefone"]
+    erro = _painel_erro(rid, r.get("painel"))
+    if erro:
+        return [erro]
     if r.get("kpis_faixa") is not None and not isinstance(r["kpis_faixa"], bool):
         return [f"{rid}: kpis_faixa inválido"]
     ins = r.get("insights_painel")
@@ -178,10 +284,13 @@ def validar_farol(rid: str, r) -> list[str]:
         return [f"{rid}: avisos inválidos"]
     if r.get("baixado_em") is not None and not isinstance(r["baixado_em"], str):
         return [f"{rid}: baixado_em inválido"]
-    e_par = _parciais_erro(rid, r.get("parciais"))
+    e_par = _parciais_erro(rid, r.get("parciais")) or _csvs_erro(rid, r.get("csvs_protheus"))
     if e_par:
         return [e_par]
     rec = r.get("recortes")
+    if rec is not None and rid == "vc_meta":
+        erro = _recortes_meta_erro(rid, rec)
+        return [erro] if erro else []
     if rec is not None:
         if not isinstance(rec, dict) or len(rec) > MAX_RECORTES:
             return [f"{rid}: recortes inválidos"]
@@ -229,6 +338,8 @@ def validar(c) -> list[str]:
             continue
         for chave, visao in ABAS:
             a = abas.get(chave)
+            if a is None and chave in render.ABAS_OPCIONAIS:
+                continue                       # T-0022: robô antigo, sem a aba por dia útil
             if not isinstance(a, dict) or not isinstance(a.get("titulo"), str):
                 erros.append(f"{k}.abas.{chave}: ausente")
                 continue
@@ -248,6 +359,8 @@ def validar(c) -> list[str]:
             er = _recortes_erros(a.get("recortes"))
             if er:
                 erros.append(f"{k}.abas.{chave}: {er}")
+        if r.get("paineis") is not None:
+            erros += _paineis_erros(k, r["paineis"])
     return erros[:10]
 
 
@@ -267,7 +380,9 @@ def _enxuto(corpo: dict) -> dict:
         if rel.get("forma") == "farol":
             continue                                   # farol já vem enxuto do PC
         for chave, visao in ABAS:
-            a = rel["abas"][chave]
+            a = rel["abas"].get(chave)
+            if a is None:
+                continue
             d = a["painel"]["blocos"][0]["dados"]
             a["painel"]["blocos"][0]["dados"] = {
                 visao: d[visao], "sub": {visao: (d.get("sub") or {}).get(visao, "")},

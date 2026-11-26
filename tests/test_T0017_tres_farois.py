@@ -78,9 +78,10 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     """Os 4 faróis vão ao site, cada um com a base do "baixado em". Tabela
     de recorte por estado em todos, menos a Visita (RN-GER-006: nenhuma
     tabela da Visita traz a UF do cliente)."""
-    assert set(ba.FAROIS_WEB) == {"pl_inadimplencia", "pv_pedidos",
-                                  "pl_entregas", "vc_visitas"}
-    for rid in ba.FAROIS_WEB:
+    quatro = {"pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas"}
+    # T-0022 soma o Farol de Metas (vc_meta): aceita o estado antigo e o novo
+    assert set(ba.FAROIS_WEB) in (quatro, quatro | {"vc_meta"})
+    for rid in quatro:
         assert rid in ba._FONTE_BAIXADO_WEB
     assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
                                       "pv_pedidos": "Pedidos",
@@ -244,6 +245,9 @@ def test_RN_GER_006_pedidos_com_tabelas_sem_acao_com_faixa_e_vendedor(
              "kpis_de", "total_de", "totais_por", "recortes",
              "solicitacao_bap", "garantia", "importar_preenchidos",
              "ordem_exportar", "cores_celulas", "so_exportar"}
+    # T-0021: a única que vai é a especificação da edição na web (admin), na tabela
+    ed = ped.pop("edicao", None)                   # (o robô da T-0021 ainda pode não ter entrado)
+    assert ed is None or (set(ed) == {"modulo", "acao", "chaves", "campos"} and ed["modulo"] == "autorizacoes")
     assert sorted(acoes & _chaves(s["tabelas"])) == []
     assert sorted(acoes & set(s)) == ["recortes"]   # o de cima é por estado
     assert [k for k in _chaves(s) if k.startswith("_")] == []

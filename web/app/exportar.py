@@ -8,6 +8,7 @@ do pacote do PC.
 from __future__ import annotations
 
 import base64
+import math
 import re
 import struct
 import zipfile
@@ -26,7 +27,13 @@ EXCEL_EPOCA = date(1899, 12, 30)
 
 
 def _num(v):
-    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    """Número de verdade (nem bool, nem NaN/inf: no Excel viraria `nan`/`inf` inválido e a planilha não abre)."""
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    try:
+        return v if math.isfinite(v) else None
+    except OverflowError:
+        return None
 
 
 def tabela_plana(tela: dict, bruta: dict, centavos: bool = False) -> dict:
