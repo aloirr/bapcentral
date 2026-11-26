@@ -14,6 +14,7 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 - RN-GER-009 · Nome nos materiais: "BAP AUTOPARTS".
 - RN-GER-010 · O cadastro em lote de 16/10 não conta como visita.
 - RN-GER-011 · No site, nome e texto de cliente vão sem CPF/CNPJ (no começo, no meio ou no fim do nome) e o texto livre vai sem telefone, e-mail e documento (trocados por "[removido]"); o código do cliente fica (25/11, T-0017; base: regra 6 e o 2 A do R-20261124-192008-alexandre).
+- RN-GER-012 · Edição só no site e só pelo admin, por enquanto; chega ao PC pelo robô, gravada pela mesma função da tela do PC, só acrescentando linha; a tela do PC fica só leitura nessa edição ("A edição agora é só pela BAP Central web."). O robô oficial é o notebook NT-AMADMVD13 (25/11; "SO TEM EDIÇÃO NA WEB. NINGUEM MAIS MEXE NO PC. USUARIO QUE MEXE NISSO: ADMIN por enquanto.", R-20261125-104000-alexandre).
 
 ## Rota (RN-ROT): item 0 do `docs/legado/INSTALACAO_ROTA_1710.md`
 - Teto 12/dia; sexta 12 desde NOV/26.
