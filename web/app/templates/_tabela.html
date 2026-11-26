@@ -67,15 +67,16 @@
 {% endif %}
 {% set juntas = [] if tabela.em_cima else juntas %}
 {% if tabela.sel is defined %}<p class="aviso info sel-aviso">Tabelas de baixo só com {{ tabela.sel_rotulo or 'a linha escolhida' }}. <a href="{{ base }}{{ fq }}">Mostrar todas</a></p>
-{% elif tabela.sel_col is defined and tabela.sel_col is not none and juntas and tabela.total_linhas %}<p class="como">Toque no número do pedido para ver só ele nas tabelas de baixo.</p>{% endif %}
+{% elif tabela.sel_col is defined and tabela.sel_col is not none and juntas and tabela.total_linhas %}<p class="como">Passe o mouse no número do pedido para ver os dados dele; clique para ver só ele nas tabelas de baixo.</p>{% endif %}
 {% if juntas %}<div class="juntas">{% endif %}
 {% for j in juntas %}
 <section class="junta"><h2>{{ j.titulo }} <small>{{ j.total_linhas }} {{ "linha" if j.total_linhas == 1 else "linhas" }}</small></h2>
-  {{ grade(j, "", "", "Nenhuma linha ligada às linhas de cima.") }}
+  {{ grade(j, "", "", "Nenhuma linha ligada às linhas de cima.", junta=(tabela.sel_col is defined and tabela.sel_col is not none)) }}
   {% if j.mais %}<p class="como">Mostrando as primeiras 200 linhas.</p>{% endif %}
 </section>
 {% endfor %}
 {% if juntas %}</div>{% endif %}
+{% if tabela.sel_col is defined and tabela.sel_col is not none %}<div id="pop-pedido" class="pop-pedido" role="tooltip" hidden></div><script src="/static/popup_pedido.js"></script>{% endif %}
 {% if csvs %}
 <section class="csvs-protheus" aria-label="Arquivos para importar no Protheus">
   <h2>Arquivos para importar no Protheus <small>{{ csvs|length }} {{ "arquivo" if csvs|length == 1 else "arquivos" }}, últimos 30 dias</small></h2>

@@ -58,7 +58,8 @@ def test_T0020_pedidos_juntas_lado_a_lado_titulo_sem_aba_e_sem_rotulo_estado(adm
     assert '<span class="f-rot">Estado</span>' not in corpo
     import re
     ocultas = re.findall(r'<th class="[^"]*\boc\b[^"]*"><a [^>]*>([^<]+)</a>', corpo)
-    assert ocultas == ["RAZÃO SOCIAL"]                       # só ela some; FANTASIA e as datas ficam
+    assert "RAZÃO SOCIAL" in ocultas and "FANTASIA" not in ocultas   # T-0028: FANTASIA fica; o resto vai ao popup
+    assert "DT. PED" not in ocultas and "FATURAR ATÉ" not in ocultas
 
 
 def test_T0020_baixado_do_erp_so_quando_difere_do_pacote(admin):
@@ -82,5 +83,23 @@ def test_T0028_juntas_numa_linha_so_no_pc_e_empilhadas_no_celular():
     from pathlib import Path
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
     assert ".juntas{display:flex;flex-wrap:nowrap" in css
-    assert ".juntas .junta{flex:1 1 0;max-width:100%;min-width:0" in css
+    assert ".juntas .junta{flex:1 1 auto;max-width:100%;min-width:0" in css
     assert "@media(max-width:900px){.juntas{flex-wrap:wrap}.juntas .junta{flex-basis:100%}}" in css
+
+
+def test_T0028_pedidos_sem_rolagem_com_popup_e_juntas_enxutas(admin):
+    """T-0028: tabela de Pedidos sem rolagem, colunas extras só no popup (data-pop), script do popup na página e
+    as tabelas de baixo sem UF, CIDADE, FORN. e CLIENTE (o popup já mostra)."""
+    import json, html as _h, re
+    assert postar(admin, pacote_tres_farois()).status_code == 200
+    h = admin.get("/farol/pv_pedidos?aba=pedidos").text
+    corpo = h.split("<main")[1]
+    assert 'rolagem-dados sem-rolagem' in corpo and '/static/popup_pedido.js' in corpo and 'id="pop-pedido"' in corpo
+    pops = re.findall(r'data-pop="([^"]*)"', corpo)
+    assert pops
+    nomes = [p[0] for p in json.loads(_h.unescape(pops[0]))]
+    assert "LIMITE" in nomes and "COND. PAGTO" in nomes        # vai ao popup
+    cab = corpo.split('<table')[1].split('</thead>')[0]
+    assert '<th class=" oc"><a' in cab or ' oc"' in cab           # e sai da grade
+    juntas = corpo.split('<div class="juntas">')[1]
+    assert juntas.count('<th class=" oc">CIDADE</th>') + juntas.count('<th class=" oc">UF</th>') >= 2

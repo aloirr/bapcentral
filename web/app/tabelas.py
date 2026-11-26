@@ -788,6 +788,45 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
     }
 
 
+# T-0028 (Alexandre, 26/11: "não gosto de barra de rolagem"; "passar o mouse no pedido deve aparecer um popup com os
+# dados do pedido"): na tabela de cima que liga as de baixo, estas colunas saem da grade e vão para o popup do pedido
+NO_POPUP = ("PED. MÁX.", "CÓD.", "FANTASIA", "LIMITE", "DISP.", "ATRASO", "VOL.", "R$ TABELA",
+            "COND. PAGTO", "FILIAL", "PRAZO", "NF", "DT. NF")
+
+
+def colunas_no_popup(tab: dict) -> set[int]:
+    """T-0028: posições (na tela) das colunas que só aparecem no popup do pedido; só na tabela com `sel_col`."""
+    if tab.get("sel_col") is None:
+        return set()
+    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    fora = {i for i, n in enumerate(nomes) if n in NO_POPUP and i != tab["sel_col"]}
+    # um nome de cliente só na grade: a FANTASIA quando vem em todas as linhas (regra de 25/11), senão a RAZÃO SOCIAL
+    razao = colunas_ocultas(tab)
+    if razao:
+        fora = (fora - {i for i, n in enumerate(nomes) if n.startswith("FANTASIA")}) | razao
+    return fora
+
+
+# T-0028: nas tabelas de baixo do Farol de Pedidos (lado a lado, sem rolagem) saem as colunas que o popup do pedido
+# já mostra; o dado continua na página (o popup lê os itens do Analítico) e no Excel
+FORA_DAS_JUNTAS = ("UF", "CIDADE", "FORN.", "CLIENTE")
+
+
+def colunas_fora_da_junta(tab: dict) -> set[int]:
+    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    return colunas_ocultas(tab) | {i for i, n in enumerate(nomes) if n in FORA_DAS_JUNTAS}
+
+
+def dados_do_popup(tab: dict, linha: dict) -> list[list[str]]:
+    """T-0028: [nome, texto] de cada coluna da linha (as da grade e as do popup), sem as vazias."""
+    out = []
+    for c, v in zip(tab.get("cols") or [], linha.get("cel") or []):
+        t = str((v or {}).get("t", "")).strip()
+        if t and t != "—":
+            out.append([str(c.get("nome", "")), t])
+    return out
+
+
 def colunas_ocultas(tab: dict) -> set[int]:
     """T-0020 (decisão do Alexandre, 25/11/2026): posições, na tela, das colunas que só repetem outra.
     Hoje só a RAZÃO SOCIAL, quando a tabela tem FANTASIA preenchida em todas as linhas da tela (a razão

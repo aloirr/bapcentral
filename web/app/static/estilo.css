@@ -265,10 +265,9 @@ footer{color:#5E6B62}
 /* T-0020: coluna que só repete outra não aparece; tabelas de baixo lado a lado, como no farol do PC */
 .oc{display:none}
 .juntas{display:flex;flex-wrap:nowrap;gap:14px;align-items:flex-start;margin:1rem 0}
-.juntas .junta{flex:1 1 0;max-width:100%;min-width:0;margin:0;background:#fff;border-radius:12px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;padding:10px 12px}
+.juntas .junta{flex:1 1 auto;max-width:100%;min-width:0;margin:0;background:#fff;border-radius:12px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;padding:10px 12px}
 .juntas .junta h2{font-size:.9rem;font-weight:600;color:#4A564E}
-.juntas .rolagem-dados{max-height:420px;box-shadow:none;border-radius:0}
-.juntas .tab-dados{width:auto;min-width:100%}
+.juntas .rolagem-dados{box-shadow:none;border-radius:0}
 .juntas .tab-dados th,.juntas .tab-dados td{padding:.25rem .45rem;font-size:.8rem}
 .juntas .dica-rolagem{display:none}
 @media(max-width:900px){.juntas{flex-wrap:wrap}.juntas .junta{flex-basis:100%}}
@@ -320,3 +319,26 @@ footer{color:#5E6B62}
 .busca-tab .busca-rot{display:flex;align-items:center;gap:.5rem;font-weight:600;color:#4A564E}
 .busca-tab input[type=search]{min-width:min(320px,70vw);min-height:40px}
 .busca-tab a{color:#2F7D32;font-weight:600}
+/* T-0028: sem barra de rolagem no Farol de Pedidos (tabela de cima e as de baixo); o resto vai ao popup do pedido */
+.rolagem-dados.sem-rolagem{max-height:none;overflow:visible}
+.sem-rolagem .tab-dados{width:100%}
+.sem-rolagem .tab-dados th,.sem-rolagem .tab-dados td{padding:.3rem .4rem;font-size:.8rem}
+.sem-rolagem .tab-dados th:first-child,.sem-rolagem .tab-dados td:first-child{position:static}
+.juntas .rolagem-dados{max-height:none;overflow:visible}
+.juntas .tab-dados{width:100%;min-width:0}
+.juntas .tab-dados th{white-space:normal;overflow-wrap:normal;vertical-align:bottom}
+.juntas .tab-dados th a{white-space:normal}
+.juntas .tab-dados td{white-space:normal;overflow-wrap:normal;word-break:normal}.juntas .tab-dados td.num{white-space:nowrap}.juntas .tab-dados td.livre{min-width:7rem}
+.juntas .tab-dados th,.juntas .tab-dados td{padding:.22rem .35rem;font-size:.74rem}
+.juntas .rolagem-dados{overflow-x:auto}
+@media(max-width:1600px){.juntas{gap:8px}.juntas .junta{padding:8px}.juntas .tab-dados th,.juntas .tab-dados td{font-size:.68rem;padding:.18rem .25rem}}
+@media(max-width:1400px){.juntas .tab-dados th,.juntas .tab-dados td{font-size:.64rem;padding:.16rem .2rem}}
+.juntas .tab-dados th:first-child,.juntas .tab-dados td:first-child{position:static}
+.pop-pedido{position:fixed;z-index:50;max-width:min(560px,calc(100vw - 16px));background:#fff;border-radius:10px;box-shadow:0 6px 24px #00000033,0 0 0 1px #E6EAE5;padding:10px 12px;font-size:.8rem;pointer-events:none}
+.pop-pedido h3{margin:0 0 .4rem;font-size:.95rem;color:#2F7D32}
+.pop-pedido h4{margin:.6rem 0 .2rem;font-size:.8rem;color:#4A564E}
+.pop-dados{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:2px 10px;margin:0}
+.pop-dados dt{color:#667;font-weight:600}.pop-dados dd{margin:0}
+.pop-itens{border-collapse:collapse;width:100%}.pop-itens th,.pop-itens td{padding:2px 6px;border-bottom:1px solid #eef1ee;text-align:left}
+.pop-itens .num{text-align:right}
+@media(max-width:600px){.sem-rolagem .tab-dados{display:block;overflow-x:auto}.pop-dados{grid-template-columns:auto 1fr}}

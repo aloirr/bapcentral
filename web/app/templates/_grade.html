@@ -2,17 +2,17 @@
 {% macro celula(v) %}{% if v.b %}<span class="atend"><span class="atend-trilho"><i style="width:{{ v.b.w }}%;background:{{ v.b.f }}"></i></span><b>{{ v.t }}</b></span>{% elif v.f %}<span class="selo" style="background:{{ v.f }};color:{{ v.c }}">{{ v.t }}</span>{% else %}{{ v.t }}{% endif %}{% endmacro %}
 {# T-0021: botão de editar (admin) e marca "Aguardando o PC" / "O PC recusou" numa coluna à esquerda #}
 {% macro edcel(e) %}{% if e.url %}<a class="bt-ed" href="{{ e.url }}">Editar</a>{% elif e.sem_chave %}<span class="ed-nao" title="Nota concluída (anterior ao controle de 01/10/2026).">—</span>{% endif %}{% if e.marca == 'pendente' %}<span class="ed-marca ed-pend" title="{{ e.dica }}">Aguardando o PC</span>{% elif e.marca == 'erro' %}<span class="ed-marca ed-erro" title="{{ e.dica }}">O PC recusou</span>{% endif %}{% endmacro %}
-{% macro grade(tab, base="", fq="", vazio="Nenhuma linha neste filtro.") %}
-{% set oc = ocultas(tab) %}
+{% macro grade(tab, base="", fq="", vazio="Nenhuma linha neste filtro.", junta=false) %}
 {% set ed = tab.edicao if tab.edicao is defined else none %}
 {% set sc = tab.sel_col if (base and tab.sel_col is defined) else none %}
-{% if tab.linhas and (tab.cols|length - oc|length) > 6 %}<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>{% endif %}
-<div class="rolagem rolagem-dados"><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
+{% set oc = no_popup(tab) if sc is not none else (fora_da_junta(tab) if junta else ocultas(tab)) %}
+{% if tab.linhas and sc is none and not junta and (tab.cols|length - oc|length) > 6 %}<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>{% endif %}
+<div class="rolagem rolagem-dados{{ ' sem-rolagem' if sc is not none }}"><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
   <thead>{% if tab.grupos %}<tr class="grupos">{% for g in tab.grupos %}<th colspan="{{ g.n }}" class="{{ 'g-um' if g.n == 1 }}">{{ g.nome }}</th>{% endfor %}</tr>{% endif %}<tr>{% if ed %}<th class="ed-col">{{ ed.cab if ed.admin else "Edição" }}</th>{% endif %}{% for c in tab.cols %}
     {% if base %}{% set prox = 'desc' if (tab.ord == c.i and not tab.desc) else 'asc' %}
     <th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}"><a href="{{ base }}&amp;ord={{ c.i }}&amp;dir={{ prox }}{{ fq }}">{{ c.nome }}{{ ' ▲' if tab.ord == c.i and not tab.desc }}{{ ' ▼' if tab.ord == c.i and tab.desc }}</a></th>
     {% else %}<th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}">{{ c.nome }}</th>{% endif %}{% endfor %}</tr></thead>
-  <tbody>{% for l in tab.linhas %}<tr class="tom-{{ l.tom }}{{ ' sel' if (tab.sel is defined and tab.sel == l.k) }}">{% if ed %}<td class="ed-col">{{ edcel(l.ed) }}</td>{% endif %}{% for v in l.cel %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' inteira' if tab.cols[loop.index0].inteira }}{{ ' livre' if tab.cols[loop.index0].livre }}{{ ' oc' if loop.index0 in oc }}">{% if sc is not none and loop.index0 == sc %}<a class="sel-link" href="{{ base }}{{ fq }}&amp;sel={{ l.k }}" title="Só este nas tabelas de baixo">{{ celula(v) }}</a>{% else %}{{ celula(v) }}{% endif %}</td>{% endfor %}</tr>
+  <tbody>{% for l in tab.linhas %}<tr class="tom-{{ l.tom }}{{ ' sel' if (tab.sel is defined and tab.sel == l.k) }}">{% if ed %}<td class="ed-col">{{ edcel(l.ed) }}</td>{% endif %}{% for v in l.cel %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' inteira' if tab.cols[loop.index0].inteira }}{{ ' livre' if tab.cols[loop.index0].livre }}{{ ' oc' if loop.index0 in oc }}">{% if sc is not none and loop.index0 == sc %}<a class="sel-link" href="{{ base }}{{ fq }}&amp;sel={{ l.k }}" data-pop="{{ dados_popup(tab, l)|tojson|forceescape }}">{{ celula(v) }}</a>{% else %}{{ celula(v) }}{% endif %}</td>{% endfor %}</tr>
   {% else %}<tr><td colspan="{{ tab.cols|length + (1 if ed else 0) }}">{{ vazio }}</td></tr>{% endfor %}</tbody>
   {% if tab.total %}<tfoot><tr>{% if ed %}<td class="ed-col"></td>{% endif %}{% for v in tab.total %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' oc' if loop.index0 in oc }}"><b>{{ v.t }}</b></td>{% endfor %}</tr></tfoot>{% endif %}
 </table></div>
