@@ -1,10 +1,12 @@
 {% from "_grade.html" import grade %}
+{% from "_acoes.html" import acoes with context %}
 {% from "_estados.html" import cartoes %}
 {% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
 {% set uf_q = ('&uf=' ~ uf) if (uf is defined and uf) else '' %}
 {% set base0 = '/farol/' ~ rid ~ '?aba=' ~ aba %}
 {% set base = base0 ~ sub_q ~ uf_q %}
 <header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tabela.total_linhas %}<span>{{ tabela.total_linhas }} {{ "linha" if tabela.total_linhas == 1 else "linhas" }}</span>{% endif %}</header>
+{{ acoes(rid, parcial=parcial, exportar=True) }}
 {% if ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
   <a href="{{ base0 }}{{ sub_q }}" class="{{ 'ativa' if not uf }}">BAP inteira</a>
