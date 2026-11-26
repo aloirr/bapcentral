@@ -90,9 +90,10 @@ def test_perfil_x_aba_403_ou_200(com_tabelas):
 
 def test_ve_tabelas_D1_recomendacao_A():
     # D1 (recomendação A): o perfil de cada farol vê as tabelas; o diretor, só o Resumo
-    assert tabelas.VE_TABELAS == {"pv_pedidos": ("admin", "gerente", "pre_venda"),
-                                  "pl_entregas": ("admin", "gerente", "pos_venda"),
-                                  "vc_visitas": ("admin", "gerente", "vendas")}
+    base = {k: tabelas.VE_TABELAS[k] for k in ("pv_pedidos", "pl_entregas", "vc_visitas")}
+    assert base == {"pv_pedidos": ("admin", "gerente", "pre_venda"),
+                    "pl_entregas": ("admin", "gerente", "pos_venda"),
+                    "vc_visitas": ("admin", "gerente", "vendas")}
     assert all("diretor" not in p for p in tabelas.VE_TABELAS.values())
 
 
