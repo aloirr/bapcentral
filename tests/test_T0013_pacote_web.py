@@ -208,8 +208,14 @@ def _vc_painel_ficticio(visoes=("res", "prod", "du"), outras=True):
 
 # Lista branca fixa (R-20261124-175008-alexandre): os 4 faróis do PC que podem
 # ir para a web. Qualquer outro id em FAROIS_WEB é defeito.
+# T-0022: + o Farol de Metas (vc_meta), por decisão do Alexandre (24/11)
 LISTA_FAROIS_WEB = frozenset({"pv_pedidos", "vc_visitas", "pl_entregas",
-                              "pl_inadimplencia"})
+                              "pl_inadimplencia", "vc_meta"})
+# abas do Painel que o robô leva: aceita o estado antigo (2) e o da T-0022 (3)
+_MAPA_ABAS = getattr(ba, "_ABAS_WEB", {"res": "resultado", "prod": "produtividade"})
+_ABAS_PAINEL = set(_MAPA_ABAS.values())
+_VISOES_PAINEL = set(_MAPA_ABAS)
+_COM_DU = "du" in _VISOES_PAINEL
 # relatório montado no PC que nunca vai para a web (fora da lista branca)
 FORA_DA_LISTA = "pl_garantias"
 
@@ -252,8 +258,7 @@ def test_T0013_criterio1_pacote_so_tem_tipos_json():
                            "relatorios"}
     assert pacote["ano"] == 2026 and pacote["mes"] == 11
     assert isinstance(pacote["versao_contrato"], int)
-    assert set(pacote["relatorios"]["vc_painel"]["abas"]) == {
-        "resultado", "produtividade"}
+    assert set(pacote["relatorios"]["vc_painel"]["abas"]) == _ABAS_PAINEL
 
 
 def test_T0013_criterio1_para_json_conversoes_de_valor():
@@ -372,13 +377,13 @@ def test_T0013_escopo_vc_painel_e_farois_web_sem_linhas_cruas():
     assert "NAO-VAI-INAD" not in texto
     assert "NAO-VAI-TABELA" not in texto            # tabelas do vc_painel
     vc = pacote["relatorios"]["vc_painel"]
-    assert set(vc) == {"titulo", "abas"}            # sem aviso: as 2 vieram
+    assert {"titulo", "abas"} <= set(vc) and "avisos" not in vc   # sem aviso: as abas vieram
     assert vc["titulo"] == "Visão comercial (fictício)"
 
 
 def test_T0013_escopo_selecionar_abas_resultado_e_produtividade():
     sel = ba.selecionar_abas_web(_vc_painel_ficticio())
-    assert set(sel["abas"]) == {"resultado", "produtividade"}
+    assert set(sel["abas"]) == _ABAS_PAINEL
     assert "avisos" not in sel
     for chave, vis, tit in (("resultado", "res", "Painel · resultado"),
                             ("produtividade", "prod",
@@ -400,12 +405,13 @@ def test_T0013_escopo_selecionar_abas_resultado_e_produtividade():
 def test_T0013_escopo_aba_du_e_abas_nao_rrm_ficam_fora():
     pacote = ba.montar_pacote_web(_resultados_ficticios(), 2026, 11, AGORA)
     texto = json.dumps(pacote, ensure_ascii=False)
-    assert "por dia útil" not in texto
-    assert "NAO-VAI-DU" not in texto and "NAO-VAI-SUB-DU" not in texto
+    if not _COM_DU:                                  # antes da T-0022 a aba DU ficava fora
+        assert "por dia útil" not in texto
+        assert "NAO-VAI-DU" not in texto and "NAO-VAI-SUB-DU" not in texto
     assert "Vendas por estado" not in texto
     assert "cópia sem RRM" not in texto
     for aba in pacote["relatorios"]["vc_painel"]["abas"].values():
-        assert aba["painel"]["blocos"][0]["visao"] in ("res", "prod")
+        assert aba["painel"]["blocos"][0]["visao"] in _VISOES_PAINEL
 
 
 def test_T0013_escopo_dados_so_da_visao_da_aba_sem_diretor():
@@ -433,7 +439,9 @@ def test_T0013_escopo_dados_so_da_visao_da_aba_sem_diretor():
 ])
 def test_T0013_escopo_aviso_quando_falta_uma_das_abas(visoes, faltando):
     sel = ba.selecionar_abas_web(_vc_painel_ficticio(visoes))
-    assert set(sel["abas"]) == {"resultado", "produtividade"} - set(faltando)
+    vindas = {c for v, c in _MAPA_ABAS.items() if v in visoes}
+    faltando = [c for c in _MAPA_ABAS.values() if c not in vindas]           # o que falta depende das abas do robô
+    assert set(sel["abas"]) == vindas
     assert len(sel["avisos"]) == len(faltando)
     for chave, aviso in zip(faltando, sel["avisos"]):
         assert chave in aviso
@@ -445,7 +453,7 @@ def test_T0013_escopo_aviso_quando_falta_uma_das_abas(visoes, faltando):
 def test_T0013_escopo_sem_paineis_ou_entrada_vazia_nao_levanta():
     for r in (None, {}, {"paineis": None}, {"paineis": ["x", 1, None]}):
         sel = ba.selecionar_abas_web(r)
-        assert sel["abas"] == {} and len(sel["avisos"]) == 2
+        assert sel["abas"] == {} and len(sel["avisos"]) == len(_ABAS_PAINEL)
 
 
 def test_T0013_escopo_aba_achada_pelo_titulo_sem_visao():
@@ -549,16 +557,16 @@ def test_T0013_coletar_chama_montar_vc_painel_e_farois_web(monkeypatch):
     import relatorios_nucleo
     chamadas = []
 
-    def _montar(rid, pasta, params=None):
+    def _montar(rid, pasta, params=None, **_kw):
         chamadas.append((rid, params))
         return {"id": rid}
     monkeypatch.setattr(relatorios_nucleo, "montar", _montar)
     saida = ba.coletar_relatorios_web(2026, 11)
     params = {"ANO": "2026", "MÊS": "11"}
     farois = _farois_web()
-    assert set(saida) == {"vc_painel", *farois}
-    assert chamadas == [("vc_painel", params)] + [(rid, params)
-                                                   for rid in farois]
+    assert {"vc_painel", *farois} <= set(saida)      # T-0022 soma os recortes por estado (_uf)
+    assert [c for c in chamadas if c[1] == params] == [("vc_painel", params)] + [
+        (rid, params) for rid in farois]
 
 
 def test_T0013_passo_pacote_web_simulado_grava_sem_enviar(monkeypatch,
