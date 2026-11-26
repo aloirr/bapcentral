@@ -6,10 +6,10 @@ from farol_fixture import pacote_tres_farois
 def test_busca_por_pedido_filtra_a_tabela_e_segue_na_paginacao(admin):
     assert postar(admin, pacote_tres_farois()).status_code == 200
     h = admin.get("/farol/pv_pedidos?aba=pedidos").text
-    assert 'name="busca"' in h and "Pedido, cliente, produto" in h
+    assert 'name="busca"' in h and ("Pedido, cliente, produto" in h or "Buscar pedido, cliente ou produto" in h)  # T-0030: BC3
     h = admin.get("/farol/pv_pedidos?aba=pedidos&busca=900104").text
     corpo = h.split("<main")[1]
-    assert "900104" in corpo and "<span>1 linha</span>" in corpo
+    assert "900104" in corpo and ("<span>1 linha</span>" in corpo or "<span>· 1</span>" in corpo)   # T-0030: BC3
     assert "Limpar busca" in corpo and "busca=900104" in corpo          # links de ordenar levam a busca
 
 

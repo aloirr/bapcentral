@@ -162,6 +162,33 @@ INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
+# T-0030: faróis que já usam o visual BC3 (barra lateral + faixa verde, uma tela só no PC, lista que abre no
+# celular). O Farol de Pedidos vai primeiro; os outros entram na mesma lista.
+BC3 = {"pv_pedidos"}
+GRUPOS_MENU = (("Pré-venda", ("pv_pedidos",)), ("Pós-venda", ("pl_entregas", "pl_inadimplencia")),
+               ("Vendas", ("vc_visitas", "vc_meta")))
+
+
+def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
+                 admin: bool = False) -> list[dict]:
+    """T-0030: os grupos da barra lateral, só com o que o perfil vê (mesma regra do menu da página inicial)."""
+    meus = dict(farois_do_perfil(perfil))
+    grupos = []
+    if painel:
+        grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
+                                                       "ativo": ativo == "painel"}]})
+    for nome, rids in GRUPOS_MENU:
+        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": meus[r], "ativo": r == ativo}
+                 for r in rids if r in meus]
+        if itens:
+            grupos.append({"nome": nome, "itens": itens})
+    conta = [{"href": "/senha", "nome": "Trocar senha", "ativo": False}]
+    if admin:
+        conta.insert(0, {"href": "/usuarios", "nome": "Usuários", "ativo": False})
+    grupos.append({"nome": "Conta", "itens": conta})
+    return grupos
+
+
 def farois_do_perfil(perfil: str) -> list[tuple[str, str]]:
     return [(rid, nome) for rid, (nome, perfis) in FAROIS.items() if perfil in perfis]
 
