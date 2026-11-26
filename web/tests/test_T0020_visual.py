@@ -75,3 +75,12 @@ def test_T0020_visual_c_marca_bap_sem_azul_nem_laranja():
     assert "data:image/png;base64," in bloco and "#2F7D32" in bloco and ".juntas{display:flex" in bloco
     for cor in ("#0b3a6b", "#e8590c"):                      # azul-marinho e laranja de antes
         assert cor not in bloco.lower()
+
+
+def test_T0028_juntas_numa_linha_so_no_pc_e_empilhadas_no_celular():
+    """T-0028: Gerar ID CD, Reversa e Analítico lado a lado no PC (sem quebra), uma embaixo da outra até 900 px."""
+    from pathlib import Path
+    css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
+    assert ".juntas{display:flex;flex-wrap:nowrap" in css
+    assert ".juntas .junta{flex:1 1 0;max-width:100%;min-width:0" in css
+    assert "@media(max-width:900px){.juntas{flex-wrap:wrap}.juntas .junta{flex-basis:100%}}" in css

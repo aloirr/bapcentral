@@ -264,14 +264,14 @@ footer{color:#5E6B62}
 .hb-trilho{border-radius:7px;overflow:hidden;background:#EEF1EE}
 /* T-0020: coluna que só repete outra não aparece; tabelas de baixo lado a lado, como no farol do PC */
 .oc{display:none}
-.juntas{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;margin:1rem 0}
-.juntas .junta{flex:1 1 auto;max-width:100%;min-width:300px;margin:0;background:#fff;border-radius:12px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;padding:10px 12px}
+.juntas{display:flex;flex-wrap:nowrap;gap:14px;align-items:flex-start;margin:1rem 0}
+.juntas .junta{flex:1 1 0;max-width:100%;min-width:0;margin:0;background:#fff;border-radius:12px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;padding:10px 12px}
 .juntas .junta h2{font-size:.9rem;font-weight:600;color:#4A564E}
 .juntas .rolagem-dados{max-height:420px;box-shadow:none;border-radius:0}
 .juntas .tab-dados{width:auto;min-width:100%}
 .juntas .tab-dados th,.juntas .tab-dados td{padding:.25rem .45rem;font-size:.8rem}
 .juntas .dica-rolagem{display:none}
-@media(max-width:600px){.juntas .junta{min-width:0;flex-basis:100%}}
+@media(max-width:900px){.juntas{flex-wrap:wrap}.juntas .junta{flex-basis:100%}}
 @media(max-width:600px){main{padding:.6rem}.topo{padding:.5rem .8rem}.aviso.info{padding:.3rem .8rem 0}.cob{min-width:0}}
 /* T-0026: ações do farol (parcial e exportar) e a imagem da parcial */
 .acoes-farol{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.2rem 0 .8rem}
