@@ -15,7 +15,7 @@ import math
 import re
 import unicodedata
 
-from . import render
+from . import edicoes, render
 from .render import COLUNAS_FORA, RE_DATA, coluna_fora, fmt_celula   # a lista e o formato são do render (fonte única)
 
 # ------------------------------------------------------------------ D1: quem vê as tabelas
@@ -345,6 +345,8 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
         return "titulo inesperado"
     permitidas = (set(CHAVES_TABELA) | ({"juntas", "subabas"} if nivel == "aba" else set())
                   | (CHAVES_META if rid == "vc_meta" else set()))
+    if (rid, titulo) in edicoes.LUGARES and nivel != "sub":
+        permitidas.add("edicao")                        # T-0021: edição na web (só o admin)
     if nivel == "sub":
         permitidas = {"titulo", "colunas", "linhas", "tons", "filtros", "total"}
     extra = set(t) - permitidas
@@ -401,6 +403,10 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
         return "uf_linhas inválidas"
     if t.get("zebra") is not None and not isinstance(t["zebra"], bool):
         return "zebra inválida"
+    if "edicao" in t:
+        e = edicoes.erro_spec(rid, titulo, t["edicao"], [c["nome"] for c in cols], len(linhas))
+        if e:
+            return e
     if rid == "vc_meta":
         erro = _meta_erro(t, n)
         if erro:
@@ -503,7 +509,7 @@ def _juntas_erro(t, titulo_aba, rid) -> str | None:
         tq, tt, liga = esperado[pos]
         if j.get("liga") != liga:
             return "junta com liga diferente do contrato"
-        e = _tabela_erro(j["tabela"], tt, "junta")
+        e = _tabela_erro(j["tabela"], tt, "junta", rid)
         if e:
             return "junta: " + e
         nomes = [c["nome"] for c in j["tabela"]["colunas"]]
@@ -665,7 +671,7 @@ def _celula_tela(v, k, row, cols, tipo, centavos):
 def _tela_basica(t, idxs, vista, centavos):
     cols = t["colunas"]
     tons = t.get("tons") or []
-    return [{"tom": tons[k] if k < len(tons) else "",
+    return [{"tom": tons[k] if k < len(tons) else "", "k": k,
              "cel": [_celula_tela(t["linhas"][k][c], c, t["linhas"][k], cols, cols[c]["tipo"], centavos)
                      for c in vista]} for k in idxs]
 
@@ -719,6 +725,10 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
         idxs = [k for k in idxs if ufl[k] == uf]
     for i, sel in aplicar:
         idxs = [k for k in idxs if str(todas[k][i]) in sel]
+    # busca livre (pedido do Alexandre, 26/11: "cadê o filtro por pedido?"): pedido, cliente, produto...
+    busca = " ".join(str(consulta.get("busca", [""])[0]).split()).upper()[:60]
+    if busca:
+        idxs = [k for k in idxs if any(busca in str(v).upper() for v in todas[k] if v is not None)]
     # recortes (§11.4): índices prontos do PC
     recs = t.get("recortes_linhas") or []
     try:
@@ -771,7 +781,8 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
         "total": ([_celula_tela(tot[c], c, tot, cols, cols[c]["tipo"], centavos) for c in vista]
                   if mostra_total else None),
         "filtros": filtros, "ord": j, "desc": desc, "recortes": recortes, "rec": rec,
-        "padrao": padrao, "filtrado": rec is not None or any(set(f["sel"]) != set(f["padrao"]) for f in filtros),
+        "padrao": padrao and not busca, "busca": busca,
+        "filtrado": rec is not None or bool(busca) or any(set(f["sel"]) != set(f["padrao"]) for f in filtros),
         "uf_aplicada": uf_aplicada, "zebra": bool(t.get("zebra")),
         "idxs": idxs,                                   # as linhas visíveis (todas as páginas), para as juntas
     }
@@ -812,7 +823,8 @@ def juntas_para_tela(t: dict, idxs: list[int], uf: str | None = None, centavos: 
         nomes = [c["nome"] for c in jt["colunas"]]
         mostrar = j.get("mostrar")
         vista = [k for k, c in enumerate(jt["colunas"]) if not c.get("oculta") and (not mostrar or c["nome"] in mostrar)]
-        out.append({"titulo": j.get("titulo") or jt.get("titulo", ""), "total_linhas": len(ks),
+        out.append({"titulo": j.get("titulo") or jt.get("titulo", ""), "tabela": jt.get("titulo", ""),
+                    "total_linhas": len(ks),
                     "mais": len(ks) > JUNTA_MAX, "cols": _cabecalho(jt, vista), "grupos": _grupos_tela(jt, vista),
                     "linhas": _tela_basica(jt, ks[:JUNTA_MAX], vista, centavos)})
     return out

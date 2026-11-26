@@ -8,7 +8,7 @@ import os
 import secrets
 from datetime import date, datetime
 from pathlib import Path
-from urllib.parse import parse_qs, quote
+from urllib.parse import parse_qs, quote, urlencode
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, cobranca, config, exportar, pacotes, render, tabelas
+from . import VERSAO, cobranca, config, edicoes, exportar, pacotes, render, tabelas
 from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 
 log = logging.getLogger("bap_web")
@@ -26,7 +26,7 @@ MANAUS = ZoneInfo("America/Manaus")
 VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
 RELATORIO = ("vc_painel", "Painel Executivo")
 FORM_MAX = 16 * 1024
-ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca")   # saúde e robô seguem; as telas param
+ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca", "/api/edicoes")   # saúde e robô seguem; as telas param
 
 
 def hoje_local() -> date:
@@ -78,6 +78,7 @@ def criar_app() -> FastAPI:
     modelos.env.globals["datas_proximas"] = render.datas_proximas  # T-0020: uma data só
     diario = cobranca.Diario(cfg.dados)
     diario.limpar()                                   # §10.6.5: também quando o app sobe
+    fila = edicoes.Fila(cfg.dados)                    # T-0021: edições da web, só acréscimo
 
     app = FastAPI(title="BAP Central", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(SessionMiddleware, secret_key=cfg.segredo, session_cookie="bap_sessao",
@@ -304,7 +305,8 @@ def criar_app() -> FastAPI:
         com_aba = [(c, tit) for c, tit in tabelas.ABAS[rid] if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
         barra = [tabelas.RESUMO] + com_aba if com_aba else []
         ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo",
-                   parcial=bool(rel.get("parciais")) and perfil in PERFIS_PARCIAL.get(rid, ()))
+                   parcial=bool(rel.get("parciais")) and perfil in PERFIS_PARCIAL.get(rid, ()),
+                   csvs=csvs_de(rel, rid, perfil) if aba in ("pedidos", "solicitacao") else [])
         topo = render.farol_para_tela(rel, (uf[:4] if aba == "resumo" else uf_ok) or None, rid)   # uma vez só
         if aba == "resumo":
             return pagina(request, "farol.html", tela=topo, **ctx)
@@ -324,7 +326,15 @@ def criar_app() -> FastAPI:
             sub = tab["sub"]
         else:
             tab = tabelas.tabela_para_tela(t, consulta, uf=uf_ok or None)
-            juntas = tabelas.juntas_para_tela(t, tab["idxs"], uf_ok or None)
+            sel = selecao(t, tab, consulta)              # um clique no pedido: as de baixo só com ele (PC)
+            juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None)
+            volta = request.url.path + "?" + request.url.query
+            sit = fila.situacao(rid)
+            recebido = (ultimo.get() or {}).get("recebido_em")
+            tab["edicao"] = edicao_tela(rid, t["titulo"], t, tab["linhas"], u, volta, sit, recebido)
+            for j in juntas:
+                jt = next((x["tabela"] for x in t.get("juntas") or [] if x["tabela"]["titulo"] == j["tabela"]), None)
+                j["edicao"] = edicao_tela(rid, j["tabela"], jt, j["linhas"], u, volta, sit, recebido)
         # cada aba do Visita é uma página sem seletor de estado: o aviso fica em cada uma (RD-0023)
         aviso_uf = tabelas.AVISO_SEM_ESTADO if rid == "vc_visitas" else aviso_tabs_uf
         aviso_kpis = ""
@@ -339,6 +349,7 @@ def criar_app() -> FastAPI:
         uf = uf_ok
         return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis,
                       faixa=True, ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
+                      ed_enviada=edicoes.MSG_ENVIADA if consulta.get("ed") == ["1"] else "",
                       aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, titulo_aba=t["titulo"], **ctx)
 
     # ------------------------------------------------------------ T-0026: parcial em imagem e exportação
@@ -351,6 +362,23 @@ def criar_app() -> FastAPI:
         if rid not in PERFIS_PARCIAL or perfil not in PERFIS_PARCIAL[rid]:
             raise PermissionError
         return (rel_do(rid) or {}).get("parciais") or {}
+
+    def csvs_de(rel, rid, perfil):
+        """T-0021: CSVs para importar no Protheus, só em Pedidos e para quem vê as tabelas do farol (admin, gerente, pre_venda)."""
+        if rid != "pv_pedidos" or perfil not in tabelas.VE_TABELAS[rid]:
+            return []
+        return sorted(rel.get("csvs_protheus") or [], key=lambda c: c["nome"], reverse=True)
+
+    @app.get("/farol/pv_pedidos/csv/{nome}")
+    async def csv_protheus(request: Request, nome: str):
+        u = usuario(request)
+        if u["perfil"] not in tabelas.VE_TABELAS["pv_pedidos"]:
+            raise PermissionError
+        c = next((x for x in csvs_de(rel_do("pv_pedidos") or {}, "pv_pedidos", u["perfil"]) if x["nome"] == nome), None)
+        if c is None:
+            return JSONResponse({"erro": "arquivo indisponível"}, status_code=404)
+        cobranca.registrar_acesso(cfg.dados, u["login"], "pv_pedidos", "csv-protheus", "baixar")
+        return baixar(c["conteudo"].encode("utf-8"), "text/csv; charset=utf-8", c["nome"])
 
     def baixar(dados: bytes, tipo: str, nome: str, anexo: bool = True):
         cab = {"Content-Disposition": f'{"attachment" if anexo else "inline"}; filename="{nome}"',
@@ -454,6 +482,138 @@ def criar_app() -> FastAPI:
         t = tabs[0]
         rod = f"{render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(((ultimo.get() or {}).get('gerado_em')))}"
         return baixar(exportar.pdf_tabela(t, rod), "application/pdf", nome + ".pdf")
+
+    # ------------------------------------------------------------ T-0021: edição (só admin)
+    def selecao(t, tab, consulta):
+        """`sel` = linha (índice da tabela) escolhida com um clique; só nas tabelas com junta ligada."""
+        liga = next((j["liga"][1] for j in t.get("juntas") or [] if j.get("liga")), None)
+        if not liga:
+            return None
+        nomes = [c["nome"] for c in tab["cols"]]
+        tab["sel_col"] = nomes.index(liga) if liga in nomes else None
+        try:
+            sel = int(consulta.get("sel", [""])[0])
+        except ValueError:
+            return None
+        if sel not in set(tab["idxs"]):
+            return None
+        ci = [c["nome"] for c in t["colunas"]].index(liga)
+        tab["sel"], tab["sel_rotulo"] = sel, str(t["linhas"][sel][ci] or "")
+        return sel
+
+    def edicao_tela(rid, titulo, t_pc, linhas, u, volta, sit, recebido):
+        """Por linha da tela: botão de editar (admin com chave) e a marca "Aguardando o PC"/"O PC recusou".
+        Sem `edicao` no pacote, ou perfil sem edição e sem marca, a coluna não aparece."""
+        ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
+        if not isinstance(ed, dict):
+            return None
+        admin = u["perfil"] in edicoes.EDITA
+        algum = False
+        for ln in linhas:
+            ch = edicoes.chave_da_linha(ed, ln["k"])
+            s = sit.get((titulo, ch)) if ch else None
+            m = edicoes.marca(s, recebido)
+            url = (f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "chave": ch, "volta": volta})
+                   if admin and ch else "")
+            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, admin), "sem_chave": admin and not ch}
+            algum = algum or bool(m)
+        if not admin and not algum:
+            return None
+        return {"cab": ed.get("acao") or "Editar", "admin": admin}
+
+    def tabela_editavel(rid, titulo):
+        """(tabela do pacote, chave da aba) do lugar editável; (None, "") se não houver."""
+        rel = rel_do(rid)
+        if not rel or (rid, titulo) not in edicoes.LUGARES:
+            return None, ""
+        chaves = dict((tit, c) for c, tit in tabelas.ABAS.get(rid, ()))
+        for t in rel.get("tabelas") or []:
+            if t.get("titulo") == titulo:
+                return t, chaves.get(titulo, "")
+            for j in t.get("juntas") or []:
+                if (j.get("tabela") or {}).get("titulo") == titulo:
+                    return j["tabela"], chaves.get(t.get("titulo"), "")
+        return None, ""
+
+    def volta_ok(rid, v) -> str:
+        v = str(v or "").replace("&ed=1", "")
+        if (v.startswith(f"/farol/{rid}?") and len(v) <= 800 and "//" not in v and "\\" not in v
+                and not any(ch in v for ch in "\r\n<>\"'")):
+            return v
+        return f"/farol/{rid}"
+
+    def form_ctx(rid, titulo, t, aba, k, sit_linha, volta):
+        ed = t["edicao"]
+        cols, linha = t["colunas"], t["linhas"][k]
+        nomes = [c["nome"] for c in cols]
+        resumo = [render.fmt_celula(linha[i], c["tipo"]) for i, c in enumerate(cols)
+                  if not c.get("oculta") and linha[i] not in (None, "")][:6]
+        pend = (sit_linha or {}).get("valores") or {} if (sit_linha or {}).get("status") == "pendente" else {}
+        campos = []
+        for c in edicoes.campos_da_linha(ed, k):
+            v = linha[nomes.index(c["coluna"])] if c.get("coluna") in nomes else None
+            atual = edicoes.atual_txt(c, v)
+            ops = list(c["opcoes_linha"])
+            if atual and atual not in ops and c["tipo"] == "lista":
+                ops = [atual] + ops                       # como o PC: o valor de hoje entra na lista
+            isos = sorted(edicoes.iso_de_br(x) for x in ops) if c["tipo"] == "data" else []
+            campos.append({"campo": c["campo"], "rotulo": c["rotulo"], "tipo": c["tipo"], "atual": atual,
+                           "atual_iso": edicoes.iso_de_br(atual), "opcoes": ops, "sugestao": c.get("sugestao", ""),
+                           "min": isos[0] if isos else "", "max": isos[-1] if isos else "",
+                           "pendente": pend.get(c["campo"])})
+        liga = next((j for j in t.get("juntas") or [] if j.get("liga")), None)
+        ver = f"/farol/{rid}?aba={aba}&sel={k}" if liga and aba else ""      # "Ver pedido", como no PC
+        return dict(farol_nome=render.FAROIS[rid][0], rid=rid, tab=titulo, chave=ed["chaves"][k],
+                    acao=ed.get("acao") or "Editar", resumo=resumo, campos=campos, volta=volta,
+                    ver_pedido=ver, sit=sit_linha, noindex=True)
+
+    @app.get("/farol/{rid}/editar", response_class=HTMLResponse)
+    async def editar_get(request: Request, rid: str, tab: str = "", chave: str = "", volta: str = ""):
+        u = usuario(request)
+        if rid not in render.FAROIS or u["perfil"] not in edicoes.EDITA:
+            raise PermissionError                       # só o admin edita (decisão de 25/11)
+        volta = volta_ok(rid, volta)
+        t, aba = tabela_editavel(rid, tab[:80])
+        ed = (t or {}).get("edicao")
+        k = edicoes.linha_da_chave(ed, chave[:80]) if isinstance(ed, dict) else None
+        if k is None:
+            return pagina(request, "erro.html", status=404,
+                          titulo_erro="Linha não encontrada",
+                          msg="Esta linha não está mais no pacote do PC. Volte ao farol e abra de novo.")
+        sit = fila.situacao(rid).get((tab, chave))
+        return pagina(request, "editar.html", erro="", aviso="",
+                      **form_ctx(rid, tab, t, aba, k, sit, volta))
+
+    @app.post("/farol/{rid}/editar")
+    async def editar_post(request: Request, rid: str):
+        u = usuario(request)
+        if rid not in render.FAROIS or u["perfil"] not in edicoes.EDITA:
+            raise PermissionError                       # 403 antes de ler o formulário
+        f = await formulario(request)                   # CSRF errado = 403
+        tab, chave = str(f.get("tab", ""))[:80], str(f.get("chave", ""))[:80]
+        volta = volta_ok(rid, f.get("volta"))
+        t, aba = tabela_editavel(rid, tab)
+        ed = (t or {}).get("edicao")
+        k = edicoes.linha_da_chave(ed, chave) if isinstance(ed, dict) else None
+        if k is None:
+            return pagina(request, "erro.html", status=409,
+                          titulo_erro="Linha não encontrada",
+                          msg="Esta linha não está mais no pacote do PC. Volte ao farol e abra de novo.")
+        nomes = [c["nome"] for c in t["colunas"]]
+        mudou, antes, erro = edicoes.valores_do_form(ed, k, t["linhas"][k], nomes, f)
+        sit = fila.situacao(rid).get((tab, chave))
+        if erro or not mudou:
+            return pagina(request, "editar.html", status=400 if erro else 200, erro=erro,
+                          aviso="" if erro else "Nada mudou.", **form_ctx(rid, tab, t, aba, k, sit, volta))
+        try:
+            fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=chave,
+                           valores=mudou, antes=antes)
+        except OSError:
+            log.error("edição: falha ao gravar a fila")
+            return pagina(request, "editar.html", status=503, erro="Não foi possível gravar agora. Tente de novo.",
+                          aviso="", **form_ctx(rid, tab, t, aba, k, sit, volta))
+        cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba or "-", "editar")
+        return RedirectResponse(volta + ("&" if "?" in volta else "?") + "ed=1", status_code=303)
 
     @app.get("/farol/{rid}", response_class=HTMLResponse)
     async def farol(request: Request, rid: str, uf: str = "", aba: str = "resumo"):
@@ -618,6 +778,34 @@ def criar_app() -> FastAPI:
         try:
             return diario.confirmar(epoca, ate)
         except cobranca.ErroCobranca as e:
+            return JSONResponse({"erro": e.msg}, status_code=e.status)
+
+    @app.get("/api/edicoes")
+    async def api_edicoes(request: Request):
+        """T-0021: o robô lista as edições desde um seq (cada uma com o status de agora)."""
+        negado = sem_token(request)
+        if negado:
+            return negado
+        bruto = request.query_params.get("desde", "0")
+        if not (bruto.isascii() and bruto.isdigit()) or len(bruto) > 15:
+            return JSONResponse({"erro": "desde precisa ser inteiro >= 0"}, status_code=400)
+        return fila.desde(int(bruto))
+
+    @app.post("/api/edicoes/confirmar")
+    async def api_edicoes_confirmar(request: Request):
+        """T-0021: o robô confirma o que gravou no PC (aplicada) ou recusou (erro, motivo sem dado pessoal)."""
+        negado = sem_token(request)
+        if negado:
+            return negado
+        try:
+            corpo = json.loads((await request.body())[:262144])
+        except ValueError:
+            corpo = None
+        if not isinstance(corpo, dict):
+            return JSONResponse({"erro": "corpo precisa ser objeto JSON"}, status_code=400)
+        try:
+            return fila.confirmar(corpo.get("epoca"), corpo.get("resultados"))
+        except edicoes.ErroEdicao as e:
             return JSONResponse({"erro": e.msg}, status_code=e.status)
 
     @app.post("/api/pacote")

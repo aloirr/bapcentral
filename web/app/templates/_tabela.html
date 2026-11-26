@@ -13,13 +13,14 @@
   {% for u in ufs %}<a href="{{ base0 }}{{ sub_q }}&amp;uf={{ u }}" class="{{ 'ativa' if u == uf }}">{{ u }}</a>{% endfor %}
 </nav>
 {% endif %}
+{% if ed_enviada %}<p class="aviso info ed-ok" role="status">{{ ed_enviada }}</p>{% endif %}
 {% if aviso_uf %}<p class="aviso info">{{ aviso_uf }}</p>{% endif %}
 {% if kpis and not aviso_kpis %}{{ cartoes(kpis, faixa, "Sem cartões nesta aba.") }}{% endif %}
 {% if aviso_kpis %}<p class="aviso info">{{ aviso_kpis }}</p>{% endif %}
 {% if subnomes %}
 <nav class="subabas" aria-label="Abas do arquivo">{% for n in subnomes %}<a href="{{ base0 }}&amp;sub={{ loop.index0 }}{{ uf_q }}" class="{{ 'ativa' if loop.index0 == sub }}">{{ n }}</a>{% endfor %}</nav>
 {% endif %}
-{% set sem_rec %}{% for f in tabela.filtros %}{% for v in f.sel %}&{{ f.chave }}={{ v|urlencode }}{% endfor %}{% endfor %}{% endset %}
+{% set sem_rec %}{% for f in tabela.filtros %}{% for v in f.sel %}&{{ f.chave }}={{ v|urlencode }}{% endfor %}{% endfor %}{% if tabela.busca %}&busca={{ tabela.busca|urlencode }}{% endif %}{% endset %}
 {% set fq %}{{ sem_rec }}{% if tabela.rec is not none %}&rec={{ tabela.rec }}{% endif %}{% endset %}
 {% if tabela.recortes %}
 <nav class="filtros recortes" aria-label="Recortes">
@@ -28,12 +29,22 @@
   {% for r in tabela.recortes %}<a href="{{ base }}{{ sem_rec }}&amp;rec={{ r.n }}" class="{{ 'ativa' if r.ativo }}">{{ r.rotulo }} ({{ r.qtd }})</a>{% endfor %}
 </nav>
 {% endif %}
+<form method="get" action="/farol/{{ rid }}" class="busca-tab" role="search">
+  <input type="hidden" name="aba" value="{{ aba }}">
+  {% if sub is defined and sub is not none %}<input type="hidden" name="sub" value="{{ sub }}">{% endif %}
+  {% if uf is defined and uf %}<input type="hidden" name="uf" value="{{ uf }}">{% endif %}
+  {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
+  {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
+  <label class="busca-rot">Buscar <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="Pedido, cliente, produto…" maxlength="60" autocomplete="off"></label>
+  <button type="submit">Buscar</button>{% if tabela.busca %} <a href="{{ base }}{% for f in tabela.filtros %}{% for v in f.sel %}&amp;{{ f.chave }}={{ v|urlencode }}{% endfor %}{% endfor %}">Limpar busca</a>{% endif %}
+</form>
 {% if tabela.filtros and (tabela.total_linhas or not tabela.padrao) %}
 <details class="filtros-det"{{ " open" if not tabela.padrao }}><summary>Filtros</summary>
 <form method="get" action="/farol/{{ rid }}" class="filtros-tab">
   <input type="hidden" name="aba" value="{{ aba }}">
   {% if uf is defined and uf %}<input type="hidden" name="uf" value="{{ uf }}">{% endif %}
   {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
+  {% if tabela.busca %}<input type="hidden" name="busca" value="{{ tabela.busca }}">{% endif %}
   {% for f in tabela.filtros %}
   <label>{{ f.nome }}
     <select name="{{ f.chave }}"{{ ' multiple size=4' if f.multi }}>
@@ -55,6 +66,8 @@
   {% if tabela.pag < tabela.paginas %}<a href="{{ base }}{{ q }}&amp;pag={{ tabela.pag + 1 }}">Próxima »</a>{% endif %}</nav>
 {% endif %}
 {% set juntas = [] if tabela.em_cima else juntas %}
+{% if tabela.sel is defined %}<p class="aviso info sel-aviso">Tabelas de baixo só com {{ tabela.sel_rotulo or 'a linha escolhida' }}. <a href="{{ base }}{{ fq }}">Mostrar todas</a></p>
+{% elif tabela.sel_col is defined and tabela.sel_col is not none and juntas and tabela.total_linhas %}<p class="como">Toque no número do pedido para ver só ele nas tabelas de baixo.</p>{% endif %}
 {% if juntas %}<div class="juntas">{% endif %}
 {% for j in juntas %}
 <section class="junta"><h2>{{ j.titulo }} <small>{{ j.total_linhas }} {{ "linha" if j.total_linhas == 1 else "linhas" }}</small></h2>
@@ -63,3 +76,9 @@
 </section>
 {% endfor %}
 {% if juntas %}</div>{% endif %}
+{% if csvs %}
+<section class="csvs-protheus" aria-label="Arquivos para importar no Protheus">
+  <h2>Arquivos para importar no Protheus <small>{{ csvs|length }} {{ "arquivo" if csvs|length == 1 else "arquivos" }}, últimos 30 dias</small></h2>
+  <ul>{% for c in csvs %}<li><a href="/farol/pv_pedidos/csv/{{ c.nome|urlencode }}" download="{{ c.nome }}">{{ c.nome }}</a></li>{% endfor %}</ul>
+</section>
+{% endif %}
