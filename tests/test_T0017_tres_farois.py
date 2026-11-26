@@ -245,6 +245,9 @@ def test_RN_GER_006_pedidos_com_tabelas_sem_acao_com_faixa_e_vendedor(
              "kpis_de", "total_de", "totais_por", "recortes",
              "solicitacao_bap", "garantia", "importar_preenchidos",
              "ordem_exportar", "cores_celulas", "so_exportar"}
+    # T-0021: a única que vai é a especificação da edição na web (admin), na tabela
+    ed = ped.pop("edicao", None)                   # (o robô da T-0021 ainda pode não ter entrado)
+    assert ed is None or (set(ed) == {"modulo", "acao", "chaves", "campos"} and ed["modulo"] == "autorizacoes")
     assert sorted(acoes & _chaves(s["tabelas"])) == []
     assert sorted(acoes & set(s)) == ["recortes"]   # o de cima é por estado
     assert [k for k in _chaves(s) if k.startswith("_")] == []
