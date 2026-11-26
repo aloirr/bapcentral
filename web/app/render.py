@@ -135,6 +135,12 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
     "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
     "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+    # T-0025: o Farol DDR de cada área, as Campanhas BAP (CRM/vendas) e o Farol de Expositores
+    "farol_pv": ("Farol DDR · Faturamento", ("admin", "diretor", "gerente", "pre_venda")),
+    "farol_vc": ("Farol DDR · CRM", ("admin", "diretor", "gerente", "vendas")),
+    "farol_pl": ("Farol DDR · Pós-venda", ("admin", "diretor", "gerente", "pos_venda")),
+    "vc_champions": ("Campanhas BAP", ("admin", "diretor", "gerente", "vendas")),
+    "tm_expositores": ("Farol de Expositores", ("admin", "gerente")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
 AVISO_UF = "Resumo e gráficos: BAP inteira."
