@@ -292,3 +292,26 @@ footer{color:#5E6B62}
 .pl-f{font-size:.78rem;font-weight:600;color:#4A564E}
 .pl-v{font-size:1.25rem;font-weight:700;line-height:1.2}.pl-v small{font-size:.74rem;font-weight:400;color:#667;margin-left:.3rem}
 .pl-d{font-size:.78rem;color:#4A564E}.pl-frase{font-size:.8rem;margin-top:.2rem;color:#1B2430}
+/* T-0021: edição na web (só admin): botão por linha, marca "Aguardando o PC", formulário e seleção do pedido */
+.ed-col{white-space:nowrap;width:1%}
+.bt-ed{display:inline-block;background:#2F7D32;color:#fff;border-radius:6px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none}
+.ed-nao{color:#69736D}
+.ed-marca{display:inline-block;margin-left:.3rem;border-radius:6px;padding:.05rem .4rem;font-size:.72rem;font-weight:600}
+.ed-pend{background:#FFF1C7;color:#8A5A00}.ed-erro{background:#B3261E;color:#fff}
+.tab-dados tr.sel td{background:#E5F3DF!important}
+.sel-link{color:#2F7D32;font-weight:600;text-decoration:underline dotted}
+.ed-form{max-width:560px}
+.ed-form h1 small{display:block;font-size:.85rem;font-weight:600;color:#69736D}
+.ed-resumo{color:#4A564E;font-size:.85rem;margin:.2rem 0 .8rem}
+.ed-campo{display:block;margin:.6rem 0}
+.ed-campo select,.ed-campo input{display:block;width:100%;max-width:420px;margin-top:.2rem}
+.ed-campo small{display:block;color:#69736D;font-size:.75rem}
+.ed-campo .ed-pend-txt{color:#8A5A00;font-weight:600}
+.ed-botoes{display:flex;gap:1rem;align-items:center;margin:1rem 0 .4rem}
+.ed-botoes a{color:#2F7D32;font-weight:600}
+.sel-aviso a{color:#2F7D32;font-weight:600}
+
+/* T-0021: arquivos para importar no Protheus */
+.csvs-protheus{margin:1rem 0}.csvs-protheus h2{font-size:.95rem;margin:0 0 .4rem}.csvs-protheus h2 small{font-weight:400;color:#667;font-size:.8rem}
+.csvs-protheus ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(20rem,1fr));gap:.3rem .8rem}
+.csvs-protheus li a{display:block;padding:.35rem .6rem;border:1px solid #d5dbd7;border-radius:6px;font-size:.85rem;word-break:break-all}

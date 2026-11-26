@@ -13,6 +13,7 @@
   {% for u in ufs %}<a href="{{ base0 }}{{ sub_q }}&amp;uf={{ u }}" class="{{ 'ativa' if u == uf }}">{{ u }}</a>{% endfor %}
 </nav>
 {% endif %}
+{% if ed_enviada %}<p class="aviso info ed-ok" role="status">{{ ed_enviada }}</p>{% endif %}
 {% if aviso_uf %}<p class="aviso info">{{ aviso_uf }}</p>{% endif %}
 {% if kpis and not aviso_kpis %}{{ cartoes(kpis, faixa, "Sem cartões nesta aba.") }}{% endif %}
 {% if aviso_kpis %}<p class="aviso info">{{ aviso_kpis }}</p>{% endif %}
@@ -55,6 +56,8 @@
   {% if tabela.pag < tabela.paginas %}<a href="{{ base }}{{ q }}&amp;pag={{ tabela.pag + 1 }}">Próxima »</a>{% endif %}</nav>
 {% endif %}
 {% set juntas = [] if tabela.em_cima else juntas %}
+{% if tabela.sel is defined %}<p class="aviso info sel-aviso">Tabelas de baixo só com {{ tabela.sel_rotulo or 'a linha escolhida' }}. <a href="{{ base }}{{ fq }}">Mostrar todas</a></p>
+{% elif tabela.sel_col is defined and tabela.sel_col is not none and juntas and tabela.total_linhas %}<p class="como">Toque no número do pedido para ver só ele nas tabelas de baixo.</p>{% endif %}
 {% if juntas %}<div class="juntas">{% endif %}
 {% for j in juntas %}
 <section class="junta"><h2>{{ j.titulo }} <small>{{ j.total_linhas }} {{ "linha" if j.total_linhas == 1 else "linhas" }}</small></h2>
@@ -63,3 +66,9 @@
 </section>
 {% endfor %}
 {% if juntas %}</div>{% endif %}
+{% if csvs %}
+<section class="csvs-protheus" aria-label="Arquivos para importar no Protheus">
+  <h2>Arquivos para importar no Protheus <small>{{ csvs|length }} {{ "arquivo" if csvs|length == 1 else "arquivos" }}, últimos 30 dias</small></h2>
+  <ul>{% for c in csvs %}<li><a href="/farol/pv_pedidos/csv/{{ c.nome|urlencode }}" download="{{ c.nome }}">{{ c.nome }}</a></li>{% endfor %}</ul>
+</section>
+{% endif %}
