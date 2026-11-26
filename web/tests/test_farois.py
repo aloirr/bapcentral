@@ -154,7 +154,7 @@ def test_tabela_do_painel_desenha_alinhada_com_total(admin):
 def test_pedidos_em_faixa_e_visita_sem_bloco_indisponivel(admin):
     postar(admin, _tres())
     h = admin.get("/farol/pv_pedidos").text
-    assert 'class="kpis faixa"' in h and "92,0%" in h
+    assert ('class="kpis faixa"' in h or 'class="bc3-ks"' in h) and "92,0%" in h   # T-0030: no BC3 os números vão à faixa verde
     assert 'class="kpis"' in admin.get("/farol/pl_entregas").text
     v = admin.get("/farol/vc_visitas").text
     assert "Visitas por semana" in v and "ainda não disponível na web" not in v

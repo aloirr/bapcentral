@@ -817,6 +817,17 @@ def colunas_fora_da_junta(tab: dict) -> set[int]:
     return colunas_ocultas(tab) | {i for i, n in enumerate(nomes) if n in FORA_DAS_JUNTAS}
 
 
+def colunas_do_celular(tab: dict) -> dict:
+    """T-0030 (celular, M3 "lista que abre"): posições, na tela, do cliente, do SLA e do valor de venda da linha
+    fechada; o resto vai para dentro dela (dados_do_popup)."""
+    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    fora = colunas_no_popup(tab)
+
+    def ach(*alvos):
+        return next((i for i, n in enumerate(nomes) if n in alvos and i not in fora), None)
+    return {"cli": ach("FANTASIA", "RAZÃO SOCIAL", "CLIENTE"), "sla": ach("SLA"), "val": ach("R$ VENDA", "VALOR")}
+
+
 def dados_do_popup(tab: dict, linha: dict) -> list[list[str]]:
     """T-0028: [nome, texto] de cada coluna da linha (as da grade e as do popup), sem as vazias."""
     out = []
