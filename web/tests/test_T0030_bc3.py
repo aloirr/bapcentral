@@ -35,8 +35,9 @@ def test_T0030_menu_lateral_so_com_o_que_o_perfil_ve():
     assert all(not i["href"] for x in g for i in x["itens"] if i["nome"].startswith("Farol"))
 
 
-def test_T0030_outros_farois_seguem_no_visual_antigo_ate_entrarem_na_lista(admin):
-    assert render.BC3 == {"pv_pedidos"}
+def test_T0031_todos_os_farois_no_visual_bc3(admin):
+    assert render.BC3 == set(render.FAROIS)
     assert postar(admin, pacote_tres_farois()).status_code == 200
-    h = admin.get("/farol/pl_entregas").text
-    assert '<body class="bc3">' not in h and 'class="topo"' in h
+    for rid in ("pl_entregas", "vc_visitas"):
+        h = admin.get(f"/farol/{rid}").text
+        assert '<body class="bc3">' in h and 'class="topo"' not in h and 'class="bc3-faixa"' in h
