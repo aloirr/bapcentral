@@ -26,6 +26,12 @@ VE_TABELAS = {
     "pv_pedidos": ("admin", "gerente", "pre_venda"),
     "pl_entregas": ("admin", "gerente", "pos_venda"),
     "vc_visitas": ("admin", "gerente", "vendas"),
+    # T-0025: o Farol DDR de cada área, as Campanhas BAP (CRM/vendas) e o Farol de Expositores
+    "farol_pv": ("admin", "gerente", "pre_venda"),
+    "farol_vc": ("admin", "gerente", "vendas"),
+    "farol_pl": ("admin", "gerente", "pos_venda"),
+    "vc_champions": ("admin", "gerente", "vendas"),
+    "tm_expositores": ("admin", "gerente"),
 }
 ABAS_SO_GERENCIA: dict[str, tuple[str, ...]] = {}      # D1 C: {"vc_visitas": ("cliente", "prospeccao", "indicacao")}
 PERFIS_GERENCIA = ("admin", "gerente")
@@ -39,6 +45,14 @@ ABAS = {
     "vc_visitas": (("supervisor", "Por supervisor"), ("vendedor", "Por vendedor"), ("dia", "Dia a dia"),
                    ("aderencia", "Aderência dia a dia"), ("cliente", "Cliente a cliente"),
                    ("prospeccao", "Prospecção"), ("indicacao", "Indicação")),
+    "farol_pv": (("hoje", "Hoje"), ("pendentes", "Pendentes de marcação"), ("ate_hoje", "Até hoje")),
+    "farol_vc": (("hoje", "Hoje"), ("pendentes", "Pendentes de marcação"), ("ate_hoje", "Até hoje")),
+    "farol_pl": (("hoje", "Hoje"), ("pendentes", "Pendentes de marcação"), ("ate_hoje", "Até hoje")),
+    "vc_champions": (("vendedores", "Vendedores"), ("supervisores", "Supervisores"), ("aux", "Aux. Técnico"),
+                     ("confrontos", "Confrontos"), ("semanas", "Pts por semana"),
+                     ("relampago", "Campanha relâmpago"), ("regras", "Regras")),
+    "tm_expositores": (("expositores", "Expositores"), ("estado", "Por estado"), ("status", "Por status"),
+                       ("cadastro", "Cadastro de expositores")),
 }
 SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitacao Manual",
            "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir")
@@ -132,6 +146,49 @@ COLUNAS: dict[str, list] = {
                   _c("BAIRRO"), _c("SEGMENTO"), _c("VISITADA EM", "data"), _c("OBSERVAÇÃO"),
                   _c("REGISTRADO EM")],
 }
+# T-0025: Farol DDR (as 3 tabelas são iguais nas 3 áreas), Campanhas BAP e Farol de Expositores
+_DDR_HOJE = [_c("HORÁRIO"), _c("ATIVIDADE"), _c("PRIORIDADE"), _c("PONTOS", "int"), _c("STATUS"), _c("MOTIVO"),
+             _c("FERRAMENTA BAP")]
+_DDR_PEND = [_c("DATA", "data"), _c("DIA"), _c("HORÁRIO"), _c("ATIVIDADE"), _c("PRIORIDADE"),
+             _c("PONTOS", "int"), _c("STATUS"), _c("MOTIVO"), _c("FERRAMENTA BAP")]
+_DDR_ATE = [_c("DATA", "data"), _c("DIA"), _c("HORÁRIO"), _c("ATIVIDADE"), _c("PRIORIDADE"),
+            _c("PONTOS", "int"), _c("STATUS"), _c("MOTIVO"), _c("PONTOS GANHOS", "num"), _c("FERRAMENTA BAP")]
+_CH_PTS = [_c("FAT. BRUTO", "moeda"), _c("DEVOLUÇÕES", "moeda"), _c("FAT. LÍQUIDO", "moeda"),
+           _c("DESAFIO", "moeda"), _c("% DESAFIO", "pct"), _c("SITUAÇÃO")]
+COLUNAS.update({
+    "Hoje": _DDR_HOJE, "Pendentes de marcação": _DDR_PEND, "Até hoje": _DDR_ATE,
+    "Vendedores": [_c("POS.", "int"), _c("VENDEDOR"), _c("SUPERVISOR")] + _CH_PTS + [
+        _c("PTS FATUR.", "int"), _c("PEÇAS (UN.)", "int"), _c("PTS PEÇAS", "int"), _c("CLI. NOVOS", "int"),
+        _c("PTS CLI. NOVO", "int"), _c("VITÓRIAS", "int"), _c("PTS BÔNUS", "int"), _c("PTS", "int"),
+        _c("PTS VÁLIDOS", "int"), _c("PTS RELÂMPAGO", "int"), _c("TOTAL A PAGAR", "int")],
+    "Supervisores": [_c("POS.", "int"), _c("SUPERVISOR"), _c("VENDEDORES", "int")] + _CH_PTS + [
+        _c("PTS FATUR.", "int"), _c("SKU NOVOS", "int"), _c("PTS SKU NOVO", "int"), _c("POSITIVADOS", "int"),
+        _c("PTS POSIT.", "int"), _c("VITÓRIAS", "int"), _c("PTS BÔNUS", "int"), _c("PTS", "int"),
+        _c("PTS VÁLIDOS", "int"), _c("PTS RELÂMPAGO", "int"), _c("TOTAL A PAGAR", "int")],
+    "Aux. Técnico": [_c("POS.", "int"), _c("AUX. TÉCNICO"), _c("APOIA (SUPERVISOR)")] + _CH_PTS + [
+        _c("PTS FATUR.", "int"), _c("SLA FATUR. %", "pct"), _c("PTS SLA FATUR.", "int"),
+        _c("SLA ENTREGA %", "pct"), _c("PTS SLA ENTREGA", "int"), _c("PTS", "int"), _c("PTS VÁLIDOS", "int")],
+    "Confrontos": [_c("SEMANA"), _c("TIPO"), _c("JOGADOR A"), _c("PTS A", "int"), _c("JOGADOR B"),
+                   _c("PTS B", "int"), _c("RESULTADO")],
+    "Campanha relâmpago": [_c("DIA", "data"), _c("CAMPANHA"), _c("TIPO"), _c("NOME"), _c("SUPERVISOR"),
+                           _c("PEDIDOS NO DIA", "moeda"), _c("BLOCOS", "int"), _c("PTS PEDIDOS", "int"),
+                           _c("VENDEU NO DIA"), _c("BAP NO DIA", "moeda"), _c("META BAP", "moeda"),
+                           _c("DESAFIO"), _c("PTS DESAFIO", "int"), _c("PTS", "int")],
+    "Regras": [_c("GRUPO"), _c("REGRA"), _c("PTS", "int")],
+    "Expositores": [_c("STATUS"), _c("MÊS", "texto", True), _c("SOLICITAÇÃO", "dia"), _c("ASSINATURA", "dia"),
+                    _c("DIAS", "int"), _c("CÓD. CLIENTE"), _c("CLIENTE"), _c("DESCRIÇÃO DO EXPOSITOR"),
+                    _c("CATEGORIA"), _c("QTD", "int"), _c("CIDADE"), _c("UF"), _c("OBSERVAÇÕES"),
+                    _c("ATUALIZADO", "dia")],
+    "Por estado": [_c("UF"), _c("EXPOSITORES", "int"), _c("ENTREGUES", "int"), _c("CONTRATO ASSINADO", "int"),
+                   _c("SOLICITADOS", "int"), _c("CANCELADOS", "int"), _c("DEVOLVIDOS", "int"),
+                   _c("CLIENTES", "int"), _c("CIDADES", "int")],
+    "Por status": [_c("STATUS"), _c("REGISTROS", "int"), _c("EXPOSITORES", "int")],
+    "Cadastro de expositores": [_c("EXPOSITOR"), _c("CATEGORIA FOCO"), _c("FILIAIS"), _c("CADASTRADOS", "int"),
+                                _c("EM USO", "int"), _c("SALDO", "int")],
+})
+# "Pts por semana": TIPO, JOGADOR, uma coluna por semana do mês (SEM. dd/mm) e a soma (T-0025)
+PTS_SEMANA = "Pts por semana"
+_RE_SEMANA = re.compile(r"^SEM\. \d{2}/\d{2}$")
 # "Aderência dia a dia": 2 + N + 1 colunas, conferidas por padrão de nome (§10.7.3)
 ADERENCIA = "Aderência dia a dia"
 _RE_DIA = re.compile(r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$")
@@ -153,6 +210,8 @@ SELOS = {
     "Pendências dos meses anteriores": {"SLA": "tom", "PRAZO": "texto"},
     "Por supervisor": {"% META": "faixa"}, "Por vendedor": {"% META": "faixa"},
     "Dia a dia": {"% META": "faixa"},
+    "Vendedores": {"SITUAÇÃO": "texto"}, "Supervisores": {"SITUAÇÃO": "texto"},
+    "Aux. Técnico": {"SITUAÇÃO": "texto"}, "Campanha relâmpago": {"DESAFIO": "texto"},
 }
 # tabelas que levam `uf_linhas` e `kpis_padrao` etc. não têm lista própria: o formato basta.
 
@@ -240,6 +299,12 @@ def _total_ok(tot, tipos) -> bool:
 
 def _cols_esperadas(titulo: str, cols) -> list | None:
     """A lista do §10.7.3; na "Aderência dia a dia" ela sai dos nomes (padrão), None se não bate."""
+    if titulo == PTS_SEMANA:
+        nomes = [c.get("nome") if isinstance(c, dict) else None for c in cols]
+        if not (4 <= len(nomes) <= 12 and nomes[:2] == ["TIPO", "JOGADOR"] and nomes[-1] == "SOMA DAS SEMANAS"
+                and all(isinstance(x, str) and _RE_SEMANA.match(x) for x in nomes[2:-1])):
+            return None
+        return [_c("TIPO"), _c("JOGADOR")] + [_c(x, "int") for x in nomes[2:]]
     if titulo != ADERENCIA:
         return COLUNAS.get(titulo)
     nomes = [c.get("nome") if isinstance(c, dict) else None for c in cols]
@@ -464,7 +529,7 @@ def validar(rid: str, r: dict) -> list[str]:
     if "tabelas" not in r:
         return []
     if rid not in RIDS:
-        return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas e vc_visitas"]
+        return [f"{rid}: tabelas só nos faróis com abas de tabela"]
     ts = r["tabelas"]
     if not isinstance(ts, list) or len(ts) > len(ABAS[rid]):
         return [f"{rid}: tabelas precisa ser lista de até {len(ABAS[rid])} abas"]
