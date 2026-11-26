@@ -1,6 +1,7 @@
 """Pacote do robô (parte dado do contrato, §10): validar, guardar, ler."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -119,6 +120,32 @@ def _tabela_ok(b) -> bool:
     return all(isinstance(x, list) for x in linhas) and (tot is None or isinstance(tot, list))
 
 
+PARCIAIS_RIDS = ("pv_pedidos", "pl_entregas", "vc_visitas")
+QUANDOS_PARCIAL = ("acum", "d1", "hoje")
+MAX_PNG_B64 = 3_000_000                          # por imagem (a do PC tem uns 100 a 400 KB)
+
+
+def _parciais_erro(rid: str, p) -> str | None:
+    """T-0026: imagens da parcial (PNG em base64, prontas no PC). Só formato: precisa ser PNG de verdade."""
+    if p is None:
+        return None
+    if rid not in PARCIAIS_RIDS:
+        return f"{rid}: parciais só em Pedidos, Entregas e Visita"
+    if not isinstance(p, dict) or not p or set(p) - set(QUANDOS_PARCIAL):
+        return f"{rid}: parciais precisa ser {{acum, d1, hoje}}"
+    for q, v in p.items():
+        if not (isinstance(v, dict) and set(v) == {"rotulo", "png"} and isinstance(v["rotulo"], str)
+                and len(v["rotulo"]) <= 80 and isinstance(v["png"], str) and len(v["png"]) <= MAX_PNG_B64):
+            return f"{rid}: parcial {q} inválida"
+        try:
+            ok = base64.b64decode(v["png"], validate=True)[:8] == b"\x89PNG\r\n\x1a\n"
+        except ValueError:
+            ok = False
+        if not ok:
+            return f"{rid}: parcial {q} não é PNG"
+    return None
+
+
 def validar_farol(rid: str, r) -> list[str]:
     """Forma "farol" (T-0017): só formato; kpis e blocos vêm prontos do PC (contrato §8)."""
     if not isinstance(r, dict) or r.get("forma") != "farol":
@@ -151,6 +178,9 @@ def validar_farol(rid: str, r) -> list[str]:
         return [f"{rid}: avisos inválidos"]
     if r.get("baixado_em") is not None and not isinstance(r["baixado_em"], str):
         return [f"{rid}: baixado_em inválido"]
+    e_par = _parciais_erro(rid, r.get("parciais"))
+    if e_par:
+        return [e_par]
     rec = r.get("recortes")
     if rec is not None:
         if not isinstance(rec, dict) or len(rec) > MAX_RECORTES:
