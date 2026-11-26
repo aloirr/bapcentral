@@ -1,8 +1,8 @@
 # Quadro — BAP Tools
 
-Atualizado em 25/11/2026, 03h45 (Manaus). Dono: gerente-projetos.
+Atualizado em 26/11/2026, 18h00 (Manaus). Dono: gerente-projetos.
 
-**25/11, 03h42 — PAUSA; o Alexandre continua de outra conta (R-20261125-034012-alexandre):** nada pela metade, nenhum PR aberto, nada instalado em PC, rondas apagadas. Passagem do gerente no R-20261125-034226-gerente-projetos; passagem do po no R-20261125-034013-po. Desenho e pareceres em `recados/anexos/T-0017/abas/pareceres/` (repositório de recados).
+**26/11, 17h40 — retomada na nuvem (R-20261126-173916-alexandre):** de 25/11 03h50 a 26/11 17h o trabalho foi na sessão "BAPCentral - Cowork" (outra conta, sem guardiões nem ronda). Os 33 commits do período (42a020e..c8f6004) foram conferidos com o `verificar --por-commit`: nenhuma violação de dono; #112 (T-0021) e #116 (T-0029) juntaram vários donos num squash só. Passagem: R-20261126-173917-po. Decisões de 25 e 26/11: pasta de produção da EMPRESA (R-20261125-090000), robô oficial no notebook do Alexandre (R-20261125-104000), BC3/M3 e RN-GER-013 (R-20261126-171559). Plano e previsões: R-20261126-174414-gerente-projetos.
 
 **24/11, noite — volta ao Claude Code na nuvem:** gerente fixo no ambiente BapCentral-GP (BAP_AGENTE=gerente-projetos), PO fixo no BapCentral-PO, guardiões e ronda de 20 min de volta. Sessões fixas em Opus 5.5 alto; tarefas e subagentes em Opus 5.5 médio (R-20261124-173350-gerente-projetos). O robô rodou no notebook do Alexandre: primeiro pacote no site às 18h07 (T-0013/T-0014 esperam a conferência dele).
 
@@ -28,13 +28,30 @@ Atualizado em 25/11/2026, 03h45 (Manaus). Dono: gerente-projetos.
 | T-0014 | Web: visões prontas por estado para o filtro (supervisor fica para depois) | em_teste (no main: #36 `0169ceb`, #35 `356b90d`, #37 `3623986`, #38 `df697f3`; simulação aprovada no R-20261123-195144-alexandre; bap_automation.py instalado na produção, R-20261123-213700-gerente-projetos) | modulo-robo + modulo-web + testes | — | — | junto com a T-0013: conferir o filtro por estado com o primeiro pacote |
 | T-0015 | `.bat` com o final de linha do Windows (CRLF) no repositório | concluida (#28 `19c5110`, `.gitattributes`; #29 teste; #31 `8f31c54`, `ATUALIZAR_DO_GITHUB.bat` guardado em LF) | alexandre (governança) + testes | — | — | concluída em 23/11 |
 | T-0016 | Rota por lugar respeita o sábado sem repetição (RN-ROT-002) e a cidade base (RN-ROT-003); smoke da rota limpo | concluida (#41 `a0f1ec2`, #40 `af3b8cf`, #42 `dd7e85d`; `planner_nucleo.py` instalado na produção com backup ANTES_T0016_NOV2026, byte a byte) | modulo-rota + testes + gerente-projetos | — | — | concluída em 24/11 |
-| T-0017 | Os 4 faróis do PC no site: Inadimplência (entregas 1 e 2), depois Pedidos, Entregas e Visita com todas as abas | aguardando_alexandre (entregas 1 e 2 no main; Pedidos, Entregas e Visita com todas as abas prontos em branch, sem PR: contrato engenheiro-software/T-0017-abas-tres-farois `1b3d902`, modulo-farois/T-0017-hoje-fora-du `6adc32d`, modulo-robo/T-0017-tres-farois `189bb4d`, modulo-web/T-0017-tres-farois `b791a43` (v0.3.0), testes/T-0017-testes-tres-farois `72e45a5`, gerente-projetos/T-0017-rn-ger-011 `730643e`; suíte combinada 682 ok / 0 falha; pacote real das bases congeladas aceito pela web, 1,76 MB, 0 CPF/CNPJ) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + testes | — | — | Alexandre: simulação sim6 + D1–D6 (R-20261125-025823 e R-20261125-021827; resposta pronta "1 A; D1 A, D2 A, D3 A, D4 A, D5 A, D6 A"); depois: reteste do revisor-codigo e do corretor-redundancias nos heads acima (interrompidos na pausa), PRs na ordem contrato → farois → testes → web → robo + RN-GER-011 |
-| T-0018 | Rotina diária de atualização da produção (`atualizar_do_github.py --diario`, 06h30) e produção na pasta pessoal | aguardando_alexandre (no main: #59 `e74de94` e ADR 0002, #60 `2d182bd` testes, #61 `a1b930f` regra 11; nada instalado em PC) | engenheiro-software + testes + alexandre (governança) | — | — | plano de migração para a pasta pessoal (R-20261124-214958-alexandre) com as 5 decisões do R-20261124-215228-gerente-projetos; depois `--primeira-vez --simular` com imagem antes |
+| T-0017 | Os 4 faróis do PC no site com todas as abas | concluida (#69–#76 no main, 25/11; site v0.3.0) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + testes | — | — | concluída em 25/11 |
+| T-0018 | Rotina diária de atualização da produção (`--diario`, 06h30) | concluida (#59, #60, #61; #77 regra 11 com a pasta da EMPRESA, R-20261125-090000-alexandre) | engenheiro-software + testes + alexandre (governança) | — | — | robô oficial no notebook do Alexandre (R-20261125-104000) |
+| T-0019 | Agente revisor-ux (UX, redundância e marca) | concluida (#78, autorizado no R-20261125-183000-alexandre) | alexandre (governança) | — | — | concluída em 25/11 |
+| T-0020 | Visual C da BAP, tabelas de baixo lado a lado, repetições cortadas (web) | concluida (#79) | modulo-web | — | — | concluída em 25/11 (R-20261125-174000-alexandre) |
+| T-0021 | Edição do Farol de Pedidos e Entregas na web (só admin), CSVs do Protheus, edições chegam ao PC pelo robô | concluida (v4: #109–#112; v1 nunca entrou) | modulo-web + modulo-robo + engenheiro-software + testes | — | — | concluída em 26/11 |
+| T-0022 | Painel Executivo (12 abas) e Farol de Metas Equipe na web | concluida (#101, #104) | modulo-web + modulo-robo + testes | — | — | falta o Painel no BC3 (passo 3 da passagem) |
+| T-0023 | Faróis de Garantias, Devoluções e NCC na web (edição só admin) | em_andamento (PRs #102, #103, #105, #106 empilhados na T-0021 v1: refazer sobre o main com as decisões de 26/11) | modulo-web + modulo-robo + modulo-farois + testes | — | — | simulação 27/11 06h |
+| T-0024 | Faróis do lote 2 na web (indicadores, Clientes, Roteirização, Giro, Estoque FRW) | em_andamento (#89, #91, #97: atualizar com o main, web no BC3) | modulo-web + modulo-robo + testes | — | — | simulação 26/11 21h |
+| T-0025 | Farol DDR, Campanhas e Expositores na web | em_andamento (PRs #93, #98, #100, #107 empilhados na T-0021 v1: refazer; diretor só Resumo, TOTAL A PAGAR só admin/gerente/diretor, champions_config.json pela web só admin) | modulo-web + modulo-robo + modulo-farois + testes | — | — | simulação 27/11 06h |
+| T-0026 | Paridade dos 4 faróis na web (parcial em imagem, Excel/PDF, 5 abas da Inadimplência) | em_teste (#80, #81 no main; #82 testes: atualizar com o main) | modulo-web + modulo-robo + testes | — | — | merge do #82 26/11 19h |
+| T-0027 | Parcial com a marca, Excel sem NaN, corte do pacote grande, RN-GER-012, robô do pós-venda | concluida (#90, #92, #94, #95, #96, #99) | modulo-robo + modulo-web + modulo-posvenda + testes | — | — | concluída em 25/11 |
+| T-0028 | Farol de Pedidos sem rolagem, popup do pedido, tabelas de baixo lado a lado | concluida (#114) | modulo-web | — | — | concluída em 26/11 |
+| T-0029 | RN-GER-013: pedido de cliente fora da base | concluida (#116, #117, #118, #120, #122) | modulo-farois + modulo-robo + modulo-web + testes + gerente | — | — | parte do robô chega pela rotina diária |
+| T-0030 | Farol de Pedidos no visual BC3 (PC numa tela; celular M3) | concluida (#115) | modulo-web | — | — | concluída em 26/11 |
+| T-0031 | Todos os faróis no BC3 e no formato do Farol de Pedidos | concluida (#123, c8f6004) | modulo-web | — | — | concluída em 26/11 |
+| T-0032 | Botões das parciais como no PC, "Cobrar no WhatsApp", caixa fora da base com o nome antigo | em_revisao (#124: simulação PNG, revisor-codigo e revisor-ux) | modulo-web | — | — | merge após o "ok" da simulação |
+| — | Ajuste fino grade × popup por farol (passo 2 da passagem) | aberta | modulo-web | — | — | simulação 26/11 22h30 |
+| — | Painel Executivo e Usuários/Senha no BC3 (passo 3) | aberta | modulo-web | — | — | simulação 27/11 01h |
+| — | Farol de Fretes com edição (passo 5) | aberta | — | — | — | próxima leva (decisão de 26/11) |
 
 **Previsões:** a hora é a do último status do gerente ao po, e cada "Status HHhMM" do po leva a hora nova e o motivo quando ela muda (R-20261120-092924-alexandre).
 
 **Tarefas à parte (sem número ainda):** cobrança usar `relatorios_nucleo.sem_documento` (modulo-posvenda); tela do PC usar `solicitacao_bap.tipos_colunas` (modulo-farois); RD-0030 (filtro de linhas copiado da tela); RD-0031 (fuso de Manaus em 3 funções); RD-0014 (constante 000040).
 
-**Reservas:** a próxima tarefa é a T-0019. A próxima ADR livre é a 0003.
+**Reservas:** a próxima tarefa é a T-0033. A próxima ADR livre é a 0003.
 
 **Legenda de status:** aberta · em_andamento · em_teste · em_revisao · aguardando_alexandre · concluida · bloqueada.
