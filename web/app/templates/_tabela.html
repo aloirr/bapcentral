@@ -5,6 +5,7 @@
 {% set base0 = '/farol/' ~ rid ~ '?aba=' ~ aba %}
 {% set base = base0 ~ sub_q ~ uf_q %}
 <header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tabela.total_linhas %}<span>{{ tabela.total_linhas }} {{ "linha" if tabela.total_linhas == 1 else "linhas" }}</span>{% endif %}</header>
+{% if tabela.edicao and tabela.edicao.novo %}<p class="acoes-farol"><a class="prim" href="{{ tabela.edicao.novo }}">Novo expositor</a>{% if tabela.edicao.n_novos %}<span class="ed-marca ed-pend">{{ tabela.edicao.n_novos }} novo{{ "s" if tabela.edicao.n_novos > 1 }} aguardando o PC</span>{% endif %}</p>{% endif %}
 {% if ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
   <a href="{{ base0 }}{{ sub_q }}" class="{{ 'ativa' if not uf }}">BAP inteira</a>
@@ -27,7 +28,8 @@
   {% for r in tabela.recortes %}<a href="{{ base }}{{ sem_rec }}&amp;rec={{ r.n }}" class="{{ 'ativa' if r.ativo }}">{{ r.rotulo }} ({{ r.qtd }})</a>{% endfor %}
 </nav>
 {% endif %}
-{% if tabela.filtros and (tabela.total_linhas or not tabela.padrao) %}
+{# T-0025: mês padrão sem linhas, mas com outros meses nas opções: o filtro aparece (senão não há como trocar o mês) #}
+{% if tabela.filtros and (tabela.total_linhas or not tabela.padrao or (tabela.filtros|selectattr('opcoes')|list)) %}
 <details class="filtros-det"{{ " open" if not tabela.padrao }}><summary>Filtros</summary>
 <form method="get" action="/farol/{{ rid }}" class="filtros-tab">
   <input type="hidden" name="aba" value="{{ aba }}">
