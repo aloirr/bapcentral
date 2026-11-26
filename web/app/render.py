@@ -135,6 +135,12 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
     "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
     "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+    # T-0024 (lote 2): o perfil de cada quadrado do PC (bap_central.py)
+    "pv_indicadores": ("Painel de indicadores", ("admin", "diretor", "gerente", "pre_venda")),
+    "vc_base": ("Farol de Clientes", ("admin", "diretor", "gerente", "vendas")),
+    "vc_planner": ("Farol Roteirização", ("admin", "diretor", "gerente", "vendas")),
+    "pl_giro": ("Farol de Giro de Produtos", ("admin", "diretor", "gerente", "vendas")),
+    "pl_frw": ("Farol de Estoque FRW", ("admin", "diretor", "gerente", "pre_venda", "pos_venda")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
 AVISO_UF = "Resumo e gráficos: BAP inteira."
