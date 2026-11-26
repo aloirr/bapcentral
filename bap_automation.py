@@ -7485,6 +7485,15 @@ def _tabela_extra_cobranca_web(t: dict, titulo: str, lista):
 # texto_sem_contato.
 # ---------------------------------------------------------------------------
 WEB_PACOTE_TETO_MB = 20            # trava do robo (o teto da web e 25: render.yaml)
+WEB_FAROL_TETO_MB = 8              # (T-0035, 10.8.7) formato 2: JSON do farol sem anexos
+_ANEXOS_FAROL_WEB = ("parciais", "csvs_protheus")
+# ordem dos cortes por farol (10.8.7); no fim, qualquer farol perde as `tabelas`
+_CORTES_FAROL_WEB = {
+    "pv_pedidos": ("solicitacao_so_em_aberto", "cliente_a_cliente_fora",
+                   "tabelas"),
+    "pl_entregas": ("cliente_a_cliente_fora", "tabelas"),
+    "vc_visitas": ("cliente_a_cliente_fora", "tabelas"),
+}
 RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas")
 # colunas que nunca vao (sem acento, maiusculas), em qualquer tabela/junta/sub-aba
 _COLUNAS_FORA_WEB = frozenset({
@@ -8324,6 +8333,50 @@ def _cortar_pacote_web(pacote: dict, teto_mb=None) -> dict:
     return novo
 
 
+def _json_farol_web(farol: dict) -> bytes:
+    """Os bytes do farol como vao no corpo (10.8.3)."""
+    return json.dumps(farol, ensure_ascii=False, allow_nan=False,
+                      separators=(",", ":")).encode("utf-8")
+
+
+def _cortar_farol_web(rid: str, farol: dict, teto_mb=None) -> dict:
+    """Funcao pura (T-0035, contrato 10.8.7): se o JSON do farol SEM os anexos
+    (parciais e csvs_protheus) passar de `teto_mb` (WEB_FAROL_TETO_MB), corta
+    na ordem de _CORTES_FAROL_WEB[rid] e, por fim, tira todas as `tabelas`
+    (o farol cai no 10.1), com o AVISO_ABAS_FORA. Os anexos nao entram na
+    conta nem sao tocados. Devolve outro dicionario; o de entrada nao muda."""
+    mb = teto_mb if teto_mb is not None else WEB_FAROL_TETO_MB
+    limite = int(mb * 1024 * 1024)
+
+    def tam(f):
+        return len(_json_farol_web({k: v for k, v in f.items()
+                                    if k not in _ANEXOS_FAROL_WEB}))
+    if tam(farol) <= limite:
+        return farol
+    anexos = {k: farol[k] for k in _ANEXOS_FAROL_WEB if k in farol}
+    corpo = {k: v for k, v in farol.items() if k not in _ANEXOS_FAROL_WEB}
+    if rid in RIDS_TABELAS_WEB:        # passos 1 a 3 do formato 1, so deste farol
+        out = _cortar_pacote_web({"relatorios": {rid: corpo}},
+                                 mb)["relatorios"][rid]
+    else:
+        out = corpo
+        if out.get("tabelas"):
+            import copy                                 # noqa: PLC0415
+            out = copy.deepcopy(out)
+            titulos = [t.get("titulo") for t in out.pop("tabelas")]
+            av = out.setdefault("avisos", [])
+            av.append(AVISO_ABAS_FORA.format(
+                lista=", ".join(str(t) for t in titulos)))
+            out["avisos"] = _ordenar_avisos_web(av)
+            log.warning("Pacote web: abas fora do pacote no farol %s.", rid)
+    if tam(out) > limite:
+        log.warning("Pacote web: o farol %s continua acima do teto de %s MB "
+                    "depois dos cortes.", rid, mb)
+    out = dict(out)
+    out.update(anexos)
+    return out
+
+
 def _recortes_do_farol_web(rid: str, r: dict) -> dict:
     """Recortes por estado do rid, pela regra da RN-GER-006 (filial da nota no
     faturamento; UF do cliente em fretes/Planner), com a coluna e a conversao
@@ -8503,7 +8556,8 @@ def csvs_importar_web(raiz, hoje=None, log=None) -> list:
 
 def montar_pacote_web(resultados: dict, ano: int, mes: int,
                       agora=None, raiz=None, arquivos_base=None,
-                      cobranca=None, parciais=None, csvs=None) -> dict:
+                      cobranca=None, parciais=None, csvs=None,
+                      cortar: bool = True) -> dict:
     """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
     resultado e produtividade, limpas para JSON. `cobranca` ({rid: bloco},
     T-0017 entrega 2): o bloco de cobranca_whatsapp.pacote_web do
@@ -8548,9 +8602,10 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
             if rid == "pv_pedidos" and csvs:            # T-0021
                 val["csvs_protheus"] = [dict(c) for c in csvs]
             limpos[rid] = val
-    return _cortar_pacote_web({
-        "versao_contrato": versao, "gerado_em": agora.isoformat(),
-        "ano": int(ano), "mes": int(mes), "relatorios": limpos})
+    pacote = {"versao_contrato": versao, "gerado_em": agora.isoformat(),
+              "ano": int(ano), "mes": int(mes), "relatorios": limpos}
+    # (T-0035) o envio por farol corta farol a farol: chama com cortar=False
+    return _cortar_pacote_web(pacote) if cortar else pacote
 
 
 def simular_pacote_farol(rid, raiz, destino, ano: int, mes: int,
@@ -8665,6 +8720,166 @@ def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
         if tentativa < 3:
             time.sleep(2 * tentativa)
     return False
+
+
+def _lote_web(gerado_em: str) -> str:
+    """AAAAMMDDTHHMMSS do gerado_em (Manaus), como pacotes.nome_arquivo."""
+    return datetime.fromisoformat(str(gerado_em)).strftime("%Y%m%dT%H%M%S")
+
+
+def _formatos_web(base: str, requests) -> list:
+    """GET /saude -> pacote.formatos; web antiga ou falha = [1] (10.8.1)."""
+    try:
+        r = requests.get(f"{base}/saude", timeout=15)
+        if r.status_code == 200:
+            f = ((r.json() or {}).get("pacote") or {}).get("formatos")
+            if isinstance(f, list):
+                return [x for x in f if isinstance(x, int)] or [1]
+    except Exception:                                   # noqa: BLE001
+        pass
+    return [1]
+
+
+def enviar_pacote_por_farol(pacote: dict, url=None, token=None, log=print,
+                            requests=None) -> bool:
+    """Formato 2 (T-0035, contrato 10.8): um POST por farol (gzip + sha256) e
+    o `fechar`. Farol que falha (413/422/rede) vai no `manter`; o 404 sai; os
+    outros seguem. So True se o `fechar` for aceito."""
+    import gzip                                         # noqa: PLC0415
+    import hashlib                                      # noqa: PLC0415
+    url = (url or _segredo_web("BAP_WEB_URL", "url") or "").strip()
+    token = (token or _segredo_web("BAP_WEB_TOKEN", "token") or "").strip()
+    base = _base_web(url) if url else None
+    if not url or not token or not base:
+        log("Pacote web: URL/token ausentes ou invalidos; envio recusado.")
+        return False
+    if requests is None:
+        import requests                                 # noqa: PLC0415
+
+    def limpa(txt) -> str:
+        return str(txt).replace(token, "***")
+    try:
+        lote = _lote_web(pacote["gerado_em"])
+    except Exception as erro:                           # noqa: BLE001
+        log(f"Pacote web: gerado_em invalido ({limpa(erro)}).")
+        return False
+    aceitos, manter, bytes_gz, prontos = {}, [], 0, {}
+    for rid, farol in (pacote.get("relatorios") or {}).items():
+        corpo = _json_farol_web(_cortar_farol_web(rid, farol))
+        prontos[rid] = (hashlib.sha256(corpo).hexdigest(),
+                        gzip.compress(corpo, 6))
+
+    def enviar(rid) -> str:
+        """'ok', 'manter' ou 'fora'."""
+        sha, gz = prontos[rid]
+        cab = {"Authorization": f"Bearer {token}",
+               "Content-Type": "application/json",
+               "Content-Encoding": "gzip", "X-BAP-SHA256": sha}
+        for tentativa in range(1, 4):
+            try:
+                r = requests.post(f"{base}/api/pacote/{lote}/farol/{rid}",
+                                  data=gz, headers=cab, timeout=60)
+                if 200 <= r.status_code < 300:
+                    return "ok"
+                if r.status_code == 404:
+                    log(f"Pacote web: farol {rid} desconhecido na web (404); "
+                        "fica fora.")
+                    return "fora"
+                if r.status_code in (413, 422):
+                    det = ""
+                    try:
+                        det = str((r.json() or {}).get("detalhes", ""))[:200]
+                    except Exception:                   # noqa: BLE001
+                        pass
+                    log(f"Pacote web: farol {rid} recusado ({r.status_code}) "
+                        f"{limpa(det)}; fica no manter.")
+                    return "manter"
+                log(f"Pacote web: farol {rid}: servidor {r.status_code} "
+                    f"(tentativa {tentativa}/3).")
+            except Exception as erro:                   # noqa: BLE001
+                log(f"Pacote web: farol {rid}: falha de rede, "
+                    f"{type(erro).__name__} (tentativa {tentativa}/3).")
+            if tentativa < 3:
+                time.sleep(2 * tentativa)
+        return "manter"
+
+    for rid in prontos:
+        res = enviar(rid)
+        if res == "ok":
+            aceitos[rid] = prontos[rid][0]
+            bytes_gz += len(prontos[rid][1])
+        elif res == "manter":
+            manter.append(rid)
+    if not aceitos:
+        log("Pacote web: nenhum farol aceito; o lote nao e fechado.")
+        return False
+    for volta in range(2):          # o 409 "faltam": reenvia e fecha de novo
+        corpo = {k: pacote.get(k) for k in
+                 ("versao_contrato", "gerado_em", "ano", "mes")}
+        corpo["farois"] = dict(aceitos)
+        if manter:
+            corpo["manter"] = list(manter)
+        r = None
+        for tentativa in range(1, 4):
+            try:
+                r = requests.post(
+                    f"{base}/api/pacote/{lote}/fechar",
+                    data=json.dumps(corpo).encode("utf-8"),
+                    headers={"Authorization": f"Bearer {token}",
+                             "Content-Type": "application/json"}, timeout=60)
+                if r.status_code < 500:
+                    break
+                log(f"Pacote web: fechar: servidor {r.status_code} "
+                    f"(tentativa {tentativa}/3).")
+            except Exception as erro:                   # noqa: BLE001
+                r = None
+                log(f"Pacote web: fechar: falha de rede, "
+                    f"{type(erro).__name__} (tentativa {tentativa}/3).")
+            if tentativa < 3:
+                time.sleep(2 * tentativa)
+        if r is None:
+            return False
+        if 200 <= r.status_code < 300:
+            log(f"Pacote web enviado por farol: {len(aceitos)} farois, "
+                f"{bytes_gz / 1024:.0f} KB gzip, {len(manter)} no manter.")
+            return True
+        if r.status_code == 409 and volta == 0:
+            try:
+                faltam = [x for x in (r.json() or {}).get("farois", [])
+                          if x in prontos]
+            except Exception:                           # noqa: BLE001
+                faltam = []
+            for rid in faltam:
+                aceitos.pop(rid, None)
+                res = enviar(rid)
+                if res == "ok":
+                    aceitos[rid] = prontos[rid][0]
+                elif res == "manter":
+                    manter.append(rid)
+            if aceitos:
+                continue
+        log(f"Pacote web: fechar recusado ({r.status_code}).")
+        return False
+    return False
+
+
+def enviar_pacote(pacote: dict, url=None, token=None, log=print,
+                  requests=None) -> bool:
+    """Escolhe o formato pelo /saude (10.8.1): com `2` em pacote.formatos,
+    por farol; senao (web antiga ou /saude fora), o formato 1 de sempre, com
+    o corte global de 20 MB."""
+    url = (url or _segredo_web("BAP_WEB_URL", "url") or "").strip()
+    token = (token or _segredo_web("BAP_WEB_TOKEN", "token") or "").strip()
+    base = _base_web(url) if url else None
+    if base and token:
+        if requests is None:
+            try:
+                import requests                         # noqa: PLC0415
+            except Exception:                           # noqa: BLE001
+                requests = None
+        if requests is not None and 2 in _formatos_web(base, requests):
+            return enviar_pacote_por_farol(pacote, url, token, log, requests)
+    return enviar_pacote_web(_cortar_pacote_web(pacote), url, token, log)
 
 
 # ---------------------------------------------------------------------------
@@ -9235,6 +9450,26 @@ def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
     return cont
 
 
+def gravar_lote_simulado_web(pacote: dict, pasta) -> dict:
+    """(T-0035) Grava ao lado do JSON a pasta do lote: `<rid>.json.gz` e o
+    `indice.json` (so tamanhos e sha). Devolve {rid: {bytes_json, bytes_gz}}."""
+    import gzip                                         # noqa: PLC0415
+    import hashlib                                      # noqa: PLC0415
+    dest = Path(pasta) / _lote_web(pacote["gerado_em"])
+    dest.mkdir(parents=True, exist_ok=True)
+    tam, indice = {}, {}
+    for rid, farol in (pacote.get("relatorios") or {}).items():
+        farol = _cortar_farol_web(rid, farol)
+        corpo = _json_farol_web(farol)
+        gz = gzip.compress(corpo, 6)
+        (dest / f"{rid}.json.gz").write_bytes(gz)
+        tam[rid] = {"bytes_json": len(corpo), "bytes_gz": len(gz)}
+        indice[rid] = dict(tam[rid], sha256=hashlib.sha256(corpo).hexdigest())
+    (dest / "indice.json").write_text(json.dumps(
+        {"formato": 2, "farois": indice}), encoding="utf-8")
+    return tam
+
+
 def passo_pacote_web(simular_pacote: bool = False) -> dict:
     """4f: monta, e envia (ou so grava o simulado). Nunca levanta."""
     try:
@@ -9268,18 +9503,20 @@ def passo_pacote_web(simular_pacote: bool = False) -> dict:
             parciais=parciais_web(PASTA_LOCAL, hoje.date(), log=lambda m:
                                   log.warning("%s", m)),
             csvs=csvs_importar_web(PASTA_LOCAL, hoje.date(), log=lambda m:
-                                   log.warning("%s", m)))
+                                   log.warning("%s", m)),
+            cortar=False)           # T-0035: corta no envio (por farol ou global)
         tam = len(json.dumps(pacote, ensure_ascii=False).encode("utf-8"))
         if simular_pacote:
             pasta = Path(tempfile.gettempdir()) / "BAP_PACOTE_WEB"
             pasta.mkdir(parents=True, exist_ok=True)
             arq = pasta / f"pacote_web_{hoje.year}{hoje.month:02d}.json"
-            arq.write_text(json.dumps(pacote, ensure_ascii=False),
-                           encoding="utf-8")
+            arq.write_text(json.dumps(_cortar_pacote_web(pacote),
+                                      ensure_ascii=False), encoding="utf-8")
             log.info("Pacote web simulado gravado em %s (%d KB).", arq,
                      tam // 1024)
-            return {"simulado": str(arq), "kb": tam // 1024}
-        ok = enviar_pacote_web(pacote, log=log.info)
+            lote = gravar_lote_simulado_web(pacote, pasta)
+            return {"simulado": str(arq), "kb": tam // 1024, "lote": lote}
+        ok = enviar_pacote(pacote, log=log.info)
         return {"enviado": ok, "kb": tam // 1024}
     except Exception as erro:                           # noqa: BLE001
         log.warning("Pacote web (4f): %s", erro)
