@@ -47,9 +47,11 @@ def real():
         rels[rid] = rn.montar(rid, RAIZ, hoje=HOJE,
                               params=ba.params_farol_web(rid, 2026, 11),
                               tela=(rid == ba.RID_META_WEB))
-        if rid == ba.RID_META_WEB:
-            rels[rid + "_uf"] = ba.montar_por_uf_web(rid, rels[rid], RAIZ,
-                                                     PARAMS, HOJE)
+        # T-0022 (Metas) e T-0024 (Base de clientes): o recorte é o montar
+        # com UF, como no coletar_relatorios_web
+        if rid == ba.RID_META_WEB or rid in ba.RIDS_KPIS_POR_UF_WEB:
+            rels[rid + "_uf"] = ba.montar_por_uf_web(
+                rid, rels[rid], RAIZ, ba.params_farol_web(rid, 2026, 11), HOJE)
     return rels, ba.montar_pacote_web(rels, 2026, 11, raiz=RAIZ)
 
 
@@ -160,42 +162,35 @@ def test_RN_GER_006_estoque_soma_dos_estados_e_o_total_do_farol(real, rid):
         assert soma == total[rotulo], (rid, rotulo, soma, total[rotulo])
 
 
-@pytest.mark.xfail(reason="T-0024 (robô): o recorte por estado da Base de "
-                   "clientes sai das linhas da aba Clientes e não do filtro "
-                   "UF do PC; AM na web 1.501 x 1.416 no PC (recado ao "
-                   "modulo-robo)")
 def test_RN_GER_006_vc_base_recorte_do_estado_bate_com_o_filtro_uf_do_pc(real):
     """A Base de clientes tem o filtro UF no PC: o cartão do estado na web é
     o do PC com UF = o estado (mesma regra do Painel e das Metas)."""
     _rels, p = real
     web = p["relatorios"]["vc_base"]
     params = ba.params_farol_web("vc_base", 2026, 11)
-    for uf in sorted(web.get("recortes") or {}):
+    ufs = sorted(web.get("recortes") or {})
+    assert ufs == ba._ufs_do_parametro_web(_rels["vc_base"])    # todo estado do filtro
+    assert len(ufs) >= 2
+    for uf in ufs:
         pc = rn.montar("vc_base", RAIZ, hoje=HOJE, params=dict(params, UF=uf))
         assert [(k["rotulo"], k["valor"]) for k in
                 web["recortes"][uf]["kpis"]] == [
             (k["rotulo"], k["valor"]) for k in pc.get("kpis") or []], uf
 
 
-@pytest.mark.xfail(reason="T-0024 (robô): no Planner o cartão do estado "
-                   "usa os cartões da aba Por cliente; o mesmo rótulo "
-                   "'Visitas no mês' soma 7.116 nos estados e é 4.168 no "
-                   "farol (recado ao modulo-robo)")
-def test_RN_GER_006_vc_planner_mesmo_rotulo_soma_dos_estados_e_o_total():
-    """Cartão com o mesmo rótulo no farol e no recorte: a soma dos estados é o
-    total do farol (quantidades)."""
-    r = rn.montar("vc_planner", RAIZ, hoje=HOJE,
-                  params=ba.params_farol_web("vc_planner", 2026, 11))
-    web = ba.montar_pacote_web({"vc_planner": r}, 2026, 11,
-                               raiz=RAIZ)["relatorios"]["vc_planner"]
-    total = {k["rotulo"]: _numero(k["valor"]) for k in web["kpis"]}
-    ufs = web.get("recortes") or {}
-    assert ufs
-    comuns = {k["rotulo"] for u in ufs.values() for k in u["kpis"]} & set(total)
-    assert comuns
-    for rotulo in comuns:
-        if total[rotulo] is None:
-            continue
-        soma = sum(_numero(k["valor"]) or 0 for u in ufs.values()
-                   for k in u["kpis"] if k["rotulo"] == rotulo)
-        assert soma == total[rotulo], (rotulo, soma, total[rotulo])
+def test_RN_GER_006_vc_planner_sem_filtro_uf_vai_sem_recorte_e_com_aviso(real):
+    """O Planner não tem o filtro UF no PC (decisão do gerente, igual ao
+    Visita): na web vai sem recorte por estado e com o aviso; nenhum cartão
+    por estado com rótulo do farol (nem linha com estado para recortar)."""
+    _rels, p = real
+    web = p["relatorios"]["vc_planner"]
+    assert not web.get("recortes")
+    assert "Sem filtro por estado: os cartões mostram a BAP inteira." in (
+        web.get("avisos") or [])
+    rotulos = {k["rotulo"] for k in web["kpis"]}
+    assert rotulos
+    por_estado = [k["rotulo"] for u in (web.get("recortes") or {}).values()
+                  for k in (u or {}).get("kpis") or []]
+    assert not rotulos & set(por_estado)
+    assert not [t["titulo"] for t in web.get("tabelas") or []
+                if "uf_linhas" in t]

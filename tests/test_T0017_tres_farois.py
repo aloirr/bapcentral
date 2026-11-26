@@ -93,8 +93,6 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
                                       "pv_pedidos": "Pedidos",
                                       "pl_entregas": "Entregas",
-                                      "vc_base": "Clientes",
-                                      "vc_planner": "Por cliente",
                                       "pl_giro": "Todos os produtos",
                                       "pl_frw": "Estoque FRW"}
     # a coluna e a regra da UF: filial da nota no Pedidos, UF do cliente no
@@ -102,10 +100,11 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     assert ba._UF_LINHAS_WEB[("pv_pedidos", "Pedidos")] == ("FILIAL",
                                                             "filial")
     assert ba._UF_LINHAS_WEB[("pl_entregas", "Entregas")] == ("UF", "uf")
-    # T-0024: a tabela de recorte de cada farol do lote 2 tem a regra da UF
-    # (UF do cliente na Base e no Planner; filial no estoque)
-    assert ba._UF_LINHAS_WEB[("vc_base", "Clientes")] == ("UF", "uf")
-    assert ba._UF_LINHAS_WEB[("vc_planner", "Por cliente")] == ("UF", "uf")
+    # T-0024: estoque por filial (linhas da tabela); a Base de clientes usa o
+    # filtro UF do PC (montar com UF); o Planner não tem filtro UF: sem recorte
+    assert ba.RIDS_KPIS_POR_UF_WEB == ("vc_base",)
+    assert not [k for k in ba._UF_LINHAS_WEB if k[0] in ("vc_base",
+                                                          "vc_planner")]
     assert ba._UF_LINHAS_WEB[("pl_giro", "Todos os produtos")] == ("FILIAL",
                                                                    "filial")
     assert ba._UF_LINHAS_WEB[("pl_frw", "Estoque FRW")] == ("FILIAL",

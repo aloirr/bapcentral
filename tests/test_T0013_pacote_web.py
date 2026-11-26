@@ -569,8 +569,9 @@ def test_T0013_coletar_chama_montar_vc_painel_e_farois_web(monkeypatch):
     farois = _farois_web()
     # T-0022: o Painel e as Metas levam o recorte por estado (_uf); com o
     # montar fictício nenhum estado aparece, então não há chamada com UF.
+    # T-0024: a Base de clientes também (o cartão do estado é o do PC com UF)
     assert set(saida) == {"vc_painel", "vc_painel_uf", *farois,
-                          ba.RID_META_WEB + "_uf"}
+                          ba.RID_META_WEB + "_uf", "vc_base_uf"}
     assert [c for c in chamadas if "UF" not in (c[1] or {})] == [
         ("vc_painel", params)] + [
         (rid, ba.params_farol_web(rid, 2026, 11)) for rid in farois]
