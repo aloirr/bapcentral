@@ -209,7 +209,10 @@ def _vc_painel_ficticio(visoes=("res", "prod", "du"), outras=True):
 # Lista branca fixa (R-20261124-175008-alexandre): os 4 faróis do PC que podem
 # ir para a web. Qualquer outro id em FAROIS_WEB é defeito.
 LISTA_FAROIS_WEB = frozenset({"pv_pedidos", "vc_visitas", "pl_entregas",
-                              "pl_inadimplencia"})
+                              "pl_inadimplencia",
+                              # T-0024 (lote 2)
+                              "pv_indicadores", "vc_base", "vc_planner",
+                              "pl_giro", "pl_frw"})
 # relatório montado no PC que nunca vai para a web (fora da lista branca)
 FORA_DA_LISTA = "pl_garantias"
 
@@ -557,8 +560,8 @@ def test_T0013_coletar_chama_montar_vc_painel_e_farois_web(monkeypatch):
     params = {"ANO": "2026", "MÊS": "11"}
     farois = _farois_web()
     assert set(saida) == {"vc_painel", *farois}
-    assert chamadas == [("vc_painel", params)] + [(rid, params)
-                                                   for rid in farois]
+    assert chamadas == [("vc_painel", params)] + [
+        (rid, ba.params_farol_web(rid, 2026, 11)) for rid in farois]
 
 
 def test_T0013_passo_pacote_web_simulado_grava_sem_enviar(monkeypatch,
