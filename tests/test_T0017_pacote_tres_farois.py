@@ -754,6 +754,8 @@ def _contrato_1073():
 def _robo():
     saida = {}
     for rid, tabs in ba._COLUNAS_TABELAS_WEB.items():
+        if rid not in RIDS:        # T-0023: os do pós-venda têm teste próprio (o contrato 10.7.3 é dos 3)
+            continue
         for titulo, cols in tabs.items():
             saida[titulo] = [(n, tp, bool(o), s) for n, tp, o, s in cols]
     return saida
