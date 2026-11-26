@@ -209,7 +209,10 @@ def _vc_painel_ficticio(visoes=("res", "prod", "du"), outras=True):
 # Lista branca fixa (R-20261124-175008-alexandre): os 4 faróis do PC que podem
 # ir para a web. Qualquer outro id em FAROIS_WEB é defeito.
 LISTA_FAROIS_WEB = frozenset({"pv_pedidos", "vc_visitas", "pl_entregas",
-                              "pl_inadimplencia"})
+                              "pl_inadimplencia",
+                              # (T-0025) Farol DDR, Campanhas BAP, Expositores
+                              "farol_pv", "farol_vc", "farol_pl",
+                              "vc_champions", "tm_expositores"})
 # relatório montado no PC que nunca vai para a web (fora da lista branca)
 FORA_DA_LISTA = "pl_garantias"
 

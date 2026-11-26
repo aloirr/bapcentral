@@ -78,8 +78,11 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     """Os 4 faróis vão ao site, cada um com a base do "baixado em". Tabela
     de recorte por estado em todos, menos a Visita (RN-GER-006: nenhuma
     tabela da Visita traz a UF do cliente)."""
+    # (T-0025) + Farol DDR (3 areas), Campanhas BAP e Farol de Expositores
     assert set(ba.FAROIS_WEB) == {"pl_inadimplencia", "pv_pedidos",
-                                  "pl_entregas", "vc_visitas"}
+                                  "pl_entregas", "vc_visitas", "farol_pv",
+                                  "farol_vc", "farol_pl", "vc_champions",
+                                  "tm_expositores"}
     for rid in ba.FAROIS_WEB:
         assert rid in ba._FONTE_BAIXADO_WEB
     assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
