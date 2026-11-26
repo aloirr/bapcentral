@@ -336,7 +336,11 @@ def criar_app() -> FastAPI:
             subnomes, tab = tabelas.subabas_para_tela(t, sub, consulta)
             sub = tab["sub"]
         else:
-            tab = tabelas.tabela_para_tela(t, consulta, uf=uf_ok or None)
+            fora_base = tabelas.linhas_fora_da_base(t) if rid == "pv_pedidos" else frozenset()
+            mostrar_fora = consulta.get("fora") == ["1"]
+            tab = tabelas.tabela_para_tela(t, consulta, uf=uf_ok or None,
+                                           excluir=frozenset() if mostrar_fora else fora_base)
+            tab["fora_base"] = {"qtd": len(fora_base), "mostrar": mostrar_fora} if fora_base else None
             sel = selecao(t, tab, consulta)              # um clique no pedido: as de baixo só com ele (PC)
             juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None)
             volta = request.url.path + "?" + request.url.query

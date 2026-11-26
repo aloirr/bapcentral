@@ -28,6 +28,11 @@
   <nav class="bc3-abas" aria-label="Abas do farol">{% for c, n in abas %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}" class="{{ 'on' if c == aba }}"{{ ' aria-current="page"'|safe if c == aba }}>{{ n }}{% if c == aba and e_tab and tabela.total_linhas %} <span>· {{ tabela.total_linhas }}</span>{% endif %}</a>{% endfor %}</nav>
   {% endif %}
   <div class="bc3-acoes">
+    {% if e_tab and tabela.fora_base %}{% set fb = tabela.fora_base %}
+    {# T-0029: pedidos internos (cliente fora da base); marcada = ignora #}
+    <a class="bc3-chk" role="checkbox" aria-checked="{{ 'false' if fb.mostrar else 'true' }}" title="Pedidos internos: cliente fora da base de clientes da BAP"
+       href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}{{ '' if fb.mostrar else '&fora=1' }}"><i>{{ '' if fb.mostrar else '✓' }}</i>Ignorar fora da base ({{ fb.qtd }})</a>
+    {% endif %}
     {% if e_tab %}
     <form method="get" action="/farol/{{ rid }}" class="bc3-busca" role="search">
       <input type="hidden" name="aba" value="{{ aba }}">
