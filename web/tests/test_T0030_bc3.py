@@ -41,3 +41,13 @@ def test_T0031_todos_os_farois_no_visual_bc3(admin):
     for rid in ("pl_entregas", "vc_visitas"):
         h = admin.get(f"/farol/{rid}").text
         assert '<body class="bc3">' in h and 'class="topo"' not in h and 'class="bc3-faixa"' in h
+
+
+def test_T0032_botoes_de_parcial_como_no_pc(admin):
+    """T-0032 (Alexandre, 26/11): os botões das parciais (o que a assistente manda no WhatsApp) em Pedidos, Visita e
+    Entregas, com o nome do PC, mesmo quando o pacote ainda não trouxe as imagens."""
+    assert postar(admin, pacote_tres_farois()).status_code == 200
+    for rid, rot in (("pv_pedidos", "Parcial Pedidos"), ("vc_visitas", "Parcial Visitas e Conversão"),
+                     ("pl_entregas", "Parcial Entregas")):
+        h = admin.get(f"/farol/{rid}").text
+        assert f'href="/farol/{rid}/parcial"' in h and rot in h

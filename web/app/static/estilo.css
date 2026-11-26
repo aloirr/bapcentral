@@ -466,3 +466,4 @@ body.uma-tela .bc3-cima+.bc3-rod{border:1px solid #E3E8E4;border-top:0;border-ra
 .bc3-juntas{grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
 body:not(.uma-tela) .bc3-juntas .rolagem-dados{max-height:420px;overflow:auto}
 body.uma-tela .dica-rolagem{display:none}
+.bc3-bt-verde{background:#2F7D32;border-color:#2F7D32;color:#fff}.bc3-bt-verde:hover{background:#1F5E23}
