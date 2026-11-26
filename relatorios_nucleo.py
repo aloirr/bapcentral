@@ -1940,6 +1940,9 @@ def farol_pedidos(ctx):
         ]
 
     def cartoes(ls):
+        # RN-GER-013 (Alexandre, 26/11: "A"): os numeros sem os pedidos de
+        # cliente fora da base, como a tabela do site (caixa "Ignorar" marcada)
+        ls = [l for l in ls if l[I_RAZ] != NOME_FORA_DA_BASE]
         if ls and all(l[I_SIT] == "EM ABERTO" for l in ls):
             return cartoes_bi(ls)
         c = Counter(l[I_SIT] for l in ls)
