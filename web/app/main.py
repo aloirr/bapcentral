@@ -12,12 +12,12 @@ from urllib.parse import parse_qs, quote
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, cobranca, config, pacotes, render, tabelas
+from . import VERSAO, cobranca, config, exportar, pacotes, render, tabelas
 from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 
 log = logging.getLogger("bap_web")
@@ -279,7 +279,8 @@ def criar_app() -> FastAPI:
                      for c, tit in tabelas.ABAS[rid]}
         com_aba = [(c, tit) for c, tit in tabelas.ABAS[rid] if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
         barra = [tabelas.RESUMO] + com_aba if com_aba else []
-        ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo")
+        ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo",
+                   parcial=bool(rel.get("parciais")) and perfil in PERFIS_PARCIAL.get(rid, ()))
         ufs = render.recortes_farol(rel)
         uf_ok = uf.upper()[:2] if uf.upper()[:2] in ufs else ""
         topo = render.farol_para_tela(rel, (uf[:4] if aba == "resumo" else uf_ok) or None, rid)   # uma vez só
@@ -318,6 +319,120 @@ def criar_app() -> FastAPI:
                       faixa=True, ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
                       aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, titulo_aba=t["titulo"], **ctx)
 
+    # ------------------------------------------------------------ T-0026: parcial em imagem e exportação
+    QUANDOS = (("acum", "Acumulado"), ("d1", "D-1"), ("hoje", "Hoje"))
+    PERFIS_PARCIAL = {"pv_pedidos": render.FAROIS["pv_pedidos"][1], "vc_visitas": render.FAROIS["vc_visitas"][1],
+                      "pl_entregas": tabelas.VE_TABELAS["pl_entregas"]}   # a de Entregas lista cliente: só quem vê a tabela
+
+    def parciais_de(rid, perfil):
+        """{quando: {"rotulo","png"}} do farol, só para quem pode ver (senão PermissionError)."""
+        if rid not in PERFIS_PARCIAL or perfil not in PERFIS_PARCIAL[rid]:
+            raise PermissionError
+        return (rel_do(rid) or {}).get("parciais") or {}
+
+    def baixar(dados: bytes, tipo: str, nome: str, anexo: bool = True):
+        cab = {"Content-Disposition": f'{"attachment" if anexo else "inline"}; filename="{nome}"',
+               "Cache-Control": "no-store", "X-Robots-Tag": "noindex"}
+        return Response(dados, media_type=tipo, headers=cab)
+
+    def nome_do(rid, q):
+        return f"parcial_{rid.split('_', 1)[1]}_{q}_{datetime.now(MANAUS):%Y%m%d_%H%M}"
+
+    @app.get("/farol/{rid}/parcial", response_class=HTMLResponse)
+    async def parcial(request: Request, rid: str, q: str = "acum"):
+        u = usuario(request)
+        pars = parciais_de(rid, u["perfil"])
+        opcoes = [(k, nome) for k, nome in QUANDOS if k in pars]
+        if not opcoes:
+            return pagina(request, "parcial.html", farol_nome=render.FAROIS[rid][0], rid=rid, opcoes=[], q="")
+        q = q if q in pars else opcoes[0][0]
+        cobranca.registrar_acesso(cfg.dados, u["login"], rid, "parcial-" + q, "ver")
+        return pagina(request, "parcial.html", farol_nome=render.FAROIS[rid][0], rid=rid, opcoes=opcoes, q=q,
+                      rotulo=pars[q].get("rotulo", ""), noindex=True, pdf_ok=True)
+
+    @app.get("/farol/{rid}/parcial.png")
+    async def parcial_png(request: Request, rid: str, q: str = "acum"):
+        u = usuario(request)
+        par = parciais_de(rid, u["perfil"]).get(q)
+        raw = exportar.png_dados(par["png"]) if isinstance(par, dict) else None
+        if raw is None:
+            return JSONResponse({"erro": "parcial indisponível"}, status_code=404)
+        cobranca.registrar_acesso(cfg.dados, u["login"], rid, "parcial-" + q, "png")
+        return baixar(raw, "image/png", nome_do(rid, q) + ".png", anexo=request.query_params.get("baixar") == "1")
+
+    @app.get("/farol/{rid}/parcial.pdf")
+    async def parcial_pdf(request: Request, rid: str, q: str = "acum"):
+        u = usuario(request)
+        par = parciais_de(rid, u["perfil"]).get(q)
+        raw = exportar.png_dados(par["png"]) if isinstance(par, dict) else None
+        pdf = exportar.pdf_imagem(raw, f"{render.FAROIS[rid][0]} · {par.get('rotulo', '')}") if raw else None
+        if pdf is None:
+            return JSONResponse({"erro": "parcial indisponível"}, status_code=404)
+        cobranca.registrar_acesso(cfg.dados, u["login"], rid, "parcial-" + q, "pdf")
+        return baixar(pdf, "application/pdf", nome_do(rid, q) + ".pdf")
+
+    def tabelas_para_exportar(request, u, rid, aba, todas):
+        """[(tabela plana)] do que a pessoa vê (o que a tela mostra, todas as páginas). PermissionError fora do perfil."""
+        perfil, rel, consulta = u["perfil"], rel_do(rid), consulta_de(request)
+        if rid not in render.FAROIS or perfil not in render.FAROIS[rid][1] or not rel:
+            raise PermissionError
+        abas = []                                          # (titulo no pacote, bruta, consulta)
+        if rid in tabelas.RIDS:
+            for c, tit in tabelas.ABAS[rid]:
+                if (todas or c == aba) and tabelas.ve_aba(rid, c, perfil):
+                    t = next((x for x in rel.get("tabelas") or [] if x.get("titulo") == tit), None)
+                    if t:
+                        abas.append((c, t))
+            ufs = render.recortes_farol(rel)
+            uf = request.query_params.get("uf", "").upper()[:2]
+            uf = uf if uf in ufs and not todas else ""
+        elif rid == cobranca.RID and perfil in cobranca.VE_TABELAS:
+            for c, tit in cobranca.ABA_TABELA.items():
+                if todas or c == aba:
+                    t = next((x for x in rel.get("tabelas") or [] if x.get("titulo") == tit), None)
+                    if t:
+                        abas.append((c, t))
+            uf = ""
+        if not abas:
+            raise PermissionError
+        saida = []
+        for c, t in abas:
+            q = {} if todas else consulta
+            if t.get("subabas"):                           # Solicitação BAP: a sub-aba escolhida (ou todas, no Excel completo)
+                n = len(t["subabas"])
+                try:
+                    k0 = int(q.get("sub", ["0"])[0])
+                except ValueError:
+                    k0 = 0
+                subs = range(n) if todas else [min(max(k0, 0), n - 1)]
+                for k in subs:
+                    _, tela = tabelas.subabas_para_tela(t, k, q, pagina_tam=10 ** 9)
+                    saida.append(exportar.tabela_plana(tela, t["subabas"][k]))
+                continue
+            if rid == cobranca.RID:
+                cols = cobranca.colunas_esperadas(t["titulo"], t["colunas"])
+                tela = tabelas.tabela_para_tela(t, q, pagina_tam=10 ** 9, ordem_tela=cobranca.ordem_tela(t["titulo"], cols),
+                                                centavos=True, total_sempre=True, vazios_no_fim=False, titulo=t["titulo"])
+            else:
+                tela = tabelas.tabela_para_tela(t, q, uf=uf or None, pagina_tam=10 ** 9)
+            saida.append(exportar.tabela_plana(tela, t, centavos=rid == cobranca.RID))
+        return saida
+
+    @app.get("/farol/{rid}/exportar")
+    async def exportar_tabela(request: Request, rid: str, aba: str = "", formato: str = "xlsx", todas: str = ""):
+        u = usuario(request)
+        if formato not in ("xlsx", "pdf") or (formato == "pdf" and todas):
+            return JSONResponse({"erro": "formato inválido"}, status_code=400)
+        tabs = tabelas_para_exportar(request, u, rid, aba, bool(todas))
+        cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba or "todas", formato)
+        nome = f"{rid}_{'todas' if todas else aba}_{datetime.now(MANAUS):%Y%m%d_%H%M}"
+        if formato == "xlsx":
+            return baixar(exportar.xlsx(tabs), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                          nome + ".xlsx")
+        t = tabs[0]
+        rod = f"{render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(((ultimo.get() or {}).get('gerado_em')))}"
+        return baixar(exportar.pdf_tabela(t, rod), "application/pdf", nome + ".pdf")
+
     @app.get("/farol/{rid}", response_class=HTMLResponse)
     async def farol(request: Request, rid: str, uf: str = "", aba: str = "resumo"):
         u = usuario(request)
@@ -340,8 +455,10 @@ def criar_app() -> FastAPI:
             return pagina(request, "farol.html", farol_nome=nome, rid=rid, tela=None, abas=[], aba="resumo")
         abas = []
         if rid == cobranca.RID and "tabelas" in rel and "cobranca" in rel:
+            tem = {t["titulo"] for t in rel["tabelas"]}              # T-0026: robô antigo não manda as 5 de resumo
             abas = [(c, n) for c, n in cobranca.ABAS
-                    if c == "resumo" or (c in cobranca.ABA_TABELA and perfil in cobranca.VE_TABELAS)
+                    if c == "resumo" or (c in cobranca.ABA_TABELA and perfil in cobranca.VE_TABELAS
+                                         and cobranca.ABA_TABELA[c] in tem)
                     or (c == "cobrar" and perfil in cobranca.COBRA)]
         ctx = dict(farol_nome=nome, rid=rid, abas=abas if len(abas) > 1 else [], aba=aba, noindex=aba != "resumo")
         if aba == "resumo":
@@ -350,7 +467,9 @@ def criar_app() -> FastAPI:
             return pagina(request, "farol.html", tela=None, **ctx)
         if aba in cobranca.ABA_TABELA:
             titulo = cobranca.ABA_TABELA[aba]
-            t = next(x for x in rel["tabelas"] if x["titulo"] == titulo)
+            t = next((x for x in rel["tabelas"] if x["titulo"] == titulo), None)
+            if t is None:                               # aba de resumo que o robô ainda não manda
+                return pagina(request, "farol.html", tela=None, **ctx)
             return pagina(request, "farol.html", tela=None,
                           tabela=cobranca.tabela_para_tela(t, titulo, consulta_de(request)),
                           **ctx)
