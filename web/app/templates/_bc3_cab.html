@@ -47,7 +47,10 @@
       {% if tabela.busca %}<a href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}" title="Limpar busca" aria-label="Limpar busca">×</a>{% endif %}
     </form>
     {% endif %}
-    {% if parcial is defined and parcial %}<a class="bc3-bt" href="/farol/{{ rid }}/parcial" title="Parcial para o WhatsApp">Parcial</a>{% endif %}
+    {# T-0032: os botões do PC que as assistentes usam para mandar o farol no WhatsApp #}
+    {% set rot_parcial = {"pv_pedidos": "Parcial Pedidos", "vc_visitas": "Parcial Visitas e Conversão", "pl_entregas": "Parcial Entregas"} %}
+    {% if parcial is defined and parcial %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}/parcial" title="Parcial para o WhatsApp">{{ rot_parcial.get(rid, "Parcial") }}</a>{% endif %}
+    {% if rid == "pl_inadimplencia" and abas and ("cobrar" in (abas|map(attribute=0)|list)) and aba != "cobrar" %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}?aba=cobrar">Cobrar no WhatsApp</a>{% endif %}
     {% if e_tab %}
     <details class="bc3-exp"><summary class="bc3-bt">Exportar</summary>
       <div>{% set qs = request.url.query %}

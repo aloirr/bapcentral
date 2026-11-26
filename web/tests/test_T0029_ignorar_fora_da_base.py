@@ -34,3 +34,11 @@ def test_RN_GER_013_caixa_ignorar_marcada_por_padrao_e_desmarcar_mostra(admin):
     assert f">{ped}<" not in h.split('class="bc3-corpo"')[1]
     h = admin.get("/farol/pv_pedidos?aba=pedidos&fora=1").text
     assert 'aria-checked="false"' in h and f">{ped}<" in h and tabelas.NOME_FORA_DA_BASE in h
+
+
+def test_RN_GER_013_nome_antigo_do_pacote_tambem_conta():
+    p, _ = _pacote_com_fora_da_base()
+    t = p["relatorios"]["pv_pedidos"]["tabelas"][0]
+    i = [c["nome"] for c in t["colunas"]].index("RAZÃO SOCIAL")
+    t["linhas"][1][i] = "NÃO LOCALIZADO NA BASE"
+    assert tabelas.linhas_fora_da_base(t) == frozenset({0, 1})

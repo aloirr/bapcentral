@@ -829,8 +829,10 @@ def linhas_fora_da_base(t: dict) -> frozenset:
     col = next((i for i, n in enumerate(nomes) if n in ("RAZÃO SOCIAL", "CLIENTE")), None)
     if col is None:
         return frozenset()
+    # até o robô novo chegar à produção (rotina diária), o pacote ainda traz o nome antigo do ftPedidos
+    nomes_fora = {NOME_FORA_DA_BASE, "NÃO LOCALIZADO NA BASE", "NAO LOCALIZADO NA BASE"}
     return frozenset(k for k, ln in enumerate(t.get("linhas") or [])
-                     if col < len(ln) and str(ln[col] or "").strip().upper() == NOME_FORA_DA_BASE)
+                     if col < len(ln) and str(ln[col] or "").strip().upper() in nomes_fora)
 
 
 def colunas_do_celular(tab: dict) -> dict:
