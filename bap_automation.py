@@ -6598,7 +6598,11 @@ _DESCARTAR = object()
 
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
 # o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
-FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas")
+FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas",
+              # (T-0025) o Farol DDR das 3 areas, as Campanhas BAP e o Farol de
+              # Expositores
+              "farol_pv", "farol_vc", "farol_pl", "vc_champions",
+              "tm_expositores")
 # D1 do Alexandre ("2 A", 24/11): grafico e frase com nome de vendedor ou
 # supervisor VAO no pacote (True). Cliente e CNPJ nunca vao. Com False, o
 # grafico e as frases com nome de pessoa saem (1 linha).
@@ -6718,7 +6722,16 @@ _FONTE_BAIXADO_WEB = {
     # Visita: o "Atualizar visitas" e manual no PC; vale a ultima gravacao do
     # VISITAS_POR_CLIENTE (o passo final do visitas_maxima)
     "vc_visitas": (Path(SUBPASTA_RELATORIOS) / "Visitas",
-                   "VISITAS_POR_CLIENTE.xlsx")}
+                   "VISITAS_POR_CLIENTE.xlsx"),
+    # (T-0025) o Farol DDR vale a ultima marcacao gravada (o do mes mais novo);
+    # as Campanhas nascem dos mesmos Movimentos; os Expositores, do acompanhamento
+    "farol_pv": (Path(SUBPASTA_RELATORIOS), "FAROL_DDR_BAP_*.xlsx"),
+    "farol_vc": (Path(SUBPASTA_RELATORIOS), "FAROL_DDR_BAP_*.xlsx"),
+    "farol_pl": (Path(SUBPASTA_RELATORIOS), "FAROL_DDR_BAP_*.xlsx"),
+    "vc_champions": (Path(BKP_BAPTOOLS),
+                     "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "tm_expositores": (Path(SUBPASTA_RELATORIOS),
+                       "ACOMPANHAMENTO_EXPOSITORES.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
@@ -6957,7 +6970,7 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
                        if baixado_em else None)}
     if r.get("kpis_faixa"):          # Pedidos: cartoes em faixa, como o PC
         saida["kpis_faixa"] = True
-    if not saida["recortes"] and rid != "pl_inadimplencia":
+    if not saida["recortes"] and rid not in _SEM_AVISO_ESTADO_WEB:
         saida["avisos"].append("Sem filtro por estado: os cartões "
                                "mostram a BAP inteira.")
     val = _para_json(saida, fora=_CHAVES_FORA_FAROL_WEB)
@@ -7123,7 +7136,14 @@ def tabelas_cobranca_web(r: dict):
 # texto_sem_contato.
 # ---------------------------------------------------------------------------
 WEB_PACOTE_TETO_MB = 20            # trava do robo (o teto da web e 25: render.yaml)
-RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas")
+RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas", "farol_pv",
+                    "farol_vc", "farol_pl", "vc_champions", "tm_expositores")
+RIDS_DDR_WEB = ("farol_pv", "farol_vc", "farol_pl")
+# (T-0025) farois que nao tem recorte por estado (o aviso "Sem filtro por
+# estado" nao se aplica: DDR e por pessoa, Campanhas por vendedor, Expositores
+# tem a coluna UF na tabela)
+_SEM_AVISO_ESTADO_WEB = ("pl_inadimplencia",) + RIDS_DDR_WEB + (
+    "vc_champions", "tm_expositores")
 # colunas que nunca vao (sem acento, maiusculas), em qualquer tabela/junta/sub-aba
 _COLUNAS_FORA_WEB = frozenset({
     "TELEFONE", "CELULAR", "WHATSAPP", "CNPJ", "CPF", "E-MAIL", "EMAIL",
@@ -7134,7 +7154,16 @@ _ABAS_TABELAS_WEB = {
     "pl_entregas": ("Entregas",),
     "vc_visitas": ("Por supervisor", "Por vendedor", "Dia a dia",
                    "Aderência dia a dia", "Cliente a cliente", "Prospecção",
-                   "Indicação")}
+                   "Indicação"),
+    # (T-0025)
+    "farol_pv": ("Hoje", "Pendentes de marcação", "Até hoje"),
+    "farol_vc": ("Hoje", "Pendentes de marcação", "Até hoje"),
+    "farol_pl": ("Hoje", "Pendentes de marcação", "Até hoje"),
+    "vc_champions": ("Vendedores", "Supervisores", "Aux. Técnico",
+                     "Confrontos", "Pts por semana", "Campanha relâmpago",
+                     "Regras"),
+    "tm_expositores": ("Expositores", "Por estado", "Por status",
+                       "Cadastro de expositores")}
 TITULO_SOLICITACAO_WEB = "Solicitação BAP"
 # tabelas que o PC carrega com 12 meses e a web recebe so do mes (D2 A)
 _TABELAS_SO_MES_WEB = ("Pedidos", "Entregas")
@@ -7178,6 +7207,31 @@ _METRICAS_VISITA_WEB = (
     _c("INTERV. ALMOÇO", "hora"), _c("DIAS ALMOÇO > MÁX.", "int"),
     _c("TMA", "hora"), _c("TMD", "hora"), _c("KM", "num"),
     _c("KM/CLIENTE", "num1"))
+
+# (T-0025) Farol DDR: as 3 tabelas sao iguais nas 3 areas
+_DDR_WEB = {
+    "Hoje": (
+        _c("HORÁRIO", "texto"), _c("ATIVIDADE", "texto"),
+        _c("PRIORIDADE", "texto"), _c("PONTOS", "int"),
+        _c("STATUS", "texto"), _c("MOTIVO", "texto"),
+        _c("FERRAMENTA BAP", "texto")),
+    "Pendentes de marcação": (
+        _c("DATA", "data"), _c("DIA", "texto"), _c("HORÁRIO", "texto"),
+        _c("ATIVIDADE", "texto"), _c("PRIORIDADE", "texto"),
+        _c("PONTOS", "int"), _c("STATUS", "texto"), _c("MOTIVO", "texto"),
+        _c("FERRAMENTA BAP", "texto")),
+    "Até hoje": (
+        _c("DATA", "data"), _c("DIA", "texto"), _c("HORÁRIO", "texto"),
+        _c("ATIVIDADE", "texto"), _c("PRIORIDADE", "texto"),
+        _c("PONTOS", "int"), _c("STATUS", "texto"), _c("MOTIVO", "texto"),
+        _c("PONTOS GANHOS", "num"), _c("FERRAMENTA BAP", "texto"))}
+_CHAMP_PTS_WEB = (
+    _c("FAT. BRUTO", "moeda"), _c("DEVOLUÇÕES", "moeda"),
+    _c("FAT. LÍQUIDO", "moeda"), _c("DESAFIO", "moeda"),
+    _c("% DESAFIO", "pct"), _c("SITUAÇÃO", "texto", selo="texto"))
+# "Pts por semana": as colunas das semanas mudam com o mes (padrao de nome)
+_PTS_SEMANA_WEB = ("Pts por semana", r"^SEM\. \d{2}/\d{2}$",
+                   "SOMA DAS SEMANAS")
 
 # contrato 10.7.3: {rid: {titulo da tabela: colunas depois do corte}}
 _COLUNAS_TABELAS_WEB = {
@@ -7258,7 +7312,70 @@ _COLUNAS_TABELAS_WEB = {
             _c("CLIENTE QUE INDICOU", "texto"), _c("INDICADO", "texto"),
             _c("CIDADE", "texto"), _c("BAIRRO", "texto"),
             _c("SEGMENTO", "texto"), _c("VISITADA EM", "data"),
-            _c("OBSERVAÇÃO", "texto"), _c("REGISTRADO EM", "texto"))}}
+            _c("OBSERVAÇÃO", "texto"), _c("REGISTRADO EM", "texto"))},
+    "farol_pv": _DDR_WEB, "farol_vc": _DDR_WEB, "farol_pl": _DDR_WEB,
+    "vc_champions": {
+        "Vendedores": (
+            _c("POS.", "int"), _c("VENDEDOR", "texto"),
+            _c("SUPERVISOR", "texto")) + _CHAMP_PTS_WEB + (
+            _c("PTS FATUR.", "int"), _c("PEÇAS (UN.)", "int"),
+            _c("PTS PEÇAS", "int"), _c("CLI. NOVOS", "int"),
+            _c("PTS CLI. NOVO", "int"), _c("VITÓRIAS", "int"),
+            _c("PTS BÔNUS", "int"), _c("PTS", "int"),
+            _c("PTS VÁLIDOS", "int"), _c("PTS RELÂMPAGO", "int"),
+            _c("TOTAL A PAGAR", "int")),
+        "Supervisores": (
+            _c("POS.", "int"), _c("SUPERVISOR", "texto"),
+            _c("VENDEDORES", "int")) + _CHAMP_PTS_WEB + (
+            _c("PTS FATUR.", "int"), _c("SKU NOVOS", "int"),
+            _c("PTS SKU NOVO", "int"), _c("POSITIVADOS", "int"),
+            _c("PTS POSIT.", "int"), _c("VITÓRIAS", "int"),
+            _c("PTS BÔNUS", "int"), _c("PTS", "int"),
+            _c("PTS VÁLIDOS", "int"), _c("PTS RELÂMPAGO", "int"),
+            _c("TOTAL A PAGAR", "int")),
+        "Aux. Técnico": (
+            _c("POS.", "int"), _c("AUX. TÉCNICO", "texto"),
+            _c("APOIA (SUPERVISOR)", "texto")) + _CHAMP_PTS_WEB + (
+            _c("PTS FATUR.", "int"), _c("SLA FATUR. %", "pct"),
+            _c("PTS SLA FATUR.", "int"), _c("SLA ENTREGA %", "pct"),
+            _c("PTS SLA ENTREGA", "int"), _c("PTS", "int"),
+            _c("PTS VÁLIDOS", "int")),
+        "Confrontos": (
+            _c("SEMANA", "texto"), _c("TIPO", "texto"),
+            _c("JOGADOR A", "texto"), _c("PTS A", "int"),
+            _c("JOGADOR B", "texto"), _c("PTS B", "int"),
+            _c("RESULTADO", "texto")),
+        "Campanha relâmpago": (
+            _c("DIA", "data"), _c("CAMPANHA", "texto"), _c("TIPO", "texto"),
+            _c("NOME", "texto"), _c("SUPERVISOR", "texto"),
+            _c("PEDIDOS NO DIA", "moeda"), _c("BLOCOS", "int"),
+            _c("PTS PEDIDOS", "int"), _c("VENDEU NO DIA", "texto"),
+            _c("BAP NO DIA", "moeda"), _c("META BAP", "moeda"),
+            _c("DESAFIO", "texto", selo="texto"), _c("PTS DESAFIO", "int"),
+            _c("PTS", "int")),
+        "Regras": (_c("GRUPO", "texto"), _c("REGRA", "texto"),
+                   _c("PTS", "int"))},
+    "tm_expositores": {
+        "Expositores": (
+            _c("STATUS", "texto"), _c("MÊS", "texto", True),
+            _c("SOLICITAÇÃO", "dia"), _c("ASSINATURA", "dia"),
+            _c("DIAS", "int"), _c("CÓD. CLIENTE", "texto"),
+            _c("CLIENTE", "texto"), _c("DESCRIÇÃO DO EXPOSITOR", "texto"),
+            _c("CATEGORIA", "texto"), _c("QTD", "int"),
+            _c("CIDADE", "texto"), _c("UF", "texto"),
+            _c("OBSERVAÇÕES", "texto"), _c("ATUALIZADO", "dia")),
+        "Por estado": (
+            _c("UF", "texto"), _c("EXPOSITORES", "int"),
+            _c("ENTREGUES", "int"), _c("CONTRATO ASSINADO", "int"),
+            _c("SOLICITADOS", "int"), _c("CANCELADOS", "int"),
+            _c("DEVOLVIDOS", "int"), _c("CLIENTES", "int"),
+            _c("CIDADES", "int")),
+        "Por status": (_c("STATUS", "texto"), _c("REGISTROS", "int"),
+                       _c("EXPOSITORES", "int")),
+        "Cadastro de expositores": (
+            _c("EXPOSITOR", "texto"), _c("CATEGORIA FOCO", "texto"),
+            _c("FILIAIS", "texto"), _c("CADASTRADOS", "int"),
+            _c("EM USO", "int"), _c("SALDO", "int"))}}
 # "Aderência dia a dia": as colunas dos dias mudam com o mes (padrao de nome)
 _ADERENCIA_WEB = ("Aderência dia a dia",
                   r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$",
@@ -7288,13 +7405,15 @@ _COLUNAS_LIMPAS_WEB = {
         "CLIENTE": "cliente_sem_documento"},
     ("vc_visitas", "Cliente a cliente"): {
         "CLIENTE": "cliente_sem_documento", "NOME FANTASIA": "sem_documento"},
+    ("tm_expositores", "Expositores"): {"CLIENTE": "sem_documento"},
     ("vc_visitas", "Prospecção"): {"ESTABELECIMENTO": "nome_sem_contato"},
     ("vc_visitas", "Indicação"): {"CLIENTE QUE INDICOU": "nome_sem_contato",
                                   "INDICADO": "nome_sem_contato"}}
 # texto livre (D6 A): telefone, e-mail e CPF/CNPJ viram "[removido]"
 _COLUNAS_TEXTO_LIVRE_WEB = frozenset({
     "JUSTIFICATIVA", "OBSERVAÇÃO", "RESULTADO", "LINHAS DE INTERESSE",
-    "MOTIVO"})
+    "MOTIVO", "ATIVIDADE", "FERRAMENTA BAP", "OBSERVAÇÕES",
+    "DESCRIÇÃO DO EXPOSITOR"})
 _COLUNAS_LARGAS_SOLICITACAO_WEB = ("ID_PRODUTO", "CHAVE", "MOTIVO", "PEDIDOS")
 
 
@@ -7344,6 +7463,15 @@ def _esperado_web(rid: str, titulo: str, nomes: list):
             raise _TabelaTortaWeb("colunas")
         return ((_c("SUPERVISOR", "texto"), _c("VENDEDOR", "texto"))
                 + tuple(_c(n, "pct") for n in nomes[2:]))
+    if rid == "vc_champions" and titulo == _PTS_SEMANA_WEB[0]:
+        import re                                       # noqa: PLC0415
+        meio = nomes[2:-1]
+        if (len(nomes) < 4 or nomes[:2] != ["TIPO", "JOGADOR"]
+                or nomes[-1] != _PTS_SEMANA_WEB[2]
+                or not all(re.match(_PTS_SEMANA_WEB[1], n) for n in meio)):
+            raise _TabelaTortaWeb("colunas")
+        return ((_c("TIPO", "texto"), _c("JOGADOR", "texto"))
+                + tuple(_c(n, "int") for n in nomes[2:]))
     esperado = _COLUNAS_TABELAS_WEB.get(rid, {}).get(titulo)
     if esperado is None:
         raise _TabelaTortaWeb("titulo")
@@ -7474,13 +7602,38 @@ EDICOES_WEB = {
         "aba": "ENTREGAS", "acao": "Editar"},
     ("pl_entregas", "Pendências dos meses anteriores"): {
         "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
-        "aba": "ENTREGAS", "acao": "Editar"}}
+        "aba": "ENTREGAS", "acao": "Editar"},
+    # (T-0025) Farol DDR (STATUS e MOTIVO, nas 3 areas): o arquivo e o do mes
+    # (FAROL_DDR_BAP_AAAA-MM.xlsx) e a aba e a da pessoa; vao na chave
+    # ("AAAA-MM|aba|linha"), conferidos aqui. Expositores: linha existente
+    # (EXPnnnn) ou nova (NOVOxxxx, o PC poe a chave e a data de hoje).
+    **{(_rid, _tit): {"modulo": "farol", "arquivo": None, "aba": None,
+                      "acao": "Marcar"}
+       for _rid in ("farol_pv", "farol_vc", "farol_pl")
+       for _tit in ("Hoje", "Pendentes de marcação", "Até hoje")},
+    ("tm_expositores", "Expositores"): {
+        "modulo": "expositores",
+        "arquivo": "RELATORIOS/ACOMPANHAMENTO_EXPOSITORES.xlsx",
+        "aba": "EXPOSITORES", "acao": "Editar", "novo": True}}
+_RE_ARQ_FAROL_WEB = re.compile(r"^RELATORIOS/FAROL_DDR_BAP_(\d{4}-\d{2})\.xlsx$")
+_RE_CHAVE_FAROL_WEB = re.compile(r"^(\d{4}-\d{2})\|([^|\x00-\x1f]{1,40})\|(\d{1,5})$")
+_RE_CHAVE_EXPOSITOR_WEB = re.compile(r"^(EXP\d{3,6}|NOVO[A-Z0-9]{0,12})$")
+# texto que passa dos 60 caracteres (observacoes do expositor etc.)
+LIMITES_TEXTO_EDICAO_WEB = {("expositores", "observacoes"): 200,
+                            ("expositores", "cliente"): 80,
+                            ("expositores", "descricao"): 80}
 # os campos de cada modulo e o tipo de conferencia no robo
 CAMPOS_EDICAO_WEB = {
     "autorizacoes": {"codigo": "livre", "por": "lista"},
     "pos_venda": {"etapa": "lista", "transportadora": "lista",
                   "prevista_manual": "data", "entregue_em": "data",
-                  "responsavel": "livre", "frete_real": "valor"}}
+                  "responsavel": "livre", "frete_real": "valor"},
+    "farol": {"status": "lista", "motivo": "lista"},
+    "expositores": {"status": "lista", "data": "data",
+                    "data_assinatura": "data", "cliente": "livre",
+                    "descricao": "livre", "categoria": "lista",
+                    "qtd": "lista", "cidade": "livre", "uf": "lista",
+                    "observacoes": "livre"}}
 _RE_CHAVE_EDICAO_WEB = re.compile(r"^[\w .|/-]{1,80}$")
 _RE_PESSOAL_EDICAO_WEB = re.compile(
     r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|@|"
@@ -7513,7 +7666,15 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
         ed_pc = _rn._edicao_autorizacao(*[nomes_pc.index(n) for n in precisa])
     if not isinstance(ed_pc, dict) or not isinstance(ed_pc.get("chave"), int):
         return None
-    if ((ed_pc.get("modulo") or "pos_venda") != lugar["modulo"]
+    mes = ""
+    if lugar["modulo"] == "farol":      # arquivo do mes, aba da pessoa
+        m_ = _RE_ARQ_FAROL_WEB.match(str(ed_pc.get("arquivo") or ""))
+        if (not m_ or ed_pc.get("modulo") != "farol"
+                or not _RE_CHAVE_FAROL_WEB.match(
+                    f"{m_.group(1)}|{ed_pc.get('aba')}|5")):
+            raise ValueError("edicao do PC diferente de EDICOES_WEB")
+        mes = m_.group(1)
+    elif ((ed_pc.get("modulo") or "pos_venda") != lugar["modulo"]
             or ed_pc.get("arquivo") != lugar["arquivo"]
             or (ed_pc.get("aba") or "") != lugar["aba"]):
         raise ValueError("edicao do PC diferente de EDICOES_WEB")
@@ -7522,7 +7683,14 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
     for ln in linhas:
         ch = str(ln[i_ch] if len(ln) > i_ch and ln[i_ch] is not None
                  else "").strip()
-        chaves.append(ch if _RE_CHAVE_EDICAO_WEB.match(ch) else "")
+        if mes and ch:
+            ch = f"{mes}|{ch}"          # "AAAA-MM|aba|linha"
+        ok_ = (_RE_CHAVE_EDICAO_WEB.match(ch)
+               and (lugar["modulo"] != "farol"
+                    or _RE_CHAVE_FAROL_WEB.match(ch))
+               and (lugar["modulo"] != "expositores"
+                    or _RE_CHAVE_EXPOSITOR_WEB.match(ch)))
+        chaves.append(ch if ok_ else "")
     permitidos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
     campos = []
     for c in ed_pc.get("campos") or []:
@@ -7539,6 +7707,9 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
                 "tipo": tipo, "opcoes": _ops_web(c.get("opcoes"))}
         if c.get("mantem_caixa"):
             item["caixa"] = True
+        lim = LIMITES_TEXTO_EDICAO_WEB.get((lugar["modulo"], c["campo"]))
+        if lim and tipo == "texto":
+            item["max"] = lim
         if callable(c.get("opcoes_de")):
             por = [tuple(_ops_web(c["opcoes_de"](ln))) for ln in linhas]
             if tipo == "lista":
@@ -7558,8 +7729,15 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
         campos.append(item)
     if not campos:
         return None
-    return {"modulo": lugar["modulo"], "acao": lugar["acao"],
-            "chaves": chaves, "campos": campos}
+    saida = {"modulo": lugar["modulo"], "acao": lugar["acao"],
+             "chaves": chaves, "campos": campos}
+    if lugar.get("novo") and isinstance(ed_pc.get("padroes_novo"), dict):
+        tipos = {c["campo"]: c["tipo"] for c in campos}
+        # a data padrao e "hoje" (a web poe a de Manaus, nao a do pacote)
+        saida["novo"] = {"padroes": {
+            k: ("hoje" if tipos.get(k) == "data" else str(v)[:40])
+            for k, v in ed_pc["padroes_novo"].items() if k in tipos}}
+    return saida
 
 
 def tabela_web7(rid: str, t: dict, mes_rot=None, _junta: bool = False,
@@ -8489,8 +8667,16 @@ def opcoes_edicao_web(raiz) -> dict:
     rn_ = _importar_do_pc("relatorios_nucleo", raiz)
     pv = _importar_do_pc("pos_venda", raiz)
     tr = _importar_do_pc("transportadoras", raiz)
+    fd = _importar_do_pc("farol_ddr", raiz)
+    ex = _importar_do_pc("expositores", raiz)
     return {"por": set(rn_.QUEM_AUTORIZA), "etapa": set(pv.ETAPAS_ENTREGA),
-            "transportadora": set(tr.nomes(tr.carregar(Path(raiz))))}
+            "transportadora": set(tr.nomes(tr.carregar(Path(raiz)))),
+            # (T-0025) por modulo: "status" existe no Farol DDR e nos Expositores
+            "farol.status": set(fd.STATUS), "farol.motivo": set(fd.MOTIVOS),
+            "expositores.status": set(ex.STATUS),
+            "expositores.categoria": set(ex.CATEGORIAS),
+            "expositores.uf": set(ex.UFS),
+            "expositores.qtd": {str(n) for n in range(1, 21)}}
 
 
 def validar_edicao_web(reg: dict, opcoes: dict) -> str:
@@ -8508,17 +8694,27 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
         return MOTIVO_CHAVE_WEB
     if lugar["modulo"] == "pos_venda" and chave.count("|") != 2:
         return MOTIVO_CHAVE_WEB
+    if lugar["modulo"] == "farol":
+        m_ = _RE_CHAVE_FAROL_WEB.match(chave)
+        if not m_ or int(m_.group(3)) < 5:      # linha 5 em diante e atividade
+            return MOTIVO_CHAVE_WEB
+    if (lugar["modulo"] == "expositores"
+            and not _RE_CHAVE_EXPOSITOR_WEB.match(chave)):
+        return MOTIVO_CHAVE_WEB
     valores = reg.get("valores")
     campos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
     if not (isinstance(valores, dict) and valores
             and set(valores) <= set(campos)):
         return MOTIVO_LUGAR_WEB
     for campo, v in valores.items():
-        if not isinstance(v, str) or len(v) > 60 or re.search(
+        limite = LIMITES_TEXTO_EDICAO_WEB.get((lugar["modulo"], campo), 60)
+        if not isinstance(v, str) or len(v) > limite or re.search(
                 r"[\x00-\x1f\x7f]", v):
             return MOTIVO_TEXTO_WEB
         tipo = campos[campo]
-        if tipo == "lista" and v and v not in (opcoes.get(campo) or ()):
+        if tipo == "lista" and v and v not in (
+                opcoes.get(lugar["modulo"] + "." + campo,
+                           opcoes.get(campo)) or ()):
             return MOTIVO_OPCAO_WEB
         if tipo == "data" and v:
             try:
@@ -8545,8 +8741,12 @@ def aplicar_edicao_web(raiz, reg: dict, opcoes: dict,
     if motivo:
         return "erro", motivo
     lugar = EDICOES_WEB[(reg["rid"], reg["tabela"])]
+    arquivo, aba = lugar["arquivo"], lugar["aba"]
+    if lugar["modulo"] == "farol":      # "AAAA-MM|aba|linha" (ja validada)
+        mes, aba, _n = _RE_CHAVE_FAROL_WEB.match(reg["chave"]).groups()
+        arquivo = f"RELATORIOS/FAROL_DDR_BAP_{mes}.xlsx"
     try:
-        gravar(raiz, lugar["modulo"], lugar["arquivo"], lugar["aba"],
+        gravar(raiz, lugar["modulo"], arquivo, aba,
                {reg["chave"]: dict(reg["valores"])})
     except PermissionError:
         return "pendente", "arquivo aberto no Excel"
