@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import secrets
+import time
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlencode
@@ -26,6 +27,7 @@ MANAUS = ZoneInfo("America/Manaus")
 VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
 RELATORIO = ("vc_painel", "Painel Executivo")
 FORM_MAX = 16 * 1024
+FECHAR_MAX = 256 * 1024
 ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca", "/api/edicoes")   # saúde e robô seguem; as telas param
 
 
@@ -68,7 +70,9 @@ def criar_app() -> FastAPI:
     cfg = config.carregar()
     cfg.dados.mkdir(parents=True, exist_ok=True)
     usuarios = Usuarios(cfg)
-    ultimo = pacotes.Ultimo(cfg.dados)
+    pacotes.converter_legado(cfg.dados)        # T-0035: disco do formato 1 vira um lote, uma vez só
+    pacotes.retencao(cfg.dados)
+    ind = pacotes.Indice(cfg.dados, cfg.cache_mb)
     modelos = Jinja2Templates(directory=str(AQUI / "templates"))
     modelos.env.autoescape = True
     modelos.env.filters["manaus"] = fmt_manaus
@@ -137,14 +141,22 @@ def criar_app() -> FastAPI:
     def pagina(request, nome, status=200, u="auto", **ctx):
         if u == "auto":
             u = usuarios.obter(request.session.get("u", ""))
-        info = ultimo.get()
+        info = ind.indice()
+        # T-0035 (ADR 0003, §4.4): a faixa mostra a data do farol; passou de 26 h = selo "Desatualizado"
+        rid_pg = ctx.get("rid") or ("vc_painel" if request.url.path == "/painel" else None)
+        ent = ind.entrada(rid_pg) if rid_pg else None
+        gerado_farol = (ent or {}).get("gerado_em") or (info["gerado_em"] if info else None)
+        try:
+            velho = bool(ent) and (cobranca.agora() - pacotes._como_manaus(gerado_farol)).total_seconds() > pacotes.HERDA_HORAS * 3600
+        except (TypeError, ValueError):
+            velho = False
         ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, indisponivel=render.INDISPONIVEL,
-                   gerado_em=info["gerado_em"] if info else None)
+                   gerado_em=gerado_farol, desatualizado=velho)
         # T-0030 (Alexandre, 26/11: "BC3 para o pc e celular", "M3 aprovado"): barra lateral + faixa verde;
         # liga por farol (render.BC3) até todos passarem para o padrão novo
         ctx.setdefault("bc3", bool(u) and ctx.get("rid") in render.BC3)
         if ctx["bc3"]:
-            no_pacote = ((info or {}).get("relatorios")) or {}
+            no_pacote = (info or {}).get("farois") or {}
             ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ctx.get("rid"),
                                              painel=u["perfil"] in VERES, admin=u["perfil"] == "admin")
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
@@ -164,10 +176,16 @@ def criar_app() -> FastAPI:
     # ------------------------------------------------------------ saúde
     @app.get("/saude")
     async def saude():
-        info = ultimo.get()
+        info = ind.indice()
         tz = os.environ.get("TZ")
         motivo = fuso_motivo()
-        return {"status": "ok", "versao": VERSAO,
+        mem = pacotes.memoria(ind)
+        extra = {"memoria_alerta": True} if (mem["pico_mb"] or 0) > 400 else {}
+        return {"status": "ok", "versao": VERSAO, **extra,
+                "pacote": {"formatos": pacotes.FORMATOS, "lote": info["lote"] if info else None,
+                           "farois": len(info["farois"]) if info else 0,
+                           "origem": info["origem"] if info else None},
+                "memoria": mem,
                 "hora_manaus": datetime.now(MANAUS).strftime("%Y-%m-%d %H:%M:%S"),
                 "tz": tz, "tz_ok": motivo is None, "telas_bloqueadas": motivo is not None,
                 "motivo": motivo,
@@ -240,7 +258,7 @@ def criar_app() -> FastAPI:
     async def home(request: Request):
         u = usuario(request)
         menu = [{"href": "/painel", "nome": RELATORIO[1]}] if u["perfil"] in VERES else []
-        no_pacote = ((ultimo.get() or {}).get("relatorios")) or {}
+        no_pacote = (ind.indice() or {}).get("farois") or {}
         for rid, nome in render.farois_do_perfil(u["perfil"]):
             menu.append({"href": f"/farol/{rid}" if rid in no_pacote else "", "nome": nome})
         if u["perfil"] == "admin":
@@ -251,8 +269,7 @@ def criar_app() -> FastAPI:
     @app.get("/painel", response_class=HTMLResponse)
     async def painel(request: Request, aba: str = "resultado", uf: str = ""):
         usuario(request, VERES)
-        info = ultimo.get()
-        rel = (info or {}).get("relatorios", {}).get(RELATORIO[0])
+        rel = ind.farol(RELATORIO[0])
         abas = render.localizar_abas(rel) if rel else []
         paineis = render.localizar_paineis(rel) if rel else []     # T-0022: as outras 9 abas do PC
         if not abas and not paineis:
@@ -279,7 +296,7 @@ def criar_app() -> FastAPI:
                       filtros=render.filtros(atual), uf=escolhido or "")
 
     def rel_do(rid):
-        rel = ((ultimo.get() or {}).get("relatorios") or {}).get(rid)
+        rel = ind.farol(rid)
         return rel if isinstance(rel, dict) and rel.get("forma") == "farol" else None
 
     def consulta_de(request: Request) -> dict:
@@ -347,7 +364,7 @@ def criar_app() -> FastAPI:
             juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None)
             volta = request.url.path + "?" + request.url.query
             sit = fila.situacao(rid)
-            recebido = (ultimo.get() or {}).get("recebido_em")
+            recebido = ind.recebido_em(rid)               # T-0035: o do farol, não o do lote
             tab["edicao"] = edicao_tela(rid, t["titulo"], t, tab["linhas"], u, volta, sit, recebido)
             for j in juntas:
                 jt = next((x["tabela"] for x in t.get("juntas") or [] if x["tabela"]["titulo"] == j["tabela"]), None)
@@ -378,13 +395,13 @@ def criar_app() -> FastAPI:
         """{quando: {"rotulo","png"}} do farol, só para quem pode ver (senão PermissionError)."""
         if rid not in PERFIS_PARCIAL or perfil not in PERFIS_PARCIAL[rid]:
             raise PermissionError
-        return (rel_do(rid) or {}).get("parciais") or {}
+        return ind.parciais(rid)                        # T-0035: {quando: {"rotulo", "arquivo"}} do disco
 
     def csvs_de(rel, rid, perfil):
         """T-0021: CSVs para importar no Protheus, só em Pedidos e para quem vê as tabelas do farol (admin, gerente, pre_venda)."""
         if rid != "pv_pedidos" or perfil not in tabelas.VE_TABELAS[rid]:
             return []
-        return sorted(rel.get("csvs_protheus") or [], key=lambda c: c["nome"], reverse=True)
+        return sorted(ind.csvs(rid), key=lambda c: c["nome"], reverse=True)
 
     @app.get("/farol/pv_pedidos/csv/{nome}")
     async def csv_protheus(request: Request, nome: str):
@@ -421,7 +438,7 @@ def criar_app() -> FastAPI:
     async def parcial_png(request: Request, rid: str, q: str = "acum"):
         u = usuario(request)
         par = parciais_de(rid, u["perfil"]).get(q)
-        raw = exportar.png_dados(par["png"]) if isinstance(par, dict) else None
+        raw = par["arquivo"].read_bytes() if isinstance(par, dict) else None
         if raw is None:
             return JSONResponse({"erro": "parcial indisponível"}, status_code=404)
         cobranca.registrar_acesso(cfg.dados, u["login"], rid, "parcial-" + q, "png")
@@ -431,7 +448,7 @@ def criar_app() -> FastAPI:
     async def parcial_pdf(request: Request, rid: str, q: str = "acum"):
         u = usuario(request)
         par = parciais_de(rid, u["perfil"]).get(q)
-        raw = exportar.png_dados(par["png"]) if isinstance(par, dict) else None
+        raw = par["arquivo"].read_bytes() if isinstance(par, dict) else None
         pdf = exportar.pdf_imagem(raw, f"{render.FAROIS[rid][0]} · {par.get('rotulo', '')}") if raw else None
         if pdf is None:
             return JSONResponse({"erro": "parcial indisponível"}, status_code=404)
@@ -497,7 +514,7 @@ def criar_app() -> FastAPI:
             return baixar(exportar.xlsx(tabs), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                           nome + ".xlsx")
         t = tabs[0]
-        rod = f"{render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(((ultimo.get() or {}).get('gerado_em')))}"
+        rod = f"{render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(ind.gerado_em(rid))}"
         return baixar(exportar.pdf_tabela(t, rod), "application/pdf", nome + ".pdf")
 
     # ------------------------------------------------------------ T-0021: edição (só admin)
@@ -690,24 +707,23 @@ def criar_app() -> FastAPI:
         ini = (pag - 1) * cobranca.FILA_POR_PAGINA
         return pagina(request, "farol.html", tela=None, fila=pendentes[ini:ini + cobranca.FILA_POR_PAGINA],
                       tratados=tratados if pag == paginas else [], n_fila=len(pendentes), n_tratados=len(tratados),
-                      pag=pag, paginas=paginas, pc_ate=cob["gerado_em"], pacote_sha=ultimo.sha(), **ctx)
+                      pag=pag, paginas=paginas, pc_ate=cob["gerado_em"], pacote_sha=ind.sha(cobranca.RID), **ctx)
 
     @app.post("/farol/pl_inadimplencia/cobranca")
     async def cobrar(request: Request):
         u = usuario(request, cobranca.COBRA)
         f = await formulario(request)
         # §10.6.4: o item sai do pacote da página (se ainda entre os 7); senão do vigente; senão 404
-        def acha(pac):
-            rel = ((pac or {}).get("relatorios") or {}).get(cobranca.RID)
+        def acha(rel):
             cob = rel.get("cobranca") if isinstance(rel, dict) else None
             return next((i for i in (cob or {}).get("fila", []) if i["cod"] == f.get("cliente")), None)
         sha_pag = f.get("pacote_sha", "")
         item, sha_item = None, ""
-        if sha_pag and sha_pag != ultimo.sha():
-            item = acha(pacotes.por_sha(cfg.dados, sha_pag))
+        if sha_pag and sha_pag != ind.sha(cobranca.RID):
+            item = acha(pacotes.por_sha(cfg.dados, cobranca.RID, sha_pag))
             sha_item = sha_pag
         if not item:
-            item, sha_item = acha(ultimo.get()), ultimo.sha()
+            item, sha_item = acha(ind.farol(cobranca.RID)), ind.sha(cobranca.RID)
         if not item:
             return JSONResponse({"ok": False, "erro": "abra o farol de novo"}, status_code=404)
         acao = f.get("acao")
@@ -843,6 +859,7 @@ def criar_app() -> FastAPI:
             if total > cfg.pacote_max:
                 return JSONResponse({"erro": "pacote grande demais"}, status_code=413)
             partes.append(parte)
+        ind.esvaziar()                                   # T-0035: baixa o pico de memória antes do corpo grande
         try:
             corpo = json.loads(b"".join(partes))
         except (ValueError, RecursionError):
@@ -851,11 +868,84 @@ def criar_app() -> FastAPI:
         erros = pacotes.validar(corpo)
         if erros:
             return JSONResponse({"erro": "esquema inválido", "detalhes": erros}, status_code=422)
-        fora = tabelas.tirar_abas_com_documento(corpo)   # só a aba com CPF/CNPJ cai; o resto do pacote segue
-        if fora:
-            log.warning("abas fora do pacote por CPF/CNPJ em célula: %d", len(fora))
-        pacotes.gravar(cfg.dados, corpo, datetime.now(MANAUS).isoformat(timespec="seconds"))
+        # formato 1: a web divide o pacote num lote (origem "inteiro"); a aba com CPF/CNPJ cai por farol
+        try:
+            pacotes.gravar(cfg.dados, corpo, datetime.now(MANAUS).isoformat(timespec="seconds"))
+        except pacotes.ErroPacote as e:
+            return JSONResponse(e.corpo, status_code=e.status)
         log.info("pacote recebido: %s (%d bytes)", pacotes.nome_arquivo(corpo["gerado_em"]), total)
         return {"ok": True, "gerado_em": corpo["gerado_em"], "bytes": total}
+
+    @app.post("/api/pacote/{lote}/farol/{rid}")
+    async def api_pacote_farol(request: Request, lote: str, rid: str):
+        """T-0035, contrato §10.8.3: um farol (gzip ou não), conferido pelo sha256, guardado no lote em recebimento."""
+        negado = sem_token(request)
+        if negado:
+            return negado
+        if not pacotes.RE_LOTE.match(lote):
+            return JSONResponse({"erro": "lote inválido"}, status_code=400)
+        if rid not in pacotes.ACEITOS:
+            return JSONResponse({"erro": "relatório não aceito"}, status_code=404)
+        h = request.headers
+        if h.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+            return JSONResponse({"erro": "só application/json"}, status_code=415)
+        cod = h.get("content-encoding", "").strip().lower()
+        if cod not in ("", "gzip"):
+            return JSONResponse({"erro": "Content-Encoding só gzip"}, status_code=415)
+        sha = h.get("x-bap-sha256", "").strip().lower()
+        if not pacotes.RE_SHA.match(sha):
+            return JSONResponse({"erro": "X-BAP-SHA256 mal formado"}, status_code=400)
+        cl = h.get("content-length")
+        if cl is not None and (not cl.isdigit() or int(cl) > pacotes.FAROL_GZ_MAX):
+            return JSONResponse({"erro": "farol grande demais"}, status_code=413)
+        t0, partes, total = time.monotonic(), [], 0
+        async for parte in request.stream():
+            total += len(parte)
+            if total > pacotes.FAROL_GZ_MAX:
+                return JSONResponse({"erro": "farol grande demais"}, status_code=413)
+            partes.append(parte)
+        try:
+            bruto = b"".join(partes)
+            del partes
+            if cod == "gzip":
+                bruto = pacotes.descomprimir(bruto, pacotes.FAROL_CORPO_MAX)
+            elif len(bruto) > pacotes.FAROL_CORPO_MAX:
+                return JSONResponse({"erro": "farol grande demais"}, status_code=413)
+            ent = pacotes.receber_farol(cfg.dados, lote, rid, bruto, sha, cfg.farol_max)
+        except pacotes.ErroPacote as e:
+            return JSONResponse(e.corpo, status_code=e.status)
+        log.info("farol recebido: %s gz=%d json=%d ms=%d rss_mb=%s", rid, total, ent["bytes_json"],
+                 int((time.monotonic() - t0) * 1000), pacotes.memoria(ind)["rss_mb"])
+        return {"ok": True, "rid": rid, "sha256": sha, "bytes_json": ent["bytes_json"]}
+
+    @app.post("/api/pacote/{lote}/fechar")
+    async def api_pacote_fechar(request: Request, lote: str):
+        """T-0035, contrato §10.8.4: confere o topo e os faróis, aplica o `manter` (§4.4) e troca o vigente."""
+        negado = sem_token(request)
+        if negado:
+            return negado
+        if not pacotes.RE_LOTE.match(lote):
+            return JSONResponse({"erro": "lote inválido"}, status_code=400)
+        if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+            return JSONResponse({"erro": "só application/json"}, status_code=415)
+        partes, total = [], 0
+        async for parte in request.stream():
+            total += len(parte)
+            if total > FECHAR_MAX:
+                return JSONResponse({"erro": "corpo grande demais"}, status_code=413)
+            partes.append(parte)
+        try:
+            corpo = json.loads(b"".join(partes))
+        except (ValueError, RecursionError):
+            return JSONResponse({"erro": "JSON inválido"}, status_code=400)
+        if not isinstance(corpo, dict):
+            return JSONResponse({"erro": "corpo precisa ser objeto JSON"}, status_code=400)
+        try:
+            r = pacotes.fechar(cfg.dados, lote, corpo, corpo.get("farois"), corpo.get("manter"),
+                               datetime.now(MANAUS).isoformat(timespec="seconds"))
+        except pacotes.ErroPacote as e:
+            return JSONResponse(e.corpo, status_code=e.status)
+        log.info("lote fechado: %s farois=%d herdados=%d vigente=%s", lote, r["farois"], len(r["herdados"]), r["vigente"])
+        return r
 
     return app
