@@ -2475,9 +2475,9 @@ class VistaTabela:
             ttk.Button(barra, text="Novo", style="Verde.TButton",
                        command=self.novo).pack(side="left", padx=(16, 0))
         if t.get("garantia") and (janela.rel or {}).get("garantia"):
-            ttk.Button(barra, text="Nova garantia", style="Verde.TButton",
-                       command=lambda: self.abrir_garantia(None)).pack(
-                           side="left", padx=(16, 0))
+            # (T-0023) so leitura: a garantia nova e pela BAP Central web
+            ttk.Label(barra, text="Garantia nova: " + MSG_EDICAO_SO_WEB.lower()
+                      ).pack(side="left", padx=(16, 0))
         self.tem_detalhe = bool(t.get("detalhe")) and callable(
             (janela.rel or {}).get("detalhe_pedido"))
         if self.tem_detalhe:
@@ -4256,7 +4256,9 @@ class DialogoGarantia(tk.Toplevel):
         cab = bv.Cabecalho(self, "Garantia", f"Ticket {self.ticket}", sub)
         self.cab = cab
         cab.pack(fill="x")
-        cab.botao("Salvar", self.salvar)
+        # (T-0023, 25/11, Alexandre: "SO TEM EDIÇÃO NA WEB") a garantia so se
+        # le aqui; o robo grava no diario pela mesma funcao (garantias.gravar)
+        cab.botao("Salvar (só na web)", self.salvar)
         cab.botao("Fechar", self.destroy)
         tk.Frame(self, background=bv.VERDE, height=2).pack(fill="x")
         corpo = tk.Frame(self, background=bv.FUNDO)
@@ -4426,67 +4428,9 @@ class DialogoGarantia(tk.Toplevel):
         return f"{d:%d/%m/%Y}" if d else ""
 
     def salvar(self):
-        import garantias as gm                           # noqa: PLC0415
-        self._descricao()
-        campos = {k: v.get().strip() for k, v in self.vars.items()}
-        # (06/11, Alexandre: "Acrescente para poder editar o ticket") o
-        # numero novo: na garantia nova so troca o numero; na que ja existe
-        # grava a troca no diario (a historia continua no numero novo)
-        novo_t = campos.pop("ticket", self.ticket) or ""
-        trocou = False
-        if novo_t != self.ticket:
-            erro_t = gm.renomear(AQUI, None if self.novo else self.ticket,
-                                 novo_t)
-            if erro_t:
-                messagebox.showerror("Garantia", f"Ticket: {erro_t}.",
-                                     parent=self)
-                return
-            trocou = not self.novo
-            self.ticket = novo_t
-            self.title(f"Garantia {novo_t}")
-            try:
-                self.cab.lbl_titulo.configure(text=f"Ticket {novo_t}")
-            except (AttributeError, tk.TclError):
-                pass
-        # (06/11) a DT. FECHAMENTO igual a padrao fica em branco: assim ela
-        # acompanha a solicitacao se a data da solicitacao mudar
-        if campos.get("dt_prazo") and not gm.data(campos["dt_prazo"]):
-            messagebox.showerror("Garantia", "Dt. fechamento: use "
-                                 "dd/mm/aaaa.", parent=self)
-            return
-        if campos.get("dt_prazo") == self._prazo_padrao(
-                campos.get("dt_solicitacao")):
-            campos["dt_prazo"] = ""
-        campos.update({k: tx.get("1.0", "end").strip()
-                       for k, tx in self.textos.items()})
-        # o cadastro: grava so o que difere da base (ou o que ja era da
-        # garantia) - assim a base, quando melhorar, continua valendo
-        self._trocou_cliente()
-        for k, v in self.vars_cli.items():
-            val = v.get().strip()
-            if val != (self.base.get(k) or "").strip() or (
-                    self.g["dados"](self.ticket)["g"].get(k) or "").strip():
-                campos[k] = val
-        if campos.get("dt_solicitacao") and not gm.data(
-                campos["dt_solicitacao"]):
-            messagebox.showerror("Garantia", "Dt. solicitação: use "
-                                 "dd/mm/aaaa.", parent=self)
-            return
-        if self.novo:
-            campos["origem"] = "FAROL DE GARANTIAS"
-        try:
-            n = gm.gravar(AQUI, self.ticket, campos)
-        except OSError as erro:
-            messagebox.showerror("Garantia", str(erro), parent=self)
-            return
-        n += 1 if trocou else 0
-        self.novo = False
-        self.lbl.configure(text=f"Salvo · {n} campo(s) alterado(s)",
-                           foreground=bv.VERDE_ESCURO)
-        try:
-            self.janela.carregar()
-        except Exception:                                # noqa: BLE001
-            pass
+        # (T-0023) so leitura no PC: a edicao e pela BAP Central web (admin)
+        messagebox.showinfo("Garantia", MSG_EDICAO_SO_WEB, parent=self)
+        return
 
 
 # (14/10) onde a autorizacao de venda se GRAVA (governanca): so o Farol de
@@ -4496,7 +4440,10 @@ class DialogoGarantia(tk.Toplevel):
 # (perfil admin); o robo grava no PC pela mesma funcao (autorizacoes.gravar e
 # pos_venda.gravar_edicoes). Aqui fica so a leitura.
 AUTORIZA_EM = ()
-EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas")}
+EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas"),
+                 # (T-0023) NCC, Devolucoes e Garantias: so leitura no PC
+                 ("pl_ncc", "NCC pendentes"), ("pl_devolucoes", "Devoluções"),
+                 ("pl_garantias", "Garantias")}
 MSG_EDICAO_SO_WEB = "A edição agora é só pela BAP Central web."
 
 
