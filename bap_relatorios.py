@@ -350,7 +350,8 @@ class _BaseRelatorio:
         self.vista_atual()             # monta a aba que esta na tela
         self.abas.bind("<<NotebookTabChanged>>", self._trocou_aba)
         self.pintar_kpis()
-        edita = any(t.get("edicao") for t in rel.get("tabelas", []))
+        edita = any(t.get("edicao") and (rel.get("id"), t.get("titulo"))
+                    not in EDICAO_SO_WEB for t in rel.get("tabelas", []))
         pedido = any(t.get("detalhe") and (not t.get("edicao") or (
             t.get("edicao") or {}).get("so_colunas"))
                      for t in rel.get("tabelas", []))
@@ -2865,6 +2866,12 @@ class VistaTabela:
 
     # ---- a edicao: so por lista, nunca digitando ----------------------
     def editar(self, linha):
+        if ((self.janela.rel or {}).get("id"),
+                self.t.get("titulo")) in EDICAO_SO_WEB:
+            # (T-0021) so leitura no PC: a edicao e pela BAP Central web
+            messagebox.showinfo("Editar", MSG_EDICAO_SO_WEB,
+                                parent=self.janela)
+            return
         ed = self.t["edicao"]
         chave = linha[ed["chave"]] if len(linha) > ed["chave"] else ""
         if not chave:
@@ -4484,7 +4491,13 @@ class DialogoGarantia(tk.Toplevel):
 
 # (14/10) onde a autorizacao de venda se GRAVA (governanca): so o Farol de
 # Pedidos. Nos outros, a janela do pedido mostra so a leitura.
-AUTORIZA_EM = ("pv_pedidos",)
+# (T-0021, 25/11, Alexandre: "SO TEM EDIÇÃO NA WEB. NINGUEM MAIS MEXE NO
+# PC") a autorizacao e a linha das entregas so se editam na BAP Central web
+# (perfil admin); o robo grava no PC pela mesma funcao (autorizacoes.gravar e
+# pos_venda.gravar_edicoes). Aqui fica so a leitura.
+AUTORIZA_EM = ()
+EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas")}
+MSG_EDICAO_SO_WEB = "A edição agora é só pela BAP Central web."
 
 
 class DetalhePedido(tk.Toplevel):
@@ -4679,7 +4692,7 @@ class DetalhePedido(tk.Toplevel):
         if a.get("aviso"):
             tk.Label(caixa, text=a["aviso"], background=fundo, foreground=cor,
                      font=bv.fonte(8, "bold")).pack(side="left", padx=(0, 14))
-        tk.Label(caixa, text="Preenchimento no Farol de Pedidos",
+        tk.Label(caixa, text=MSG_EDICAO_SO_WEB,
                  background=fundo, foreground=bv.SUAVE,
                  font=bv.fonte(8)).pack(side="right", padx=12)
 
