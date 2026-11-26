@@ -242,12 +242,27 @@ def criar_app() -> FastAPI:
         info = ultimo.get()
         rel = (info or {}).get("relatorios", {}).get(RELATORIO[0])
         abas = render.localizar_abas(rel) if rel else []
-        if not abas:
+        paineis = render.localizar_paineis(rel) if rel else []     # T-0022: as outras 9 abas do PC
+        if not abas and not paineis:
             return pagina(request, "painel.html", abas=[], tela=None, aba=aba)
+        nav = [{"chave": a["chave"], "titulo": a["titulo"]} for a in abas] + \
+              [{"chave": p["chave"], "titulo": p["titulo"]} for p in paineis]
+        p_atual = next((p for p in paineis if p["chave"] == aba), None)
+        if p_atual:
+            dados = rel["paineis"][p_atual["chave"]]
+            # o filtro só escolhe a visão pronta do PC (por estado); aba da BAP inteira ignora o estado
+            escolhido = uf.upper()[:2] if (not p_atual["so_bap"] and uf.upper()[:2] in p_atual["ufs"]) else ""
+            tela_f = render.farol_para_tela(dados, escolhido or None)
+            return pagina(request, "painel.html", abas=nav, aba=p_atual["chave"], tela=None, tela_f=tela_f,
+                          filtros={"ufs": p_atual["ufs"]}, uf=escolhido,
+                          aviso_bap=render.AVISO_SO_BAP if (p_atual["so_bap"] and uf) else "")
+        if not abas:
+            return pagina(request, "painel.html", abas=nav, aba=nav[0]["chave"], tela=None,
+                          tela_f=render.farol_para_tela(rel["paineis"][nav[0]["chave"]], None), filtros=None, uf="")
         atual = next((a for a in abas if a["chave"] == aba), abas[0])
         # T-0014: o filtro só escolhe a visão pronta do PC (por estado)
         escolhido = render.escolher_uf(atual, uf[:4] or None)
-        return pagina(request, "painel.html", abas=abas, aba=atual["chave"],
+        return pagina(request, "painel.html", abas=nav, aba=atual["chave"],
                       tela=render.aba_para_tela(atual, escolhido),
                       filtros=render.filtros(atual), uf=escolhido or "")
 
@@ -275,13 +290,20 @@ def criar_app() -> FastAPI:
         rel = rel_do(rid)
         if not rel:
             return pagina(request, "farol.html", farol_nome=nome, rid=rid, tela=None, abas=[], aba="resumo")
-        por_chave = {c: next((t for t in rel.get("tabelas") or [] if t.get("titulo") == tit), None)
-                     for c, tit in tabelas.ABAS[rid]}
+        ufs = render.recortes_farol(rel)
+        uf_ok = uf.upper()[:2] if uf.upper()[:2] in ufs else ""
+        do_uf = ((rel["recortes"][uf_ok] or {}).get("tabelas") or []) if (rid == "vc_meta" and uf_ok) else []
+        # T-0022: o PC monta as abas do Farol de Metas já com o filtro de estado; a que o estado não trouxe vai da BAP inteira, com aviso
+        por_chave, sem_uf = {}, set()
+        for c, tit in tabelas.ABAS[rid]:
+            t_uf = next((t for t in do_uf if t.get("titulo") == tit), None)
+            por_chave[c] = t_uf or next((t for t in rel.get("tabelas") or [] if t.get("titulo") == tit), None)
+            if do_uf and t_uf is None:
+                sem_uf.add(c)
+        aviso_tabs_uf = f"Sem as tabelas de {uf_ok} neste pacote: abaixo, a BAP inteira." if aba in sem_uf else ""
         com_aba = [(c, tit) for c, tit in tabelas.ABAS[rid] if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
         barra = [tabelas.RESUMO] + com_aba if com_aba else []
         ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo")
-        ufs = render.recortes_farol(rel)
-        uf_ok = uf.upper()[:2] if uf.upper()[:2] in ufs else ""
         topo = render.farol_para_tela(rel, (uf[:4] if aba == "resumo" else uf_ok) or None, rid)   # uma vez só
         if aba == "resumo":
             return pagina(request, "farol.html", tela=topo, **ctx)
@@ -303,11 +325,11 @@ def criar_app() -> FastAPI:
             tab = tabelas.tabela_para_tela(t, consulta, uf=uf_ok or None)
             juntas = tabelas.juntas_para_tela(t, tab["idxs"], uf_ok or None)
         # cada aba do Visita é uma página sem seletor de estado: o aviso fica em cada uma (RD-0023)
-        aviso_uf = tabelas.AVISO_SEM_ESTADO if rid == "vc_visitas" else ""
+        aviso_uf = tabelas.AVISO_SEM_ESTADO if rid == "vc_visitas" else aviso_tabs_uf
         aviso_kpis = ""
         if solicitacao:
             kpis = []
-        elif tab["filtrado"] or uf_ok:                  # filtro, recorte ou estado: os cartões da aba saem (§10.7.2)
+        elif tab["filtrado"] or (uf_ok and rid != "vc_meta"):   # filtro, recorte ou estado (meta: o estado já traz os cartões): os cartões da aba saem (§10.7.2)
             kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
         elif t.get("kpis_padrao") is not None:
             kpis = render.kpis_para_tela(t["kpis_padrao"])
