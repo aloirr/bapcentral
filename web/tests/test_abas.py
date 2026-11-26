@@ -92,7 +92,8 @@ def test_ve_tabelas_D1_recomendacao_A():
     # D1 (recomendação A): o perfil de cada farol vê as tabelas; o diretor, só o Resumo
     assert tabelas.VE_TABELAS == {"pv_pedidos": ("admin", "gerente", "pre_venda"),
                                   "pl_entregas": ("admin", "gerente", "pos_venda"),
-                                  "vc_visitas": ("admin", "gerente", "vendas")}
+                                  "vc_visitas": ("admin", "gerente", "vendas"),
+                                  "vc_meta": ("admin", "gerente", "vendas")}      # T-0022
     assert all("diretor" not in p for p in tabelas.VE_TABELAS.values())
 
 
