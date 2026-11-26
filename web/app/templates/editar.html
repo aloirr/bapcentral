@@ -13,22 +13,25 @@
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="tab" value="{{ tab }}">
   <input type="hidden" name="chave" value="{{ chave }}">
+  {% if novo %}<input type="hidden" name="novo" value="1">{% endif %}
   <input type="hidden" name="volta" value="{{ volta }}">
   {% for c in campos %}
   <label class="ed-campo">{{ c.rotulo }}
     {% if c.tipo == "lista" %}
     <select name="c_{{ c.campo }}">
-      <option value=""{{ ' selected' if not c.atual }}>(vazio)</option>
-      {% for o in c.opcoes %}<option value="{{ o }}"{{ ' selected' if o == c.atual }}>{{ o }}</option>{% endfor %}
+      <option value=""{{ ' selected' if not c.valor }}>(vazio)</option>
+      {% for o in c.opcoes %}<option value="{{ o }}"{{ ' selected' if o == c.valor }}>{{ o }}</option>{% endfor %}
     </select>
     {% elif c.tipo == "data" %}
-    <input type="date" name="c_{{ c.campo }}" value="{{ c.atual_iso }}"{% if c.min %} min="{{ c.min }}" max="{{ c.max }}"{% endif %}>
+    <input type="date" name="c_{{ c.campo }}" value="{{ c.valor_iso }}"{% if c.min %} min="{{ c.min }}" max="{{ c.max }}"{% endif %}>
     <small>Apague a data para voltar à calculada pelo PC.</small>
     {% elif c.tipo == "numero" %}
     <input type="text" inputmode="decimal" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="20" placeholder="{{ c.sugestao or 'ex.: 278,40' }}"{% if c.sugestao %} list="dl-{{ c.campo }}"{% endif %}>
     {% if c.sugestao %}<datalist id="dl-{{ c.campo }}"><option value="{{ c.sugestao }}"></option></datalist><small>Sugestão: {{ c.sugestao }}</small>{% endif %}
+    {% elif c.multi %}
+    <textarea name="c_{{ c.campo }}" rows="4" maxlength="{{ c.tam }}">{{ c.valor }}</textarea>
     {% else %}
-    <input type="text" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="60"{% if c.opcoes %} list="dl-{{ c.campo }}"{% endif %} autocomplete="off">
+    <input type="text" name="c_{{ c.campo }}" value="{{ c.valor }}" maxlength="{{ c.tam }}"{% if c.opcoes %} list="dl-{{ c.campo }}"{% endif %} autocomplete="off">
     {% if c.opcoes %}<datalist id="dl-{{ c.campo }}">{% for o in c.opcoes[:300] %}<option value="{{ o }}"></option>{% endfor %}</datalist>{% endif %}
     {% endif %}
     {% if c.pendente is not none %}<small class="ed-pend-txt">Aguardando o PC: {{ c.pendente or "(vazio)" }}</small>{% endif %}
