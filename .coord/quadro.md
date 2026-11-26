@@ -1,6 +1,8 @@
 # Quadro — BAP Tools
 
-Atualizado em 26/11/2026, 18h00 (Manaus). Dono: gerente-projetos.
+Atualizado em 26/11/2026, 18h30 (Manaus). Dono: gerente-projetos.
+
+**26/11, 18h30 — PAUSA até 22h30 (R-20261126-182227-alexandre):** nada pela metade, nada instalado, ronda apagada, subagentes parados com o trabalho em branch (heads na passagem R-20261126-182500-gerente-projetos). Decisões de 26/11: 8 do plano = A (R-20261126-180314), manual da marca do BapAjuda com as 9 lacunas = A, ADR 0003 §4.4 = A (R-20261126-182227).
 
 **26/11, 17h40 — retomada na nuvem (R-20261126-173916-alexandre):** de 25/11 03h50 a 26/11 17h o trabalho foi na sessão "BAPCentral - Cowork" (outra conta, sem guardiões nem ronda). Os 33 commits do período (42a020e..c8f6004) foram conferidos com o `verificar --por-commit`: nenhuma violação de dono; #112 (T-0021) e #116 (T-0029) juntaram vários donos num squash só. Passagem: R-20261126-173917-po. Decisões de 25 e 26/11: pasta de produção da EMPRESA (R-20261125-090000), robô oficial no notebook do Alexandre (R-20261125-104000), BC3/M3 e RN-GER-013 (R-20261126-171559). Plano e previsões: R-20261126-174414-gerente-projetos.
 
@@ -35,23 +37,24 @@ Atualizado em 26/11/2026, 18h00 (Manaus). Dono: gerente-projetos.
 | T-0021 | Edição do Farol de Pedidos e Entregas na web (só admin), CSVs do Protheus, edições chegam ao PC pelo robô | concluida (v4: #109–#112; v1 nunca entrou) | modulo-web + modulo-robo + engenheiro-software + testes | — | — | concluída em 26/11 |
 | T-0022 | Painel Executivo (12 abas) e Farol de Metas Equipe na web | concluida (#101, #104) | modulo-web + modulo-robo + testes | — | — | falta o Painel no BC3 (passo 3 da passagem) |
 | T-0023 | Faróis de Garantias, Devoluções e NCC na web (edição só admin) | em_andamento (PRs #102, #103, #105, #106 empilhados na T-0021 v1: refazer sobre o main com as decisões de 26/11) | modulo-web + modulo-robo + modulo-farois + testes | — | — | simulação 27/11 06h |
-| T-0024 | Faróis do lote 2 na web (indicadores, Clientes, Roteirização, Giro, Estoque FRW) | em_andamento (#89, #91, #97: atualizar com o main, web no BC3) | modulo-web + modulo-robo + testes | — | — | simulação 26/11 21h |
+| T-0024 | Faróis do lote 2 na web (indicadores, Clientes, Roteirização, Giro, Estoque FRW) | em_andamento (#89 web 34c07e9 no BC3 com GRADE, reteste do designer-ux pendente; #91 robô 9753598 com vc_base por UF e Planner sem recorte; #97 testes 034ce39 verde no combinado) | modulo-web + modulo-robo + testes | — | — | simulação ao po após o reteste; merge #91 → #97 → #89 |
 | T-0025 | Farol DDR, Campanhas e Expositores na web | em_andamento (PRs #93, #98, #100, #107 empilhados na T-0021 v1: refazer; diretor só Resumo, TOTAL A PAGAR só admin/gerente/diretor, champions_config.json pela web só admin) | modulo-web + modulo-robo + modulo-farois + testes | — | — | simulação 27/11 06h |
-| T-0026 | Paridade dos 4 faróis na web (parcial em imagem, Excel/PDF, 5 abas da Inadimplência) | em_teste (#80, #81 no main; #82 testes: atualizar com o main) | modulo-web + modulo-robo + testes | — | — | merge do #82 26/11 19h |
+| T-0026 | Paridade dos 4 faróis na web (parcial em imagem, Excel/PDF, 5 abas da Inadimplência) | em_revisao (#80, #81 no main; #82 c9a9343 com o caso positivo pedido pelo revisor: falta CI e revisão nesse head) | modulo-web + modulo-robo + testes | — | — | merge após revisão |
 | T-0027 | Parcial com a marca, Excel sem NaN, corte do pacote grande, RN-GER-012, robô do pós-venda | concluida (#90, #92, #94, #95, #96, #99) | modulo-robo + modulo-web + modulo-posvenda + testes | — | — | concluída em 25/11 |
 | T-0028 | Farol de Pedidos sem rolagem, popup do pedido, tabelas de baixo lado a lado | concluida (#114) | modulo-web | — | — | concluída em 26/11 |
 | T-0029 | RN-GER-013: pedido de cliente fora da base | concluida (#116, #117, #118, #120, #122) | modulo-farois + modulo-robo + modulo-web + testes + gerente | — | — | parte do robô chega pela rotina diária |
 | T-0030 | Farol de Pedidos no visual BC3 (PC numa tela; celular M3) | concluida (#115) | modulo-web | — | — | concluída em 26/11 |
 | T-0031 | Todos os faróis no BC3 e no formato do Farol de Pedidos | concluida (#123, c8f6004) | modulo-web | — | — | concluída em 26/11 |
-| T-0032 | Botões das parciais como no PC, "Cobrar no WhatsApp", caixa fora da base com o nome antigo | em_revisao (#124: simulação PNG, revisor-codigo e revisor-ux) | modulo-web | — | — | merge após o "ok" da simulação |
-| — | Ajuste fino grade × popup por farol (passo 2 da passagem) | aberta | modulo-web | — | — | simulação 26/11 22h30 |
-| — | Painel Executivo e Usuários/Senha no BC3 (passo 3) | aberta | modulo-web | — | — | simulação 27/11 01h |
+| T-0032 | Botões das parciais como no PC, caixa fora da base com o nome antigo; correção do celular | concluida (#124 8cda492, entrou sem simulação; #126 4e1abd8 correção do celular, com o ok do Alexandre) | modulo-web | — | — | concluída em 26/11; botão "Cobrar no WhatsApp" sai na T-0033 (7 A) |
+| T-0033 | Revisão geral de todos os faróis (marca, UX, redundância), grade × popup, contrato visual BC3, manual da marca | em_andamento (contrato tela-bc3 04c38e5; web modulo-web/T-0033-revisao-geral f42ee18 WIP, 23 testes a atualizar; #127 marca na cobrança aprovado; manual da marca design-de-marca c8c60fc aprovado — tirar "RASCUNHO") | engenheiro-software + modulo-web + modulo-posvenda + design-de-marca + testes | — | — | previsão refeita na retomada de 22h30 |
+| T-0034 | Página inicial = Painel Executivo no BC3/M3; Usuários e Senha no BC3; pré-venda/pós-venda/vendas abrem no 1º farol da área | aberta | modulo-web + testes | — | — | depois da T-0033 |
+| T-0035 | Pacote por farol (ADR 0003) | em_andamento (contrato e97761f; web 527004f v0.4.0; robô 5231f19; testes b116d1f WIP; achados de anexos e corte do Entregas para o robô) | engenheiro-software + modulo-web + modulo-robo + testes | — | — | selo "Desatualizado" aprovado (§4.4 A) |
 | — | Farol de Fretes com edição (passo 5) | aberta | — | — | — | próxima leva (decisão de 26/11) |
 
 **Previsões:** a hora é a do último status do gerente ao po, e cada "Status HHhMM" do po leva a hora nova e o motivo quando ela muda (R-20261120-092924-alexandre).
 
 **Tarefas à parte (sem número ainda):** cobrança usar `relatorios_nucleo.sem_documento` (modulo-posvenda); tela do PC usar `solicitacao_bap.tipos_colunas` (modulo-farois); RD-0030 (filtro de linhas copiado da tela); RD-0031 (fuso de Manaus em 3 funções); RD-0014 (constante 000040).
 
-**Reservas:** a próxima tarefa é a T-0033. A próxima ADR livre é a 0003.
+**Reservas:** a próxima tarefa é a T-0036 (T-0036 a T-0044 reservadas pelo plano R-20261126-175814). A próxima ADR livre é a 0004.
 
 **Legenda de status:** aberta · em_andamento · em_teste · em_revisao · aguardando_alexandre · concluida · bloqueada.
