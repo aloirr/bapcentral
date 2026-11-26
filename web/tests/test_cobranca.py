@@ -199,13 +199,13 @@ def test_paginas_com_tabela_e_fila_no_store_e_noindex(admin):
     assert "noindex" not in _tela(admin).text
 
 
-def test_aba_titulos_colunas_total_e_sem_exportacao(admin):
+def test_aba_titulos_colunas_total_e_exportacao_por_link(admin):
     postar(admin, pacote_cobranca())
     h = _tela(admin, "titulos").text
     for n in ("SITUAÇÃO", "DIAS ATRASO", "SALDO", "SUPERVISOR"):
         assert n in h
     assert "R$ 1.500,00" in h and "01/09/2026" in h and "R$ 93.600,00" in h
-    assert "xlsx" not in h.lower() and "pdf" not in h.lower() and "exportar" not in h.lower()
+    assert "/exportar?" in h and 'method="post"' not in h.split("<main")[1].lower()       # T-0026: Excel e PDF por link (só leitura)
     assert "Cliente 012" in h
 
 

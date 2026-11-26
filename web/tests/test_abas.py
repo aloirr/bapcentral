@@ -123,7 +123,7 @@ def test_sem_login_vai_ao_login(cli):
     assert cli.get("/farol/pv_pedidos?aba=pedidos", follow_redirects=False).status_code == 303
 
 
-def test_paginas_de_tabela_no_store_noindex_sem_exportar_e_sem_gravar(com_tabelas):
+def test_paginas_de_tabela_no_store_noindex_exportar_so_por_link_e_sem_gravar(com_tabelas):
     for rid in RIDS:
         for chave, _ in tabelas.ABAS[rid]:
             r = com_tabelas.get(f"/farol/{rid}?aba={chave}")
@@ -131,8 +131,8 @@ def test_paginas_de_tabela_no_store_noindex_sem_exportar_e_sem_gravar(com_tabela
             h = r.text
             assert 'name="robots" content="noindex' in h
             corpo = h.split("<main")[1]
-            assert 'method="post"' not in corpo.lower() and "xlsx" not in corpo.lower()
-            assert "exportar" not in corpo.lower() and "pdf" not in corpo.lower()
+            assert 'method="post"' not in corpo.lower()
+            assert f"/farol/{rid}/exportar?" in corpo and "formato=xlsx" in corpo and "formato=pdf" in corpo   # T-0026: só leitura, por link
             assert "TELEFONE" not in corpo and "CNPJ" not in corpo and not RE_CNPJ.search(corpo)
             assert not RE_FONE.search(corpo)
 
