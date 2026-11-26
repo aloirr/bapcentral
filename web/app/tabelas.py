@@ -48,8 +48,6 @@ ABAS = {
 SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitacao Manual",
            "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir")
 # D5 (recomendação A): estado filtra as linhas só onde o pacote traz `uf_linhas`
-AVISO_SEM_ESTADO = "Sem filtro por estado: esta tabela mostra a BAP inteira."
-AVISO_CARTOES = "Cartões sem filtro. Com filtro, veja as linhas na tabela."
 AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
 # coluna que identifica a linha: fica fixa à esquerda ao rolar para o lado (celular)
 FIXA = {"Por vendedor": "VENDEDOR", "Dia a dia": "VENDEDOR", "Aderência dia a dia": "VENDEDOR",
@@ -59,6 +57,17 @@ ROTULO_SUB = {"Solicitacao Lojas": "Lojas", "Solicitacao CD": "CD", "Solicitacao
               "Solicitacao Manual": "Manual", "DETALHADO_PEDIDO": "Detalhado por pedido",
               "ProdutosExcluir": "Produtos excluídos", "FiliaisExcluir": "Filiais excluídas"}
 _TROCA_ROTULO = {"COD": "CÓD.", "DESCRICAO": "DESCRIÇÃO", "JA": "JÁ", "UF": "UF", "CD": "CD", "FRW": "FRW"}
+
+
+# T-0033 (UX §2.4/§2.5): o nome da aba na barra, curto, para caber a 1366 com a busca (o título do pacote não muda)
+ABA_CURTA = {"Por supervisor": "Supervisor", "Por vendedor": "Vendedor", "Aderência dia a dia": "Aderência",
+             "Top 30 clientes": "Top 30", "Por UF": "UF", "Por cidade": "Cidade", "Por bairro": "Bairro",
+             "Por segmento": "Segmento", "Por zona": "Zona", "Por categoria": "Categoria",
+             "Por família da peça": "Família", "Por cliente": "Cliente", "Por filial": "Filial"}
+
+
+def aba_curta(nome: str) -> str:
+    return ABA_CURTA.get(nome, nome)
 
 
 def ve_tabelas(rid: str, perfil: str) -> bool:
@@ -181,6 +190,8 @@ MAX_LINHAS = 60000
 MAX_RECORTES = 20
 MAX_OPCOES = 300
 JUNTA_MAX = 200
+# T-0033 (RD-0032): a tela rola por dentro da tabela, sem páginas de 100; a página traz até 500 linhas e o navegador pede mais 500 ao rolar (contrato visual §7.2)
+PAGINA_TAM = 500
 RE_UF = re.compile(r"^[A-Z]{2}$")
 RE_COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 # CPF/CNPJ já formatado dentro de uma célula: o PC deveria ter limpado (RN-GER-011); a web recusa
@@ -705,10 +716,10 @@ def _grupos_tela(t, vista):
     return out
 
 
-def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_tam: int = 100,
+def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_tam: int = PAGINA_TAM,
                      ordem_tela=None, centavos: bool = False, total_sempre: bool = False,
                      vazios_no_fim: bool = True, titulo: str | None = None,
-                     excluir: frozenset = frozenset()) -> dict:
+                     excluir: frozenset = frozenset(), rid: str = "") -> dict:
     """Filtra, ordena e pagina no servidor (genérica: Inadimplência e as abas do §10.7).
 
     `consulta`: f<i> (lista de valores), rec (índice do recorte), ord, dir, pag. `uf`: estado escolhido
@@ -774,7 +785,7 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
               and all(set(f["sel"]) == set(f["padrao"]) for f in filtros))
     tot = t.get("total")
     mostra_total = bool(tot) and (total_sempre or (total == n))
-    return {
+    tela = {
         "titulo": titulo or t.get("titulo", ""), "total_linhas": total, "pag": pag, "paginas": paginas,
         "cols": _cabecalho(t, vista), "grupos": _grupos_tela(t, vista),
         "em_cima": bool(t.get("juntas_em_cima")), "titulo_quadro": t.get("titulo_tabela") or "",
@@ -787,35 +798,156 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
         "uf_aplicada": uf_aplicada, "zebra": bool(t.get("zebra")),
         "idxs": idxs,                                   # as linhas visíveis (todas as páginas), para as juntas
     }
+    cliente_so_nome(tela)
+    return preparar_grade(tela, rid)
 
 
-# T-0028 (Alexandre, 26/11: "não gosto de barra de rolagem"; "passar o mouse no pedido deve aparecer um popup com os
-# dados do pedido"): na tabela de cima que liga as de baixo, estas colunas saem da grade e vão para o popup do pedido
-NO_POPUP = ("PED. MÁX.", "CÓD.", "FANTASIA", "LIMITE", "DISP.", "ATRASO", "VOL.", "R$ TABELA",
-            "COND. PAGTO", "FILIAL", "PRAZO", "NF", "DT. NF")
+# T-0033 (contrato visual BC3, §6): em TODOS os faróis a tabela é uma GRADE de no máximo 10 colunas de dado (cabe a 1366
+# sem rolagem lateral) mais o POPUP da linha, aberto na coluna-chave. O que não está na grade vai ao popup, em blocos;
+# no celular a linha fechada mostra chave, nome, selo e valor, e a aberta mostra o resto. O Excel e o PDF levam todas as colunas.
+#   chave: coluna sublinhada que abre o popup · grade: colunas da tela, na ordem do PC (a que não vier no pacote sai sem erro)
+#   blocos: ((título, colunas), ...) do popup; o que não está na grade nem num bloco vai para "Outros"
+#   cel: (chave, nome, selo, valor) da linha fechada no celular; None onde não houver
+# Os faróis novos da migração (T-0023 a T-0043) acrescentam as linhas deles AQUI, no PR que os traz.
+_BL_VIS = (("Cadastro", ("CAD.",)),
+           ("Jornada", ("INÍCIO", "ÚLT. ATIV.", "DIAS < JORN. LÍQ.", "INTERV. ALMOÇO", "DIAS ALMOÇO > MÁX.")),
+           ("Tempo", ("TMA", "TMD")), ("Rota", ("KM", "KM/CLIENTE")))
+_BL_ENT = (("Datas", ("DT. PED", "DT. NF", "DT. REAL")),
+           ("Frete", ("VLR FRETE", "TBL FRETE", "VLR REAL FRETE", "RESPONSÁVEL")))
+_METRICAS_VIS = ("META", "VISIT.", "% META", "% CONV.", "% FORA DE ROTA", "CAD. C/ COMPRA", "PROSP.", "JORNADA LÍQ.")
+_GERAR = {"chave": "CÓD. PROD.", "grade": ("PEDIDOS", "CÓD. PROD.", "QTD", "COLETAR EM", "FILIAL DEST."),
+          "cel": ("CÓD. PROD.", "DESCRIÇÃO", None, "QTD")}
+_FAIXAS_DIAS = ("1–15 DIAS", "16–30 DIAS", "31–60 DIAS", "61–90 DIAS", "91–180 DIAS", "+180 DIAS")
+_RESUMO_INAD = ("CARTEIRA ABERTA", "A VENCER", "EM ATRASO", "% INADIMPL.", "CLIENTES INADIMPL.")
 
 
-def colunas_no_popup(tab: dict) -> set[int]:
-    """T-0028: posições (na tela) das colunas que só aparecem no popup do pedido; só na tabela com `sel_col`."""
-    if tab.get("sel_col") is None:
+def _resumo_inad(chave: str) -> dict:
+    return {"chave": chave, "grade": (chave,) + _RESUMO_INAD, "blocos": (("Atraso por faixa", _FAIXAS_DIAS),),
+            "cel": (chave, None, "% INADIMPL.", "EM ATRASO")}
+
+
+GRADE: dict[tuple[str, str], dict] = {
+    ("pv_pedidos", "Pedidos"): {
+        "chave": "PEDIDO",
+        "grade": ("DT. PED", "FATURAR ATÉ", "PEDIDO", "FANTASIA", "RAZÃO SOCIAL", "UF", "CIDADE", "R$ VENDA",
+                  "% DESC.", "SLA", "% ATENDIDO"),                  # FANTASIA ou RAZÃO SOCIAL (uma só): 10 colunas
+        "blocos": (("Cliente", ("RAZÃO SOCIAL", "CÓD.")), ("Crédito", ("LIMITE", "DISP.", "ATRASO", "COND. PAGTO")),
+                   ("Pedido", ("ANÁLISE CRÉDITO", "SITUAÇÃO", "VENDEDOR", "PED. MÁX.", "VOL.", "R$ TABELA", "FILIAL",
+                               "PRAZO")),
+                   ("Nota", ("NF", "DT. NF"))),
+        "cel": ("PEDIDO", "FANTASIA", "SLA", "R$ VENDA")},
+    ("pv_pedidos", "Gerar separação CD"): _GERAR,
+    ("pv_pedidos", "Gerar reversa de lojas"): _GERAR,
+    ("pv_pedidos", "Analítico produto"): {
+        "chave": "PEDIDO", "grade": ("PEDIDO", "CÓD. PROD.", "QTD", "FALTA", "VALOR FALTANTE"),
+        "cel": ("PEDIDO", "DESCRIÇÃO", None, "VALOR FALTANTE")},
+    ("pl_entregas", "Entregas"): {
+        "chave": "NF", "blocos": _BL_ENT, "cel": ("NF", "CLIENTE", "SLA", "VLR NF"),
+        "grade": ("NF", "CLIENTE", "CIDADE", "UF", "SITUAÇÃO", "SLA", "DT. PREVISTA", "ETAPA", "TRANSPORTADORA",
+                  "VLR NF")},
+    ("pl_entregas", "Pendências dos meses anteriores"): {
+        "chave": "NF", "blocos": _BL_ENT, "cel": ("NF", "CLIENTE", "SLA", "VLR NF"),
+        "grade": ("MÊS", "NF", "CLIENTE", "SITUAÇÃO", "SLA", "DT. PREVISTA", "ETAPA", "VLR NF")},
+    ("pl_inadimplencia", "Títulos"): {
+        "chave": "NOME", "cel": ("NOME", None, "FAIXA", "SALDO"),
+        "grade": ("NOME", "NF", "PARC.", "VENCIMENTO", "DIAS ATRASO", "FAIXA", "SALDO", "SITUAÇÃO", "STATUS",
+                  "VENDEDOR")},
+    ("pl_inadimplencia", "Por cliente"): {
+        "chave": "NOME", "cel": ("NOME", None, "FAIXA", "EM ATRASO"),
+        "grade": ("NOME", "SITUAÇÃO", "FAIXA", "TÍTULOS VENCIDOS", "EM ATRASO", "MAIOR ATRASO", "A VENCER", "STATUS",
+                  "VENDEDOR")},
+    ("pl_inadimplencia", "Por vendedor"): _resumo_inad("VENDEDOR"),
+    ("pl_inadimplencia", "Por supervisor"): _resumo_inad("SUPERVISOR"),
+    ("pl_inadimplencia", "Por filial"): _resumo_inad("FILIAL"),
+    ("pl_inadimplencia", "Por UF"): _resumo_inad("UF"),
+    ("vc_visitas", "Por supervisor"): {
+        "chave": "SUPERVISOR", "grade": ("SUPERVISOR", "REPRES.") + _METRICAS_VIS, "blocos": _BL_VIS,
+        "cel": ("SUPERVISOR", None, "% META", "VISIT.")},
+    ("vc_visitas", "Por vendedor"): {
+        "chave": "VENDEDOR", "blocos": _BL_VIS, "cel": ("VENDEDOR", None, "% META", "VISIT."),
+        "grade": ("VENDEDOR", "META", "VISIT.", "% META", "% CONV.", "% FORA DE ROTA", "CAD. C/ COMPRA", "PROSP.",
+                  "JORNADA LÍQ.", "KM/CLIENTE")},
+    ("vc_visitas", "Dia a dia"): {
+        "chave": "VENDEDOR", "blocos": _BL_VIS, "cel": ("VENDEDOR", None, "SITUAÇÃO", "VISIT."),
+        "grade": ("DATA", "VENDEDOR", "SITUAÇÃO", "META", "VISIT.", "% META", "% CONV.", "% FORA DE ROTA", "INÍCIO",
+                  "ÚLT. ATIV.")},
+    ("vc_visitas", "Cliente a cliente"): {
+        "chave": "NOME FANTASIA", "blocos": (("Roteiro", ("SEQ. PREV.", "SEQ. REAL", "INÍCIO", "FIM", "ATEND.")),),
+        "cel": ("NOME FANTASIA", None, "SITUAÇÃO", "VALOR PEDIDO"),
+        "grade": ("DATA", "VENDEDOR", "NOME FANTASIA", "SITUAÇÃO", "STATUS", "CURVA", "DIAS S/ COMPRA",
+                  "PEDIDO NO DIA", "VALOR PEDIDO", "JUSTIFICATIVA")},
+    ("vc_visitas", "Prospecção"): {
+        "chave": "ESTABELECIMENTO", "cel": ("ESTABELECIMENTO", None, "STATUS", "CIDADE"),
+        "grade": ("DATA", "VENDEDOR", "ESTABELECIMENTO", "SEGMENTO", "CIDADE", "STATUS", "RESULTADO")},
+    ("vc_visitas", "Indicação"): {
+        "chave": "INDICADO", "cel": ("INDICADO", None, "SITUAÇÃO", "CIDADE"),
+        "grade": ("DATA", "VENDEDOR", "CLIENTE QUE INDICOU", "INDICADO", "CIDADE", "SITUAÇÃO", "VISITADA EM")},
+}
+
+
+def grade_de(tab: dict, rid: str = "") -> dict | None:
+    """A GRADE da tabela pelo par (rid, título do pacote); None = tabela fora da GRADE (desenhada inteira)."""
+    g = GRADE.get((rid, tab.get("tabela") or tab.get("titulo") or ""))
+    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    return g if g and g["chave"] in nomes else None
+
+
+def _fallback(tab: dict) -> dict:
+    """Tabela fora da GRADE (Metas Equipe, Solicitação BAP...): a 1ª coluna é a chave, a 2ª o nome e a última numérica
+    o valor (contrato visual §8). Ela só pode ter 10 colunas visíveis ou menos (teste nas fixtures)."""
+    cols = tab.get("cols") or []
+    nomes = [str(c.get("nome", "")).upper() for c in cols]
+    num = next((nomes[i] for i in range(len(cols) - 1, 0, -1) if cols[i].get("num")), None)
+    selo = next((n for n in nomes if n.startswith("%")), None)
+    return {"chave": nomes[0] if nomes else "", "grade": None, "blocos": (),
+            "cel": (nomes[0] if nomes else None, nomes[1] if len(nomes) > 1 else None, selo, num)}
+
+
+def colunas_no_popup(tab: dict, rid: str = "") -> set[int]:
+    """Posições (na tela) das colunas que só aparecem no popup da linha: as que não estão na GRADE."""
+    g = grade_de(tab, rid)
+    if not g:
         return set()
     nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
-    fora = {i for i, n in enumerate(nomes) if n in NO_POPUP and i != tab["sel_col"]}
+    chave = nomes.index(g["chave"])
+    fora = {i for i, n in enumerate(nomes) if n not in g["grade"] and i != chave}
     # um nome de cliente só na grade: a FANTASIA quando vem em todas as linhas (regra de 25/11), senão a RAZÃO SOCIAL
     razao = colunas_ocultas(tab)
-    if razao:
-        fora = (fora - {i for i, n in enumerate(nomes) if n.startswith("FANTASIA")}) | razao
+    fan = {i for i, n in enumerate(nomes) if n.startswith("FANTASIA")}
+    raz = {i for i, n in enumerate(nomes) if n.startswith(("RAZÃO SOCIAL", "RAZAO SOCIAL"))}
+    if fan and raz:
+        fora |= (razao if razao else fan)
     return fora
 
 
-# T-0028: nas tabelas de baixo do Farol de Pedidos (lado a lado, sem rolagem) saem as colunas que o popup do pedido
-# já mostra; o dado continua na página (o popup lê os itens do Analítico) e no Excel
-FORA_DAS_JUNTAS = ("UF", "CIDADE", "FORN.", "CLIENTE")
-
-
-def colunas_fora_da_junta(tab: dict) -> set[int]:
+def preparar_grade(tab: dict, rid: str = "") -> dict:
+    """Põe na tabela da tela `grade` = {chave, fora, cel, blocos}. Toda tabela tem (no celular vira a lista que abre)."""
+    g0 = grade_de(tab, rid)
+    g = g0 or _fallback(tab)
     nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
-    return colunas_ocultas(tab) | {i for i, n in enumerate(nomes) if n in FORA_DAS_JUNTAS}
+    ach = lambda n: nomes.index(n) if n in nomes else None   # noqa: E731
+    cel = g["cel"]
+    tab["grade"] = {"chave": ach(g["chave"]), "fora": colunas_no_popup(tab, rid) if g0 else colunas_ocultas(tab),
+                    "cel": {"cli": ach(cel[1]) if cel[1] else None, "sla": ach(cel[2]) if cel[2] else None,
+                            "val": ach(cel[3]) if cel[3] else None},
+                    "blocos": g.get("blocos") or ()}
+    return tab
+
+
+_RE_COD_NOME = re.compile(r"^\s*(\d+)\s+-\s+(.+)$")
+
+
+def cliente_so_nome(tab: dict) -> None:
+    """Entregas (UX §3.2): "900001 - NOME" vira só o nome na grade; o código vai ao popup (`cod` da célula)."""
+    cols = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    if "CLIENTE" not in cols or "NF" not in cols:
+        return
+    i = cols.index("CLIENTE")
+    for ln in tab.get("linhas") or []:
+        c = ln["cel"][i]
+        m = _RE_COD_NOME.match(str(c.get("t", "")))
+        if m:
+            c["cod"], c["t"] = m.group(1), m.group(2)
 
 
 # T-0029 / RN-GER-013 (Alexandre, 26/11/2026): pedido de cliente fora da base de clientes da BAP (pedido interno)
@@ -836,24 +968,36 @@ def linhas_fora_da_base(t: dict) -> frozenset:
 
 
 def colunas_do_celular(tab: dict) -> dict:
-    """T-0030 (celular, M3 "lista que abre"): posições, na tela, do cliente, do SLA e do valor de venda da linha
-    fechada; o resto vai para dentro dela (dados_do_popup)."""
-    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
-    fora = colunas_no_popup(tab)
-
-    def ach(*alvos):
-        return next((i for i, n in enumerate(nomes) if n in alvos and i not in fora), None)
-    return {"cli": ach("FANTASIA", "RAZÃO SOCIAL", "CLIENTE"), "sla": ach("SLA"), "val": ach("R$ VENDA", "VALOR")}
+    """Celular (M3, "lista que abre"): posições, na tela, do nome, do selo e do valor da linha fechada (a chave é
+    `tab["grade"]["chave"]`); o resto vai para dentro dela (dados_do_popup)."""
+    return (tab.get("grade") or preparar_grade(tab)["grade"])["cel"]
 
 
-def dados_do_popup(tab: dict, linha: dict) -> list[list[str]]:
-    """T-0028: [nome, texto] de cada coluna da linha (as da grade e as do popup), sem as vazias."""
-    out = []
-    for c, v in zip(tab.get("cols") or [], linha.get("cel") or []):
+def dados_do_popup(tab: dict, linha: dict, so_fora: bool = False) -> list[list]:
+    """[[título do bloco, [[nome, texto], ...]], ...] das colunas da linha, sem as vazias.
+    `so_fora`: só as que não estão na grade (o popup do PC, que nunca repete a grade); sem ele, todas menos as 4 da linha
+    fechada (o celular). Bloco sem título = o que a grade mostra; "Outros" = o que não está em bloco nenhum.
+    O PED. MÁX. só aparece quando difere do PEDIDO."""
+    g = tab.get("grade") or preparar_grade(tab)["grade"]
+    cols = tab.get("cols") or []
+    nomes = [str(c.get("nome", "")).upper() for c in cols]
+    bloco_de = {n: t for t, ns in g["blocos"] for n in ns}
+    fechada = {g["chave"], *g["cel"].values()} - {None}
+    ped = next((str(v.get("t", "")).strip() for n, v in zip(nomes, linha.get("cel") or []) if n == "PEDIDO"), "")
+    blocos: dict[str, list] = {}
+    for i, (c, v) in enumerate(zip(cols, linha.get("cel") or [])):
+        if (v or {}).get("cod"):                                  # Entregas: o código do cliente sai da grade
+            blocos.setdefault("Outros", []).append(["CÓD. CLIENTE", v["cod"]])
+        if (so_fora and i not in g["fora"]) or (not so_fora and i in fechada):
+            continue
         t = str((v or {}).get("t", "")).strip()
-        if t and t != "—":
-            out.append([str(c.get("nome", "")), t])
-    return out
+        nome = str(c.get("nome", ""))
+        if not t or t == "—" or (nome.upper() == "PED. MÁX." and t == ped):
+            continue
+        bl = bloco_de.get(nome.upper()) or ("" if (not so_fora and i not in g["fora"]) else "Outros")
+        blocos.setdefault(bl, []).append([nome, t])
+    ordem = [""] + [t for t, _ in g["blocos"]] + ["Outros"]
+    return [[t, blocos[t]] for t in ordem if t in blocos]
 
 
 def colunas_ocultas(tab: dict) -> set[int]:
@@ -870,7 +1014,7 @@ def colunas_ocultas(tab: dict) -> set[int]:
     return {i for i, n in enumerate(nomes) if n.startswith(("RAZÃO SOCIAL", "RAZAO SOCIAL"))}
 
 
-def juntas_para_tela(t: dict, idxs: list[int], uf: str | None = None, centavos: bool = False) -> list[dict]:
+def juntas_para_tela(t: dict, idxs: list[int], uf: str | None = None, centavos: bool = False, rid: str = "") -> list[dict]:
     """As juntas da aba: com `liga`, só as linhas ligadas às linhas visíveis de cima (todas as páginas,
     depois de filtro, recorte e estado, §10.7.2); sem `liga`, todas (e o estado, se a junta traz UF)."""
     out = []
@@ -891,20 +1035,22 @@ def juntas_para_tela(t: dict, idxs: list[int], uf: str | None = None, centavos: 
         nomes = [c["nome"] for c in jt["colunas"]]
         mostrar = j.get("mostrar")
         vista = [k for k, c in enumerate(jt["colunas"]) if not c.get("oculta") and (not mostrar or c["nome"] in mostrar)]
-        out.append({"titulo": j.get("titulo") or jt.get("titulo", ""), "tabela": jt.get("titulo", ""),
-                    "total_linhas": len(ks),
-                    "mais": len(ks) > JUNTA_MAX, "cols": _cabecalho(jt, vista), "grupos": _grupos_tela(jt, vista),
-                    "linhas": _tela_basica(jt, ks[:JUNTA_MAX], vista, centavos)})
+        junta = {"titulo": j.get("titulo") or jt.get("titulo", ""), "tabela": jt.get("titulo", ""),
+                 "total_linhas": len(ks),
+                 "mais": len(ks) > JUNTA_MAX, "cols": _cabecalho(jt, vista), "grupos": _grupos_tela(jt, vista),
+                 "linhas": _tela_basica(jt, ks[:JUNTA_MAX], vista, centavos)}
+        cliente_so_nome(junta)
+        out.append(preparar_grade(junta, rid))
     return out
 
 
-def subabas_para_tela(t: dict, sub: int, consulta: dict, pagina_tam: int = 100) -> tuple[list[str], dict]:
+def subabas_para_tela(t: dict, sub: int, consulta: dict, pagina_tam: int = PAGINA_TAM) -> tuple[list[str], dict]:
     """Solicitação BAP: os nomes das sub-abas e a escolhida (índice `sub`), paginada. Sem filtros."""
     subs = t["subabas"]
     sub = sub if 0 <= sub < len(subs) else 0
     s = subs[sub]
     tela = tabela_para_tela({"titulo": s["titulo"], "colunas": s["colunas"], "linhas": s["linhas"],
-                             "tons": s.get("tons")}, consulta, pagina_tam=pagina_tam)
+                             "tons": s.get("tons")}, consulta, pagina_tam=pagina_tam, rid="pv_pedidos")
     tela["sub"] = sub
     for c in tela["cols"]:                                 # só na exibição: rótulo legível (o contrato guarda o do arquivo)
         c["nome"] = " ".join(_TROCA_ROTULO.get(w, w) for w in c["nome"].replace("_", " ").split())

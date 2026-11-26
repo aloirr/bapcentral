@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block titulo %}BAP Central{% endblock %} · BAP AUTOPARTS</title>
+<title>{% block titulo %}Início{% endblock %} · BAP Central</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon-180.png">
 <link rel="stylesheet" href="/static/estilo.css">
 {% block cabeca %}{% endblock %}
 </head>
@@ -12,10 +14,10 @@
 <body class="bc3">
 <div class="bc3-app">
   <aside class="bc3-lado" id="bc3-lado" aria-label="Menu">
-    <a class="bc3-marca" href="/"><i aria-hidden="true"></i>BAP Central</a>
+    <a class="bc3-marca" href="/"><i aria-hidden="true"></i><span>BAP Central<small>BAP AUTOPARTS</small></span></a>
     {% for g in nav %}
     <div class="bc3-grupo"><small>{{ g.nome }}</small>
-      {% for i in g.itens %}{% if i.href %}<a href="{{ i.href }}" class="{{ 'on' if i.ativo }}"{{ ' aria-current="page"'|safe if i.ativo }}>{{ i.nome }}</a>{% else %}<span class="indisp" title="Sem dados no último pacote">{{ i.nome }}</span>{% endif %}{% endfor %}
+      {% for i in g.itens %}{% if i.href %}<a href="{{ i.href }}" class="{{ 'on' if i.ativo }}"{{ ' aria-current="page"'|safe if i.ativo }}>{{ i.nome }}</a>{% else %}<span class="indisp">{{ i.nome }}<small>Sem dados hoje</small></span>{% endif %}{% endfor %}
     </div>
     {% endfor %}
     <form method="post" action="/sair" class="bc3-eu">
@@ -25,7 +27,7 @@
     </form>
   </aside>
   <div class="bc3-main">
-    <div class="bc3-topo-cel"><a class="bc3-marca" href="/"><i aria-hidden="true"></i>BAP Central</a>
+    <div class="bc3-topo-cel"><a class="bc3-marca" href="/"><i aria-hidden="true"></i><span>BAP Central<small>BAP AUTOPARTS</small></span></a>
       <button type="button" class="bc3-menu" aria-controls="bc3-lado" aria-expanded="false" aria-label="Abrir o menu">☰</button></div>
     {% if not gerado_em %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
     {% block faixa %}{% endblock %}

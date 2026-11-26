@@ -18,7 +18,7 @@
   <p class="cob-erro" role="status"></p>
 </article>
 {% endmacro %}
-<header class="cab-painel"><h1>{{ farol_nome }} · Cobrar no WhatsApp</h1><span>{{ n_fila }} clientes{% if n_tratados %} · <a href="/farol/{{ rid }}?aba=cobrar&amp;pag={{ paginas }}#tratados">{{ n_tratados }} já tratados hoje</a>{% endif %}</span></header>
+<p class="cab-fila">{{ n_fila }} a cobrar</p>
 <section class="fila" data-url="/farol/{{ rid }}/cobranca" data-csrf="{{ csrf }}" data-sha="{{ pacote_sha }}">
 {% for c in fila %}{{ cartao(c) }}{% else %}{% if not tratados %}<p class="aviso atencao">Nenhum cliente na fila.</p>{% endif %}{% endfor %}
 </section>
@@ -28,7 +28,7 @@
   {% if pag < paginas %}<a href="/farol/{{ rid }}?aba=cobrar&amp;pag={{ pag + 1 }}">Próxima »</a>{% endif %}</nav>
 {% endif %}
 {% if tratados %}
-<details class="tratados" id="tratados"><summary>Já tratados hoje ({{ tratados|length }})</summary>
+<details class="tratados" id="tratados"><summary>Já tratados hoje ({{ n_tratados }})</summary>
 <section class="fila" data-url="/farol/{{ rid }}/cobranca" data-csrf="{{ csrf }}" data-sha="{{ pacote_sha }}">
 {% for c in tratados %}{{ cartao(c) }}{% endfor %}
 </section></details>

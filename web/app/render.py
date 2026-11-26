@@ -155,9 +155,8 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
-AVISO_UF = "Resumo e gráficos: BAP inteira."
+AVISO_UF = "Os outros cartões, o resumo e os gráficos: só na BAP inteira."   # T-0033 (RD-0034): um aviso só
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
-SEM_RECORTE = "só na BAP inteira"
 INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -178,7 +177,8 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
         grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
                                                        "ativo": ativo == "painel"}]})
     for nome, rids in GRUPOS_MENU:
-        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": meus[r], "ativo": r == ativo}
+        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": meus[r].removeprefix("Farol de "),
+                  "ativo": r == ativo}
                  for r in rids if r in meus]
         if itens:
             grupos.append({"nome": nome, "itens": itens})
@@ -519,9 +519,10 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
         r_uf = rel["recortes"][uf]
         rec = [r for r in _lista(r_uf.get("kpis")) if isinstance(r, dict)]
         todos = [k for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
-        # cartão da BAP inteira que o estado não tem (ex.: fotos sem filial): "—" e a dica
+        # cartão da BAP inteira que o estado não tem (ex.: fotos sem filial): "—" sem dica (o `cartao_vazio` o tira e o
+        # AVISO_UF diz uma vez só que os outros são da BAP inteira)
         kpis = [next((r for r in rec if r.get("rotulo") == k.get("rotulo")), None)
-                or {"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro", "detalhe": SEM_RECORTE}
+                or {"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro"}
                 for k in todos]
         kpis += [r for r in rec if r.get("rotulo") not in {k.get("rotulo") for k in todos}]
     elif re.match(r"^[A-Z]{2}$", uf):
@@ -535,10 +536,16 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
     fonte = r_uf if isinstance(r_uf.get("painel"), dict) else rel
     ins_blocos, blocos = _blocos(fonte.get("painel"))
     cartoes = [k for k in map(_kpi, _lista(kpis)) if k and not cartao_vazio(k)]
+    insights = sem_repeticao(_insights(fonte.get("insights_painel")) or ins_blocos, cartoes)
+    ditas = {i["texto"] for i in insights}                 # RD-0035: a frase fica só em "O que o painel diz"
+    for b in blocos:
+        for c in (b.get("cartoes") or []) if b.get("tipo") == "placar" else []:
+            if c.get("frase") in ditas:
+                c["frase"] = ""
     return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
             "faixa": bool(rel.get("kpis_faixa")),   # cartões em faixa fina, como o PC
             "kpis": cartoes,
-            "insights": sem_repeticao(_insights(fonte.get("insights_painel")) or ins_blocos, cartoes), "blocos": blocos,
+            "insights": insights, "blocos": blocos,
             "avisos": [str(a) for a in _lista(rel.get("avisos")) if not str(a).startswith("Sem filtro por estado")],
             "avisos_info": [str(a) for a in _lista(rel.get("avisos")) if str(a).startswith("Sem filtro por estado")],
             "aviso_uf": (((SEM_DADO_UF.format(uf=uf) + " ") if sem_dado else "") + AVISO_UF

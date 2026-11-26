@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, cobranca, config, edicoes, exportar, pacotes, render, tabelas
+from . import VERSAO, cobranca, config, edicoes, exportar, marca, pacotes, render, tabelas
 from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 
 log = logging.getLogger("bap_web")
@@ -74,11 +74,8 @@ def criar_app() -> FastAPI:
     modelos.env.filters["manaus"] = fmt_manaus
     modelos.env.filters["hhmm"] = hhmm
     modelos.env.filters["fone"] = cobranca.fone_bonito
-    modelos.env.globals["ocultas"] = tabelas.colunas_ocultas      # T-0020: coluna que só repete outra
-    modelos.env.globals["no_popup"] = tabelas.colunas_no_popup    # T-0028: colunas que só aparecem no popup
+    modelos.env.filters["aba_curta"] = tabelas.aba_curta           # T-0033: nomes curtos nas abas (cabem a 1366)
     modelos.env.globals["dados_popup"] = tabelas.dados_do_popup
-    modelos.env.globals["fora_da_junta"] = tabelas.colunas_fora_da_junta
-    modelos.env.globals["cols_celular"] = tabelas.colunas_do_celular
     modelos.env.globals["datas_proximas"] = render.datas_proximas  # T-0020: uma data só
     diario = cobranca.Diario(cfg.dados)
     diario.limpar()                                   # §10.6.5: também quando o app sobe
@@ -288,7 +285,20 @@ def criar_app() -> FastAPI:
             c.setdefault(k, []).append(v[:80])
         return c
 
-    def farol_abas(request: Request, u: dict, rid: str, aba: str, uf: str):
+    def urls_tabela(request: Request, rid: str, aba: str, tab: dict, sub, uf: str, fora: bool) -> dict:
+        """T-0033: os endereços da tabela (ordenação, filtros, recorte) e o do "carregar mais" (500 em 500 linhas)."""
+        base0 = f"/farol/{rid}?aba={aba}"
+        base = base0 + (f"&sub={sub}" if sub is not None else "") + (f"&uf={uf}" if uf else "") + ("&fora=1" if fora else "")
+        sem_rec = "".join(f"&{f['chave']}={quote(str(v))}" for f in tab["filtros"] for v in f["sel"])
+        sem_rec += f"&busca={quote(tab['busca'])}" if tab["busca"] else ""
+        fq = sem_rec + (f"&rec={tab['rec']}" if tab["rec"] is not None else "")
+        mais = ""
+        if tab["pag"] < tab["paginas"]:
+            q = urlencode([(k, v) for k, v in request.query_params.multi_items() if k != "pag"])
+            mais = f"/farol/{rid}/linhas?{q}&pag={tab['pag'] + 1}"
+        return {"base0": base0, "base": base, "sem_rec": sem_rec, "fq": fq, "mais": mais}
+
+    def farol_abas(request: Request, u: dict, rid: str, aba: str, uf: str, linhas: bool = False):
         """Pedidos, Entregas e Visita (§10.7): Resumo e abas de tabela. Perfil e aba conferidos aqui."""
         perfil = u["perfil"]
         if aba in tabelas.chaves(rid) and not tabelas.ve_aba(rid, aba, perfil):
@@ -341,10 +351,10 @@ def criar_app() -> FastAPI:
             fora_base = tabelas.linhas_fora_da_base(t) if rid == "pv_pedidos" else frozenset()
             mostrar_fora = consulta.get("fora") == ["1"]
             tab = tabelas.tabela_para_tela(t, consulta, uf=uf_ok or None,
-                                           excluir=frozenset() if mostrar_fora else fora_base)
+                                           excluir=frozenset() if mostrar_fora else fora_base, rid=rid)
             tab["fora_base"] = {"qtd": len(fora_base), "mostrar": mostrar_fora} if fora_base else None
             sel = selecao(t, tab, consulta)              # um clique no pedido: as de baixo só com ele (PC)
-            juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None)
+            juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None, rid=rid)
             volta = request.url.path + "?" + request.url.query
             sit = fila.situacao(rid)
             recebido = (ultimo.get() or {}).get("recebido_em")
@@ -352,22 +362,23 @@ def criar_app() -> FastAPI:
             for j in juntas:
                 jt = next((x["tabela"] for x in t.get("juntas") or [] if x["tabela"]["titulo"] == j["tabela"]), None)
                 j["edicao"] = edicao_tela(rid, j["tabela"], jt, j["linhas"], u, volta, sit, recebido)
-        # cada aba do Visita é uma página sem seletor de estado: o aviso fica em cada uma (RD-0023)
-        aviso_uf = tabelas.AVISO_SEM_ESTADO if rid == "vc_visitas" else aviso_tabs_uf
-        aviso_kpis = ""
-        if solicitacao:
-            kpis = []
-        elif tab["filtrado"] or (uf_ok and rid != "vc_meta"):   # filtro, recorte ou estado (meta: o estado já traz os cartões): os cartões da aba saem (§10.7.2)
-            kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
-        elif t.get("kpis_padrao") is not None:
+        # RD-0023 (decisão do gerente, 26/11): o aviso "Sem filtro por estado" do Visita é um só, na faixa (`_bc3_cab.html`)
+        aviso_uf = aviso_tabs_uf
+        # T-0033: a faixa leva os números em todas as abas; com filtro, recorte ou estado eles ficam e ganham o detalhe
+        if t.get("kpis_padrao") is not None and not solicitacao:
             kpis = render.kpis_para_tela(t["kpis_padrao"])
         else:
             kpis = topo["kpis"]
+        if not solicitacao and (tab["filtrado"] or (uf_ok and rid != "vc_meta" and t.get("kpis_padrao") is not None)):
+            kpis = [{**k, "detalhe": k.get("detalhe") or ("sem o filtro" if tab["filtrado"] else "BAP inteira")} for k in kpis]
         uf = uf_ok
-        return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis,
+        urls = urls_tabela(request, rid, aba, tab, sub, uf, bool(tab.get("fora_base") and tab["fora_base"]["mostrar"]))
+        if linhas:                                      # "carregar mais": só as linhas da página pedida (mesmo corte de perfil)
+            return pagina(request, "_linhas.html", tabela=tab, **urls, **ctx)
+        return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis, **urls,
                       faixa=True, ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
                       ed_enviada=edicoes.MSG_ENVIADA if consulta.get("ed") == ["1"] else "",
-                      aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, titulo_aba=t["titulo"], **ctx)
+                      aviso_uf=aviso_uf, titulo_aba=t["titulo"], **ctx)
 
     # ------------------------------------------------------------ T-0026: parcial em imagem e exportação
     QUANDOS = (("acum", "Acumulado"), ("d1", "D-1"), ("hoje", "Hoje"))
@@ -432,7 +443,7 @@ def criar_app() -> FastAPI:
         u = usuario(request)
         par = parciais_de(rid, u["perfil"]).get(q)
         raw = exportar.png_dados(par["png"]) if isinstance(par, dict) else None
-        pdf = exportar.pdf_imagem(raw, f"{render.FAROIS[rid][0]} · {par.get('rotulo', '')}") if raw else None
+        pdf = exportar.pdf_imagem(raw, f"{marca.EMPRESA} · {render.FAROIS[rid][0]} · {par.get('rotulo', '')}") if raw else None
         if pdf is None:
             return JSONResponse({"erro": "parcial indisponível"}, status_code=404)
         cobranca.registrar_acesso(cfg.dados, u["login"], rid, "parcial-" + q, "pdf")
@@ -497,7 +508,7 @@ def criar_app() -> FastAPI:
             return baixar(exportar.xlsx(tabs), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                           nome + ".xlsx")
         t = tabs[0]
-        rod = f"{render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(((ultimo.get() or {}).get('gerado_em')))}"
+        rod = f"{marca.EMPRESA} · {render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(((ultimo.get() or {}).get('gerado_em')))}"
         return baixar(exportar.pdf_tabela(t, rod), "application/pdf", nome + ".pdf")
 
     # ------------------------------------------------------------ T-0021: edição (só admin)
@@ -632,14 +643,16 @@ def criar_app() -> FastAPI:
         cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba or "-", "editar")
         return RedirectResponse(volta + ("&" if "?" in volta else "?") + "ed=1", status_code=303)
 
+    @app.get("/farol/{rid}/linhas", response_class=HTMLResponse)
     @app.get("/farol/{rid}", response_class=HTMLResponse)
     async def farol(request: Request, rid: str, uf: str = "", aba: str = "resumo"):
+        linhas = request.url.path.endswith("/linhas")   # T-0033: a mesma regra de perfil, só as linhas
         u = usuario(request)
         if rid not in render.FAROIS or u["perfil"] not in render.FAROIS[rid][1]:
             raise PermissionError                       # perfil conferido no servidor
         perfil = u["perfil"]
         if rid in tabelas.RIDS:
-            return farol_abas(request, u, rid, aba, uf)
+            return farol_abas(request, u, rid, aba, uf, linhas=linhas)
         chaves = [c for c, _ in cobranca.ABAS]
         if aba in chaves[1:]:                           # aba de tabela ou de fila: 403 fora do perfil
             if (rid != cobranca.RID or (aba in cobranca.ABA_TABELA and perfil not in cobranca.VE_TABELAS)
@@ -669,9 +682,12 @@ def criar_app() -> FastAPI:
             t = next((x for x in rel["tabelas"] if x["titulo"] == titulo), None)
             if t is None:                               # aba de resumo que o robô ainda não manda
                 return pagina(request, "farol.html", tela=None, **ctx)
-            return pagina(request, "farol.html", tela=None,
-                          tabela=cobranca.tabela_para_tela(t, titulo, consulta_de(request)),
-                          **ctx)
+            tab = cobranca.tabela_para_tela(t, titulo, consulta_de(request))
+            urls = urls_tabela(request, rid, aba, tab, None, "", False)
+            if linhas:
+                return pagina(request, "_linhas.html", tabela=tab, **urls, **ctx)
+            return pagina(request, "farol.html", tela=None, kpis=render.farol_para_tela(rel, None, rid)["kpis"],
+                          tabela=tab, **urls, **ctx)
         cob = rel["cobranca"]
         extras = diario.pendentes(cob["web_epoca"], cob["web_ate_seq"])
         hoje = cobranca.agora().date()
@@ -688,7 +704,8 @@ def criar_app() -> FastAPI:
         paginas = max(1, -(-len(pendentes) // cobranca.FILA_POR_PAGINA))
         pag = min(pag, paginas)
         ini = (pag - 1) * cobranca.FILA_POR_PAGINA
-        return pagina(request, "farol.html", tela=None, fila=pendentes[ini:ini + cobranca.FILA_POR_PAGINA],
+        return pagina(request, "farol.html", tela=None, kpis=render.farol_para_tela(rel, None, rid)["kpis"],
+                      fila=pendentes[ini:ini + cobranca.FILA_POR_PAGINA],
                       tratados=tratados if pag == paginas else [], n_fila=len(pendentes), n_tratados=len(tratados),
                       pag=pag, paginas=paginas, pc_ate=cob["gerado_em"], pacote_sha=ultimo.sha(), **ctx)
 
