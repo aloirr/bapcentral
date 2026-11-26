@@ -30,40 +30,7 @@
 {% if tela.aviso_uf %}<p class="aviso info">{{ tela.aviso_uf }}</p>{% endif %}
 {% for a in tela.avisos_info %}<p class="aviso info">{{ a }}</p>{% endfor %}
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
-{{ cartoes(tela.kpis, tela.faixa) }}
-{% if tela.insights %}
-<section class="resumo"><h2>Resumo gerencial</h2>
-  <ul>{% for i in tela.insights %}<li class="ins t-{{ i.tom }}"><span>{{ i.texto }}</span></li>{% endfor %}</ul>
-</section>
-{% endif %}
-<section class="graficos">
-{% for b in tela.blocos if b.tipo in ("barras", "hbarras", "tabela") %}
-<article class="graf{{ ' graf-tab' if b.tipo == 'tabela' }}">
-  {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
-  {% if b.tipo == "barras" %}
-    {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
-    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}{{ ' gb-vert' if b.vert }}{{ ' gb-rotv' if b.rotv }}">
-      {% for c in b.cols %}
-      <div class="gb-col">
-        <div class="gb-area">{% for x in c.barras %}<div class="gb-b" title="{{ x.titulo }}"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
-        <div class="gb-rot">{{ c.rot if (not b.denso or loop.index0 % 2 == 0) else '' }}</div>
-      </div>
-      {% endfor %}
-    </div>
-    {% if b.meta %}<p class="como">Meta: {{ b.meta.txt }}</p>{% endif %}
-  {% elif b.tipo == "hbarras" %}
-    <div class="hb">
-      {% for l in b.linhas %}
-      <div class="hb-l"><span class="hb-rot">{{ l.rot }}</span><span class="hb-trilho"><i style="width:{{ l.larg }}%;background:{{ l.cor }}"></i></span><b>{{ l.txt }}</b></div>
-      {% endfor %}
-    </div>
-    {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
-  {% elif b.tipo == "tabela" %}
-    {{ grade(b, "", "", "Sem linhas neste pacote.") }}
-  {% endif %}
-</article>
-{% endfor %}
-</section>
+{% include "_resumo.html" %}
 {% endif %}
 {% endif %}
 {% endblock %}
