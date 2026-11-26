@@ -23,12 +23,12 @@
     </select>
     {% elif c.tipo == "data" %}
     <input type="date" name="c_{{ c.campo }}" value="{{ c.atual_iso }}"{% if c.min %} min="{{ c.min }}" max="{{ c.max }}"{% endif %}>
-    <small>Apague a data para voltar à calculada pelo PC.</small>
+    {% if rid == "pl_entregas" %}<small>Apague a data para voltar à calculada pelo PC.</small>{% endif %}
     {% elif c.tipo == "numero" %}
     <input type="text" inputmode="decimal" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="20" placeholder="{{ c.sugestao or 'ex.: 278,40' }}"{% if c.sugestao %} list="dl-{{ c.campo }}"{% endif %}>
     {% if c.sugestao %}<datalist id="dl-{{ c.campo }}"><option value="{{ c.sugestao }}"></option></datalist><small>Sugestão: {{ c.sugestao }}</small>{% endif %}
     {% else %}
-    <input type="text" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="60"{% if c.opcoes %} list="dl-{{ c.campo }}"{% endif %} autocomplete="off">
+    <input type="text" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="{{ c.limite or 60 }}"{% if c.opcoes %} list="dl-{{ c.campo }}"{% endif %} autocomplete="off">
     {% if c.opcoes %}<datalist id="dl-{{ c.campo }}">{% for o in c.opcoes[:300] %}<option value="{{ o }}"></option>{% endfor %}</datalist>{% endif %}
     {% endif %}
     {% if c.pendente is not none %}<small class="ed-pend-txt">Aguardando o PC: {{ c.pendente or "(vazio)" }}</small>{% endif %}

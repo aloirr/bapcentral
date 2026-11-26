@@ -36,7 +36,13 @@ LUGARES = {
     ("pv_pedidos", "Pedidos"): "autorizacoes",
     ("pl_entregas", "Entregas"): "pos_venda",
     ("pl_entregas", "Pendências dos meses anteriores"): "pos_venda",
+    # T-0025: STATUS e MOTIVO do Farol DDR (as 3 áreas) e o cadastro/edição dos Expositores (linha nova)
+    **{(rid, tit): "farol" for rid in ("farol_pv", "farol_vc", "farol_pl")
+       for tit in ("Hoje", "Pendentes de marcação", "Até hoje")},
+    ("tm_expositores", "Expositores"): "expositores",
 }
+NOVA = "NOVO"                              # a chave da linha nova (o PC põe NOVO + sequência; a web põe NOVO + id)
+MAX_TEXTO_CAMPO = 200                      # o `max` de um campo de texto (observações do expositor)
 TIPOS = ("lista", "data", "texto", "numero")
 STATUS = ("pendente", "aplicada", "erro")
 MSG_ENVIADA = "Edição enviada. Ela chega ao PC na próxima rodada do robô (a cada 30 min)."
@@ -76,7 +82,7 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
     modulo = LUGARES.get((rid, titulo))
     if modulo is None:
         return "edicao fora dos lugares aceitos"
-    if not isinstance(ed, dict) or set(ed) - {"modulo", "acao", "chaves", "campos"}:
+    if not isinstance(ed, dict) or set(ed) - {"modulo", "acao", "chaves", "campos", "novo"}:
         return "edicao com chave não aceita"
     if ed.get("modulo") != modulo or modulo not in MODULOS:
         return "edicao com modulo diferente do lugar"
@@ -86,13 +92,19 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
     if not (isinstance(ch, list) and len(ch) == n_linhas
             and all(isinstance(x, str) and RE_CHAVE.match(x) for x in ch)):
         return "edicao.chaves precisa ter uma chave (texto curto) por linha"
+    nv = ed.get("novo")
+    if nv is not None and not (isinstance(nv, dict) and set(nv) == {"padroes"} and isinstance(nv["padroes"], dict)
+                               and len(nv["padroes"]) <= MAX_CAMPOS
+                               and all(isinstance(k, str) and RE_CAMPO.match(k) and isinstance(v, str) and len(v) <= 40
+                                       for k, v in nv["padroes"].items())):
+        return "edicao.novo inválido"
     cs = ed.get("campos")
     if not (isinstance(cs, list) and 0 < len(cs) <= MAX_CAMPOS):
         return "edicao.campos inválidos"
     vistos = set()
     for c in cs:
         if not isinstance(c, dict) or set(c) - {"campo", "rotulo", "coluna", "tipo", "opcoes", "caixa",
-                                                 "grupos", "grupo_linhas", "linhas", "sugestoes_linhas"}:
+                                                 "grupos", "grupo_linhas", "linhas", "sugestoes_linhas", "max"}:
             return "edicao: campo com chave não aceita"
         if not (isinstance(c.get("campo"), str) and RE_CAMPO.match(c["campo"])) or c["campo"] in vistos:
             return "edicao: nome de campo inválido ou repetido"
@@ -107,6 +119,9 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
             return "edicao: opções inválidas"
         if c.get("caixa") is not None and not isinstance(c["caixa"], bool):
             return "edicao: caixa inválida"
+        if c.get("max") is not None and not (_int(c["max"]) and MAX_TEXTO < c["max"] <= MAX_TEXTO_CAMPO
+                                             and c["tipo"] == "texto"):
+            return "edicao: max inválido"
         if c["tipo"] == "data" and not all(RE_DATA_BR.match(x) for x in c.get("opcoes", [])):
             return "edicao: data fora de dd/mm/aaaa"
         gr, gl = c.get("grupos"), c.get("grupo_linhas")
@@ -249,8 +264,9 @@ def valores_do_form(ed: dict, k: int, linha: list, nomes: list[str], form: dict)
             continue
         else:                                           # texto livre (a lista só sugere)
             v = bruto.strip() if c.get("caixa") else bruto.strip().upper()
-            if len(v) > MAX_TEXTO:
-                return {}, {}, f"{c['rotulo']}: até {MAX_TEXTO} caracteres."
+            limite = c.get("max") or MAX_TEXTO
+            if len(v) > limite:
+                return {}, {}, f"{c['rotulo']}: até {limite} caracteres."
             if RE_PESSOAL.search(v):
                 return {}, {}, f"{c['rotulo']}: sem CPF, CNPJ, telefone ou e-mail."
         if v == atual:

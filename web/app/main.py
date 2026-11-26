@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import secrets
+import uuid
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlencode
@@ -364,7 +365,11 @@ def criar_app() -> FastAPI:
             algum = algum or bool(m)
         if not admin and not algum:
             return None
-        return {"cab": ed.get("acao") or "Editar", "admin": admin}
+        novo = (f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "chave": edicoes.NOVA, "volta": volta})
+                if admin and ed.get("novo") else "")
+        n_novos = sum(1 for (tb, ch), s in sit.items()
+                      if tb == titulo and ch.startswith(edicoes.NOVA) and edicoes.marca(s, recebido) == "pendente")
+        return {"cab": ed.get("acao") or "Editar", "admin": admin, "novo": novo, "n_novos": n_novos}
 
     def tabela_editavel(rid, titulo):
         """(tabela do pacote, chave da aba) do lugar editável; (None, "") se não houver."""
@@ -387,6 +392,25 @@ def criar_app() -> FastAPI:
             return v
         return f"/farol/{rid}"
 
+    def form_ctx_novo(rid, titulo, t, aba, volta, f=None):
+        """O formulário da linha nova (Expositores): campos vazios, com os padrões do PC (status, qtd, data de hoje)."""
+        ed = t["edicao"]
+        padroes = dict(ed["novo"]["padroes"])
+        hoje_br = datetime.now(MANAUS).strftime("%d/%m/%Y")
+        campos = []
+        for c in edicoes.campos_da_linha(ed, 0):
+            atual = str((f or {}).get("c_" + c["campo"], padroes.get(c["campo"], "")))[:200]
+            if c["tipo"] == "data":
+                atual = edicoes.br_data(atual) if atual and atual != "hoje" else (hoje_br if atual == "hoje" else "")
+            isos = sorted(edicoes.iso_de_br(x) for x in c["opcoes_linha"]) if c["tipo"] == "data" else []
+            campos.append({"campo": c["campo"], "rotulo": c["rotulo"], "tipo": c["tipo"], "atual": atual,
+                           "atual_iso": edicoes.iso_de_br(atual), "opcoes": list(c["opcoes_linha"]), "sugestao": "",
+                           "min": isos[0] if isos else "", "max": isos[-1] if isos else "",
+                           "limite": c.get("max") or edicoes.MAX_TEXTO, "pendente": None})
+        return dict(farol_nome=render.FAROIS[rid][0], rid=rid, tab=titulo, chave=edicoes.NOVA,
+                    acao="Novo expositor", resumo=[], campos=campos, volta=volta, ver_pedido="", sit=None,
+                    noindex=True)
+
     def form_ctx(rid, titulo, t, aba, k, sit_linha, volta):
         ed = t["edicao"]
         cols, linha = t["colunas"], t["linhas"][k]
@@ -405,7 +429,7 @@ def criar_app() -> FastAPI:
             campos.append({"campo": c["campo"], "rotulo": c["rotulo"], "tipo": c["tipo"], "atual": atual,
                            "atual_iso": edicoes.iso_de_br(atual), "opcoes": ops, "sugestao": c.get("sugestao", ""),
                            "min": isos[0] if isos else "", "max": isos[-1] if isos else "",
-                           "pendente": pend.get(c["campo"])})
+                           "limite": c.get("max") or edicoes.MAX_TEXTO, "pendente": pend.get(c["campo"])})
         liga = next((j for j in t.get("juntas") or [] if j.get("liga")), None)
         ver = f"/farol/{rid}?aba={aba}&sel={k}" if liga and aba else ""      # "Ver pedido", como no PC
         return dict(farol_nome=render.FAROIS[rid][0], rid=rid, tab=titulo, chave=ed["chaves"][k],
@@ -420,6 +444,8 @@ def criar_app() -> FastAPI:
         volta = volta_ok(rid, volta)
         t, aba = tabela_editavel(rid, tab[:80])
         ed = (t or {}).get("edicao")
+        if chave == edicoes.NOVA and isinstance(ed, dict) and ed.get("novo"):
+            return pagina(request, "editar.html", erro="", aviso="", **form_ctx_novo(rid, tab, t, aba, volta))
         k = edicoes.linha_da_chave(ed, chave[:80]) if isinstance(ed, dict) else None
         if k is None:
             return pagina(request, "erro.html", status=404,
@@ -428,6 +454,27 @@ def criar_app() -> FastAPI:
         sit = fila.situacao(rid).get((tab, chave))
         return pagina(request, "editar.html", erro="", aviso="",
                       **form_ctx(rid, tab, t, aba, k, sit, volta))
+
+    def novo_post(request, u, rid, tab, t, aba, ed, volta, f):
+        """Linha nova (Expositores): só vai o que foi preenchido; o PC põe a chave EXPnnnn e a data de hoje."""
+        nomes = [c["nome"] for c in t["colunas"]]
+        mudou, _antes, erro = edicoes.valores_do_form(ed, 0, [None] * len(nomes), nomes, f)
+        padroes = ed["novo"]["padroes"]
+        if not erro and not any(padroes.get(c) != v for c, v in mudou.items()):
+            erro = "Preencha pelo menos um campo além dos padrões."
+        if erro:
+            return pagina(request, "editar.html", status=400, erro=erro, aviso="",
+                          **form_ctx_novo(rid, tab, t, aba, volta, f))
+        chave = edicoes.NOVA + uuid.uuid4().hex[:8].upper()
+        try:
+            fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=chave,
+                           valores=mudou, antes={})
+        except OSError:
+            log.error("edição: falha ao gravar a fila")
+            return pagina(request, "editar.html", status=503, erro="Não foi possível gravar agora. Tente de novo.",
+                          aviso="", **form_ctx_novo(rid, tab, t, aba, volta, f))
+        cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba or "-", "editar")
+        return RedirectResponse(volta + ("&" if "?" in volta else "?") + "ed=1", status_code=303)
 
     @app.post("/farol/{rid}/editar")
     async def editar_post(request: Request, rid: str):
@@ -439,6 +486,8 @@ def criar_app() -> FastAPI:
         volta = volta_ok(rid, f.get("volta"))
         t, aba = tabela_editavel(rid, tab)
         ed = (t or {}).get("edicao")
+        if chave == edicoes.NOVA and isinstance(ed, dict) and ed.get("novo"):
+            return novo_post(request, u, rid, tab, t, aba, ed, volta, f)
         k = edicoes.linha_da_chave(ed, chave) if isinstance(ed, dict) else None
         if k is None:
             return pagina(request, "erro.html", status=409,
