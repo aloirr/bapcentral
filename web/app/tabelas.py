@@ -26,6 +26,10 @@ VE_TABELAS = {
     "pv_pedidos": ("admin", "gerente", "pre_venda"),
     "pl_entregas": ("admin", "gerente", "pos_venda"),
     "vc_visitas": ("admin", "gerente", "vendas"),
+    # T-0023: como o Entregas (D1: o diretor só vê o Resumo; as tabelas listam cliente)
+    "pl_garantias": ("admin", "gerente", "pos_venda"),
+    "pl_devolucoes": ("admin", "gerente", "pos_venda"),
+    "pl_ncc": ("admin", "gerente", "pos_venda"),
 }
 ABAS_SO_GERENCIA: dict[str, tuple[str, ...]] = {}      # D1 C: {"vc_visitas": ("cliente", "prospeccao", "indicacao")}
 PERFIS_GERENCIA = ("admin", "gerente")
@@ -39,6 +43,14 @@ ABAS = {
     "vc_visitas": (("supervisor", "Por supervisor"), ("vendedor", "Por vendedor"), ("dia", "Dia a dia"),
                    ("aderencia", "Aderência dia a dia"), ("cliente", "Cliente a cliente"),
                    ("prospeccao", "Prospecção"), ("indicacao", "Indicação")),
+    # T-0023
+    "pl_garantias": (("garantias", "Garantias"), ("historico", "Histórico de compra"),
+                     ("produto", "Por produto"), ("status", "Status x resultado")),
+    "pl_devolucoes": (("devolucoes", "Devoluções"), ("motivo", "Por motivo"),
+                      ("vendedor", "Por vendedor (12 meses)"), ("cliente", "Por cliente (12 meses)"),
+                      ("produto", "Por produto (12 meses)")),
+    "pl_ncc": (("ncc", "NCC pendentes"), ("cliente", "Por cliente"), ("filial", "Por filial"),
+               ("vendedor", "Por vendedor"), ("supervisor", "Por supervisor")),
 }
 SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitacao Manual",
            "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir")
@@ -131,6 +143,63 @@ COLUNAS: dict[str, list] = {
                   _c("CÓD. QUEM INDICOU"), _c("CLIENTE QUE INDICOU"), _c("INDICADO"), _c("CIDADE"),
                   _c("BAIRRO"), _c("SEGMENTO"), _c("VISITADA EM", "data"), _c("OBSERVAÇÃO"),
                   _c("REGISTRADO EM")],
+}
+# T-0023: as tabelas do pós-venda. Chave (rid, título): "Por vendedor" e "Por supervisor" da NCC não são as da Visita.
+_ABATE_NCC = [_c("NCC", "int"), _c("CLIENTES", "int"), _c("0-30 DIAS", "moeda"), _c("31-90 DIAS", "moeda"),
+              _c("91-180 DIAS", "moeda"), _c("+180 DIAS", "moeda"), _c("SALDO", "moeda"),
+              _c("COMPENSAR JÁ", "moeda")]
+COLUNAS_RID: dict[tuple[str, str], list] = {
+    ("pl_garantias", "Garantias"): [
+        _c("STATUS"), _c("RESULTADO ANÁLISE"), _c("TICKET"), _c("DT. SOLICITAÇÃO", "data"),
+        _c("DT. FECHAMENTO", "data"), _c("SLA ATUAL", "int"), _c("PRAZO"), _c("CÓD. CLIENTE"),
+        _c("CLIENTE"), _c("CIDADE"), _c("CÓD. PRODUTO"), _c("DESCRIÇÃO PRODUTO", "texto", True),
+        _c("QTD", "num"), _c("PENDÊNCIAS", "texto", True), _c("RETORNO DO CLIENTE", "texto", True),
+        _c("VENDEDOR", "texto", True), _c("SUPERVISOR", "texto", True),
+        _c("SITUAÇÃO DO PRAZO", "texto", True), _c("TOM SLA", "texto", True),
+        _c("DT. FECHOU", "data", True), _c("RECLAMAÇÃO", "texto", True), _c("OBSERVAÇÃO", "texto", True),
+        _c("DT. RETORNO", "data", True)],
+    ("pl_garantias", "Histórico de compra"): [
+        _c("CÓD. CLIENTE"), _c("RAZÃO SOCIAL"), _c("FANTASIA"), _c("CIDADE"), _c("PEDIDO"),
+        _c("PED. MÁXIMA"), _c("NF"), _c("PRAZO"), _c("DT. PEDIDO", "dia"), _c("DT. NF", "dia"),
+        _c("DT. ENTREGA", "dia"), _c("TRANSPORTADORA"), _c("RESPONSÁVEL"), _c("CÓD. PRODUTO"),
+        _c("DESCRIÇÃO"), _c("QTD", "num"), _c("VALOR", "moeda"), _c("VENDEDOR"), _c("FILIAL")],
+    ("pl_garantias", "Por produto"): [
+        _c("CÓD. PRODUTO"), _c("DESCRIÇÃO"), _c("GARANTIAS", "int"), _c("EM ABERTO", "int"),
+        _c("PROCEDENTES", "int"), _c("IMPROCEDENTES", "int")],
+    ("pl_garantias", "Status x resultado"): [
+        _c("STATUS"), _c("PENDENTE", "int"), _c("PROCEDENTE", "int"), _c("IMPROCEDENTE", "int"),
+        _c("TOTAL", "int")],
+    ("pl_devolucoes", "Devoluções"): [
+        _c("MÊS"), _c("DATA", "data"), _c("NF DEV."), _c("FILIAL"), _c("CLIENTE"), _c("CIDADE"),
+        _c("UF"), _c("VENDEDOR"), _c("VALOR", "moeda"), _c("ITENS", "int"), _c("PRODUTOS"),
+        _c("ETAPA"), _c("MOTIVO"), _c("AUTORIZADO POR"), _c("RECEBIDA EM", "data"), _c("CRÉDITO"),
+        _c("CRÉDITO EM", "data"), _c("RESPONSÁVEL")],
+    ("pl_devolucoes", "Por motivo"): [_c("MÊS"), _c("MOTIVO"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda")],
+    ("pl_devolucoes", "Por vendedor (12 meses)"): [
+        _c("VENDEDOR"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda"), _c("FATURADO 12M", "moeda"),
+        _c("% DEVOLVIDO", "pct")],
+    ("pl_devolucoes", "Por cliente (12 meses)"): [_c("CLIENTE"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda")],
+    ("pl_devolucoes", "Por produto (12 meses)"): [
+        _c("PRODUTO"), _c("DESCRIÇÃO"), _c("QTD", "num"), _c("VALOR", "moeda")],
+    ("pl_ncc", "NCC pendentes"): [
+        _c("A COMPENSAR"), _c("SLA NCC"), _c("DT. ÚLT. MOV.", "data"), _c("D.U. S/ MOV.", "int"),
+        _c("IDADE"), _c("FILIAL"), _c("NCC"), _c("PARC."), _c("EMISSÃO", "data"), _c("DIAS", "int"),
+        _c("CLIENTE"), _c("NOME"), _c("CIDADE"), _c("UF"), _c("VENDEDOR"), _c("SUPERVISOR", "texto", True),
+        _c("VALOR NCC", "moeda"), _c("JÁ ABATIDO", "moeda"), _c("SALDO", "moeda"),
+        _c("TÍTULOS EM ABERTO", "moeda"), _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")],
+    ("pl_ncc", "Por cliente"): [
+        _c("A COMPENSAR"), _c("IDADE"), _c("CLIENTE"), _c("NOME"), _c("CIDADE"), _c("UF"), _c("VENDEDOR"),
+        _c("SUPERVISOR", "texto", True), _c("NCC", "int"), _c("SALDO", "moeda"),
+        _c("NCC MAIS ANTIGA (DIAS)", "int"), _c("TÍTULOS EM ABERTO", "moeda"),
+        _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")],
+    ("pl_ncc", "Por filial"): [_c("FILIAL")] + _ABATE_NCC,
+    ("pl_ncc", "Por vendedor"): [_c("VENDEDOR")] + _ABATE_NCC,
+    ("pl_ncc", "Por supervisor"): [_c("SUPERVISOR")] + _ABATE_NCC,
+}
+SELOS_RID = {
+    ("pl_garantias", "Garantias"): {"STATUS": "texto", "SLA ATUAL": "tom", "PRAZO": "texto"},
+    ("pl_garantias", "Status x resultado"): {"STATUS": "texto"},
+    ("pl_ncc", "NCC pendentes"): {"SLA NCC": "texto"},
 }
 # "Aderência dia a dia": 2 + N + 1 colunas, conferidas por padrão de nome (§10.7.3)
 ADERENCIA = "Aderência dia a dia"
@@ -238,8 +307,10 @@ def _total_ok(tot, tipos) -> bool:
             and all(v is None or (_celula_ok(v, tp) and v != "") for v, tp in zip(tot, tipos)))
 
 
-def _cols_esperadas(titulo: str, cols) -> list | None:
+def _cols_esperadas(titulo: str, cols, rid: str = "") -> list | None:
     """A lista do §10.7.3; na "Aderência dia a dia" ela sai dos nomes (padrão), None se não bate."""
+    if (rid, titulo) in COLUNAS_RID:
+        return COLUNAS_RID[(rid, titulo)]
     if titulo != ADERENCIA:
         return COLUNAS.get(titulo)
     nomes = [c.get("nome") if isinstance(c, dict) else None for c in cols]
@@ -291,14 +362,14 @@ def _selo_ok(c, forma, nomes_ocultas) -> bool:
     return False
 
 
-def _colunas_erro(titulo, cols) -> tuple[str | None, list]:
-    esperado = _cols_esperadas(titulo, cols if isinstance(cols, list) else [])
+def _colunas_erro(titulo, cols, rid="") -> tuple[str | None, list]:
+    esperado = _cols_esperadas(titulo, cols if isinstance(cols, list) else [], rid)
     if esperado is None:
         return "colunas diferentes da lista do contrato", []
     if not (isinstance(cols, list) and len(cols) == len(esperado)):
         return "colunas diferentes da lista do contrato", []
     ocultas = {n for n, _, o in esperado if o}
-    selos = SELOS.get(titulo, {})
+    selos = SELOS_RID.get((rid, titulo)) or SELOS.get(titulo, {})
     for c, (n, tp, o) in zip(cols, esperado):
         if not (isinstance(c, dict) and not (set(c) - CHAVES_COLUNA) and c.get("nome") == n
                 and c.get("tipo") == tp and bool(c.get("oculta")) == o):
@@ -343,7 +414,7 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
         if cols or linhas or not isinstance(t.get("subabas"), list) or not t["subabas"]:
             return "Solicitação BAP precisa de subabas e de colunas/linhas vazias"
         return _subabas_erro(t["subabas"])
-    erro, esperado = _colunas_erro(titulo, cols)
+    erro, esperado = _colunas_erro(titulo, cols, rid)
     if erro:
         return erro
     n = len(esperado)
@@ -464,7 +535,8 @@ def validar(rid: str, r: dict) -> list[str]:
     if "tabelas" not in r:
         return []
     if rid not in RIDS:
-        return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas e vc_visitas"]
+        return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas, vc_visitas, pl_garantias, "
+                "pl_devolucoes e pl_ncc"]
     ts = r["tabelas"]
     if not isinstance(ts, list) or len(ts) > len(ABAS[rid]):
         return [f"{rid}: tabelas precisa ser lista de até {len(ABAS[rid])} abas"]
