@@ -424,7 +424,7 @@ body.uma-tela .sel-aviso{margin:6px 0 0;padding:.35rem .6rem;font-size:.82rem}
   .bc3-ks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px}.bc3-k b{font-size:18px}.bc3-k em{display:block;margin:0}
   .bc3-sub{flex-direction:column;align-items:stretch}.bc3-abas{background:#EEF1EE;border-radius:10px;padding:3px}
   .bc3-abas a{flex:1;justify-content:center;padding:7px 0;border:0;border-radius:8px;font-size:13px}.bc3-abas a.on{background:#fff;box-shadow:0 1px 2px #0000001a}
-  .bc3-acoes{margin:0}.bc3-busca{flex:1;width:auto}
+  .bc3-acoes{margin:0;flex-wrap:wrap}.bc3-busca{flex:1 1 140px;width:auto;min-width:0}.bc3-bt{white-space:nowrap}
   .rolagem-dados.sem-rolagem,.dica-rolagem{display:none}
   .bc3-lista{display:block;background:#fff;border:1px solid #E3E8E4;border-radius:12px;overflow:hidden}
   .bc3-item{border-top:1px solid #F0F2F0}.bc3-item:first-child{border-top:0}
