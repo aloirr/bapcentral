@@ -286,6 +286,7 @@ footer{color:#5E6B62}
 .ed-resumo{color:#4A564E;font-size:.85rem;margin:.2rem 0 .8rem}
 .ed-campo{display:block;margin:.6rem 0}
 .ed-campo select,.ed-campo input{display:block;width:100%;max-width:420px;margin-top:.2rem}
+.ed-campo textarea{display:block;width:100%;max-width:560px;margin-top:.2rem;font:inherit;padding:.4rem;border:1px solid #C9D0CA;border-radius:6px}
 .ed-campo small{display:block;color:#69736D;font-size:.75rem}
 .ed-campo .ed-pend-txt{color:#8A5A00;font-weight:600}
 .ed-botoes{display:flex;gap:1rem;align-items:center;margin:1rem 0 .4rem}
