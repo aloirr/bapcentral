@@ -77,6 +77,7 @@ def criar_app() -> FastAPI:
     modelos.env.globals["ocultas"] = tabelas.colunas_ocultas      # T-0020: coluna que só repete outra
     modelos.env.globals["no_popup"] = tabelas.colunas_no_popup    # T-0028: colunas que só aparecem no popup
     modelos.env.globals["dados_popup"] = tabelas.dados_do_popup
+    modelos.env.globals["livres"] = tabelas.FAROIS_LIVRES          # T-0024: faróis de abas livres (lote 2)
     modelos.env.globals["fora_da_junta"] = tabelas.colunas_fora_da_junta
     modelos.env.globals["cols_celular"] = tabelas.colunas_do_celular
     modelos.env.globals["datas_proximas"] = render.datas_proximas  # T-0020: uma data só
@@ -315,7 +316,8 @@ def criar_app() -> FastAPI:
                 sem_uf.add(c)
         aviso_tabs_uf = f"Sem as tabelas de {uf_ok} neste pacote: abaixo, a BAP inteira." if aba in sem_uf else ""
         com_aba = [(c, tit) for c, tit in abas_rid if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
-        barra = [tabelas.RESUMO] + com_aba if com_aba else []
+        # T-0024 (R1): rótulo curto na barra; o título do PC segue sendo a chave da tabela
+        barra = [tabelas.RESUMO] + [(c, tabelas.rotulo_aba(rid, tit)) for c, tit in com_aba] if com_aba else []
         ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo",
                    # T-0032 (Alexandre, 26/11: "assim como tem no bap central do python"): o botão aparece sempre
                    # para quem pode; sem imagem no pacote, a página da parcial diz que ainda não chegou
@@ -344,6 +346,9 @@ def criar_app() -> FastAPI:
             tab = tabelas.tabela_para_tela(t, consulta, uf=uf_ok or None,
                                            excluir=frozenset() if mostrar_fora else fora_base)
             tab["fora_base"] = {"qtd": len(fora_base), "mostrar": mostrar_fora} if fora_base else None
+            # T-0024 (R3, R4): grade × popup e a dica da busca dos faróis do lote 2 (GRADE, contrato tela-bc3 §6.2)
+            tab["grade"] = tabelas.GRADE.get((rid, t["titulo"]))
+            tab["dica_busca"] = tabelas.dica_busca(rid, t["titulo"], len(t["linhas"]))
             sel = selecao(t, tab, consulta)              # um clique no pedido: as de baixo só com ele (PC)
             juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None)
             volta = request.url.path + "?" + request.url.query
@@ -360,7 +365,7 @@ def criar_app() -> FastAPI:
             kpis = []
         elif tab["filtrado"] or (uf_ok and rid != "vc_meta"):   # filtro, recorte ou estado (meta: o estado já traz os cartões): os cartões da aba saem (§10.7.2)
             kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
-        elif t.get("kpis_padrao") is not None:
+        elif t.get("kpis_padrao") is not None and rid not in tabelas.FAROIS_LIVRES:   # T-0024: a mesma faixa em todas as abas
             kpis = render.kpis_para_tela(t["kpis_padrao"])
         else:
             kpis = topo["kpis"]

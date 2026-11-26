@@ -4,6 +4,7 @@ inventados: CLIENTE FICTICIO nn, VENDEDOR FICTICIO nn, produtos e códigos 9xxxx
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import date, timedelta
 
 from lote2_estrutura import ESTRUTURA
 
@@ -17,22 +18,22 @@ MESES = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "
 CARTOES = {
     "Pedidos faturados · NOV/26": ("1.240", ""), "Faturados no prazo": ("72,4%", "898 de 1.240"),
     "Faturados com atraso": ("19,1%", "237 pedidos"), "Faturamento parcial": ("8,5%", ""),
-    "SLA médio": ("3,6 dia(s)", "meta 3,0"), "Entregues no prazo": ("81,0%", "de 1.150 entregues"),
+    "SLA médio": ("3,6 dias", "meta 3,0"), "Entregues no prazo": ("81,0%", "de 1.150 entregues"),
     "Clientes com compra": ("1.820", "62% da base"), "Clientes sem compra": ("1.110", ""),
     "Clientes": ("2.930", "na base do mês"), "Ativos": ("2.410", "82% dos clientes"),
     "Compraram no mês": ("1.540", "52% dos clientes"), "Com limite e sem compra": ("640", ""),
     "Limite disponível": ("R$ 18,4 mi", ""), "Oportunidade (falta)": ("R$ 2,3 mi", "até a meta"),
-    "Cobertura da carteira": ("94,2%", "carteira com rota"), "Visitas no mês": ("6.820", "no mês"),
+    "Cobertura da carteira": ("94,2%", "carteira com rota"), "Visitas no mês": ("6.820", ""),
     "Ocupação da agenda": ("78,0%", "dias úteis com rota"), "Positivação da rota": ("41,5%", "da carteira"),
     "Sem vendedor": ("112", "lojas fora da rota"), "Nunca comprou": ("388", "na carteira"),
     "Estoque FRW + PMZ": ("R$ 9,8 mi", "310 mil un."), "Venda média por dia": ("1.480 un.", "últimos 90 dias"),
     "Venda perdida prevista": ("R$ 420 mil", "até a compra chegar"), "Em ruptura": ("86", "itens"),
     "Mix que gira": ("63,0%", "dos SKUs com estoque"), "Curva A parada": ("29", "itens"), "Comprar": ("141", "itens"),
-    "SKUs em estoque": ("4.120", "em 6 filiais"), "Pedir": ("212", "itens"), "Devolver à PMZ": ("64", "itens"),
-    "Sem venda em 6 meses": ("503", "itens"), "Entradas no mês": ("37", "entradas"),
-    "Base Planner": ("2.610", "lojas no Planner"), "Cidades": ("230", ""), "Com limite": ("2.050", "com limite"),
-    "Compradores": ("1.540", "no mês"), "Dias úteis com visita": ("17", "no mês"), "Estoque": ("310 mil un.", ""),
-    "Faturamento 6M": ("R$ 41 mi", "últimos 6 meses"), "Inadimplentes": ("212", "lojas"),
+    "SKUs em estoque": ("4.120", "em 6 filiais"), "Pedir": ("212", ""), "Devolver à PMZ": ("64", "itens"),
+    "Sem venda em 6 meses": ("503", "itens"), "Entradas no mês": ("37", ""),
+    "Base Planner": ("2.610", "lojas no Planner"), "Cidades": ("230", ""), "Com limite": ("2.050", ""),
+    "Compradores": ("1.540", ""), "Dias úteis com visita": ("17", "no mês"), "Estoque": ("310 mil un.", ""),
+    "Faturamento 6M": ("R$ 41 mi", "últimos 6 meses"), "Inadimplentes": ("212", ""),
     "Itens a comprar": ("141", "itens"), "Itens em ruptura": ("86", "itens"), "Ocupação": ("78,0%", "da agenda"),
     "SKUs": ("4.120", "com estoque"), "Sábado": ("2 dias", "com rota"), "Venda 90 dias": ("92 mil un.", ""),
     "Vendedores": ("9", "ativos"), "Zonas": ("26", "com rota"),
@@ -88,6 +89,7 @@ def _texto(rid, aba, nome, i, uf, fil):
 
 
 def _numero(nome, tipo, i):
+    i = i + sum(map(ord, nome)) % 11             # colunas diferentes não repetem o mesmo número
     if tipo == "int":
         base = 8 + (i * 13) % 90
         return {"SEQ.": 1 + i % 12, "DIAS S/ COMPRA": (i * 17) % 220}.get(nome, base)
@@ -117,6 +119,124 @@ def _celula(rid, aba, c, i, uf, fil):
     return _numero(c["nome"], t, i)
 
 
+# --------------------------------------------------------------------------- coerência (parecer de UX, R6)
+HOJE = date(2026, 11, 24)                                  # dia do pacote (Manaus)
+DIAS_UTEIS = [date(2026, 11, d) for d in range(1, 31) if date(2026, 11, d).weekday() < 5]
+SEMANA = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"]
+
+
+def _pct(parte, todo):
+    return round(100.0 * parte / todo, 1) if todo else 0.0
+
+
+def _ajusta(rid, aba, ln, i, n):
+    """Corrige, na linha (dict nome -> valor), os campos que dependem uns dos outros."""
+    def tem(*nomes):
+        return all(x in ln for x in nomes)
+    if tem("PEDIDOS", "NO PRAZO", "ATRASO", "PARCIAL"):                    # Indicadores: semana a semana / mês a mês
+        ped = 60 + (i * 9) % 35
+        parcial, atraso = 3 + i % 5, 8 + (i * 3) % 10
+        ent = ped - 6 - i % 4
+        ln.update({"PEDIDOS": ped, "ATRASO": atraso, "PARCIAL": parcial, "NO PRAZO": ped - atraso - parcial,
+                   "ENTREGUES": ent, "SLA MÉDIO (DIAS)": round(2.8 + (i % 7) / 5, 2)})
+        ln.update({"% NO PRAZO": _pct(ped - atraso - parcial, ped), "% ATRASO": _pct(atraso, ped),
+                   "% PARCIAL": _pct(parcial, ped), "% ENTREGA NO PRAZO": _pct(ent - i % 5, ent)})
+        ln["PERÍODO"] = (f"SEM {35 + i}" if "Semana" in aba else (["DEZ/25"] + [f"{m}/26" for m in MESES[:11]])[i - 1])
+    if tem("CLIENTES NA BASE", "COM COMPRA", "SEM COMPRA") or (aba.startswith("Base") and "CLIENTES" in ln and "COM COMPRA" in ln):
+        base = 2600 + i * 40 if "CLIENTES NA BASE" in ln else 180 + (i * 53) % 400
+        com = int(base * (0.42 + (i % 6) / 25))
+        ln["CLIENTES NA BASE" if "CLIENTES NA BASE" in ln else "CLIENTES"] = base
+        ln.update({"COM COMPRA": com, "SEM COMPRA": base - com, "% COM COMPRA": _pct(com, base)})
+        if "MÊS" in ln:
+            ln["MÊS"] = (["DEZ/25"] + [f"{m}/26" for m in MESES[:11]])[i - 1]
+    if tem("COMPRARAM NO MÊS", "% POSITIVAÇÃO", "OPORTUNIDADE (FALTA)"):      # Clientes: carteira
+        cli = 300 + (i * 83) % 900
+        ativos = int(cli * 0.82)
+        comp = int(ativos * (0.45 + (i % 5) / 20))
+        com_lim = int(ativos * 0.7)
+        meta = 150000.0 + (i * 21000) % 400000
+        real = round(meta * (0.55 + (i % 6) / 10), 2)
+        ln.update({"CLIENTES": cli, "ATIVOS": ativos, "COMPRARAM NO MÊS": comp, "% POSITIVAÇÃO": _pct(comp, ativos),
+                   "NUNCA COMPRARAM": int(cli * 0.08), "COM LIMITE": com_lim,
+                   "C/ LIMITE E S/ COMPRA": int(com_lim * 0.3), "LIMITE DISP.": com_lim * 5200.0,
+                   "RECEITA 6M": ativos * 3100.0, "META": meta, "REALIZADO": real,
+                   "OPORTUNIDADE (FALTA)": round(max(meta - real, 0), 2)})
+        if "BASE PROTHEUS" in ln:
+            ln["BASE PROTHEUS"] = cli + 12
+    if tem("CLIENTES QUE COMPRAM", "% DOS ATIVOS"):                         # Clientes: por família
+        comp = 300 + (i * 61) % 1600
+        fat = 80000.0 + (i * 9100) % 400000
+        ln.update({"CLIENTES QUE COMPRAM": comp, "% DOS ATIVOS": _pct(comp, 2400), "ATIVOS QUE NÃO COMPRAM": 2400 - comp,
+                   "FATURAMENTO 6M": fat, "TICKET/CLIENTE": round(fat / comp, 2)})
+    if tem("BASE PLANNER", "VISITAS/MÊS", "CAPACIDADE/DIA"):                 # Roteirização: agregadas
+        bp = 160 + (i * 47) % 500
+        bv = int(bp * 0.9)
+        vis = int(bv * 1.1)
+        du = int(vis * 0.95)
+        com_lim = int(bp * 0.75)
+        comp = int(bp * (0.3 + (i % 5) / 20))
+        ln.update({"BASE PLANNER": bp, "BASE PROTHEUS": bp + 15, "BASE VISITA": bv, "VISITAS/MÊS": vis,
+                   "VISITAS/MÊS DIAS ÚTEIS": du, "CLIENTES/DIA": round(du / 20.0, 2), "CAPACIDADE/DIA": 12,
+                   "COM LIMITE": com_lim, "INADIMPL.": int(com_lim * 0.15), "COMPRADORES": comp,
+                   "% COMPRADORES": _pct(comp, bp)})
+    if tem("DATA", "DIA") and rid == "vc_planner":                           # Roteirização: cliente a cliente
+        d = DIAS_UTEIS[(i - 1) % len(DIAS_UTEIS)]
+        ln.update({"DATA": d.isoformat(), "DIA": SEMANA[d.weekday()], "SEMANA": f"SEMANA {1 + (d.day - 1) // 7}",
+                   "SEQ.": 1 + (i - 1) // len(DIAS_UTEIS) * 3 + (i - 1) % 5})
+    if rid == "pl_giro" and tem("SKUs C/ ESTOQUE", "ESTOQUE UN."):           # Giro: por filial
+        est = 24000.0 + i * 3100
+        v90 = est * 0.35
+        sk = 900 + i * 40
+        ln.update({"SKUs C/ ESTOQUE": sk, "ESTOQUE UN.": est, "VENDA 90D UN.": v90, "VENDA/DIA UN.": round(v90 / 90, 1),
+                   "MIX QUE GIRA": round(55.0 + i * 2.5, 1), "ITENS EM RUPTURA": 6 + i * 3, "ITENS A COMPRAR": 20 + i * 4,
+                   "SUGESTÃO UN.": 800.0 + i * 120, "CURVA A PARADA (ITENS)": 3 + i,
+                   "VENDA PERDIDA PREVISTA": 18000.0 + i * 5500})
+    if rid == "pl_giro" and tem("VD 30D", "VD 90D", "EST."):                 # Giro: por produto
+        situ = ln.get("SITUAÇÃO") or ["RUPTURA", "COMPRAR", "A PARADA", "OK"][i % 4]
+        if aba == "Ruptura":
+            situ = "RUPTURA"
+        elif aba == "Curva A parada":
+            situ = "A PARADA"
+        elif aba == "Necessidade de compra":
+            situ = "COMPRAR"
+        v90 = 90.0 + (i * 37) % 600 if situ != "A PARADA" else 0.0
+        v30 = round(v90 * 0.32, 0)
+        est = 0.0 if situ == "RUPTURA" else 40.0 + (i * 29) % 500
+        if situ == "COMPRAR":                       # precisa comprar: o estoque não cobre 60 dias de venda
+            est = round(v90 / 90.0 * (8 + i % 20), 0)
+        vdia = round(v90 / 90.0, 1)
+        ult = HOJE - timedelta(days=(i * 11) % 25 if situ != "A PARADA" else 95 + i)
+        preco = 38.0 + (i * 7) % 90
+        dsem = 9.0 + (i % 6) if situ == "RUPTURA" else (2.0 * (1 + i % 3) if situ == "COMPRAR" else 0.0)
+        ln.update({"SITUAÇÃO": situ, "EST.": est, "VD 30D": v30, "VD 90D": v90, "VD/DIA": vdia,
+                   "GIRO": round(v90 / est, 2) if est else 0.0, "COB (DIAS)": round(est / vdia, 0) if vdia else None,
+                   "ÚLT. VENDA": ult.isoformat(), "PARADO (D)": (HOJE - ult).days,
+                   "SUGESTÃO": round(vdia * 60 - est, 0) if situ in ("COMPRAR", "RUPTURA") else 0.0,
+                   "DIAS S/ EST.": dsem, "VENDA/DIA": round(vdia * preco, 2),
+                   "VENDA PERDIDA": round(dsem * vdia * preco, 2)})
+    if rid == "pl_giro" and tem("SKUs", "GIRAM", "RUPTURA"):                 # Giro: por família / categoria
+        sk = 80 + (i * 13) % 200
+        ce = int(sk * 0.8)
+        gir = int(ce * (0.55 + (i % 5) / 20))
+        ln.update({"SKUs": sk, "C/ EST.": ce, "GIRAM": gir, "MIX": _pct(gir, sk), "% SKUs": round(sk / 40.0, 1),
+                   "EST. UN.": ce * 18.0, "% EST.": round(ce / 60.0, 1), "VD 90D": gir * 21.0, "% VD": round(gir / 15.0, 1),
+                   "NOTAS": 120 + i * 3, "% NOTAS": round(2.0 + i % 9, 1), "CLIENTES": 90 + i * 2, "UN./NOTA": 3.4,
+                   "RUPTURA": i % 6, "A PARADA": i % 4, "COMPRAR": 2 + i % 7, "SUGESTÃO": 150.0 + i * 11,
+                   "VENDA PERDIDA": 2500.0 + i * 310})
+    if rid == "pl_frw" and tem("ENTRADA NA FRW", "DIAS NA FRW"):             # Estoque FRW
+        ent = HOJE - timedelta(days=(i * 7) % 200)
+        qtd = 30.0 + (i * 13) % 120
+        est = round(qtd * (0.2 + (i % 5) / 8), 0)
+        vm = round(8.0 + (i % 7) * 3.5, 2)
+        nec = int(round(vm * 2 - est, 0))
+        preco = 55.0 + (i * 9) % 140
+        ln.update({"ENTRADA NA FRW": ent.isoformat(), "QTD ENTRADA": qtd, "DIAS NA FRW": (HOJE - ent).days,
+                   "ESTOQUE": est, "VENDA MÊS (MÉD. 6M)": vm, "NECESSIDADE": nec,
+                   "AÇÃO": "PEDIR" if nec > 0 else ("DEVOLVER À PMZ" if nec < 0 else "OK"),
+                   "VALOR": round(abs(nec) * preco, 2)})
+    return ln
+
+
 def _tabela(rid, ufs, tb):
     cols = deepcopy(tb["colunas"])
     n = tb["n"]
@@ -126,7 +246,8 @@ def _tabela(rid, ufs, tb):
         if tb["titulo"] in ("Por UF", "Por cidade") and cols[0]["nome"] == "UF":
             uf = UFS_TODAS[(i - 1) % len(UFS_TODAS)]
         fil = f"FILIAL FICTICIA {uf}"
-        ln = [_celula(rid, tb["titulo"], c, i, uf, fil) for c in cols]
+        d = {c["nome"]: _celula(rid, tb["titulo"], c, i, uf, fil) for c in cols}
+        ln = [_ajusta(rid, tb["titulo"], d, i, n).get(c["nome"]) for c in cols]
         linhas.append(ln)
         ufl.append(uf)
         acao = next((v for c, v in zip(cols, ln) if c["nome"] == "AÇÃO"), "")
@@ -162,7 +283,7 @@ def _rotulos(titulo, n):
     if "mês a mês" in t:
         return [MESES[(k + 12 - n) % 12] if n <= 12 else f"M{k}" for k in range(n)]
     if "filial" in t:
-        return [f"FILIAL FICTICIA {UFS_TODAS[k % len(UFS_TODAS)]}" for k in range(n)]
+        return [UFS_TODAS[k % len(UFS_TODAS)] for k in range(n)]        # a filial é a sigla do estado
     if "vendedor" in t or "agenda" in t or "dia útil" in t or "sábado" in t or "carteira" in t:
         return [f"VENDEDOR FICTICIO {1 + k:02d}" for k in range(n)]
     if "segmento" in t:
@@ -201,6 +322,12 @@ def _painel(est):
                       "valores": _valores(b["formato"], b["n"])})
             if b.get("cores"):
                 o["cores"] = [b["cores"][k % len(b["cores"])] for k in range(b["n"])]
+            if b["titulo"].startswith("Visitas por dia útil"):        # teto de 12 visitas por dia útil: cor pela regra
+                o["valores"] = [float(6 + (k * 3) % 8) for k in range(b["n"])]
+                o["cores"] = ["#62BB47" if v <= 12 else "#B3261E" for v in o["valores"]]
+            elif b["titulo"].startswith("Ocupação da agenda"):
+                o["valores"] = [float(55 + (k * 9) % 42) for k in range(b["n"])]
+                o["cores"] = ["#62BB47" if v <= 85 else ("#C98A00" if v <= 95 else "#B3261E") for v in o["valores"]]
         blocos.append(o)
     return {"blocos": blocos}
 

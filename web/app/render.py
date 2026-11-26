@@ -161,6 +161,10 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
+LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")    # T-0024: faróis de abas livres
+# T-0024 (R4 do parecer de UX): nome curto na barra lateral; o nome completo do PC fica no título da faixa
+NOME_MENU = {"pv_indicadores": "Indicadores", "vc_base": "Clientes", "vc_planner": "Roteirização",
+             "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW"}
 AVISO_UF = "Resumo e gráficos: BAP inteira."
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
 SEM_RECORTE = "só na BAP inteira"
@@ -185,7 +189,7 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
         grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
                                                        "ativo": ativo == "painel"}]})
     for nome, rids in GRUPOS_MENU:
-        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": meus[r], "ativo": r == ativo}
+        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r]), "ativo": r == ativo}
                  for r in rids if r in meus]
         if itens:
             grupos.append({"nome": nome, "itens": itens})
@@ -512,6 +516,28 @@ def _blocos(painel) -> tuple[list[dict], list[dict]]:
     return ins, out
 
 
+_RE_PERIODO = re.compile(r"^(.*?) · (dia a dia|semana a semana|mês a mês)\b")
+_ROTULO_PERIODO = {"dia a dia": "Dia", "semana a semana": "Semana", "mês a mês": "Mês"}
+
+
+def agrupar_periodos(blocos: list[dict]) -> list[dict]:
+    """T-0024 (R2 do parecer de UX): os gráficos "métrica · dia a dia / semana a semana / mês a mês" viram UM cartão
+    por métrica, com o seletor Dia · Semana · Mês dentro. O resto dos blocos segue como veio, na mesma ordem."""
+    grupos: dict[str, dict] = {}
+    out: list[dict] = []
+    for b in blocos:
+        m = _RE_PERIODO.match(b.get("titulo", "")) if b.get("tipo") == "barras" else None
+        if not m:
+            out.append(b)
+            continue
+        g = grupos.get(m.group(1))
+        if g is None:
+            g = grupos[m.group(1)] = {"tipo": "periodos", "titulo": m.group(1), "vistas": []}
+            out.append(g)
+        g["vistas"].append({"nome": _ROTULO_PERIODO[m.group(2)], "b": b})
+    return [g if g.get("tipo") != "periodos" or len(g["vistas"]) > 1 else g["vistas"][0]["b"] for g in out]
+
+
 def recortes_farol(rel: dict) -> list[str]:
     rec = rel.get("recortes")
     return sorted(rec) if isinstance(rec, dict) else []
@@ -541,6 +567,8 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
     # T-0022: o estado traz o painel dele (Painel Executivo e Farol de Metas); sem painel, o da BAP inteira
     fonte = r_uf if isinstance(r_uf.get("painel"), dict) else rel
     ins_blocos, blocos = _blocos(fonte.get("painel"))
+    if rid in LOTE2:                                    # T-0024 (R2): um cartão por métrica, Dia · Semana · Mês dentro
+        blocos = agrupar_periodos(blocos)
     cartoes = [k for k in map(_kpi, _lista(kpis)) if k and not cartao_vazio(k)]
     return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
             "faixa": bool(rel.get("kpis_faixa")),   # cartões em faixa fina, como o PC

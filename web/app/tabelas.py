@@ -85,13 +85,30 @@ def _slug(t: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:40] or "aba"
 
 
+# T-0024 (parecer de UX, R1): rótulo curto da aba dos faróis livres, sem quebra de linha a 1366. O título do PC
+# continua sendo a chave da tabela no pacote (contrato §9); a URL usa o rótulo curto, que não leva mês.
+ROTULO_ABA = {
+    ("pv_indicadores", "Base com compra (mês a mês)"): "Base mês a mês",
+    ("pv_indicadores", "Base com compra em NOV/26, por segmento"): "Base por segmento",
+    ("vc_base", "Por UF"): "UF", ("vc_base", "Por segmento"): "Segmento", ("vc_base", "Por cidade"): "Cidade",
+    ("vc_base", "Por vendedor"): "Vendedor", ("vc_base", "Por supervisor"): "Supervisor",
+    ("vc_base", "Por família (6 meses)"): "Família", ("vc_base", "Por produto (top 400, 6 meses)"): "Produto",
+    ("pl_giro", "Resumo por filial"): "Por filial",
+}
+
+
+def rotulo_aba(rid: str, titulo: str) -> str:
+    """Nome da aba na barra. Mês dentro do título (NOV/26) nunca vai para a tela nem para a URL."""
+    return ROTULO_ABA.get((rid, titulo), titulo)
+
+
 def abas_do_farol(rid: str, rel: dict | None = None) -> list[tuple[str, str]]:
     """[(chave na URL, título da tabela)] na ordem do PC. Farol livre: sai das tabelas do pacote."""
     if rid not in FAROIS_LIVRES:
         return list(ABAS.get(rid, ()))
     saida, usadas = [], set()
     for t in (rel or {}).get("tabelas") or []:
-        c = _slug(t.get("titulo", ""))
+        c = _slug(rotulo_aba(rid, t.get("titulo", "")))
         while c in usadas or c == "resumo":
             c += "-2"
         usadas.add(c)
@@ -857,8 +874,123 @@ NO_POPUP = ("PED. MÁX.", "CÓD.", "FANTASIA", "LIMITE", "DISP.", "ATRASO", "VOL
             "COND. PAGTO", "FILIAL", "PRAZO", "NF", "DT. NF")
 
 
+# T-0024 (R3 do parecer de UX; contrato tela-bc3 §6.2): GRADE por (rid, título da tabela no pacote). A grade tem no
+# máximo 10 colunas de dado a 1366; o resto vai ao popup da linha. `cel` = chave · nome · selo · valor (celular, M3).
+# O mecanismo genérico é da T-0033: aqui só as entradas dos 5 faróis do lote 2 e o mínimo para lê-las.
+def _g(chave, grade, cel):
+    return {"chave": chave, "grade": tuple(grade), "cel": tuple(cel)}
+
+
+_AGREGADA_BASE = ("CLIENTES", "ATIVOS", "COMPRARAM NO MÊS", "% POSITIVAÇÃO", "C/ LIMITE E S/ COMPRA", "LIMITE DISP.",
+                  "META", "REALIZADO", "OPORTUNIDADE (FALTA)")
+_CEL_BASE = ("CLIENTES", "% POSITIVAÇÃO", "OPORTUNIDADE (FALTA)")
+_ROTA = ("BASE PLANNER", "VISITAS/MÊS", "CLIENTES/DIA", "CAPACIDADE/DIA")
+_IND = ("PERÍODO", "PEDIDOS", "NO PRAZO", "% NO PRAZO", "ATRASO", "% ATRASO", "PARCIAL", "% PARCIAL",
+        "SLA MÉDIO (DIAS)", "% ENTREGA NO PRAZO")
+_CEL_IND = ("PERÍODO", "PEDIDOS", "% NO PRAZO", "% ATRASO")
+GRADE = {
+    ("pv_indicadores", "Semana a semana"): _g("PERÍODO", _IND, _CEL_IND),
+    ("pv_indicadores", "Mês a mês"): _g("PERÍODO", _IND, _CEL_IND),
+    ("vc_base", "Por UF"): _g("UF", ("UF",) + _AGREGADA_BASE, ("UF",) + _CEL_BASE),
+    ("vc_base", "Por segmento"): _g("SEGMENTO", ("SEGMENTO",) + _AGREGADA_BASE, ("SEGMENTO",) + _CEL_BASE),
+    ("vc_base", "Por cidade"): _g("CIDADE", ("CIDADE", "UF", "CLIENTES", "ATIVOS", "COMPRARAM NO MÊS", "% POSITIVAÇÃO",
+                                              "LIMITE DISP.", "META", "REALIZADO", "OPORTUNIDADE (FALTA)"),
+                                  ("CIDADE", "UF", "% POSITIVAÇÃO", "OPORTUNIDADE (FALTA)")),
+    ("vc_base", "Por vendedor"): _g("VENDEDOR", ("VENDEDOR",) + _AGREGADA_BASE, ("VENDEDOR",) + _CEL_BASE),
+    ("vc_base", "Por supervisor"): _g("SUPERVISOR", ("SUPERVISOR",) + _AGREGADA_BASE, ("SUPERVISOR",) + _CEL_BASE),
+    ("vc_base", "Por produto (top 400, 6 meses)"): _g(
+        "PRODUTO", ("PRODUTO", "DESCRIÇÃO", "CATEGORIA", "FAMÍLIA", "CLIENTES", "QTD", "FATURAMENTO",
+                    "ATIVOS SEM O PRODUTO", "ESTOQUE BAP"), ("PRODUTO", "DESCRIÇÃO", "CLIENTES", "FATURAMENTO")),
+    ("vc_base", "Clientes"): _g("CLIENTE", ("CLIENTE", "UF", "CIDADE", "VENDEDOR PLANNER", "CURVA", "STATUS",
+                                            "DIAS S/ COMPRA", "LIMITE DISP.", "EM ATRASO", "FALTA"),
+                                ("CLIENTE", "CIDADE", "CURVA", "DIAS S/ COMPRA")),
+    ("vc_planner", "Por zona"): _g("NOME", ("ZONA", "NOME", "VENDEDOR", "UF", "BASE PLANNER", "VISITAS/MÊS",
+                                            "CLIENTES/DIA", "CAPACIDADE/DIA", "INADIMPL.", "% COMPRADORES"),
+                                   ("NOME", "VENDEDOR", "CLIENTES/DIA", "% COMPRADORES")),
+    ("vc_planner", "Por vendedor"): _g("VENDEDOR", ("VENDEDOR", "SUPERVISOR") + _ROTA +
+                                       ("COM LIMITE", "INADIMPL.", "COMPRADORES", "% COMPRADORES"),
+                                       ("VENDEDOR", "SUPERVISOR", "CLIENTES/DIA", "% COMPRADORES")),
+    ("vc_planner", "Por supervisor"): _g("SUPERVISOR", ("SUPERVISOR",) + _ROTA +
+                                         ("COM LIMITE", "INADIMPL.", "COMPRADORES", "% COMPRADORES"),
+                                         ("SUPERVISOR", "VISITAS/MÊS", "CLIENTES/DIA", "% COMPRADORES")),
+    ("vc_planner", "Por segmento"): _g("SEGMENTO", ("SEGMENTO", "VENDEDOR") + _ROTA +
+                                       ("COM LIMITE", "INADIMPL.", "% COMPRADORES"),
+                                       ("SEGMENTO", "VENDEDOR", "CLIENTES/DIA", "% COMPRADORES")),
+    ("vc_planner", "Por UF"): _g("UF", ("UF", "VENDEDORES", "SUPERVISORES") + _ROTA +
+                                 ("INADIMPL.", "COMPRADORES", "% COMPRADORES"),
+                                 ("UF", "VENDEDORES", "CLIENTES/DIA", "% COMPRADORES")),
+    ("vc_planner", "Por cidade"): _g("CIDADE", ("CIDADE", "UF", "VENDEDORES") + _ROTA +
+                                     ("INADIMPL.", "COMPRADORES", "% COMPRADORES"),
+                                     ("CIDADE", "UF", "CLIENTES/DIA", "% COMPRADORES")),
+    ("vc_planner", "Por cliente"): _g("NOME", ("DATA", "DIA", "SEQ.", "NOME", "BAIRRO", "CIDADE", "VISITA", "STATUS",
+                                               "CURVA", "COM LIMITE"), ("NOME", "BAIRRO", "STATUS", "DATA")),
+    ("vc_planner", "Calendário"): _g("NOME", ("DATA", "DIA", "SEQ.", "NOME", "BAIRRO", "CIDADE", "STATUS", "CURVA"),
+                                     ("NOME", "BAIRRO", "STATUS", "DATA")),
+    ("pl_giro", "Resumo por filial"): _g("FILIAL", ("FILIAL", "SKUs C/ ESTOQUE", "ESTOQUE UN.", "VENDA 90D UN.",
+                                                    "VENDA/DIA UN.", "MIX QUE GIRA", "ITENS EM RUPTURA",
+                                                    "ITENS A COMPRAR", "CURVA A PARADA (ITENS)",
+                                                    "VENDA PERDIDA PREVISTA"),
+                                         ("FILIAL", "ITENS EM RUPTURA", "MIX QUE GIRA", "ITENS A COMPRAR")),
+    ("pl_giro", "Ruptura"): _g("PRODUTO", ("FILIAL", "PRODUTO", "DESCRIÇÃO", "CURVA", "EST.", "VD 30D", "VD 90D",
+                                           "DIAS S/ EST.", "VENDA/DIA", "VENDA PERDIDA"),
+                               ("PRODUTO", "DESCRIÇÃO", "CURVA", "VENDA PERDIDA")),
+    ("pl_giro", "Curva A parada"): _g("PRODUTO", ("FILIAL", "PRODUTO", "DESCRIÇÃO", "CURVA", "EST.", "VD 30D", "VD 90D",
+                                                  "VD/DIA", "COB (DIAS)", "PARADO (D)"),
+                                      ("PRODUTO", "DESCRIÇÃO", "EST.", "PARADO (D)")),
+    ("pl_giro", "Necessidade de compra"): _g("PRODUTO", ("FILIAL", "PRODUTO", "DESCRIÇÃO", "CURVA", "EST.", "VD 90D",
+                                                         "COB (DIAS)", "SUGESTÃO", "DIAS S/ EST.", "VENDA PERDIDA"),
+                                             ("PRODUTO", "DESCRIÇÃO", "EST.", "SUGESTÃO")),
+    ("pl_giro", "Por família"): _g("FAMÍLIA", ("FILIAL", "FAMÍLIA", "SKUs", "C/ EST.", "GIRAM", "MIX", "EST. UN.",
+                                               "VD 90D", "RUPTURA", "COMPRAR"),
+                                   ("FAMÍLIA", "FILIAL", "RUPTURA", "COMPRAR")),
+    ("pl_giro", "Por categoria"): _g("CATEGORIA", ("FILIAL", "CATEGORIA", "SKUs", "C/ EST.", "GIRAM", "MIX", "EST. UN.",
+                                                   "VD 90D", "RUPTURA", "COMPRAR"),
+                                     ("CATEGORIA", "FILIAL", "RUPTURA", "COMPRAR")),
+    ("pl_giro", "Todos os produtos"): _g("PRODUTO", ("FILIAL", "PRODUTO", "DESCRIÇÃO", "CURVA", "SITUAÇÃO", "EST.",
+                                                     "VD 30D", "VD 90D", "COB (DIAS)", "VENDA PERDIDA"),
+                                         ("PRODUTO", "DESCRIÇÃO", "SITUAÇÃO", "EST.")),
+    ("pl_frw", "Estoque FRW"): _g("PRODUTO", ("FILIAL", "PRODUTO", "DESCRIÇÃO", "ENTRADA NA FRW", "DIAS NA FRW",
+                                              "ESTOQUE", "VENDA MÊS (MÉD. 6M)", "NECESSIDADE", "AÇÃO", "VALOR"),
+                                  ("PRODUTO", "DESCRIÇÃO", "AÇÃO", "NECESSIDADE")),
+}
+
+# T-0024 (R4): a dica da busca nomeia o que a tabela mostra; "" = sem busca (tabela de até ~15 linhas)
+SEM_BUSCA_ATE = 15
+DICA_BUSCA = {
+    ("vc_base", "Clientes"): "Buscar cliente ou cidade", ("vc_base", "Por produto (top 400, 6 meses)"): "Buscar produto",
+    ("vc_base", "Por cidade"): "Buscar cidade", ("vc_base", "Por família (6 meses)"): "Buscar família",
+    ("vc_base", "Por vendedor"): "Buscar vendedor",
+    ("vc_planner", "Por cliente"): "Buscar cliente ou bairro", ("vc_planner", "Calendário"): "Buscar cliente ou bairro",
+    ("vc_planner", "Por cidade"): "Buscar cidade", ("vc_planner", "Por zona"): "Buscar zona ou vendedor",
+    ("vc_planner", "Por segmento"): "Buscar segmento", ("vc_planner", "Por vendedor"): "Buscar vendedor",
+    ("pl_giro", "Por família"): "Buscar família", ("pl_giro", "Por categoria"): "Buscar categoria",
+    ("pl_frw", "Estoque FRW"): "Buscar produto",
+}
+
+
+def dica_busca(rid: str, titulo: str, n_linhas: int) -> str | None:
+    """None = o texto padrão (faróis antigos); "" = sem caixa de busca; senão, a dica do que a 1ª coluna mostra."""
+    if rid not in FAROIS_LIVRES:
+        return None
+    if n_linhas <= SEM_BUSCA_ATE:
+        return ""
+    return DICA_BUSCA.get((rid, titulo), "Buscar produto" if rid == "pl_giro" else "Buscar")
+
+
+def colunas_fora_da_grade(tab: dict) -> set[int]:
+    """Posições, na tela, das colunas que não estão na `grade` (vão ao popup da linha). Sem grade: vazio."""
+    g = tab.get("grade")
+    if not g:
+        return set()
+    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    return {i for i, n in enumerate(nomes) if n not in g["grade"]}
+
+
 def colunas_no_popup(tab: dict) -> set[int]:
-    """T-0028: posições (na tela) das colunas que só aparecem no popup do pedido; só na tabela com `sel_col`."""
+    """T-0028: posições (na tela) das colunas que só aparecem no popup do pedido; só na tabela com `sel_col`.
+    T-0024: tabela com `grade` (GRADE): o que não está na grade."""
+    if tab.get("grade"):
+        return colunas_fora_da_grade(tab)
     if tab.get("sel_col") is None:
         return set()
     nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
@@ -901,6 +1033,12 @@ def colunas_do_celular(tab: dict) -> dict:
     """T-0030 (celular, M3 "lista que abre"): posições, na tela, do cliente, do SLA e do valor de venda da linha
     fechada; o resto vai para dentro dela (dados_do_popup)."""
     nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    if tab.get("grade"):                    # T-0024: `cel` da GRADE = chave · nome · selo · valor
+        cel = (tuple(tab["grade"]["cel"]) + (None,) * 4)[:4]
+
+        def pos(n):
+            return nomes.index(n) if n in nomes else None
+        return {"chave": pos(cel[0]), "cli": pos(cel[1]), "sla": pos(cel[2]), "val": pos(cel[3])}
     fora = colunas_no_popup(tab)
 
     def ach(*alvos):
@@ -911,10 +1049,13 @@ def colunas_do_celular(tab: dict) -> dict:
 def dados_do_popup(tab: dict, linha: dict) -> list[list[str]]:
     """T-0028: [nome, texto] de cada coluna da linha (as da grade e as do popup), sem as vazias."""
     out = []
-    for c, v in zip(tab.get("cols") or [], linha.get("cel") or []):
+    fora = colunas_fora_da_grade(tab)
+    for i, (col, v) in enumerate(zip(tab.get("cols") or [], linha.get("cel") or [])):
+        if tab.get("grade") and i not in fora:
+            continue                        # T-0024: o popup só mostra o que a grade não mostra
         t = str((v or {}).get("t", "")).strip()
         if t and t != "—":
-            out.append([str(c.get("nome", "")), t])
+            out.append([str(col.get("nome", "")), t])
     return out
 
 
