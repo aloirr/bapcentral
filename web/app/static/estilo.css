@@ -273,3 +273,14 @@ footer{color:#5E6B62}
 .juntas .dica-rolagem{display:none}
 @media(max-width:600px){.juntas .junta{min-width:0;flex-basis:100%}}
 @media(max-width:600px){main{padding:.6rem}.topo{padding:.5rem .8rem}.aviso.info{padding:.3rem .8rem 0}.cob{min-width:0}}
+
+/* T-0022: cabeçalho agrupado do Farol de Metas, juntas em cima (Equipe), placar dos faróis do Resumo gerencial */
+.tab-dados tr.grupos th{background:#EEF2EE;color:#4A564E;font-size:.72rem;letter-spacing:.04em;text-align:center;border-bottom:1px solid #DDE3DD;padding:.25rem .4rem}
+.tab-dados tr.grupos th.g-um{text-align:left}
+.junta-cima{margin:0 0 .8rem}
+.placar{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.6rem}
+.pl-c{border-left:4px solid #C5CEC7;background:#F7F9F7;border-radius:8px;padding:.5rem .7rem;min-width:0}
+.pl-c.t-alerta{border-left-color:#B3261E}.pl-c.t-atencao{border-left-color:#E0A43A}.pl-c.t-ok{border-left-color:#4FA236}
+.pl-f{font-size:.78rem;font-weight:600;color:#4A564E}
+.pl-v{font-size:1.25rem;font-weight:700;line-height:1.2}.pl-v small{font-size:.74rem;font-weight:400;color:#667;margin-left:.3rem}
+.pl-d{font-size:.78rem;color:#4A564E}.pl-frase{font-size:.8rem;margin-top:.2rem;color:#1B2430}
