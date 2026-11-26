@@ -4,7 +4,7 @@
 {% set oc = ocultas(tab) %}
 {% if tab.linhas and (tab.cols|length - oc|length) > 6 %}<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>{% endif %}
 <div class="rolagem rolagem-dados"><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
-  <thead><tr>{% for c in tab.cols %}
+  <thead>{% if tab.grupos %}<tr class="grupos">{% for g in tab.grupos %}<th colspan="{{ g.n }}" class="{{ 'g-um' if g.n == 1 }}">{{ g.nome }}</th>{% endfor %}</tr>{% endif %}<tr>{% for c in tab.cols %}
     {% if base %}{% set prox = 'desc' if (tab.ord == c.i and not tab.desc) else 'asc' %}
     <th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}"><a href="{{ base }}&amp;ord={{ c.i }}&amp;dir={{ prox }}{{ fq }}">{{ c.nome }}{{ ' ▲' if tab.ord == c.i and not tab.desc }}{{ ' ▼' if tab.ord == c.i and tab.desc }}</a></th>
     {% else %}<th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}">{{ c.nome }}</th>{% endif %}{% endfor %}</tr></thead>
