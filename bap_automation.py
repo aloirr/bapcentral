@@ -2641,6 +2641,14 @@ def ler_arquivo(caminho: Path, cfg: dict) -> pd.DataFrame:
 # 7. GRAVACAO - SUBSTITUI APENAS AS COLUNAS DE MESMO NOME
 # =============================================================================
 
+# RN-GER-013 (Alexandre, 26/11/2026, "1 A"): pedido de cliente fora da base de
+# clientes da BAP (RAZAO_SOCIAL = "NAO LOCALIZADO NA BASE", gravada pelo robo no
+# ftPedidos) e pedido interno (transferencia, filial): nao entra como demanda da
+# SOLICITACAO_BAP (Gerar ID CD, Reversa, Analitico).
+def pedido_fora_da_base(razao) -> bool:
+    return normalizar(razao) == "nao localizado na base"
+
+
 def normalizar(texto) -> str:
     if texto is None:
         return ""
@@ -3879,6 +3887,8 @@ def montar_solicitacao(caminho_planilha: Path,
 
         if tipo not in tipos:
             continue
+        if pedido_fora_da_base(linha.get("razao social")):
+            continue                    # RN-GER-013: pedido interno nao e demanda
         try:
             qtd = float(linha.get("d2 quant") or 0)
         except (TypeError, ValueError):
