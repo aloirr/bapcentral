@@ -264,20 +264,21 @@ def criar_app() -> FastAPI:
     def farol_abas(request: Request, u: dict, rid: str, aba: str, uf: str):
         """Pedidos, Entregas e Visita (§10.7): Resumo e abas de tabela. Perfil e aba conferidos aqui."""
         perfil = u["perfil"]
-        if aba in tabelas.chaves(rid) and not tabelas.ve_aba(rid, aba, perfil):
+        rel = rel_do(rid)
+        abas_rid = tabelas.abas_do_farol(rid, rel)
+        if aba in [c for c, _ in abas_rid] and not tabelas.ve_aba(rid, aba, perfil):
             raise PermissionError                       # aba fora do perfil = 403 (diretor só vê o Resumo)
-        if aba not in tabelas.chaves(rid):
+        if aba not in [c for c, _ in abas_rid]:
             if aba in [c for c, _ in cobranca.ABAS[1:]]:
                 raise PermissionError                   # aba da Inadimplência pedida em outro farol
             aba = "resumo"
         cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba, "ver")
         nome = render.FAROIS[rid][0]
-        rel = rel_do(rid)
         if not rel:
             return pagina(request, "farol.html", farol_nome=nome, rid=rid, tela=None, abas=[], aba="resumo")
         por_chave = {c: next((t for t in rel.get("tabelas") or [] if t.get("titulo") == tit), None)
-                     for c, tit in tabelas.ABAS[rid]}
-        com_aba = [(c, tit) for c, tit in tabelas.ABAS[rid] if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
+                     for c, tit in abas_rid}
+        com_aba = [(c, tit) for c, tit in abas_rid if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
         barra = [tabelas.RESUMO] + com_aba if com_aba else []
         ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo",
                    parcial=bool(rel.get("parciais")) and perfil in PERFIS_PARCIAL.get(rid, ()))
@@ -378,7 +379,7 @@ def criar_app() -> FastAPI:
             raise PermissionError
         abas = []                                          # (titulo no pacote, bruta, consulta)
         if rid in tabelas.RIDS:
-            for c, tit in tabelas.ABAS[rid]:
+            for c, tit in tabelas.abas_do_farol(rid, rel):
                 if (todas or c == aba) and tabelas.ve_aba(rid, c, perfil):
                     t = next((x for x in rel.get("tabelas") or [] if x.get("titulo") == tit), None)
                     if t:
