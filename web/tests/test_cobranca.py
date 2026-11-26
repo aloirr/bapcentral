@@ -199,13 +199,13 @@ def test_paginas_com_tabela_e_fila_no_store_e_noindex(admin):
     assert "noindex" not in _tela(admin).text
 
 
-def test_aba_titulos_colunas_total_e_sem_exportacao(admin):
+def test_aba_titulos_colunas_total_e_exportacao_por_link(admin):
     postar(admin, pacote_cobranca())
     h = _tela(admin, "titulos").text
     for n in ("SITUAÇÃO", "DIAS ATRASO", "SALDO", "SUPERVISOR"):
         assert n in h
     assert "R$ 1.500,00" in h and "01/09/2026" in h and "R$ 93.600,00" in h
-    assert "xlsx" not in h.lower() and "pdf" not in h.lower() and "exportar" not in h.lower()
+    assert "/exportar?" in h and 'method="post"' not in h.split("<main")[1].lower()       # T-0026: Excel e PDF por link (só leitura)
     assert "Cliente 012" in h
 
 
@@ -245,7 +245,7 @@ def test_fila_mostra_mensagem_link_aviso_e_situacao(admin):
     assert h.index("Cliente 004") > h.index("Já tratados hoje")
     assert "ENVIADO 21/11" in h                                  # cliente 5: site, 3 dias
     assert h.count("A COBRAR") == 3
-    assert "<form" not in h.split("<main>")[1]                   # botões por fetch, sem formulário
+    assert 'method="post"' not in h.split("<main")[1]            # botões por fetch, sem formulário (T-0031)
 
 
 def test_um_so_botao_principal_enviado_escondido_ate_abrir_o_whatsapp(admin):
@@ -289,7 +289,7 @@ def test_tabela_na_tela_cliente_nome_e_valor_primeiro_sem_mudar_o_pacote(admin, 
 
 def test_abas_quebram_em_linhas_e_dica_de_rolagem(admin):
     postar(admin, pacote_cobranca())
-    assert "abas-quebra" in _tela(admin).text
+    assert "abas-quebra" in _tela(admin).text or "bc3-abas" in _tela(admin).text   # T-0031
     assert "Role para o lado" in _tela(admin, "titulos").text
 def test_enviado_grava_diario_com_valores_do_pacote(admin):
     postar(admin, pacote_cobranca())

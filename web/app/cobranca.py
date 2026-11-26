@@ -30,8 +30,20 @@ RID = "pl_inadimplencia"
 VE_TABELAS = ("admin", "pos_venda", "gerente")     # RN-POS-004
 COBRA = ("admin", "pos_venda")
 ABAS = (("resumo", "Resumo"), ("titulos", "Títulos"), ("cliente", "Por cliente"),
-        ("cobrar", "Cobrar no WhatsApp"))
-ABA_TABELA = {"titulos": "Títulos", "cliente": "Por cliente"}
+        ("vendedor", "Por vendedor"), ("supervisor", "Por supervisor"), ("filial", "Por filial"),
+        ("uf", "Por UF"), ("dia", "Dia a dia"), ("cobrar", "Cobrar no WhatsApp"))
+ABA_TABELA = {"titulos": "Títulos", "cliente": "Por cliente", "vendedor": "Por vendedor",
+              "supervisor": "Por supervisor", "filial": "Por filial", "uf": "Por UF", "dia": "Dia a dia"}
+# T-0026: as 5 tabelas de resumo (sem cliente nem telefone) vêm depois das duas de cima, nesta ordem
+_FAIXAS = [("CARTEIRA ABERTA", "moeda"), ("A VENCER", "moeda"), ("1–15 DIAS", "moeda"), ("16–30 DIAS", "moeda"),
+           ("31–60 DIAS", "moeda"), ("61–90 DIAS", "moeda"), ("91–180 DIAS", "moeda"), ("+180 DIAS", "moeda"),
+           ("EM ATRASO", "moeda"), ("% INADIMPL.", "pct"), ("CLIENTES INADIMPL.", "int")]
+COLUNAS_EXTRAS = {
+    "Por vendedor": [("VENDEDOR", "texto")] + _FAIXAS, "Por supervisor": [("SUPERVISOR", "texto")] + _FAIXAS,
+    "Por filial": [("FILIAL", "texto")] + _FAIXAS, "Por UF": [("UF", "texto")] + _FAIXAS,
+    "Dia a dia": [("DATA", "data"), ("CARTEIRA ABERTA", "moeda"), ("A VENCER", "moeda"), ("EM ATRASO", "moeda"),
+                  ("% INADIMPL.", "pct"), ("CLIENTES INADIMPL.", "int"), ("TÍTULOS VENCIDOS", "int"),
+                  ("RECEBIDO", "moeda"), ("RECUPERADO", "moeda")]}
 
 _OC = ("STATUS PROTHEUS", "SITUAÇÃO PLANNER")      # ocultas no PC: vêm no pacote, a tela não desenha
 _T = [("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("FILIAL", "texto"), ("NF", "texto"),
@@ -58,12 +70,14 @@ ORDEM_TELA = {"Títulos": ("CLIENTE", "NOME", "SALDO", "VALOR"),
 
 def ordem_tela(titulo: str, cols) -> list[int]:
     nomes = [n for n, _ in cols]
-    pri = [nomes.index(n) for n in ORDEM_TELA[titulo] if n in nomes]
+    pri = [nomes.index(n) for n in ORDEM_TELA.get(titulo, ()) if n in nomes]
     return pri + [k for k in range(len(nomes)) if k not in pri]
 
 
 def colunas_esperadas(titulo: str, cols) -> list[tuple[str, str]]:
     """A lista do PC; sem as 3 colunas de status só se nenhuma delas veio (qualquer outra mistura recusa)."""
+    if titulo in COLUNAS_EXTRAS:
+        return COLUNAS_EXTRAS[titulo]
     cheia = COLUNAS[titulo]
     tem = [c.get("nome") for c in cols if isinstance(c, dict) and c.get("nome") in STATUS_BLOCO]
     return cheia if tem else [(n, t) for n, t in cheia if n not in STATUS_BLOCO]
@@ -146,7 +160,7 @@ def _tabela_erro(t, titulo) -> str | None:
         and (c.get("larg_fixa") is None or _int(c.get("larg_fixa")))
         and (c.get("chip") is None or (n in COLUNAS_CHIP and _chip_ok(c["chip"])))
         and (c.get("largura") is None or _int(c.get("largura")))
-        and bool(c.get("oculta")) == (n in _OC)            # mesma marca "oculta" do PC
+        and bool(c.get("oculta")) == (n in _OC and titulo in COLUNAS)            # mesma marca "oculta" do PC
         for c, (n, tp) in zip(cols, esperado))
     if not ok:
         return f"tabela {titulo}: colunas diferentes da lista permitida"
@@ -164,7 +178,7 @@ def _tabela_erro(t, titulo) -> str | None:
     if tot is not None and not (isinstance(tot, list) and len(tot) == len(esperado)
                                 and all(_celula_ok(v, tp) for v, (_, tp) in zip(tot, esperado))):
         return f"tabela {titulo}: total inválido"
-    nm = {n for n, _ in COLUNAS[titulo]}                # filtro de coluna ausente é ignorado na tela
+    nm = {n for n, _ in esperado}                # filtro de coluna ausente é ignorado na tela
     fl = t.get("filtros", [])
     if not isinstance(fl, list):
         return f"tabela {titulo}: filtros inválidos"
@@ -246,9 +260,9 @@ def validar(rid: str, r: dict) -> list[str]:
     if tem_t != tem_c:
         return [f"{rid}: tabelas e cobranca vão juntas"]
     ts = r["tabelas"]
-    if not (isinstance(ts, list) and len(ts) == 2):
-        return [f"{rid}: tabelas precisa ter Títulos e Por cliente"]
-    for t, titulo in zip(ts, COLUNAS):
+    if not (isinstance(ts, list) and len(ts) in (2, 2 + len(COLUNAS_EXTRAS))):
+        return [f"{rid}: tabelas precisa ter Títulos e Por cliente (e, se vierem, as 5 de resumo)"]
+    for t, titulo in zip(ts, list(COLUNAS) + list(COLUNAS_EXTRAS)):
         e = _tabela_erro(t, titulo)
         if e:
             return [f"{rid}: {e}"]

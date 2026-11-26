@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block titulo %}Parcial · {{ farol_nome }}{% endblock %}
+{% block cabeca %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block corpo %}
+<header class="cab-painel"><h1>Parcial · {{ farol_nome }}</h1><span><a href="/farol/{{ rid }}">Voltar ao farol</a></span></header>
+{% if not opcoes %}
+<p class="aviso atencao">A parcial ainda não chegou do PC.</p>
+{% else %}
+<nav class="abas" aria-label="Período">{% for k, n in opcoes %}<a href="/farol/{{ rid }}/parcial?q={{ k }}" class="{{ 'ativa' if k == q }}">{{ n }}</a>{% endfor %}</nav>
+<div class="acoes-farol" role="group" aria-label="Gerar">
+  <a class="prim" href="/farol/{{ rid }}/parcial.png?q={{ q }}&amp;baixar=1">Baixar imagem</a>
+  <button type="button" id="copiar" data-url="/farol/{{ rid }}/parcial.png?q={{ q }}">Copiar imagem</button>
+  <a href="/farol/{{ rid }}/parcial.pdf?q={{ q }}">Baixar PDF</a>
+  <span id="msg-copia" class="como" role="status"></span>
+</div>
+<figure class="parcial"><img src="/farol/{{ rid }}/parcial.png?q={{ q }}" alt="Parcial {{ rotulo }}" width="1000"></figure>
+<script src="/static/parcial.js"></script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{# T-0021: a janelinha "Editar" do PC na web: uma lista por campo, data por seletor; só o admin #}
+{% block titulo %}{{ acao }} · {{ farol_nome }}{% endblock %}
+{% block cabeca %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block corpo %}
+<form method="post" action="/farol/{{ rid }}/editar" class="caixa ed-form">
+  <h1>{{ acao }} <small>{{ tab }}</small></h1>
+  {% if resumo %}<p class="ed-resumo">{{ resumo|join(" · ") }}</p>{% endif %}
+  {% if sit and sit.status == "pendente" %}<p class="aviso atencao">Aguardando o PC: edição de {{ sit.quando[11:16] }} ({{ sit.quando[8:10] }}/{{ sit.quando[5:7] }}) por {{ sit.usuario }}. O que você mandar agora vai depois dela.</p>
+  {% elif sit and sit.status == "erro" %}<p class="aviso alerta">O PC recusou a última edição desta linha{% if sit.motivo %}: {{ sit.motivo }}{% endif %}.</p>{% endif %}
+  {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
+  {% if aviso %}<p class="aviso info">{{ aviso }}</p>{% endif %}
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <input type="hidden" name="chave" value="{{ chave }}">
+  <input type="hidden" name="volta" value="{{ volta }}">
+  {% for c in campos %}
+  <label class="ed-campo">{{ c.rotulo }}
+    {% if c.tipo == "lista" %}
+    <select name="c_{{ c.campo }}">
+      <option value=""{{ ' selected' if not c.atual }}>(vazio)</option>
+      {% for o in c.opcoes %}<option value="{{ o }}"{{ ' selected' if o == c.atual }}>{{ o }}</option>{% endfor %}
+    </select>
+    {% elif c.tipo == "data" %}
+    <input type="date" name="c_{{ c.campo }}" value="{{ c.atual_iso }}"{% if c.min %} min="{{ c.min }}" max="{{ c.max }}"{% endif %}>
+    <small>Apague a data para voltar à calculada pelo PC.</small>
+    {% elif c.tipo == "numero" %}
+    <input type="text" inputmode="decimal" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="20" placeholder="{{ c.sugestao or 'ex.: 278,40' }}"{% if c.sugestao %} list="dl-{{ c.campo }}"{% endif %}>
+    {% if c.sugestao %}<datalist id="dl-{{ c.campo }}"><option value="{{ c.sugestao }}"></option></datalist><small>Sugestão: {{ c.sugestao }}</small>{% endif %}
+    {% else %}
+    <input type="text" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="60"{% if c.opcoes %} list="dl-{{ c.campo }}"{% endif %} autocomplete="off">
+    {% if c.opcoes %}<datalist id="dl-{{ c.campo }}">{% for o in c.opcoes[:300] %}<option value="{{ o }}"></option>{% endfor %}</datalist>{% endif %}
+    {% endif %}
+    {% if c.pendente is not none %}<small class="ed-pend-txt">Aguardando o PC: {{ c.pendente or "(vazio)" }}</small>{% endif %}
+  </label>
+  {% endfor %}
+  <div class="ed-botoes">
+    <button type="submit">Aplicar</button>
+    <a href="{{ volta }}">Cancelar</a>
+    {% if ver_pedido %}<a class="ed-ver" href="{{ ver_pedido }}">Ver pedido</a>{% endif %}
+  </div>
+  <p class="como">A edição vai para a fila do site e chega ao PC na próxima rodada do robô (a cada 30 min), gravada pela mesma função da tela do PC.</p>
+</form>
+{% endblock %}
