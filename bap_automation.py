@@ -527,6 +527,11 @@ SUBPASTA_IMPORTAR = f"{SUBPASTA_SISTEMA}/Arquivos para Importar"
 #   240826_001_BELEM_BAPSeparacaoCD.csv
 SUFIXO_REVERSA = "BAPReversaLoja"
 SUFIXO_SEPARACAO = "BAPSeparacaoCD"
+# (T-0021) CSVs que vao para a web (aba Solicitacao BAP): ultimos 30 dias
+CSV_WEB_DIAS = 30
+CSV_WEB_MAX_ARQUIVOS = 60
+CSV_WEB_MAX_BYTES = 200_000
+CSV_WEB_MAX_TOTAL = 1_500_000
 
 EMPRESA_PADRAO = "1"
 CSV_SEPARADOR = ";"
@@ -7804,7 +7809,113 @@ def _conferir_tabela_web(t: dict) -> None:
         raise _TabelaTortaWeb("total")
 
 
-def tabela_web7(rid: str, t: dict, mes_rot=None, _junta: bool = False):
+# ---------------------------------------------------------------------------
+# (T-0021) Edicao na web do Farol de Pedidos (autorizacao) e do Farol de
+# Entregas (a linha), so do perfil admin. O PC manda no pacote a especificacao
+# (campos, opcoes, coluna da tela e a chave de cada linha); o robo puxa as
+# edicoes do site, grava no PC pela MESMA funcao da tela do PC (so acrescenta)
+# e confirma. Generico por (rid, tabela, modulo): NCC, Garantias, DDR e
+# Expositores entram acrescentando o lugar aqui e na web (edicoes.LUGARES).
+_ARQ_POS_VENDA_WEB = "RELATORIOS/ACOMPANHAMENTO_POS_VENDA.xlsx"
+EDICOES_WEB = {
+    ("pv_pedidos", "Pedidos"): {
+        "modulo": "autorizacoes", "arquivo": "RELATORIOS/_AUTORIZACOES",
+        "aba": "", "acao": "Autorização"},
+    ("pl_entregas", "Entregas"): {
+        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
+        "aba": "ENTREGAS", "acao": "Editar"},
+    ("pl_entregas", "Pendências dos meses anteriores"): {
+        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
+        "aba": "ENTREGAS", "acao": "Editar"}}
+# os campos de cada modulo e o tipo de conferencia no robo
+CAMPOS_EDICAO_WEB = {
+    "autorizacoes": {"codigo": "livre", "por": "lista"},
+    "pos_venda": {"etapa": "lista", "transportadora": "lista",
+                  "prevista_manual": "data", "entregue_em": "data",
+                  "responsavel": "livre", "frete_real": "valor"}}
+_RE_CHAVE_EDICAO_WEB = re.compile(r"^[\w .|/-]{1,80}$")
+_RE_PESSOAL_EDICAO_WEB = re.compile(
+    r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|@|"
+    r"\(?\d{2}\)?\s?9?\d{4}-\d{4}")
+_MAX_OPCOES_EDICAO_WEB = 400
+
+
+def _ops_web(lista) -> list:
+    return [str(o) for o in (lista or []) if o not in (None, "")][
+        :_MAX_OPCOES_EDICAO_WEB]
+
+
+def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
+               nomes_web: list):
+    """Funcao pura (T-0021): a `edicao` do contrato da web para a tabela
+    (`linhas` = as linhas do PC que vao, na ordem; `pc` = colunas do PC), ou
+    None. O Pedidos usa a edicao da autorizacao do nucleo
+    (`_edicao_autorizacao`, a mesma da janela do pedido); o Entregas e as
+    Pendencias usam a `edicao` da tabela do PC (`_entrega_editavel`). Se o
+    arquivo/aba/modulo do PC nao baterem com EDICOES_WEB, nada vai."""
+    lugar = EDICOES_WEB.get((rid, titulo))
+    if not lugar:
+        return None
+    nomes_pc = [c.get("nome") if isinstance(c, dict) else c for c in pc]
+    if lugar["modulo"] == "autorizacoes":
+        import relatorios_nucleo as _rn                 # noqa: PLC0415
+        precisa = ("CHAVE", "CÓD. AUTORIZAÇÃO", "AUTORIZADO POR")
+        if not all(n in nomes_pc for n in precisa):
+            return None
+        ed_pc = _rn._edicao_autorizacao(*[nomes_pc.index(n) for n in precisa])
+    if not isinstance(ed_pc, dict) or not isinstance(ed_pc.get("chave"), int):
+        return None
+    if ((ed_pc.get("modulo") or "pos_venda") != lugar["modulo"]
+            or ed_pc.get("arquivo") != lugar["arquivo"]
+            or (ed_pc.get("aba") or "") != lugar["aba"]):
+        raise ValueError("edicao do PC diferente de EDICOES_WEB")
+    i_ch = ed_pc["chave"]
+    chaves = []
+    for ln in linhas:
+        ch = str(ln[i_ch] if len(ln) > i_ch and ln[i_ch] is not None
+                 else "").strip()
+        chaves.append(ch if _RE_CHAVE_EDICAO_WEB.match(ch) else "")
+    permitidos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
+    campos = []
+    for c in ed_pc.get("campos") or []:
+        if c.get("campo") not in permitidos:
+            continue
+        col = c.get("col")
+        nome = (nomes_pc[col] if isinstance(col, int) and col < len(nomes_pc)
+                else None)
+        tipo = ("data" if c.get("data") else "numero" if c.get("numero")
+                else "texto" if c.get("livre") else "lista")
+        item = {"campo": c["campo"], "rotulo": str(c.get("rotulo") or
+                                                    c["campo"])[:60],
+                "coluna": nome if nome in nomes_web else None,
+                "tipo": tipo, "opcoes": _ops_web(c.get("opcoes"))}
+        if c.get("mantem_caixa"):
+            item["caixa"] = True
+        if callable(c.get("opcoes_de")):
+            por = [tuple(_ops_web(c["opcoes_de"](ln))) for ln in linhas]
+            if tipo == "lista":
+                grupos, ix = [], {}
+                for p_ in por:
+                    if p_ not in ix:
+                        ix[p_] = len(grupos)
+                        grupos.append(list(p_))
+                item["grupos"] = grupos
+                item["grupo_linhas"] = [ix[p_] for p_ in por]
+            else:                       # a lista so sugere (VLR FRETE 5%)
+                item["sugestoes_linhas"] = [p_[0][:40] if p_ else ""
+                                            for p_ in por]
+        if callable(c.get("so_se")):
+            item["linhas"] = [j for j, ln in enumerate(linhas)
+                              if c["so_se"](ln)]
+        campos.append(item)
+    if not campos:
+        return None
+    return {"modulo": lugar["modulo"], "acao": lugar["acao"],
+            "chaves": chaves, "campos": campos}
+
+
+def tabela_web7(rid: str, t: dict, mes_rot=None, _junta: bool = False,
+                _edicao=None):
     """Funcao pura (T-0017, contrato 10.7): a tabela do PC (depois do
     `montar`) no formato TabelaWeb7, ou None se as colunas nao baterem com a
     lista do contrato 10.7.3 (so essa aba fica fora; a linha do log nao tem
@@ -7818,10 +7929,12 @@ def tabela_web7(rid: str, t: dict, mes_rot=None, _junta: bool = False):
       livre (texto_sem_contato) do nucleo;
     - `kpis_padrao`, `recortes_linhas` e `uf_linhas` saem das linhas
       ORIGINAIS do PC e so depois sao remapeados para as linhas do mes.
-    A tabela de junta (`_junta`) nao leva kpis_padrao."""
+    A tabela de junta (`_junta`) nao leva kpis_padrao.
+    (T-0021) `_edicao`: a edicao do PC da tabela de cima, para a junta que
+    edita como ela (Pendencias dos meses anteriores)."""
     titulo = (t or {}).get("titulo")
     try:
-        return _tabela_web7(rid, t, mes_rot, _junta)
+        return _tabela_web7(rid, t, mes_rot, _junta, _edicao)
     except _TabelaTortaWeb as erro:
         log.warning("Pacote web: tabela '%s' do farol %s fora do pacote (%s "
                     "nao batem com o contrato 10.7.3).", titulo, rid, erro)
@@ -7832,7 +7945,7 @@ def tabela_web7(rid: str, t: dict, mes_rot=None, _junta: bool = False):
         return None
 
 
-def _tabela_web7(rid, t, mes_rot, junta):
+def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     import relatorios_nucleo as _rn                     # noqa: PLC0415
     titulo = t.get("titulo")
     pc = [c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
@@ -7946,6 +8059,16 @@ def _tabela_web7(rid, t, mes_rot, junta):
     if kpis_padrao:
         val["kpis_padrao"] = kpis_padrao
     _conferir_tabela_web(val)         # a mesma conferencia da web (R1)
+    if (rid, titulo) in EDICOES_WEB:  # (T-0021) so a especificacao; falhou = sem
+        try:
+            ed = edicao_web(rid, titulo, ed_mae if junta else t.get("edicao"),
+                            [brutas[k] for k in manter], pc, nomes)
+        except Exception as erro:                       # noqa: BLE001
+            log.warning("Pacote web: edicao da tabela '%s' do farol %s fora "
+                        "(%s).", titulo, rid, type(erro).__name__)
+            ed = None
+        if ed:
+            val["edicao"] = ed
     return val
 
 
@@ -8026,7 +8149,7 @@ def solicitacao_web(raiz):
     return val
 
 
-def _junta_web7(rid, titulo_mae, pc_juntas, mes_rot):
+def _junta_web7(rid, titulo_mae, pc_juntas, mes_rot, ed_mae=None):
     """As juntas da tabela de cima no formato do contrato, ou None se uma
     junta faltar, estiver com outra `liga` ou torta."""
     saida = []
@@ -8038,7 +8161,8 @@ def _junta_web7(rid, titulo_mae, pc_juntas, mes_rot):
         pc_liga = j.get("liga")
         if (tuple(pc_liga) if pc_liga else None) != liga:
             return None
-        tab = tabela_web7(rid, j["tabela"], mes_rot, _junta=True)
+        tab = tabela_web7(rid, j["tabela"], mes_rot, _junta=True,
+                          _edicao=ed_mae if j.get("editavel") else None)
         if tab is None or tab.get("titulo") != titulo_tab:
             return None
         nomes = [c["nome"] for c in tab["colunas"]]
@@ -8081,7 +8205,7 @@ def tabelas_farol_web(rid: str, r: dict, raiz=None):
         tab = tabela_web7(rid, t)
         if tab is not None and (rid, titulo) in _JUNTAS_WEB:
             juntas = _junta_web7(rid, titulo, t.get("juntas"),
-                                 _mes_padrao(t))
+                                 _mes_padrao(t), t.get("edicao"))
             if juntas is None:
                 tab = None
             else:
@@ -8317,9 +8441,59 @@ def parciais_web(raiz, hoje=None, log=None) -> dict:
     return saida
 
 
+def csvs_importar_web(raiz, hoje=None, log=None) -> list:
+    """(T-0021) Os CSVs de importacao no Protheus (reversa de loja e separacao
+    de CD) dos ultimos CSV_WEB_DIAS dias, para a aba Pedidos/Solicitacao BAP
+    da web: [{"nome", "conteudo"}] com o texto exato do arquivo (UTF-8, mesmo
+    separador e CRLF). So nomes no padrao AAMMDD_NNN_LOCAL_<tipo>.csv; teto de
+    arquivos, de tamanho por arquivo e total. Nunca levanta."""
+    log = log or (lambda m: None)
+    saida: list = []
+    try:
+        pasta = Path(raiz) / SUBPASTA_IMPORTAR
+        if not pasta.is_dir():
+            return saida
+        hoje = hoje or _agora_manaus().date()
+        hoje = hoje.date() if isinstance(hoje, datetime) else hoje
+        padrao = re.compile(
+            rf"^(\d{{6}})_(\d{{1,4}})_([A-Z0-9]{{1,30}})_"
+            rf"({SUFIXO_REVERSA}|{SUFIXO_SEPARACAO})\.csv$")
+        achados = []
+        for arq in pasta.iterdir():
+            m = padrao.match(arq.name) if arq.is_file() else None
+            if not m:
+                continue
+            try:
+                dia = datetime.strptime(m.group(1), "%y%m%d").date()
+            except ValueError:
+                continue
+            if 0 <= (hoje - dia).days <= CSV_WEB_DIAS:
+                achados.append((m.group(1), int(m.group(2)), arq))
+        achados.sort(key=lambda x: (x[0], x[1], x[2].name), reverse=True)
+        total = 0
+        for _d, _n, arq in achados[:CSV_WEB_MAX_ARQUIVOS]:
+            try:
+                bruto = arq.read_bytes()
+                if len(bruto) > CSV_WEB_MAX_BYTES or \
+                        total + len(bruto) > CSV_WEB_MAX_TOTAL:
+                    log(f"CSV web: {arq.name} fora do pacote (tamanho).")
+                    continue
+                texto = bruto.decode("utf-8")
+                if texto.startswith("\ufeff") or "\x00" in texto:
+                    continue
+                total += len(bruto)
+                saida.append({"nome": arq.name, "conteudo": texto})
+            except (OSError, UnicodeDecodeError):
+                log(f"CSV web: {arq.name} fora do pacote (leitura).")
+    except Exception as erro:                           # noqa: BLE001
+        log(f"CSV web: fora do pacote ({type(erro).__name__}).")
+        return []
+    return saida
+
+
 def montar_pacote_web(resultados: dict, ano: int, mes: int,
                       agora=None, raiz=None, arquivos_base=None,
-                      cobranca=None, parciais=None) -> dict:
+                      cobranca=None, parciais=None, csvs=None) -> dict:
     """Funcao pura: recebe {"vc_painel": r} ja montado e leva so as abas
     resultado e produtividade, limpas para JSON. `cobranca` ({rid: bloco},
     T-0017 entrega 2): o bloco de cobranca_whatsapp.pacote_web do
@@ -8361,6 +8535,8 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         if val:
             if isinstance(parciais, dict) and parciais.get(rid):
                 val["parciais"] = parciais[rid]         # T-0026
+            if rid == "pv_pedidos" and csvs:            # T-0021
+                val["csvs_protheus"] = [dict(c) for c in csvs]
             limpos[rid] = val
     return _cortar_pacote_web({
         "versao_contrato": versao, "gerado_em": agora.isoformat(),
@@ -8390,7 +8566,8 @@ def simular_pacote_farol(rid, raiz, destino, ano: int, mes: int,
             cobranca.update(preparar_cobranca_web(
                 {r_id: rels[r_id]}, raiz, hoje, False, log=lambda m: None))
     pacote = montar_pacote_web(rels, ano, mes, raiz=raiz, cobranca=cobranca,
-                               parciais=parciais_web(raiz, hoje))
+                               parciais=parciais_web(raiz, hoje),
+                               csvs=csvs_importar_web(raiz, hoje))
     Path(destino).write_text(json.dumps(pacote, ensure_ascii=False,
                                         indent=1), encoding="utf-8")
     return pacote
@@ -8730,6 +8907,324 @@ def preparar_cobranca_web(resultados: dict, raiz, hoje, sincronizar: bool,
         return {}
 
 
+# ---------------------------------------------------------------------------
+# (T-0021) O robo traz as edicoes do site: GET /api/edicoes?desde=<seq>,
+# grava no PC pela funcao da tela do PC (bap_relatorios.Janela.salvar: so
+# acrescenta linha) e confirma POST /api/edicoes/confirmar. Antes de montar o
+# pacote: o pacote desta rodada ja sai com a edicao. Nunca derruba a rodada;
+# o log nao tem dado pessoal nem token.
+PASTA_EDICOES_WEB = Path("RELATORIOS") / "_EDICOES_WEB"
+ARQ_ESTADO_EDICOES_WEB = "ESTADO_EDICOES_WEB.json"
+_PAGINAS_MAX_EDICOES_WEB = 50
+# motivos de recusa (vao ao site): frases fixas, sem dado pessoal
+MOTIVO_LUGAR_WEB = "tabela ou campo que não edita na web"
+MOTIVO_CHAVE_WEB = "chave da linha inválida"
+MOTIVO_OPCAO_WEB = "valor fora das opções do PC"
+MOTIVO_DATA_WEB = "data inválida"
+MOTIVO_VALOR_WEB = "valor inválido"
+MOTIVO_TEXTO_WEB = "texto inválido (até 60 caracteres, sem CPF, CNPJ, telefone ou e-mail)"
+MOTIVO_LINHA_WEB = "linha não encontrada no PC"
+
+
+def _pasta_edicoes_web(raiz) -> Path:
+    return Path(raiz) / PASTA_EDICOES_WEB
+
+
+def _importar_do_pc(nome: str, raiz):
+    """Um modulo do PC (pos_venda, autorizacoes...) da pasta do programa."""
+    raiz = str(raiz or PASTA_LOCAL)
+    if raiz not in sys.path:
+        sys.path.insert(0, raiz)
+    import importlib                                    # noqa: PLC0415
+    return importlib.import_module(nome)
+
+
+def gravar_edicoes_pc(raiz, modulo: str, arquivo: str, aba: str,
+                      edicoes: dict) -> int:
+    """A MESMA gravacao da tela do PC (bap_relatorios.Janela.salvar), por
+    modulo: {chave: {campo: valor}}. Levanta PermissionError (arquivo aberto
+    no Excel), OSError ou ValueError como a tela."""
+    raiz = Path(raiz)
+    if modulo == "autorizacoes":
+        return _importar_do_pc("autorizacoes", raiz).gravar(raiz, edicoes)
+    if modulo == "expositores":
+        return _importar_do_pc("expositores", raiz).gravar_edicoes(raiz,
+                                                                    edicoes)
+    if modulo == "ncc":
+        return _importar_do_pc("ncc_controle", raiz).gravar(raiz, edicoes)
+    if modulo == "farol":
+        return _importar_do_pc("farol_ddr", raiz).gravar_marcacoes(
+            raiz / arquivo, aba, edicoes)
+    if modulo == "pos_venda":
+        return _importar_do_pc("pos_venda", raiz).gravar_edicoes(
+            raiz / arquivo, aba, edicoes)
+    raise ValueError("modulo sem gravacao no robo")
+
+
+def opcoes_edicao_web(raiz) -> dict:
+    """As listas fechadas do PC para conferir a edicao: {campo: set}."""
+    rn_ = _importar_do_pc("relatorios_nucleo", raiz)
+    pv = _importar_do_pc("pos_venda", raiz)
+    tr = _importar_do_pc("transportadoras", raiz)
+    return {"por": set(rn_.QUEM_AUTORIZA), "etapa": set(pv.ETAPAS_ENTREGA),
+            "transportadora": set(tr.nomes(tr.carregar(Path(raiz))))}
+
+
+def validar_edicao_web(reg: dict, opcoes: dict) -> str:
+    """Funcao pura (T-0021): "" se a edicao do site pode ir ao PC; senao o
+    motivo (frase fixa, sem dado pessoal). Confere de novo o que a web ja
+    conferiu: lugar, campos do modulo, listas fechadas, data, valor, texto."""
+    lugar = EDICOES_WEB.get((reg.get("rid"), reg.get("tabela")))
+    if not lugar or reg.get("modulo") != lugar["modulo"]:
+        return MOTIVO_LUGAR_WEB
+    chave = reg.get("chave")
+    if not (isinstance(chave, str) and _RE_CHAVE_EDICAO_WEB.match(chave)):
+        return MOTIVO_CHAVE_WEB
+    if lugar["modulo"] == "autorizacoes" and not re.fullmatch(
+            r"\d+\|\d+", chave):
+        return MOTIVO_CHAVE_WEB
+    if lugar["modulo"] == "pos_venda" and chave.count("|") != 2:
+        return MOTIVO_CHAVE_WEB
+    valores = reg.get("valores")
+    campos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
+    if not (isinstance(valores, dict) and valores
+            and set(valores) <= set(campos)):
+        return MOTIVO_LUGAR_WEB
+    for campo, v in valores.items():
+        if not isinstance(v, str) or len(v) > 60 or re.search(
+                r"[\x00-\x1f\x7f]", v):
+            return MOTIVO_TEXTO_WEB
+        tipo = campos[campo]
+        if tipo == "lista" and v and v not in (opcoes.get(campo) or ()):
+            return MOTIVO_OPCAO_WEB
+        if tipo == "data" and v:
+            try:
+                datetime.strptime(v, "%d/%m/%Y")
+            except ValueError:
+                return MOTIVO_DATA_WEB
+        if tipo == "valor" and v:
+            try:
+                n = _importar_do_pc("pos_venda", None).valor_digitado(v)
+            except ValueError:
+                return MOTIVO_VALOR_WEB
+            if n is not None and n < 0:
+                return MOTIVO_VALOR_WEB
+        if tipo == "livre" and _RE_PESSOAL_EDICAO_WEB.search(v):
+            return MOTIVO_TEXTO_WEB
+    return ""
+
+
+def aplicar_edicao_web(raiz, reg: dict, opcoes: dict,
+                       gravar=gravar_edicoes_pc) -> tuple:
+    """(status, motivo): "aplicada", "erro" (recusada: vai ao site) ou
+    "pendente" (arquivo aberto/disco: tenta na proxima rodada)."""
+    motivo = validar_edicao_web(reg, opcoes)
+    if motivo:
+        return "erro", motivo
+    lugar = EDICOES_WEB[(reg["rid"], reg["tabela"])]
+    try:
+        gravar(raiz, lugar["modulo"], lugar["arquivo"], lugar["aba"],
+               {reg["chave"]: dict(reg["valores"])})
+    except PermissionError:
+        return "pendente", "arquivo aberto no Excel"
+    except ValueError:
+        return "erro", MOTIVO_LINHA_WEB
+    except OSError:
+        return "pendente", "falha de disco"
+    return "aplicada", ""
+
+
+def ler_estado_edicoes_web(raiz) -> dict:
+    """{"epoca", "ate_seq", "a_confirmar"}; sem arquivo (ou torto): do zero."""
+    try:
+        d = json.loads((_pasta_edicoes_web(raiz) / ARQ_ESTADO_EDICOES_WEB)
+                       .read_text(encoding="utf-8"))
+        n, ep = int(d.get("ate_seq")), d.get("epoca")
+        ac = d.get("a_confirmar") or []
+        if n < 0 or not isinstance(ep, str) or not isinstance(ac, list):
+            raise ValueError("estado")
+        return {"epoca": ep, "ate_seq": n, "a_confirmar": ac}
+    except Exception:                                   # noqa: BLE001
+        return {"epoca": "", "ate_seq": 0, "a_confirmar": []}
+
+
+def gravar_estado_edicoes_web(raiz, estado: dict) -> None:
+    pasta = _pasta_edicoes_web(raiz)
+    pasta.mkdir(parents=True, exist_ok=True)
+    alvo = pasta / ARQ_ESTADO_EDICOES_WEB
+    tmp = alvo.with_suffix(".tmp")
+    tmp.write_text(json.dumps(estado, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, alvo)
+
+
+def _arq_aplicadas_web(raiz) -> Path:
+    maq = re.sub(r"[^A-Za-z0-9_-]", "_", os.environ.get("COMPUTERNAME")
+                 or __import__("platform").node() or "PC")
+    return _pasta_edicoes_web(raiz) / f"APLICADAS_WEB_{maq}.jsonl"
+
+
+def aplicadas_web(raiz) -> dict:
+    """{id da edicao: (status, motivo)} de todas as maquinas (so acrescenta):
+    a edicao ja gravada no PC nunca e gravada de novo."""
+    saida = {}
+    pasta = _pasta_edicoes_web(raiz)
+    for arq in sorted(pasta.glob("APLICADAS_WEB_*.jsonl")) if pasta.is_dir() \
+            else []:
+        try:
+            for ln in arq.read_text(encoding="utf-8").splitlines():
+                try:
+                    r = json.loads(ln)
+                    saida[str(r["id"])] = (r["status"], r.get("motivo", ""))
+                except (ValueError, KeyError, TypeError):
+                    continue
+        except OSError:
+            continue
+    return saida
+
+
+def _registrar_aplicada_web(raiz, reg, status, motivo, epoca) -> None:
+    arq = _arq_aplicadas_web(raiz)
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    linha = {"quando": _agora_manaus().strftime("%Y-%m-%d %H:%M:%S"),
+             "epoca": epoca, "seq": reg.get("seq"), "id": reg.get("id"),
+             "usuario_web": reg.get("usuario"), "rid": reg.get("rid"),
+             "tabela": reg.get("tabela"), "chave": reg.get("chave"),
+             "valores": reg.get("valores"), "status": status,
+             "motivo": motivo}
+    with open(arq, "a", encoding="utf-8") as f:
+        f.write(json.dumps(linha, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
+                       log=print) -> dict | None:
+    """GET <base>/api/edicoes?desde=<seq> (Bearer), repetindo enquanto
+    `mais`. {"epoca", "linhas", "ate_seq"} ou None (404 = web antiga, 401,
+    rede...). Log sem dado pessoal e sem token."""
+    sessao = sessao or __import__("requests")
+    cab = {"Authorization": f"Bearer {token}"}
+    linhas, atual, epoca = [], int(desde), None
+    for _ in range(_PAGINAS_MAX_EDICOES_WEB):
+        try:
+            r = sessao.get(f"{base}/api/edicoes", params={"desde": atual},
+                           headers=cab, timeout=30)
+            if r.status_code != 200:
+                log(f"Edicoes web: o site respondeu {r.status_code}; sigo "
+                    "sem importar.")
+                break
+            d = r.json()
+            pag, ate, ep = d["linhas"], int(d["ate_seq"]), str(d["epoca"])
+            if not isinstance(pag, list) or (epoca is not None
+                                              and ep != epoca):
+                raise ValueError("resposta")
+        except Exception as erro:                       # noqa: BLE001
+            log("Edicoes web: falha ao puxar as edicoes do site "
+                f"({type(erro).__name__}); sigo sem importar.")
+            break
+        epoca = ep
+        linhas.extend(x for x in pag if isinstance(x, dict))
+        mais = bool(d.get("mais"))
+        if ate < atual or (mais and ate == atual):
+            mais = False
+        atual = max(atual, ate)
+        if not mais:
+            break
+    if epoca is None:
+        return None
+    return {"epoca": epoca, "linhas": linhas, "ate_seq": atual}
+
+
+def confirmar_edicoes_web(epoca: str, resultados: list, base: str,
+                          token: str, sessao=None, log=print) -> bool:
+    sessao = sessao or __import__("requests")
+    try:
+        r = sessao.post(f"{base}/api/edicoes/confirmar",
+                        json={"epoca": str(epoca), "resultados": resultados},
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=30)
+        if r.status_code == 200:
+            return True
+        log(f"Edicoes web: a confirmacao voltou {r.status_code}; confirmo "
+            "de novo na proxima rodada.")
+    except Exception as erro:                           # noqa: BLE001
+        log(f"Edicoes web: falha ao confirmar ({type(erro).__name__}); "
+            "confirmo de novo na proxima rodada.")
+    return False
+
+
+def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
+                            log=print, gravar=gravar_edicoes_pc,
+                            opcoes=None) -> dict:
+    """Puxa, grava no PC (na ordem do seq; a primeira que fica pendente -
+    Excel aberto - para a fila ate a proxima rodada), guarda o estado e
+    confirma. Devolve {"aplicadas", "erros", "pendentes", "confirmado"}.
+    Nunca levanta."""
+    cont = {"aplicadas": 0, "erros": 0, "pendentes": 0, "confirmado": False}
+    try:
+        estado = ler_estado_edicoes_web(raiz)
+        desde = estado["ate_seq"] if estado["epoca"] else 0
+        res = baixar_edicoes_web(desde, base, token, sessao, log)
+        if res and res["epoca"] != estado["epoca"]:
+            if estado["epoca"]:
+                log("Edicoes web: a fila do site recomecou (epoca nova); "
+                    "puxo tudo de novo.")
+            estado = {"epoca": res["epoca"], "ate_seq": 0, "a_confirmar": []}
+            if desde:
+                res = baixar_edicoes_web(0, base, token, sessao, log)
+                if res and res["epoca"] != estado["epoca"]:
+                    res = None
+        if not res:
+            if estado["a_confirmar"] and estado["epoca"]:
+                cont["confirmado"] = confirmar_edicoes_web(
+                    estado["epoca"], estado["a_confirmar"], base, token,
+                    sessao, log)
+            return cont
+        opcoes = opcoes if opcoes is not None else opcoes_edicao_web(raiz)
+        ja = aplicadas_web(raiz)
+        resultados = {int(x["seq"]): x for x in estado["a_confirmar"]
+                      if isinstance(x, dict) and "seq" in x}
+        ate = estado["ate_seq"]
+        for reg in sorted(res["linhas"], key=lambda x: int(x.get("seq") or 0)):
+            seq = int(reg.get("seq") or 0)
+            if seq <= ate:
+                continue
+            if reg.get("status") != "pendente":
+                ate = seq                   # ja confirmada no site
+                continue
+            if str(reg.get("id")) in ja:
+                status, motivo = ja[str(reg.get("id"))]
+            else:
+                status, motivo = aplicar_edicao_web(raiz, reg, opcoes, gravar)
+                if status == "pendente":
+                    cont["pendentes"] += 1
+                    log(f"Edicoes web: {motivo}; a fila espera a proxima "
+                        "rodada.")
+                    break
+                _registrar_aplicada_web(raiz, reg, status, motivo,
+                                        res["epoca"])
+            cont["aplicadas" if status == "aplicada" else "erros"] += 1
+            resultados[seq] = {"seq": seq, "status": status, "motivo": motivo}
+            ate = seq
+        estado = {"epoca": res["epoca"], "ate_seq": ate,
+                  "a_confirmar": sorted(resultados.values(),
+                                        key=lambda x: x["seq"])}
+        gravar_estado_edicoes_web(raiz, estado)
+        if cont["aplicadas"] or cont["erros"]:
+            log(f"Edicoes web: {cont['aplicadas']} gravada(s) no PC, "
+                f"{cont['erros']} recusada(s).")
+        if estado["a_confirmar"]:
+            cont["confirmado"] = confirmar_edicoes_web(
+                estado["epoca"], estado["a_confirmar"], base, token, sessao,
+                log)
+            if cont["confirmado"]:
+                gravar_estado_edicoes_web(raiz, dict(estado, a_confirmar=[]))
+    except Exception as erro:                           # noqa: BLE001
+        log(f"Edicoes web: nao terminei ({type(erro).__name__}); tento de "
+            "novo na proxima rodada.")
+    return cont
+
+
 def passo_pacote_web(simular_pacote: bool = False) -> dict:
     """4f: monta, e envia (ou so grava o simulado). Nunca levanta."""
     try:
@@ -8742,6 +9237,13 @@ def passo_pacote_web(simular_pacote: bool = False) -> dict:
                      "passo 4f pulado (o Painel nao e montado).")
             return {"enviado": False, "pulado": True}
         hoje = _agora_manaus()
+        if not simular_pacote:          # (T-0021) as edicoes do site antes do montar
+            _tk = _segredo_web("BAP_WEB_TOKEN", "token") or ""
+            _base = _base_web(_segredo_web("BAP_WEB_URL", "url"))
+            if _base and _tk:
+                sincronizar_edicoes_web(
+                    PASTA_LOCAL, _base, _tk,
+                    log=lambda m: log.info("%s", str(m).replace(_tk, "***")))
         resultados = coletar_relatorios_web(hoje.year, hoje.month)
         # (T-0017, entrega 2) GET -> importar -> confirmar -> fila; na
         # simulacao nao toca na rede nem no disco do diario
@@ -8754,7 +9256,9 @@ def passo_pacote_web(simular_pacote: bool = False) -> dict:
         pacote = montar_pacote_web(
             resultados, hoje.year, hoje.month, hoje, cobranca=cobranca,
             parciais=parciais_web(PASTA_LOCAL, hoje.date(), log=lambda m:
-                                  log.warning("%s", m)))
+                                  log.warning("%s", m)),
+            csvs=csvs_importar_web(PASTA_LOCAL, hoje.date(), log=lambda m:
+                                   log.warning("%s", m)))
         tam = len(json.dumps(pacote, ensure_ascii=False).encode("utf-8"))
         if simular_pacote:
             pasta = Path(tempfile.gettempdir()) / "BAP_PACOTE_WEB"
