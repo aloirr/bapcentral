@@ -1,17 +1,18 @@
 {% extends "base.html" %}
 {% block titulo %}{{ farol_nome }}{% endblock %}
 {% from "_estados.html" import barras_estados, cartoes %}
-{% from "_grade.html" import grade %}
+{% from "_grade.html" import grade with context %}
 {% from "_acoes.html" import acoes with context %}
 {% block faixa %}{% if fila is defined %}<div class="aviso info faixa-pc">Situação do PC até {{ pc_ate|hhmm }}. O que você marcar aqui chega ao PC às 08h ou 14h.</div>{% endif %}{% endblock %}
 {% block mainclass %}{{ ' class="larga"'|safe if tabela }}{% endblock %}
 {% block cabeca %}{% if noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}{% endblock %}
 {% block corpo %}
-{% if abas %}
+{% if bc3 %}{% include "_bc3_cab.html" %}{% endif %}
+{% if abas and not bc3 %}
 <nav class="abas abas-quebra" aria-label="Abas do farol">{% for c, n in abas %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}" class="{{ 'ativa' if c == aba }}">{{ n }}</a>{% endfor %}</nav>
 {% endif %}
 {% if not tela and not tabela and fila is not defined %}
-<h1>{{ farol_nome }}</h1>
+{% if not bc3 %}<h1>{{ farol_nome }}</h1>{% endif %}
 <p class="aviso atencao">{{ indisponivel|capitalize }}.</p>
 {% else %}
 {% if tabela %}
@@ -19,9 +20,9 @@
 {% elif fila is defined %}
 {% include "_fila.html" %}
 {% else %}
-<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
-{{ acoes(rid, parcial=parcial) }}
-{% if tela.ufs %}
+{% if not bc3 %}<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
+{{ acoes(rid, parcial=parcial) }}{% endif %}
+{% if tela.ufs and not bc3 %}
 <nav class="filtros" aria-label="Filtro por estado">
   <a href="/farol/{{ rid }}" class="{{ 'ativa' if not tela.uf }}">BAP inteira</a>
   {% for u in tela.ufs %}<a href="/farol/{{ rid }}?uf={{ u }}" class="{{ 'ativa' if u == tela.uf }}">{{ u }}</a>{% endfor %}
@@ -30,40 +31,7 @@
 {% if tela.aviso_uf %}<p class="aviso info">{{ tela.aviso_uf }}</p>{% endif %}
 {% for a in tela.avisos_info %}<p class="aviso info">{{ a }}</p>{% endfor %}
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
-{{ cartoes(tela.kpis, tela.faixa) }}
-{% if tela.insights %}
-<section class="resumo"><h2>Resumo gerencial</h2>
-  <ul>{% for i in tela.insights %}<li class="ins t-{{ i.tom }}"><span>{{ i.texto }}</span></li>{% endfor %}</ul>
-</section>
-{% endif %}
-<section class="graficos">
-{% for b in tela.blocos if b.tipo in ("barras", "hbarras", "tabela") %}
-<article class="graf{{ ' graf-tab' if b.tipo == 'tabela' }}">
-  {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
-  {% if b.tipo == "barras" %}
-    {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
-    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}{{ ' gb-vert' if b.vert }}{{ ' gb-rotv' if b.rotv }}">
-      {% for c in b.cols %}
-      <div class="gb-col">
-        <div class="gb-area">{% for x in c.barras %}<div class="gb-b" title="{{ x.titulo }}"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
-        <div class="gb-rot">{{ c.rot if (not b.denso or loop.index0 % 2 == 0) else '' }}</div>
-      </div>
-      {% endfor %}
-    </div>
-    {% if b.meta %}<p class="como">Meta: {{ b.meta.txt }}</p>{% endif %}
-  {% elif b.tipo == "hbarras" %}
-    <div class="hb">
-      {% for l in b.linhas %}
-      <div class="hb-l"><span class="hb-rot">{{ l.rot }}</span><span class="hb-trilho"><i style="width:{{ l.larg }}%;background:{{ l.cor }}"></i></span><b>{{ l.txt }}</b></div>
-      {% endfor %}
-    </div>
-    {% if b.ref %}<p class="como">Referência: {{ b.ref.txt }}</p>{% endif %}
-  {% elif b.tipo == "tabela" %}
-    {{ grade(b, "", "", "Sem linhas neste pacote.") }}
-  {% endif %}
-</article>
-{% endfor %}
-</section>
+{% include "_resumo.html" %}
 {% endif %}
 {% endif %}
 {% endblock %}

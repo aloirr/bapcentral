@@ -1309,7 +1309,7 @@ import platform as _platform
 
 # a maquina que fica ligada e roda o BAP Central de hora em hora. Vazio =
 # qualquer maquina grava (o jeito antigo, sujeito a copia atrasada)
-MAQUINA_DO_POS_VENDA = "DT-AMADMBAP-03"
+MAQUINA_DO_POS_VENDA = "NT-AMADMVD13"
 PASTA_DIARIO = "_EDICOES_POS_VENDA"
 CAMPOS_DIARIO = ["QUANDO", "MAQUINA", "ORIGEM", "ABA", "CHAVE", "CAMPO",
                  "VALOR"]

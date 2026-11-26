@@ -724,6 +724,23 @@ def _status_nas_tabelas(ctx, rel):
                         f"Status do cliente fora da tabela {titulo}: {erro}")
 
 
+# RN-GER-013 (Alexandre, 26/11/2026: "mudar para cliente fora da base e deixar
+# um checkbox no farol de pedidos para ignorar eles, pois sao pedidos internos e
+# nao pode ir para solicitacao de lojas"): pedido de cliente que nao esta na base
+# de clientes da BAP (o robo grava "NAO LOCALIZADO NA BASE" na RAZAO_SOCIAL do
+# ftPedidos) fica no Farol de Pedidos com o nome NOME_FORA_DA_BASE, sem casar o
+# codigo com zeros (o "6171" virava "006171" e mostrava outro cliente da BAP).
+# A caixa "ignorar" fica na web; a Solicitacao BAP nao usa esse pedido (robo).
+CLIENTE_FORA_DA_BASE = "NÃO LOCALIZADO NA BASE"
+NOME_FORA_DA_BASE = "CLIENTE FORA DA BASE"
+
+
+def fora_da_base(razao) -> bool:
+    """RN-GER-013: o item e de cliente fora da base de clientes da BAP."""
+    return sem_acento(texto(razao)).upper().strip() == \
+        sem_acento(CLIENTE_FORA_DA_BASE)
+
+
 def _sem_internos(nome, bloco):
     """(13/10) Os CNPJs internos (FRW, BAP AUTOPARTS, PMZ DISTRIBUIDORA) fora do resultado
     tambem no cache montado antes da regra: a venda sai da TABELA e o
@@ -1407,6 +1424,9 @@ def pedidos_em_aberto(ctx):
         cod = i0["cliente"]
         cli = ctx.cliente(cod)
         cred = ctx.tabela["clientes"].get(cod, {})
+        if any(fora_da_base(i.get("razao")) for i in itens):     # RN-GER-013
+            cli = dict(cli, nome=NOME_FORA_DA_BASE, fantasia="", uf="",
+                       cidade="")
         valor = sum(i["valor"] for i in itens)
         dtp = i0["dt_pedido"]
         prazo = ctx.mais_uteis(dtp, bd.PRAZO_FATURAR)
@@ -1796,6 +1816,10 @@ def farol_pedidos(ctx):
         mais a autorizacao (codigo e quem autorizou)."""
         cli = ctx.cliente(cod)
         ctab = ctx.tabela["clientes"].get(cod, {})
+        if any(fora_da_base(i.get("razao")) for i in itens):     # RN-GER-013
+            cli = {"nome": NOME_FORA_DA_BASE, "fantasia": "", "uf": "",
+                   "cidade": ""}
+            ctab = {"nome": NOME_FORA_DA_BASE}
         valor = sum(i["valor"] for i in itens)
         tab = sum(i["p_tab"] * i["qtd"] if i["p_tab"] > 0 else i["valor"]
                   for i in itens)
@@ -1916,6 +1940,9 @@ def farol_pedidos(ctx):
         ]
 
     def cartoes(ls):
+        # RN-GER-013 (Alexandre, 26/11: "A"): os numeros sem os pedidos de
+        # cliente fora da base, como a tabela do site (caixa "Ignorar" marcada)
+        ls = [l for l in ls if l[I_RAZ] != NOME_FORA_DA_BASE]
         if ls and all(l[I_SIT] == "EM ABERTO" for l in ls):
             return cartoes_bi(ls)
         c = Counter(l[I_SIT] for l in ls)

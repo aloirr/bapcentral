@@ -197,7 +197,7 @@ def test_T0017_pacote_leva_o_farol_e_so_ele_dos_farois():
 def test_T0017_falha_de_um_farol_nao_derruba_o_pacote(monkeypatch):
     import relatorios_nucleo
 
-    def _montar(rid, pasta, params=None):
+    def _montar(rid, pasta, params=None, **_kw):   # T-0022: o robô passa tela= ao Farol de Metas
         if rid == "pl_inadimplencia":
             raise RuntimeError("quebrou")
         return {"id": rid}

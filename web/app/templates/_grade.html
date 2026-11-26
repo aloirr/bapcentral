@@ -1,15 +1,25 @@
 {# Grade de tabela do farol. `tab` = tabelas.tabela_para_tela (ou uma junta); `base` liga os cabeçalhos à ordenação #}
 {% macro celula(v) %}{% if v.b %}<span class="atend"><span class="atend-trilho"><i style="width:{{ v.b.w }}%;background:{{ v.b.f }}"></i></span><b>{{ v.t }}</b></span>{% elif v.f %}<span class="selo" style="background:{{ v.f }};color:{{ v.c }}">{{ v.t }}</span>{% else %}{{ v.t }}{% endif %}{% endmacro %}
-{% macro grade(tab, base="", fq="", vazio="Nenhuma linha neste filtro.") %}
-{% set oc = ocultas(tab) %}
-{% if tab.linhas and (tab.cols|length - oc|length) > 6 %}<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>{% endif %}
-<div class="rolagem rolagem-dados"><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
-  <thead><tr>{% for c in tab.cols %}
+{# T-0021: botão de editar (admin) e marca "Aguardando o PC" / "O PC recusou" numa coluna à esquerda #}
+{% macro edcel(e) %}{% if e.url %}<a class="bt-ed" href="{{ e.url }}">Editar</a>{% elif e.sem_chave %}<span class="ed-nao" title="Nota concluída (anterior ao controle de 01/10/2026).">—</span>{% endif %}{% if e.marca == 'pendente' %}<span class="ed-marca ed-pend" title="{{ e.dica }}">Aguardando o PC</span>{% elif e.marca == 'erro' %}<span class="ed-marca ed-erro" title="{{ e.dica }}">O PC recusou</span>{% endif %}{% endmacro %}
+{% macro grade(tab, base="", fq="", vazio="Nenhuma linha neste filtro.", junta=false) %}
+{% set ed = tab.edicao if tab.edicao is defined else none %}
+{% set sc = tab.sel_col if (base and tab.sel_col is defined) else none %}
+{% set oc = no_popup(tab) if sc is not none else (fora_da_junta(tab) if junta else ocultas(tab)) %}
+{% if tab.linhas and sc is none and not junta and (tab.cols|length - oc|length) > 6 %}<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>{% endif %}
+<div class="rolagem rolagem-dados{{ ' sem-rolagem' if sc is not none }}"><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
+  <thead>{% if tab.grupos %}<tr class="grupos">{% for g in tab.grupos %}<th colspan="{{ g.n }}" class="{{ 'g-um' if g.n == 1 }}">{{ g.nome }}</th>{% endfor %}</tr>{% endif %}<tr>{% if ed %}<th class="ed-col">{{ ed.cab if ed.admin else "Edição" }}</th>{% endif %}{% for c in tab.cols %}
     {% if base %}{% set prox = 'desc' if (tab.ord == c.i and not tab.desc) else 'asc' %}
     <th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}"><a href="{{ base }}&amp;ord={{ c.i }}&amp;dir={{ prox }}{{ fq }}">{{ c.nome }}{{ ' ▲' if tab.ord == c.i and not tab.desc }}{{ ' ▼' if tab.ord == c.i and tab.desc }}</a></th>
-    {% else %}<th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}">{{ c.nome }}</th>{% endif %}{% endfor %}</tr></thead>
-  <tbody>{% for l in tab.linhas %}<tr class="tom-{{ l.tom }}">{% for v in l.cel %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' inteira' if tab.cols[loop.index0].inteira }}{{ ' livre' if tab.cols[loop.index0].livre }}{{ ' oc' if loop.index0 in oc }}">{{ celula(v) }}</td>{% endfor %}</tr>
-  {% else %}<tr><td colspan="{{ tab.cols|length }}">{{ vazio }}</td></tr>{% endfor %}</tbody>
-  {% if tab.total %}<tfoot><tr>{% for v in tab.total %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' oc' if loop.index0 in oc }}"><b>{{ v.t }}</b></td>{% endfor %}</tr></tfoot>{% endif %}
+    {% else %}<th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}{{ ' livre' if c.livre }}">{{ c.nome }}</th>{% endif %}{% endfor %}</tr></thead>
+  <tbody>{% for l in tab.linhas %}<tr class="tom-{{ l.tom }}{{ ' sel' if (tab.sel is defined and tab.sel == l.k) }}">{% if ed %}<td class="ed-col">{{ edcel(l.ed) }}</td>{% endif %}{% for v in l.cel %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' inteira' if tab.cols[loop.index0].inteira }}{{ ' livre' if tab.cols[loop.index0].livre }}{{ ' oc' if loop.index0 in oc }}">{% if sc is not none and loop.index0 == sc %}<a class="sel-link" href="{{ base }}{{ fq }}&amp;sel={{ l.k }}" data-pop="{{ dados_popup(tab, l)|tojson|forceescape }}">{{ celula(v) }}</a>{% else %}{{ celula(v) }}{% endif %}</td>{% endfor %}</tr>
+  {% else %}<tr><td colspan="{{ tab.cols|length + (1 if ed else 0) }}">{{ vazio }}</td></tr>{% endfor %}</tbody>
+  {% if tab.total %}<tfoot><tr>{% if ed %}<td class="ed-col"></td>{% endif %}{% for v in tab.total %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' oc' if loop.index0 in oc }}"><b>{{ v.t }}</b></td>{% endfor %}</tr></tfoot>{% endif %}
 </table></div>
+{% if sc is not none and bc3 %}{# T-0030: no celular a tabela vira a lista que abre (M3) #}
+{% set cc = cols_celular(tab) %}
+<div class="bc3-lista" data-lote="10">{% for l in tab.linhas %}<details class="bc3-item tom-{{ l.tom }}"><summary><b>{{ l.cel[sc].t }}</b><span class="c">{{ l.cel[cc.cli].t if cc.cli is not none }}</span>{% if cc.sla is not none %}{{ celula(l.cel[cc.sla]) }}{% endif %}{% if cc.val is not none %}<span class="v">{{ l.cel[cc.val].t }}</span>{% endif %}</summary>
+<dl>{% for p in dados_popup(tab, l) %}<dt>{{ p[0] }}</dt><dd>{{ p[1] }}</dd>{% endfor %}</dl>
+<a class="bc3-sel" href="{{ base }}{{ fq }}&amp;sel={{ l.k }}">Ver os itens deste pedido</a></details>{% else %}<p class="aviso info">{{ vazio }}</p>{% endfor %}</div>
+{% endif %}
 {% endmacro %}

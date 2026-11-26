@@ -78,11 +78,17 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     """Os 4 faróis vão ao site, cada um com a base do "baixado em". Tabela
     de recorte por estado em todos, menos a Visita (RN-GER-006: nenhuma
     tabela da Visita traz a UF do cliente)."""
+    lote2 = {"pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw"}
+    # lista exata: os 4 + o Farol de Metas (T-0022) + o lote 2 (T-0024)
     assert set(ba.FAROIS_WEB) == {"pl_inadimplencia", "pv_pedidos",
                                   "pl_entregas", "vc_visitas",
-                                  "pv_indicadores", "vc_base", "vc_planner",
-                                  "pl_giro", "pl_frw"}      # T-0024: lote 2
+                                  "vc_meta"} | lote2
+    assert len(ba.FAROIS_WEB) == len(set(ba.FAROIS_WEB))      # sem repetido
     for rid in ba.FAROIS_WEB:
+        assert rid in ba._FONTE_BAIXADO_WEB
+    # o lote 2 nasce dos Movimentos do Protheus (o mesmo "baixado em" das Metas)
+    for rid in lote2:
+        assert ba._FONTE_BAIXADO_WEB[rid] == ba._FONTE_BAIXADO_WEB["vc_meta"]
         assert rid in ba._FONTE_BAIXADO_WEB
     assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
                                       "pv_pedidos": "Pedidos",
@@ -96,6 +102,14 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     assert ba._UF_LINHAS_WEB[("pv_pedidos", "Pedidos")] == ("FILIAL",
                                                             "filial")
     assert ba._UF_LINHAS_WEB[("pl_entregas", "Entregas")] == ("UF", "uf")
+    # T-0024: a tabela de recorte de cada farol do lote 2 tem a regra da UF
+    # (UF do cliente na Base e no Planner; filial no estoque)
+    assert ba._UF_LINHAS_WEB[("vc_base", "Clientes")] == ("UF", "uf")
+    assert ba._UF_LINHAS_WEB[("vc_planner", "Por cliente")] == ("UF", "uf")
+    assert ba._UF_LINHAS_WEB[("pl_giro", "Todos os produtos")] == ("FILIAL",
+                                                                   "filial")
+    assert ba._UF_LINHAS_WEB[("pl_frw", "Estoque FRW")] == ("FILIAL",
+                                                            "filial")
 
 
 def test_RN_GER_006_pacote_com_tres_farois_um_com_erro_nao_derruba():
@@ -250,6 +264,9 @@ def test_RN_GER_006_pedidos_com_tabelas_sem_acao_com_faixa_e_vendedor(
              "kpis_de", "total_de", "totais_por", "recortes",
              "solicitacao_bap", "garantia", "importar_preenchidos",
              "ordem_exportar", "cores_celulas", "so_exportar"}
+    # T-0021: a única que vai é a especificação da edição na web (admin), na tabela
+    ed = ped.pop("edicao", None)                   # (o robô da T-0021 ainda pode não ter entrado)
+    assert ed is None or (set(ed) == {"modulo", "acao", "chaves", "campos"} and ed["modulo"] == "autorizacoes")
     assert sorted(acoes & _chaves(s["tabelas"])) == []
     assert sorted(acoes & set(s)) == ["recortes"]   # o de cima é por estado
     assert [k for k in _chaves(s) if k.startswith("_")] == []

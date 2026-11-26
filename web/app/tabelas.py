@@ -15,7 +15,7 @@ import math
 import re
 import unicodedata
 
-from . import render
+from . import edicoes, render
 from .render import COLUNAS_FORA, RE_DATA, coluna_fora, fmt_celula   # a lista e o formato são do render (fonte única)
 
 # ------------------------------------------------------------------ D1: quem vê as tabelas
@@ -26,6 +26,8 @@ VE_TABELAS = {
     "pv_pedidos": ("admin", "gerente", "pre_venda"),
     "pl_entregas": ("admin", "gerente", "pos_venda"),
     "vc_visitas": ("admin", "gerente", "vendas"),
+    # T-0022: o Farol de Metas Equipe segue a mesma regra (D1 A): o diretor vê o Resumo; mude aqui se a D1 mudar
+    "vc_meta": ("admin", "gerente", "vendas"),
 }
 ABAS_SO_GERENCIA: dict[str, tuple[str, ...]] = {}      # D1 C: {"vc_visitas": ("cliente", "prospeccao", "indicacao")}
 PERFIS_GERENCIA = ("admin", "gerente")
@@ -36,6 +38,9 @@ RESUMO = ("resumo", "Resumo")
 ABAS = {
     "pv_pedidos": (("pedidos", "Pedidos"), ("solicitacao", "Solicitação BAP")),
     "pl_entregas": (("entregas", "Entregas"),),
+    "vc_meta": (("equipe", "Equipe"), ("top30", "Top 30 clientes"), ("uf", "Por UF"), ("cidade", "Por cidade"),
+                ("bairro", "Por bairro"), ("segmento", "Por segmento"), ("zona", "Por zona"),
+                ("categoria", "Por categoria"), ("familia", "Por família da peça")),
     "vc_visitas": (("supervisor", "Por supervisor"), ("vendedor", "Por vendedor"), ("dia", "Dia a dia"),
                    ("aderencia", "Aderência dia a dia"), ("cliente", "Cliente a cliente"),
                    ("prospeccao", "Prospecção"), ("indicacao", "Indicação")),
@@ -162,7 +167,8 @@ PROIBIDAS = {"edicao", "editar", "abrir", "detalhe", "kpis_de", "total_de", "tot
 PROIBIDAS_KPI = (PROIBIDAS - {"detalhe"}) | {"edicao", "editar", "abrir", "tabelas", "juntas", "cobranca", "kpis_de"}
 CHAVES_TABELA = {"titulo", "colunas", "linhas", "tons", "total", "filtros", "kpis_padrao", "recortes_linhas",
                  "uf_linhas", "zebra"}
-CHAVES_COLUNA = {"nome", "tipo", "largura", "larg_fixa", "oculta", "chip", "barra", "chip_tom", "inteira"}
+CHAVES_META = {"grupos", "top_n", "ordem_top", "juntas_em_cima", "titulo_tabela"}      # T-0022: só no vc_meta
+CHAVES_COLUNA = {"nome", "tipo", "largura", "larg_fixa", "oculta", "chip", "barra", "chip_tom", "inteira", "curto"}
 CHAVES_JUNTA = {"titulo", "liga", "mostrar", "tabela"}
 TONS = {"", "ok", "alerta", "atencao", "info", "azul", "cinza", "grave"}
 TIPOS_SUB = {"texto", "num", "data"}
@@ -291,14 +297,28 @@ def _selo_ok(c, forma, nomes_ocultas) -> bool:
     return False
 
 
-def _colunas_erro(titulo, cols) -> tuple[str | None, list]:
-    esperado = _cols_esperadas(titulo, cols if isinstance(cols, list) else [])
+def _cols_meta(cols) -> list | None:
+    """T-0022: no Farol de Metas as colunas vêm do próprio PC (muitas, com grupos): confere só o formato."""
+    if not (isinstance(cols, list) and 0 < len(cols) <= 60):
+        return None
+    out = []
+    for c in cols:
+        if not (isinstance(c, dict) and isinstance(c.get("nome"), str) and 0 < len(c["nome"]) <= 60
+                and c.get("tipo") in TIPOS and (c.get("curto") is None or (isinstance(c["curto"], str) and len(c["curto"]) <= 40))):
+            return None
+        out.append(_c(c["nome"], c["tipo"], bool(c.get("oculta"))))
+    return out
+
+
+def _colunas_erro(titulo, cols, rid="") -> tuple[str | None, list]:
+    esperado = (_cols_meta(cols) if rid == "vc_meta"
+                else _cols_esperadas(titulo, cols if isinstance(cols, list) else []))
     if esperado is None:
         return "colunas diferentes da lista do contrato", []
     if not (isinstance(cols, list) and len(cols) == len(esperado)):
         return "colunas diferentes da lista do contrato", []
     ocultas = {n for n, _, o in esperado if o}
-    selos = SELOS.get(titulo, {})
+    selos = ({n: "faixa" for n, _, _ in esperado} if rid == "vc_meta" else SELOS.get(titulo, {}))
     for c, (n, tp, o) in zip(cols, esperado):
         if not (isinstance(c, dict) and not (set(c) - CHAVES_COLUNA) and c.get("nome") == n
                 and c.get("tipo") == tp and bool(c.get("oculta")) == o):
@@ -323,7 +343,10 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
     """`nivel`: "aba" (com juntas/subabas), "junta" ou "sub" (sub-aba da Solicitação BAP)."""
     if not isinstance(t, dict) or t.get("titulo") != titulo:
         return "titulo inesperado"
-    permitidas = set(CHAVES_TABELA) | ({"juntas", "subabas"} if nivel == "aba" else set())
+    permitidas = (set(CHAVES_TABELA) | ({"juntas", "subabas"} if nivel == "aba" else set())
+                  | (CHAVES_META if rid == "vc_meta" else set()))
+    if (rid, titulo) in edicoes.LUGARES and nivel != "sub":
+        permitidas.add("edicao")                        # T-0021: edição na web (só o admin)
     if nivel == "sub":
         permitidas = {"titulo", "colunas", "linhas", "tons", "filtros", "total"}
     extra = set(t) - permitidas
@@ -341,7 +364,7 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
         if cols or linhas or not isinstance(t.get("subabas"), list) or not t["subabas"]:
             return "Solicitação BAP precisa de subabas e de colunas/linhas vazias"
         return _subabas_erro(t["subabas"])
-    erro, esperado = _colunas_erro(titulo, cols)
+    erro, esperado = _colunas_erro(titulo, cols, rid)
     if erro:
         return erro
     n = len(esperado)
@@ -380,8 +403,55 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
         return "uf_linhas inválidas"
     if t.get("zebra") is not None and not isinstance(t["zebra"], bool):
         return "zebra inválida"
+    if "edicao" in t:
+        e = edicoes.erro_spec(rid, titulo, t["edicao"], [c["nome"] for c in cols], len(linhas))
+        if e:
+            return e
+    if rid == "vc_meta":
+        erro = _meta_erro(t, n)
+        if erro:
+            return erro
+        return _juntas_meta_erro(t, rid) if nivel == "aba" else None
     if nivel == "aba":
         return _juntas_erro(t, titulo, rid)
+    return None
+
+
+def _meta_erro(t, n) -> str | None:
+    """T-0022: grupos do cabeçalho, Top N, ordem do Top e título do quadro (Farol de Metas)."""
+    g = t.get("grupos")
+    if g is not None and not (isinstance(g, list) and 0 < len(g) <= 30 and all(
+            isinstance(x, list) and len(x) == 2 and isinstance(x[0], str) and len(x[0]) <= 40 and _int(x[1]) and x[1] > 0
+            for x in g) and sum(x[1] for x in g) == n):
+        return "grupos inválidos"
+    if t.get("top_n") is not None and not (_int(t["top_n"]) and 0 < t["top_n"] <= 500):
+        return "top_n inválido"
+    o = t.get("ordem_top")
+    if o is not None and not (isinstance(o, list) and len(o) == 2 and all(_int(i) and 0 <= i < n for i in o)):
+        return "ordem_top inválida"
+    if t.get("juntas_em_cima") is not None and not isinstance(t["juntas_em_cima"], bool):
+        return "juntas_em_cima inválida"
+    tt = t.get("titulo_tabela")
+    if tt is not None and not (isinstance(tt, str) and len(tt) <= 60):
+        return "titulo_tabela inválido"
+    return None
+
+
+def _juntas_meta_erro(t, rid) -> str | None:
+    """Juntas do Farol de Metas (Equipe: Gerente e Supervisores): quadros de até 3, sem `liga`."""
+    js = t.get("juntas")
+    if js is None:
+        return None
+    if not (isinstance(js, list) and len(js) <= 3):
+        return "juntas fora do lugar"
+    for j in js:
+        tj = j.get("tabela") if isinstance(j, dict) else None
+        if not (isinstance(tj, dict) and not (set(j) - {"titulo", "tabela"}) and isinstance(tj.get("titulo"), str)
+                and isinstance(j.get("titulo"), str)):
+            return "junta mal formada"
+        e = _tabela_erro(tj, tj["titulo"], "junta", rid)
+        if e:
+            return "junta: " + e
     return None
 
 
@@ -439,7 +509,7 @@ def _juntas_erro(t, titulo_aba, rid) -> str | None:
         tq, tt, liga = esperado[pos]
         if j.get("liga") != liga:
             return "junta com liga diferente do contrato"
-        e = _tabela_erro(j["tabela"], tt, "junta")
+        e = _tabela_erro(j["tabela"], tt, "junta", rid)
         if e:
             return "junta: " + e
         nomes = [c["nome"] for c in j["tabela"]["colunas"]]
@@ -497,6 +567,9 @@ def tirar_abas_com_documento(corpo: dict) -> list[str]:
         rel = (corpo.get("relatorios") or {}).get(rid)
         if not isinstance(rel, dict) or not isinstance(rel.get("tabelas"), list):
             continue
+        for r_uf in (rel.get("recortes") or {}).values() if rid == "vc_meta" else ():   # T-0022: as abas do estado
+            if isinstance(r_uf, dict) and isinstance(r_uf.get("tabelas"), list):
+                r_uf["tabelas"] = [t for t in r_uf["tabelas"] if not _aba_tem_documento(t)]
         fora = [t["titulo"] for t in rel["tabelas"] if _aba_tem_documento(t)]
         if not fora:
             continue
@@ -598,7 +671,7 @@ def _celula_tela(v, k, row, cols, tipo, centavos):
 def _tela_basica(t, idxs, vista, centavos):
     cols = t["colunas"]
     tons = t.get("tons") or []
-    return [{"tom": tons[k] if k < len(tons) else "",
+    return [{"tom": tons[k] if k < len(tons) else "", "k": k,
              "cel": [_celula_tela(t["linhas"][k][c], c, t["linhas"][k], cols, cols[c]["tipo"], centavos)
                      for c in vista]} for k in idxs]
 
@@ -611,13 +684,31 @@ def _vista(t, ordem_tela=None):
 
 def _cabecalho(t, vista):
     cols = t["colunas"]
-    return [{"i": k, "nome": cols[k]["nome"], "tipo": cols[k]["tipo"], "num": cols[k]["tipo"] in NUM_TIPOS,
+    # T-0022: com cabeçalho agrupado (Farol de Metas) vale o nome curto, como na tela do PC
+    nome = lambda k: (cols[k].get("curto") if t.get("grupos") and cols[k].get("curto") else cols[k]["nome"])  # noqa: E731
+    return [{"i": k, "nome": nome(k), "tipo": cols[k]["tipo"], "num": cols[k]["tipo"] in NUM_TIPOS,
              "inteira": bool(cols[k].get("inteira")), "livre": cols[k]["nome"] in LIVRES} for k in vista]
+
+
+def _grupos_tela(t, vista):
+    """T-0022: o cabeçalho agrupado (FATURAMENTO · POSITIVAÇÃO ...) sobre as colunas que aparecem, na ordem do PC;
+    só quando a ordem das colunas é a do PC (sem coluna fixa à frente)."""
+    gs = t.get("grupos")
+    if not gs or vista != sorted(vista):
+        return None
+    out, ini = [], 0
+    for nome, n in gs:
+        qtd = sum(1 for k in vista if ini <= k < ini + n)
+        if qtd:
+            out.append({"nome": nome, "n": qtd})
+        ini += n
+    return out
 
 
 def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_tam: int = 100,
                      ordem_tela=None, centavos: bool = False, total_sempre: bool = False,
-                     vazios_no_fim: bool = True, titulo: str | None = None) -> dict:
+                     vazios_no_fim: bool = True, titulo: str | None = None,
+                     excluir: frozenset = frozenset()) -> dict:
     """Filtra, ordena e pagina no servidor (genérica: Inadimplência e as abas do §10.7).
 
     `consulta`: f<i> (lista de valores), rec (índice do recorte), ord, dir, pag. `uf`: estado escolhido
@@ -628,13 +719,17 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
     cols, todas = t["colunas"], t["linhas"]
     n = len(todas)
     filtros, aplicar = _filtros(t, cols, consulta, todas)
-    idxs = list(range(n))
+    idxs = [k for k in range(n) if k not in excluir]        # T-0029: linhas que o usuário pediu para ignorar
     ufl = t.get("uf_linhas")
     uf_aplicada = bool(uf and ufl)
     if uf_aplicada:
         idxs = [k for k in idxs if ufl[k] == uf]
     for i, sel in aplicar:
         idxs = [k for k in idxs if str(todas[k][i]) in sel]
+    # busca livre (pedido do Alexandre, 26/11: "cadê o filtro por pedido?"): pedido, cliente, produto...
+    busca = " ".join(str(consulta.get("busca", [""])[0]).split()).upper()[:60]
+    if busca:
+        idxs = [k for k in idxs if any(busca in str(v).upper() for v in todas[k] if v is not None)]
     # recortes (§11.4): índices prontos do PC
     recs = t.get("recortes_linhas") or []
     try:
@@ -651,6 +746,11 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
     ordem = consulta.get("ord", [""])[0]
     desc = consulta.get("dir", ["asc"])[0] == "desc"
     j = int(ordem) if ordem.isdigit() and int(ordem) < len(cols) else None
+    if t.get("top_n"):          # T-0022 (Top 30 clientes): o filtro corre na carteira e o top se refaz dentro dele
+        idxs = idxs[:t["top_n"]]
+        if t.get("ordem_top") and j is None:            # o top: da maior meta, como o PC
+            i_m, i_f = t["ordem_top"]
+            idxs.sort(key=lambda k: (-(todas[k][i_m] or 0), -(todas[k][i_f] or 0)))
     if j is not None:
         chave = lambda k: _chave_ordem(todas[k][j], cols[j]["tipo"])  # noqa: E731
         if desc and vazios_no_fim:
@@ -676,15 +776,84 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
     mostra_total = bool(tot) and (total_sempre or (total == n))
     return {
         "titulo": titulo or t.get("titulo", ""), "total_linhas": total, "pag": pag, "paginas": paginas,
-        "cols": _cabecalho(t, vista),
+        "cols": _cabecalho(t, vista), "grupos": _grupos_tela(t, vista),
+        "em_cima": bool(t.get("juntas_em_cima")), "titulo_quadro": t.get("titulo_tabela") or "",
         "linhas": _tela_basica(t, visiveis, vista, centavos),
         "total": ([_celula_tela(tot[c], c, tot, cols, cols[c]["tipo"], centavos) for c in vista]
                   if mostra_total else None),
         "filtros": filtros, "ord": j, "desc": desc, "recortes": recortes, "rec": rec,
-        "padrao": padrao, "filtrado": rec is not None or any(set(f["sel"]) != set(f["padrao"]) for f in filtros),
+        "padrao": padrao and not busca, "busca": busca,
+        "filtrado": rec is not None or bool(busca) or any(set(f["sel"]) != set(f["padrao"]) for f in filtros),
         "uf_aplicada": uf_aplicada, "zebra": bool(t.get("zebra")),
         "idxs": idxs,                                   # as linhas visíveis (todas as páginas), para as juntas
     }
+
+
+# T-0028 (Alexandre, 26/11: "não gosto de barra de rolagem"; "passar o mouse no pedido deve aparecer um popup com os
+# dados do pedido"): na tabela de cima que liga as de baixo, estas colunas saem da grade e vão para o popup do pedido
+NO_POPUP = ("PED. MÁX.", "CÓD.", "FANTASIA", "LIMITE", "DISP.", "ATRASO", "VOL.", "R$ TABELA",
+            "COND. PAGTO", "FILIAL", "PRAZO", "NF", "DT. NF")
+
+
+def colunas_no_popup(tab: dict) -> set[int]:
+    """T-0028: posições (na tela) das colunas que só aparecem no popup do pedido; só na tabela com `sel_col`."""
+    if tab.get("sel_col") is None:
+        return set()
+    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    fora = {i for i, n in enumerate(nomes) if n in NO_POPUP and i != tab["sel_col"]}
+    # um nome de cliente só na grade: a FANTASIA quando vem em todas as linhas (regra de 25/11), senão a RAZÃO SOCIAL
+    razao = colunas_ocultas(tab)
+    if razao:
+        fora = (fora - {i for i, n in enumerate(nomes) if n.startswith("FANTASIA")}) | razao
+    return fora
+
+
+# T-0028: nas tabelas de baixo do Farol de Pedidos (lado a lado, sem rolagem) saem as colunas que o popup do pedido
+# já mostra; o dado continua na página (o popup lê os itens do Analítico) e no Excel
+FORA_DAS_JUNTAS = ("UF", "CIDADE", "FORN.", "CLIENTE")
+
+
+def colunas_fora_da_junta(tab: dict) -> set[int]:
+    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    return colunas_ocultas(tab) | {i for i, n in enumerate(nomes) if n in FORA_DAS_JUNTAS}
+
+
+# T-0029 / RN-GER-013 (Alexandre, 26/11/2026): pedido de cliente fora da base de clientes da BAP (pedido interno)
+# chega do PC com este nome; no Farol de Pedidos a caixa "Ignorar" (marcada por padrão) tira essas linhas da tela.
+NOME_FORA_DA_BASE = "CLIENTE FORA DA BASE"
+
+
+def linhas_fora_da_base(t: dict) -> frozenset:
+    """Índices das linhas da tabela cujo cliente é NOME_FORA_DA_BASE (coluna RAZÃO SOCIAL ou CLIENTE)."""
+    nomes = [str(c.get("nome", "")).upper() for c in t.get("colunas") or []]
+    col = next((i for i, n in enumerate(nomes) if n in ("RAZÃO SOCIAL", "CLIENTE")), None)
+    if col is None:
+        return frozenset()
+    # até o robô novo chegar à produção (rotina diária), o pacote ainda traz o nome antigo do ftPedidos
+    nomes_fora = {NOME_FORA_DA_BASE, "NÃO LOCALIZADO NA BASE", "NAO LOCALIZADO NA BASE"}
+    return frozenset(k for k, ln in enumerate(t.get("linhas") or [])
+                     if col < len(ln) and str(ln[col] or "").strip().upper() in nomes_fora)
+
+
+def colunas_do_celular(tab: dict) -> dict:
+    """T-0030 (celular, M3 "lista que abre"): posições, na tela, do cliente, do SLA e do valor de venda da linha
+    fechada; o resto vai para dentro dela (dados_do_popup)."""
+    nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    fora = colunas_no_popup(tab)
+
+    def ach(*alvos):
+        return next((i for i, n in enumerate(nomes) if n in alvos and i not in fora), None)
+    return {"cli": ach("FANTASIA", "RAZÃO SOCIAL", "CLIENTE"), "sla": ach("SLA"), "val": ach("R$ VENDA", "VALOR")}
+
+
+def dados_do_popup(tab: dict, linha: dict) -> list[list[str]]:
+    """T-0028: [nome, texto] de cada coluna da linha (as da grade e as do popup), sem as vazias."""
+    out = []
+    for c, v in zip(tab.get("cols") or [], linha.get("cel") or []):
+        t = str((v or {}).get("t", "")).strip()
+        if t and t != "—":
+            out.append([str(c.get("nome", "")), t])
+    return out
 
 
 def colunas_ocultas(tab: dict) -> set[int]:
@@ -722,8 +891,9 @@ def juntas_para_tela(t: dict, idxs: list[int], uf: str | None = None, centavos: 
         nomes = [c["nome"] for c in jt["colunas"]]
         mostrar = j.get("mostrar")
         vista = [k for k, c in enumerate(jt["colunas"]) if not c.get("oculta") and (not mostrar or c["nome"] in mostrar)]
-        out.append({"titulo": j.get("titulo") or jt.get("titulo", ""), "total_linhas": len(ks),
-                    "mais": len(ks) > JUNTA_MAX, "cols": _cabecalho(jt, vista),
+        out.append({"titulo": j.get("titulo") or jt.get("titulo", ""), "tabela": jt.get("titulo", ""),
+                    "total_linhas": len(ks),
+                    "mais": len(ks) > JUNTA_MAX, "cols": _cabecalho(jt, vista), "grupos": _grupos_tela(jt, vista),
                     "linhas": _tela_basica(jt, ks[:JUNTA_MAX], vista, centavos)})
     return out
 
