@@ -135,6 +135,10 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
     "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
     "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+    # T-0023: os três do pós-venda (a edição é só do admin: edicoes.EDITA)
+    "pl_garantias": ("Farol de Garantias", ("admin", "diretor", "gerente", "pos_venda")),
+    "pl_devolucoes": ("Farol de Devolução e Reembolsos", ("admin", "diretor", "gerente", "pos_venda")),
+    "pl_ncc": ("Farol de NCC", ("admin", "diretor", "gerente", "pos_venda")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
 AVISO_UF = "Resumo e gráficos: BAP inteira."
