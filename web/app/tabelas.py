@@ -26,7 +26,16 @@ VE_TABELAS = {
     "pv_pedidos": ("admin", "gerente", "pre_venda"),
     "pl_entregas": ("admin", "gerente", "pos_venda"),
     "vc_visitas": ("admin", "gerente", "vendas"),
+    # T-0024 (lote 2): o perfil de cada quadrado do PC vê as abas (a mesma D1 recomendação A)
+    "pv_indicadores": ("admin", "gerente", "pre_venda"),
+    "vc_base": ("admin", "gerente", "vendas"),
+    "vc_planner": ("admin", "gerente", "vendas"),
+    "pl_giro": ("admin", "gerente", "vendas"),
+    "pl_frw": ("admin", "gerente", "pre_venda", "pos_venda"),
 }
+# T-0024: faróis "livres": as abas e as colunas são as que o PC monta (sem a lista fechada do §10.7.3);
+# a web confere só o formato, as colunas que nunca vão e o documento na célula
+FAROIS_LIVRES = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")
 ABAS_SO_GERENCIA: dict[str, tuple[str, ...]] = {}      # D1 C: {"vc_visitas": ("cliente", "prospeccao", "indicacao")}
 PERFIS_GERENCIA = ("admin", "gerente")
 
@@ -66,8 +75,27 @@ def ve_aba(rid: str, chave: str, perfil: str) -> bool:
     return perfil in PERFIS_GERENCIA or chave not in ABAS_SO_GERENCIA.get(rid, ())
 
 
-def chaves(rid: str) -> list[str]:
-    return [c for c, _ in ABAS.get(rid, ())]
+def _slug(t: str) -> str:
+    s = unicodedata.normalize("NFKD", str(t)).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:40] or "aba"
+
+
+def abas_do_farol(rid: str, rel: dict | None = None) -> list[tuple[str, str]]:
+    """[(chave na URL, título da tabela)] na ordem do PC. Farol livre: sai das tabelas do pacote."""
+    if rid not in FAROIS_LIVRES:
+        return list(ABAS.get(rid, ()))
+    saida, usadas = [], set()
+    for t in (rel or {}).get("tabelas") or []:
+        c = _slug(t.get("titulo", ""))
+        while c in usadas or c == "resumo":
+            c += "-2"
+        usadas.add(c)
+        saida.append((c, t["titulo"]))
+    return saida
+
+
+def chaves(rid: str, rel: dict | None = None) -> list[str]:
+    return [c for c, _ in abas_do_farol(rid, rel)]
 
 
 # ------------------------------------------------------------------ colunas (§10.7.3)
@@ -291,8 +319,31 @@ def _selo_ok(c, forma, nomes_ocultas) -> bool:
     return False
 
 
-def _colunas_erro(titulo, cols) -> tuple[str | None, list]:
-    esperado = _cols_esperadas(titulo, cols if isinstance(cols, list) else [])
+def _esperado_livre(cols) -> list | None:
+    """Farol livre: a lista esperada sai das próprias colunas (nome, tipo, oculta); só o formato é conferido."""
+    if not (isinstance(cols, list) and 0 < len(cols) <= 60):
+        return None
+    saida = []
+    for c in cols:
+        if not (isinstance(c, dict) and isinstance(c.get("nome"), str) and 0 < len(c["nome"]) <= 80
+                and c.get("tipo") in TIPOS and not c["nome"].startswith("_")):
+            return None
+        saida.append(_c(c["nome"], c["tipo"], bool(c.get("oculta"))))
+    return saida if len({x[0] for x in saida}) == len(saida) else None
+
+
+def _selo_livre(c) -> str | None:
+    if isinstance(c.get("chip"), dict):
+        return "texto"
+    if isinstance(c.get("chip"), list):
+        return "faixa"
+    if c.get("barra") is not None:
+        return "barra"
+    return "tom" if c.get("chip_tom") is not None else None
+
+
+def _colunas_erro(titulo, cols, livre=False) -> tuple[str | None, list]:
+    esperado = _esperado_livre(cols) if livre else _cols_esperadas(titulo, cols if isinstance(cols, list) else [])
     if esperado is None:
         return "colunas diferentes da lista do contrato", []
     if not (isinstance(cols, list) and len(cols) == len(esperado)):
@@ -300,6 +351,8 @@ def _colunas_erro(titulo, cols) -> tuple[str | None, list]:
     ocultas = {n for n, _, o in esperado if o}
     selos = SELOS.get(titulo, {})
     for c, (n, tp, o) in zip(cols, esperado):
+        if livre:
+            selos = {n: _selo_livre(c)}
         if not (isinstance(c, dict) and not (set(c) - CHAVES_COLUNA) and c.get("nome") == n
                 and c.get("tipo") == tp and bool(c.get("oculta")) == o):
             return "colunas diferentes da lista do contrato", []
@@ -341,7 +394,7 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
         if cols or linhas or not isinstance(t.get("subabas"), list) or not t["subabas"]:
             return "Solicitação BAP precisa de subabas e de colunas/linhas vazias"
         return _subabas_erro(t["subabas"])
-    erro, esperado = _colunas_erro(titulo, cols)
+    erro, esperado = _colunas_erro(titulo, cols, livre=rid in FAROIS_LIVRES and nivel == "aba")
     if erro:
         return erro
     n = len(esperado)
@@ -460,9 +513,17 @@ def validar(rid: str, r: dict) -> list[str]:
     if rid not in RIDS:
         return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas e vc_visitas"]
     ts = r["tabelas"]
-    if not isinstance(ts, list) or len(ts) > len(ABAS[rid]):
-        return [f"{rid}: tabelas precisa ser lista de até {len(ABAS[rid])} abas"]
-    ordem = [t for _, t in ABAS[rid]]
+    if rid in FAROIS_LIVRES:
+        if not isinstance(ts, list) or len(ts) > 20:
+            return [f"{rid}: tabelas precisa ser lista de até 20 abas"]
+        titulos = [t.get("titulo") if isinstance(t, dict) else None for t in ts]
+        if not all(isinstance(x, str) and 0 < len(x) <= 80 for x in titulos) or len(set(titulos)) != len(titulos):
+            return [f"{rid}: tabela com titulo ausente ou repetido"]
+        ordem = titulos
+    else:
+        if not isinstance(ts, list) or len(ts) > len(ABAS[rid]):
+            return [f"{rid}: tabelas precisa ser lista de até {len(ABAS[rid])} abas"]
+        ordem = [t for _, t in ABAS[rid]]
     pos = -1
     for t in ts:
         titulo = t.get("titulo") if isinstance(t, dict) else None
@@ -507,7 +568,7 @@ def tirar_abas_com_documento(corpo: dict) -> list[str]:
             m = _RE_AVISO_FORA.match(a)
             if m:
                 ja += m.group(1).split(", ")
-        lista = [x for _, x in ABAS[rid] if x in set(ja) | set(fora)]
+        lista = [x for _, x in (ABAS.get(rid) or [(0, y) for y in (ja + fora)]) if x in set(ja) | set(fora)]
         avisos = [a for a in avisos if not _RE_AVISO_FORA.match(a)]
         rel["avisos"] = [AVISO_ABAS_FORA.format(lista=", ".join(lista))] + avisos
         fora_todas += fora
