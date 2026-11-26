@@ -2471,7 +2471,9 @@ class VistaTabela:
             ent = ttk.Entry(barra, textvariable=self.busca, width=22)
             ent.pack(side="left")
             ent.bind("<KeyRelease>", lambda e: self.aplicar())
-        if (t.get("edicao") or {}).get("novo"):
+        if (t.get("edicao") or {}).get("novo") and (
+                (janela.rel or {}).get("id"), t.get("titulo")
+        ) not in EDICAO_SO_WEB:      # (T-0025) linha nova so pela web
             ttk.Button(barra, text="Novo", style="Verde.TButton",
                        command=self.novo).pack(side="left", padx=(16, 0))
         if t.get("garantia") and (janela.rel or {}).get("garantia"):
@@ -4496,7 +4498,12 @@ class DialogoGarantia(tk.Toplevel):
 # (perfil admin); o robo grava no PC pela mesma funcao (autorizacoes.gravar e
 # pos_venda.gravar_edicoes). Aqui fica so a leitura.
 AUTORIZA_EM = ()
-EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas")}
+EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas"),
+                 # (T-0025) STATUS e MOTIVO do Farol DDR e os Expositores
+                 # (editar e NOVO) tambem so pela web
+                 *[(_r, _t) for _r in ("farol_pv", "farol_vc", "farol_pl")
+                   for _t in ("Hoje", "Pendentes de marcação", "Até hoje")],
+                 ("tm_expositores", "Expositores")}
 MSG_EDICAO_SO_WEB = "A edição agora é só pela BAP Central web."
 
 
