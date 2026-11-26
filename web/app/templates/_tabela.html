@@ -46,6 +46,7 @@
   <button type="submit">Filtrar</button> <a href="{{ base }}">Limpar</a>
 </form></details>
 {% endif %}
+{% if tabela.em_cima %}{% for j in juntas %}<section class="junta-cima">{{ grade(j, "", "", "Nenhuma linha.") }}</section>{% endfor %}{% endif %}
 {{ grade(tabela, base, fq, "Nenhuma linha neste mês." if tabela.padrao else "Nenhuma linha neste filtro.") }}
 {% if tabela.paginas > 1 %}
 {% set q %}{% if tabela.ord is not none %}&amp;ord={{ tabela.ord }}&amp;dir={{ 'desc' if tabela.desc else 'asc' }}{% endif %}{{ fq }}{% endset %}
@@ -53,6 +54,7 @@
   <span>Página {{ tabela.pag }} de {{ tabela.paginas }}</span>
   {% if tabela.pag < tabela.paginas %}<a href="{{ base }}{{ q }}&amp;pag={{ tabela.pag + 1 }}">Próxima »</a>{% endif %}</nav>
 {% endif %}
+{% set juntas = [] if tabela.em_cima else juntas %}
 {% if juntas %}<div class="juntas">{% endif %}
 {% for j in juntas %}
 <section class="junta"><h2>{{ j.titulo }} <small>{{ j.total_linhas }} {{ "linha" if j.total_linhas == 1 else "linhas" }}</small></h2>
