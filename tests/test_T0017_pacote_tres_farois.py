@@ -204,6 +204,11 @@ def test_RN_GER_011_pacote_sem_coluna_proibida_nem_chave_de_acao(real):
     def chaves(o, caminho, permitidas=frozenset()):
         if isinstance(o, dict):
             for k, v in o.items():
+                if (k == "edicao" and caminho[0] in ("pv_pedidos", "pl_entregas")
+                        and isinstance(v, dict)):
+                    # T-0021: só a especificação da edição na web (admin)
+                    assert set(v) == {"modulo", "acao", "chaves", "campos"}, caminho
+                    continue
                 assert k in permitidas or k not in CHAVES_FORA, (caminho, k)
                 assert not k.startswith("_"), (caminho, k)
                 assert not k.startswith("pdf"), (caminho, k)

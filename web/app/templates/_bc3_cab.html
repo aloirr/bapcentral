@@ -1,0 +1,66 @@
+{# T-0030: cabeçalho BC3 do farol — faixa verde (título, data, estado, números) e a barra das abas (busca e Exportar).
+   Serve ao Resumo (`tela`) e às abas de tabela (`tabela`, `kpis`, `ufs`, `uf`). #}
+{% set e_tab = tabela is defined and tabela %}
+{% set lista_uf = (ufs if e_tab else (tela.ufs if tela else [])) or [] %}
+{% set uf_at = (uf if e_tab else (tela.uf if tela else '')) or '' %}
+{% set ks_todos = (kpis if e_tab else (tela.kpis if tela else [])) or [] %}
+{# cartão com barras por estado ou linhas de detalhe fica no corpo (Resumo); a faixa leva só os números #}
+{% set ks = ks_todos|rejectattr('estados')|rejectattr('linhas')|list %}
+{% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
+{% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
+<header class="bc3-faixa">
+  <div class="bc3-tt">
+    <h1>{{ farol_nome }}</h1>
+    {% if gerado_em %}<span class="bc3-quando">Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}</span>{% endif %}
+    {% if lista_uf %}
+    <nav class="bc3-uf" aria-label="Filtro por estado">
+      <a href="{{ base_uf }}{{ sub_q }}" class="{{ 'on' if not uf_at }}">BAP</a>
+      {% for u in lista_uf %}<a href="{{ base_uf }}{{ sub_q }}&amp;uf={{ u }}" class="{{ 'on' if u == uf_at }}">{{ u }}</a>{% endfor %}
+    </nav>
+    {% endif %}
+  </div>
+  {% if ks %}
+  <div class="bc3-ks">
+    {% for k in ks %}<div class="bc3-k t-{{ k.cor }}"><small>{{ k.rot }}</small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
+  </div>
+  {% elif aviso_kpis is defined and aviso_kpis %}<p class="bc3-aviso-k">{{ aviso_kpis }}</p>{% endif %}
+</header>
+<div class="bc3-sub">
+  {% if abas %}
+  <nav class="bc3-abas" aria-label="Abas do farol">{% for c, n in abas %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}" class="{{ 'on' if c == aba }}"{{ ' aria-current="page"'|safe if c == aba }}>{{ n }}{% if c == aba and e_tab and tabela.total_linhas %} <span>· {{ tabela.total_linhas }}</span>{% endif %}</a>{% endfor %}</nav>
+  {% endif %}
+  <div class="bc3-acoes">
+    {% if e_tab and tabela.fora_base %}{% set fb = tabela.fora_base %}
+    {# T-0029: pedidos internos (cliente fora da base); marcada = ignora #}
+    <a class="bc3-chk" role="checkbox" aria-checked="{{ 'false' if fb.mostrar else 'true' }}" title="Pedidos internos: cliente fora da base de clientes da BAP"
+       href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}{{ '' if fb.mostrar else '&fora=1' }}"><i>{{ '' if fb.mostrar else '✓' }}</i>Ignorar fora da base ({{ fb.qtd }})</a>
+    {% endif %}
+    {% if e_tab %}
+    <form method="get" action="/farol/{{ rid }}" class="bc3-busca" role="search">
+      <input type="hidden" name="aba" value="{{ aba }}">
+      {% if sub is defined and sub is not none %}<input type="hidden" name="sub" value="{{ sub }}">{% endif %}
+      {% if uf_at %}<input type="hidden" name="uf" value="{{ uf_at }}">{% endif %}
+      {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
+      {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="Buscar pedido, cliente ou produto" maxlength="60" autocomplete="off" aria-label="Buscar">
+      {% if tabela.busca %}<a href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}" title="Limpar busca" aria-label="Limpar busca">×</a>{% endif %}
+    </form>
+    {% endif %}
+    {# T-0032: os botões do PC que as assistentes usam para mandar o farol no WhatsApp #}
+    {% set rot_parcial = {"pv_pedidos": "Parcial Pedidos", "vc_visitas": "Parcial Visitas e Conversão", "pl_entregas": "Parcial Entregas"} %}
+    {% if parcial is defined and parcial %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}/parcial" title="Parcial para o WhatsApp">{{ rot_parcial.get(rid, "Parcial") }}</a>{% endif %}
+    {% if rid == "pl_inadimplencia" and abas and ("cobrar" in (abas|map(attribute=0)|list)) and aba != "cobrar" %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}?aba=cobrar">Cobrar no WhatsApp</a>{% endif %}
+    {% if e_tab %}
+    <details class="bc3-exp"><summary class="bc3-bt">Exportar</summary>
+      <div>{% set qs = request.url.query %}
+        <a href="/farol/{{ rid }}/exportar?{{ qs }}&amp;formato=xlsx">Excel desta tabela</a>
+        <a href="/farol/{{ rid }}/exportar?{{ qs }}&amp;formato=pdf">PDF desta tabela</a>
+        <a href="/farol/{{ rid }}/exportar?todas=1&amp;formato=xlsx">Excel de todas as abas</a>
+        {% if csvs is defined and csvs %}<small>Arquivos para importar no Protheus</small>
+        {% for c in csvs %}<a href="/farol/pv_pedidos/csv/{{ c.nome|urlencode }}" download="{{ c.nome }}">{{ c.nome }}</a>{% endfor %}{% endif %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+</div>

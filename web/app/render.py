@@ -14,7 +14,8 @@ import unicodedata
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
 TITULOS = {"res": "Painel do Diretor · resultado",
-           "prod": "Painel do Diretor · produtividade"}
+           "prod": "Painel do Diretor · produtividade",
+           "du": "Painel do Diretor · por dia útil"}
 
 
 def br(v, d=0) -> str:
@@ -77,7 +78,22 @@ def cartao(c: dict) -> dict:
             "estados": _barras(c.get("estados")), "ajuda": c.get("ajuda") or ""}
 
 
-CHAVES_ABAS = (("resultado", "res"), ("produtividade", "prod"))   # = painel_rrm.VISOES; fonte única (pacotes.ABAS usa esta)
+CHAVES_ABAS = (("resultado", "res"), ("produtividade", "prod"), ("por_dia_util", "du"))   # = painel_rrm.VISOES; fonte única (pacotes.ABAS usa esta)
+ABAS_OPCIONAIS = ("por_dia_util",)         # T-0022: robô antigo manda só as duas primeiras
+# T-0022: as outras 9 abas do Painel Executivo (forma farol, em `paineis` do pacote), na ordem do PC
+PAINEIS = (("resumo", "Resumo gerencial"), ("faturamento", "Faturamento"), ("volume", "Volume"),
+           ("visitas", "Produtividade"), ("positivacao", "Positivação"), ("itens", "Itens por pedido"),
+           ("markup", "Markup"), ("preco", "Preço"), ("inadimplencia", "Inadimplência"))
+AVISO_SO_BAP = "Esta aba é da BAP inteira, como no PC: o filtro de estado não vale nela."
+
+
+def localizar_paineis(rel: dict) -> list[dict]:
+    """T-0022: as abas de painel (forma farol) que o PC mandou, na ordem do PC."""
+    ps = (rel or {}).get("paineis")
+    ps = ps if isinstance(ps, dict) else {}
+    return [{"chave": c, "titulo": str(ps[c].get("titulo") or t), "so_bap": bool(ps[c].get("so_bap")),
+             "ufs": sorted((ps[c].get("recortes") or {}))} for c, t in PAINEIS
+            if isinstance(ps.get(c), dict)]
 
 
 def localizar_abas(rel: dict) -> list[dict]:
@@ -141,6 +157,8 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_planner": ("Farol Roteirização", ("admin", "diretor", "gerente", "vendas")),
     "pl_giro": ("Farol de Giro de Produtos", ("admin", "diretor", "gerente", "vendas")),
     "pl_frw": ("Farol de Estoque FRW", ("admin", "diretor", "gerente", "pre_venda", "pos_venda")),
+    # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
+    "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
 AVISO_UF = "Resumo e gráficos: BAP inteira."
@@ -148,6 +166,34 @@ SEM_DADO_UF = "Sem números de {uf} neste pacote."
 SEM_RECORTE = "só na BAP inteira"
 INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+# T-0030: faróis que já usam o visual BC3 (barra lateral + faixa verde, uma tela só no PC, lista que abre no
+# celular). O Farol de Pedidos vai primeiro; os outros entram na mesma lista.
+BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
+GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
+               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_frw")),
+               ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")))   # T-0024: lote 2 no menu
+
+
+def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
+                 admin: bool = False) -> list[dict]:
+    """T-0030: os grupos da barra lateral, só com o que o perfil vê (mesma regra do menu da página inicial)."""
+    meus = dict(farois_do_perfil(perfil))
+    grupos = []
+    if painel:
+        grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
+                                                       "ativo": ativo == "painel"}]})
+    for nome, rids in GRUPOS_MENU:
+        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": meus[r], "ativo": r == ativo}
+                 for r in rids if r in meus]
+        if itens:
+            grupos.append({"nome": nome, "itens": itens})
+    conta = [{"href": "/senha", "nome": "Trocar senha", "ativo": False}]
+    if admin:
+        conta.insert(0, {"href": "/usuarios", "nome": "Usuários", "ativo": False})
+    grupos.append({"nome": "Conta", "itens": conta})
+    return grupos
 
 
 def farois_do_perfil(perfil: str) -> list[tuple[str, str]]:
@@ -334,7 +380,8 @@ MAX_LINHAS_TAB = 200
 # `tabelas` importa. Nome inteiro, sem acento e em maiúsculas.
 COLUNAS_FORA = frozenset({"TELEFONE", "CELULAR", "WHATSAPP", "CNPJ", "CPF", "E-MAIL", "EMAIL", "CONTATO",
                          "FOTO", "ENDERECO"})
-_CLIENTE_NO_BLOCO = re.compile(r"cliente|raz[aã]o|fantasia", re.I)     # regra a mais, só do bloco tabela (§10.1)
+# regra a mais, só do bloco tabela (§10.1): a palavra inteira, "KM/CLIENTE" e "CLIENTES" são números (T-0022)
+_CLIENTE_NO_BLOCO = re.compile(r"(?<![\w/])(cliente|raz[aã]o|fantasia)(?!\w)", re.I)
 RE_DATA = re.compile(r"^\d{4}-\d{2}-\d{2}")
 
 
@@ -424,6 +471,20 @@ def _bloco_tabela(b) -> dict:
             "ord": None, "desc": False}
 
 
+def _bloco_placar(b) -> dict:
+    """T-0022: "Os faróis no mês" do Resumo gerencial (cartões prontos do PC: farol, valor, tom, frase)."""
+    cs = []
+    for c in _lista(b.get("cartoes")):
+        if isinstance(c, dict) and c.get("farol"):
+            cs.append({"farol": str(c["farol"]), "valor": str(c.get("valor", "—")), "rot": str(c.get("rotulo") or ""),
+                       "tom": _tom(c.get("tom")), "detalhe": str(c.get("detalhe") or ""),
+                       "sentido": str(c.get("sentido") or ""), "frase": str(c.get("frase") or ""),
+                       "dica": str(c.get("dica") or "")})
+    if not cs:
+        raise ValueError("sem cartões")
+    return {"tipo": "placar", "titulo": str(b.get("titulo", "")), "cartoes": cs}
+
+
 def _blocos(painel) -> tuple[list[dict], list[dict]]:
     """(insights do painel, blocos desenháveis). Tipo que não sabemos desenhar, ou bloco
     malformado, vira cartão 'ainda não disponível na web' sem quebrar a página."""
@@ -440,6 +501,8 @@ def _blocos(painel) -> tuple[list[dict], list[dict]]:
                 out.append(_bloco_hbarras(b))
             elif b.get("tipo") == "tabela":
                 out.append(_bloco_tabela(b))
+            elif b.get("tipo") == "placar":
+                out.append(_bloco_placar(b))
             else:
                 raise ValueError("tipo desconhecido")
         except (ValueError, TypeError, AttributeError):
@@ -458,8 +521,10 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
     ufs = recortes_farol(rel)
     uf = (uf or "").upper()
     sem_dado = False
+    r_uf = {}
     if uf in ufs:
-        rec = [r for r in _lista(rel["recortes"][uf].get("kpis")) if isinstance(r, dict)]
+        r_uf = rel["recortes"][uf]
+        rec = [r for r in _lista(r_uf.get("kpis")) if isinstance(r, dict)]
         todos = [k for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
         # cartão da BAP inteira que o estado não tem (ex.: fotos sem filial): "—" e a dica
         kpis = [next((r for r in rec if r.get("rotulo") == k.get("rotulo")), None)
@@ -473,12 +538,16 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
                 for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
     else:
         uf, kpis = None, rel.get("kpis")
-    ins_blocos, blocos = _blocos(rel.get("painel"))
+    # T-0022: o estado traz o painel dele (Painel Executivo e Farol de Metas); sem painel, o da BAP inteira
+    fonte = r_uf if isinstance(r_uf.get("painel"), dict) else rel
+    ins_blocos, blocos = _blocos(fonte.get("painel"))
     cartoes = [k for k in map(_kpi, _lista(kpis)) if k and not cartao_vazio(k)]
     return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
             "faixa": bool(rel.get("kpis_faixa")),   # cartões em faixa fina, como o PC
             "kpis": cartoes,
-            "insights": sem_repeticao(_insights(rel.get("insights_painel")) or ins_blocos, cartoes), "blocos": blocos,
+            "insights": sem_repeticao(_insights(fonte.get("insights_painel")) or ins_blocos, cartoes), "blocos": blocos,
             "avisos": [str(a) for a in _lista(rel.get("avisos")) if not str(a).startswith("Sem filtro por estado")],
             "avisos_info": [str(a) for a in _lista(rel.get("avisos")) if str(a).startswith("Sem filtro por estado")],
-            "aviso_uf": ((SEM_DADO_UF.format(uf=uf) + " ") if sem_dado else "") + AVISO_UF if uf else "", "baixado_em": rel.get("baixado_em")}
+            "aviso_uf": (((SEM_DADO_UF.format(uf=uf) + " ") if sem_dado else "") + AVISO_UF
+                         if uf and fonte is rel else ""),
+            "baixado_em": rel.get("baixado_em"), "so_bap": bool(rel.get("so_bap"))}

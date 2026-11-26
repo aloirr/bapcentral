@@ -90,10 +90,11 @@ def test_perfil_x_aba_403_ou_200(com_tabelas):
 
 def test_ve_tabelas_D1_recomendacao_A():
     # D1 (recomendação A): o perfil de cada farol vê as tabelas; o diretor, só o Resumo
-    base = {k: tabelas.VE_TABELAS[k] for k in ("pv_pedidos", "pl_entregas", "vc_visitas")}
+    base = {k: tabelas.VE_TABELAS[k] for k in ("pv_pedidos", "pl_entregas", "vc_visitas", "vc_meta")}
     assert base == {"pv_pedidos": ("admin", "gerente", "pre_venda"),
                     "pl_entregas": ("admin", "gerente", "pos_venda"),
-                    "vc_visitas": ("admin", "gerente", "vendas")}
+                    "vc_visitas": ("admin", "gerente", "vendas"),
+                    "vc_meta": ("admin", "gerente", "vendas")}      # T-0022
     assert all("diretor" not in p for p in tabelas.VE_TABELAS.values())
 
 
@@ -728,7 +729,7 @@ def test_recorte_ativo_esconde_os_cartoes_da_visita_e_mostra_o_aviso(com_tabelas
     h = com_tabelas.get("/farol/vc_visitas?aba=dia&rec=0").text
     assert 'class="kpis' not in h and tabelas.AVISO_CARTOES in h
     h = com_tabelas.get("/farol/vc_visitas?aba=dia").text                    # sem recorte: os cartões voltam
-    assert 'class="kpis' in h and tabelas.AVISO_CARTOES not in h
+    assert ('class="kpis' in h or 'class="bc3-ks"' in h) and tabelas.AVISO_CARTOES not in h
     h = com_tabelas.get("/farol/vc_visitas?aba=dia&f5=SEM%20VISITA").text    # filtro de coluna também
     assert 'class="kpis' not in h and tabelas.AVISO_CARTOES in h
 
@@ -854,7 +855,7 @@ def test_aviso_dos_cartoes_e_o_do_contrato_e_estado_tira_os_cartoes(com_tabelas)
 
 def test_tabela_vazia_so_diz_nenhuma_linha_neste_mes(com_tabelas):
     h = com_tabelas.get("/farol/vc_visitas?aba=indicacao").text
-    assert "Nenhuma linha neste mês." in h and "0 linhas" not in h and "<details" not in h
+    assert "Nenhuma linha neste mês." in h and "0 linhas" not in h and '<details class="filtros-det"' not in h
     assert "Role para o lado" not in h
 
 
