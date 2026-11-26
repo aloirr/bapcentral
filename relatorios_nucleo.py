@@ -724,12 +724,15 @@ def _status_nas_tabelas(ctx, rel):
                         f"Status do cliente fora da tabela {titulo}: {erro}")
 
 
-# RN-GER-013 (Alexandre, 26/11/2026, "1 A"): pedido de cliente que nao esta na
-# base de clientes da BAP (o robo grava "NAO LOCALIZADO NA BASE" na RAZAO_SOCIAL
-# do ftPedidos) e pedido interno (transferencia, filial): fora do Farol de
-# Pedidos, dos Pedidos em aberto e dos indicadores. Sem isso o codigo "6171"
-# virava "006171" (cod6) e mostrava o nome de outro cliente da BAP.
+# RN-GER-013 (Alexandre, 26/11/2026: "mudar para cliente fora da base e deixar
+# um checkbox no farol de pedidos para ignorar eles, pois sao pedidos internos e
+# nao pode ir para solicitacao de lojas"): pedido de cliente que nao esta na base
+# de clientes da BAP (o robo grava "NAO LOCALIZADO NA BASE" na RAZAO_SOCIAL do
+# ftPedidos) fica no Farol de Pedidos com o nome NOME_FORA_DA_BASE, sem casar o
+# codigo com zeros (o "6171" virava "006171" e mostrava outro cliente da BAP).
+# A caixa "ignorar" fica na web; a Solicitacao BAP nao usa esse pedido (robo).
 CLIENTE_FORA_DA_BASE = "NÃO LOCALIZADO NA BASE"
+NOME_FORA_DA_BASE = "CLIENTE FORA DA BASE"
 
 
 def fora_da_base(razao) -> bool:
@@ -753,8 +756,7 @@ def _sem_internos(nome, bloco):
             bloco = dict(bloco, internos=sorted(fora), itens=[
                 it for it in bloco.get("itens") or []
                 if it["cliente"] not in fora
-                and not bd._interno(it.get("razao"))  # noqa: SLF001
-                and not fora_da_base(it.get("razao"))])      # RN-GER-013
+                and not bd._interno(it.get("razao"))])  # noqa: SLF001
         elif nome == "inadimplencia":
             bloco = dict(bloco, titulos=bd.titulos_sem_internos(
                 bloco.get("titulos")))
@@ -1422,6 +1424,9 @@ def pedidos_em_aberto(ctx):
         cod = i0["cliente"]
         cli = ctx.cliente(cod)
         cred = ctx.tabela["clientes"].get(cod, {})
+        if any(fora_da_base(i.get("razao")) for i in itens):     # RN-GER-013
+            cli = dict(cli, nome=NOME_FORA_DA_BASE, fantasia="", uf="",
+                       cidade="")
         valor = sum(i["valor"] for i in itens)
         dtp = i0["dt_pedido"]
         prazo = ctx.mais_uteis(dtp, bd.PRAZO_FATURAR)
@@ -1811,6 +1816,10 @@ def farol_pedidos(ctx):
         mais a autorizacao (codigo e quem autorizou)."""
         cli = ctx.cliente(cod)
         ctab = ctx.tabela["clientes"].get(cod, {})
+        if any(fora_da_base(i.get("razao")) for i in itens):     # RN-GER-013
+            cli = {"nome": NOME_FORA_DA_BASE, "fantasia": "", "uf": "",
+                   "cidade": ""}
+            ctab = {"nome": NOME_FORA_DA_BASE}
         valor = sum(i["valor"] for i in itens)
         tab = sum(i["p_tab"] * i["qtd"] if i["p_tab"] > 0 else i["valor"]
                   for i in itens)
