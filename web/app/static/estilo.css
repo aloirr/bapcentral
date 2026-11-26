@@ -139,8 +139,8 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .tab-dados tr.tom-alerta td{background:#fdecea}.tab-dados tr.tom-atencao td{background:#fff8e1}
 .tab-dados tfoot td{background:#e7edf5}
 .paginas{display:flex;gap:1rem;align-items:center;justify-content:center;margin:.8rem 0}
-.fila{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;margin:.8rem 0}
-.cob{background:#fff;border:1px solid #cfd6dd;box-shadow:0 1px 3px #0002;padding:12px 14px;display:grid;gap:.5rem;min-width:0}
+.fila{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr));gap:14px;margin:.8rem 0}
+.cob{background:#fff;border:1px solid #cfd6dd;box-shadow:0 1px 3px #0002;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:.5rem;min-width:0}
 .cob.feito{border-color:var(--ok)}
 .cob-cab{display:flex;justify-content:space-between;gap:.6rem;flex-wrap:nowrap;align-items:flex-start}
 .cob-nome{min-width:0}.cob-nome b,.cob-nome small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -161,7 +161,7 @@ button{background:var(--azul);color:#fff;border-color:var(--azul);cursor:pointer
 .cob-pulado{background:none;border:0;color:#5e6b62;text-decoration:underline;margin-left:auto;font-weight:400!important}
 .cob-acoes [hidden]{display:none}
 .cob-erro{color:var(--al);margin:0;min-height:1em;font-size:.85rem}
-@media(max-width:600px){.fila{grid-template-columns:1fr}.cob-link,.cob-enviado{flex:1;justify-content:center}}
+@media(max-width:600px){.fila{grid-template-columns:minmax(0,1fr)}.cob-link,.cob-enviado{flex:1;justify-content:center}}
 .selo{display:inline-block;padding:.1rem .55rem;border-radius:10px;font-size:.78rem;font-weight:700;white-space:nowrap}
 .tab-dados tr.tom- td{background:transparent}
 .abas-quebra{flex-wrap:wrap;overflow:visible}
@@ -273,3 +273,11 @@ footer{color:#5E6B62}
 .juntas .dica-rolagem{display:none}
 @media(max-width:600px){.juntas .junta{min-width:0;flex-basis:100%}}
 @media(max-width:600px){main{padding:.6rem}.topo{padding:.5rem .8rem}.aviso.info{padding:.3rem .8rem 0}.cob{min-width:0}}
+/* T-0026: ações do farol (parcial e exportar) e a imagem da parcial */
+.acoes-farol{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.2rem 0 .8rem}
+.acoes-farol a,.acoes-farol button{min-height:44px;display:inline-flex;align-items:center;padding:0 .9rem;border-radius:8px;border:0;background:#E6EAE5;color:#1E2722;font-weight:600;text-decoration:none;font-size:.9rem}
+.acoes-farol a.prim{background:#2F7D32;color:#fff}
+.acoes-farol button{background:#E6EAE5;color:#1E2722;cursor:pointer}
+.parcial{margin:.4rem 0;background:#fff;border-radius:12px;box-shadow:0 1px 2px #0000000f,0 0 0 1px #E6EAE5;padding:10px;overflow:auto}
+.parcial img{display:block;max-width:100%;height:auto;margin:0 auto}
+.cab-painel a{color:#2F7D32;font-weight:600}
