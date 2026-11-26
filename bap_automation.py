@@ -7807,7 +7807,8 @@ def _tamanho_pacote_web(pacote: dict) -> int:
 def _cortar_pacote_web(pacote: dict, teto_mb=None) -> dict:
     """Funcao pura (T-0017, contrato 10.7.8): se o pacote serializado passar
     de `teto_mb` (WEB_PACOTE_TETO_MB), corta nesta ordem, ate caber, com um
-    aviso no farol e uma linha no log: (1) "Solicitação BAP" so com as linhas
+    aviso no farol e uma linha no log: (0) as imagens das parciais (T-0026)
+    fora, primeiro (pesam mais e o PC as tem); (1) "Solicitação BAP" so com as linhas
     de pedido EM ABERTO (ProdutosExcluir e FiliaisExcluir vao inteiras);
     (2) "Cliente a cliente" fora; (3) todas as `tabelas` dos tres farois
     fora (o farol cai no 10.1). Nunca muda a `tabelas` do pl_inadimplencia.
@@ -7843,6 +7844,12 @@ def _cortar_pacote_web(pacote: dict, teto_mb=None) -> dict:
         todos.sort(key=lambda x: ordem.index(x) if x in ordem else 99)
         avisar(rid, AVISO_ABAS_FORA.format(lista=", ".join(todos)))
 
+    def passo0():               # T-0026: primeiro, as imagens das parciais
+        for rid in rels:
+            if rels[rid].pop("parciais", None):
+                avisar(rid, "As parciais em imagem ficaram fora desta "
+                       "atualização (pacote grande). Veja no PC.")
+
     def passo1():
         for rid in RIDS_TABELAS_WEB:
             for t in (rels.get(rid) or {}).get("tabelas") or []:
@@ -7874,12 +7881,7 @@ def _cortar_pacote_web(pacote: dict, teto_mb=None) -> dict:
             if (rels.get(rid) or {}).get("tabelas"):
                 titulos = [t.get("titulo") for t in rels[rid].pop("tabelas")]
                 abas_fora(rid, titulos)
-    def passo4():               # T-0026: por ultimo, as imagens das parciais
-        for rid in rels:
-            if rels[rid].pop("parciais", None):
-                avisar(rid, "As parciais em imagem ficaram fora desta "
-                       "atualização (pacote grande). Veja no PC.")
-    for passo in (passo1, passo2, passo3, passo4):
+    for passo in (passo0, passo1, passo2, passo3):
         passo()
         if _tamanho_pacote_web(novo) <= limite:
             break
