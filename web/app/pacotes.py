@@ -122,6 +122,9 @@ def _tabela_ok(b) -> bool:
 
 PARCIAIS_RIDS = ("pv_pedidos", "pl_entregas", "vc_visitas")
 QUANDOS_PARCIAL = ("acum", "d1", "hoje")
+# T-0021: CSVs de importação no Protheus (reversa de loja / separação de CD), mandados pelo robô
+RE_CSV = re.compile(r"^\d{6}_\d{1,4}_[A-Z0-9]{1,30}_(BAPReversaLoja|BAPSeparacaoCD)\.csv$")
+MAX_CSVS, MAX_CSV_BYTES, MAX_CSVS_TOTAL = 60, 200_000, 1_500_000
 MAX_PNG_B64 = 3_000_000                          # por imagem (a do PC tem uns 100 a 400 KB)
 
 
@@ -145,6 +148,27 @@ def _parciais_erro(rid: str, p) -> str | None:
             return f"{rid}: parcial {q} não é PNG"
     return None
 
+
+
+def _csvs_erro(rid: str, c) -> str | None:
+    """T-0021: lista de {nome, conteudo}; nome no padrão do robô, texto UTF-8, tetos de tamanho. Só em Pedidos."""
+    if c is None:
+        return None
+    if rid != "pv_pedidos":
+        return f"{rid}: csvs_protheus só no Farol de Pedidos"
+    if not isinstance(c, list) or len(c) > MAX_CSVS:
+        return f"{rid}: csvs_protheus inválido"
+    total, nomes = 0, set()
+    for x in c:
+        if not (isinstance(x, dict) and set(x) == {"nome", "conteudo"} and isinstance(x["nome"], str)
+                and isinstance(x["conteudo"], str) and RE_CSV.match(x["nome"]) and x["nome"] not in nomes):
+            return f"{rid}: csvs_protheus com item inválido"
+        n = len(x["conteudo"].encode("utf-8"))
+        total += n
+        if n > MAX_CSV_BYTES or total > MAX_CSVS_TOTAL or "\x00" in x["conteudo"]:
+            return f"{rid}: csvs_protheus grande demais"
+        nomes.add(x["nome"])
+    return None
 
 
 def _painel_erro(rid: str, painel) -> str | None:
@@ -260,7 +284,7 @@ def validar_farol(rid: str, r) -> list[str]:
         return [f"{rid}: avisos inválidos"]
     if r.get("baixado_em") is not None and not isinstance(r["baixado_em"], str):
         return [f"{rid}: baixado_em inválido"]
-    e_par = _parciais_erro(rid, r.get("parciais"))
+    e_par = _parciais_erro(rid, r.get("parciais")) or _csvs_erro(rid, r.get("csvs_protheus"))
     if e_par:
         return [e_par]
     rec = r.get("recortes")
