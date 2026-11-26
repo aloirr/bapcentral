@@ -78,9 +78,10 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     """Os 4 faróis vão ao site, cada um com a base do "baixado em". Tabela
     de recorte por estado em todos, menos a Visita (RN-GER-006: nenhuma
     tabela da Visita traz a UF do cliente)."""
-    assert set(ba.FAROIS_WEB) == {"pl_inadimplencia", "pv_pedidos",
-                                  "pl_entregas", "vc_visitas"}
-    for rid in ba.FAROIS_WEB:
+    quatro = {"pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas"}
+    # T-0022 soma o Farol de Metas (vc_meta): aceita o estado antigo e o novo
+    assert set(ba.FAROIS_WEB) in (quatro, quatro | {"vc_meta"})
+    for rid in quatro:
         assert rid in ba._FONTE_BAIXADO_WEB
     assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
                                       "pv_pedidos": "Pedidos",
