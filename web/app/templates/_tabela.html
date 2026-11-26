@@ -5,6 +5,7 @@
 {% set base0 = '/farol/' ~ rid ~ '?aba=' ~ aba %}
 {% set base = base0 ~ sub_q ~ uf_q %}
 <header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tabela.total_linhas %}<span>{{ tabela.total_linhas }} {{ "linha" if tabela.total_linhas == 1 else "linhas" }}</span>{% endif %}</header>
+{% if tabela.novo_url %}<p class="acoes-farol"><a class="prim" href="{{ tabela.novo_url }}">Nova garantia</a></p>{% endif %}
 {% if ufs %}
 <nav class="filtros" aria-label="Filtro por estado">
   <a href="{{ base0 }}{{ sub_q }}" class="{{ 'ativa' if not uf }}">BAP inteira</a>
