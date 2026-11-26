@@ -6585,9 +6585,11 @@ def gerar_dados_relatorios(simular: bool = False) -> dict:
 # BAP_WEB). Nunca no log.
 
 SERVICO_KEYRING_WEB = "BAP_WEB"
-_ABAS_WEB = {"res": "resultado", "prod": "produtividade"}   # visao -> chave
+_ABAS_WEB = {"res": "resultado", "prod": "produtividade",
+             "du": "por_dia_util"}   # visao -> chave (T-0022: + por dia util)
 _TITULOS_ABAS_WEB = {"Painel · resultado": "resultado",
-                     "Painel · produtividade": "produtividade"}
+                     "Painel · produtividade": "produtividade",
+                     "Painel · por dia útil": "por_dia_util"}
 _PACOTE_WEB_CHAVES_ACAO = frozenset({
     "detalhe_pedido", "kpis_de", "total_de", "ordem_exportar", "edicao",
     "garantia", "importar_preenchidos"})
@@ -6598,7 +6600,8 @@ _DESCARTAR = object()
 
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
 # o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
-FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas")
+FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas",
+              "vc_meta")
 # D1 do Alexandre ("2 A", 24/11): grafico e frase com nome de vendedor ou
 # supervisor VAO no pacote (True). Cliente e CNPJ nunca vao. Com False, o
 # grafico e as frases com nome de pessoa saem (1 linha).
@@ -6718,7 +6721,9 @@ _FONTE_BAIXADO_WEB = {
     # Visita: o "Atualizar visitas" e manual no PC; vale a ultima gravacao do
     # VISITAS_POR_CLIENTE (o passo final do visitas_maxima)
     "vc_visitas": (Path(SUBPASTA_RELATORIOS) / "Visitas",
-                   "VISITAS_POR_CLIENTE.xlsx")}
+                   "VISITAS_POR_CLIENTE.xlsx"),
+    # Metas (T-0022): nasce dos mesmos Movimentos do Protheus (ftPedidos)
+    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
@@ -6896,7 +6901,7 @@ def _kpis_com_estados(r: dict, sem_dado_fora: bool = False) -> list:
 
 def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
                          grafico_com_nome=None, cobranca=None,
-                         raiz=None) -> dict:
+                         raiz=None, por_uf=None) -> dict:
     """Funcao pura (T-0017): do farol montado, so a parte dado da forma "farol"
     (contrato, secao 10): {"forma", "titulo", "kpis", "painel": {"blocos"},
     "insights_painel", "avisos", "recortes", "baixado_em"}. baixado_em = a
@@ -6951,7 +6956,9 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
         "avisos": [str(a) for a in (r.get("avisos") or [])
                    if not any(t in str(a).lower() for t in _AVISO_SO_PC_WEB)]
                   + avisos_extra,
-        "recortes": _recortes_do_farol_web(rid, r),
+        "recortes": (_recortes_meta_web(por_uf, grafico_com_nome)
+                     if rid == RID_META_WEB
+                     else _recortes_do_farol_web(rid, r)),
         # quando a base foi baixada do ERP (nao a hora da montagem); None = nao sei
         "baixado_em": (_com_fuso_manaus(baixado_em).isoformat()
                        if baixado_em else None)}
@@ -6976,6 +6983,17 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
             val.setdefault("avisos", []).append(
                 "Tabelas e cobrança no WhatsApp ficaram fora desta "
                 "atualização: as colunas do PC não batem com o contrato.")
+    if rid == RID_META_WEB and val:           # (T-0022) abas de tabela
+        try:
+            tabs, avs = tabelas_meta_web(r)
+        except Exception as erro:                       # noqa: BLE001
+            log.warning("Pacote web: tabelas do Farol de Metas fora do "
+                        "pacote (%s).", type(erro).__name__)
+            tabs, avs = [], [AVISO_ABAS_FORA.format(
+                lista=", ".join(_ABAS_META_WEB))]
+        if tabs:
+            val["tabelas"] = tabs
+        val["avisos"] = _ordenar_avisos_web((val.get("avisos") or []) + avs)
     if rid in RIDS_TABELAS_WEB and val:
         try:
             tabs, avs = tabelas_farol_web(rid, r, raiz)
@@ -6992,6 +7010,286 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
                          if rid == "vc_visitas"
                          else _ordenar_avisos_web(val["avisos"]))
     return val
+
+
+# =============================================================================
+# (T-0022) PAINEL EXECUTIVO COMPLETO E FAROL DE METAS EQUIPE NA WEB
+# =============================================================================
+# O Painel Executivo do PC tem 12 abas de painel (as tabelas Faróis, Por filial
+# ... Executivos so vao no Excel/PDF: so_exportar). Resultado, produtividade e
+# por dia util vao como cartoes RRM ("abas"); as outras 9 vao em "paineis", na
+# forma do farol (kpis + blocos). O filtro e o do estado: a versao pronta de
+# cada aba, montada pelo PC com o parametro UF (sem supervisor: R-20261123-191448).
+# Farol de Metas Equipe (vc_meta): forma farol + as abas de tabela do PC
+# (Equipe, Top 30 clientes, Por UF ... Por familia da peca), por estado igual.
+# Fica de fora, de proposito: a aba "Acomp. RH" (META RH e RV: regra 8, so no
+# Exportar para o RH, no e-mail e na parcial de RV).
+PAINEIS_WEB = (("Resumo gerencial", "resumo"), ("Faturamento", "faturamento"),
+               ("Volume", "volume"), ("Produtividade", "visitas"),
+               ("Positivação", "positivacao"), ("Itens por pedido", "itens"),
+               ("Markup", "markup"), ("Preço", "preco"),
+               ("Inadimplência", "inadimplencia"))
+# as outras 3 abas (Produtividade, Preco, Inadimplencia) sao da BAP inteira
+# no PC tambem: o filtro de cima nao vale para elas
+_PAINEIS_UF_WEB = frozenset({"resumo", "faturamento", "volume", "positivacao",
+                             "itens", "markup"})
+_TIPOS_PAINEL_WEB = ("insights", "barras", "hbarras", "tabela", "placar")
+_TIPOS_META_WEB = ("insights", "barras", "hbarras")
+# grafico POR cliente sai (regra 6); "1º cliente do dia" e "ultimo cliente"
+# sao horarios, nao cliente: ficam
+_TITULOS_POR_CLIENTE_WEB = ("por cliente", "cliente a cliente",
+                            "maiores clientes", "top 30", "top 50")
+# coluna de pessoa/cliente em bloco tabela: a palavra inteira ("KM/CLIENTE" e
+# "CLIENTES" sao numeros, nao o nome do cliente); = render._PESSOA_NO_BLOCO
+_PESSOA_BLOCO_WEB = re.compile(
+    r"(?<![\w/])(cliente|raz[aã]o|fantasia|nome|cnpj|cpf|telefone|e-mail|"
+    r"email|contato)(?!\w)", re.I)
+_PLACAR_CHAVES_WEB = ("farol", "valor", "rotulo", "tom", "detalhe",
+                      "sentido", "frase", "dica", "impacto")
+RID_META_WEB = "vc_meta"
+_ABAS_META_WEB = ("Equipe", "Top 30 clientes", "Por UF", "Por cidade",
+                  "Por bairro", "Por segmento", "Por zona", "Por categoria",
+                  "Por família da peça")
+# a aba Acomp. RH tem a META RH: nunca vai (regra 8 do CLAUDE.md)
+_ABAS_META_FORA_WEB = ("Acomp. RH",)
+_FAIXA_ATING_WEB = [[79.9999, "#FBDDDA", "#B3261E"],
+                    [99.9999, "#FFF1C7", "#8A5A00"],
+                    [None, "#E5F3DF", "#2F7D32"]]      # = FAIXA_PCT_META
+
+
+def _blocos_painel_web(r, tipos, grafico_com_nome):
+    """(blocos, titulos_fora, avisos) do `painel` de um relatorio do PC, so os
+    `tipos`; tabela com coluna de pessoa/cliente e grafico por cliente saem;
+    cartao do placar com cliente na frase sai (regra 6)."""
+    blocos, fora, avisos = [], [], []
+    for b in ((r or {}).get("painel") or {}).get("blocos") or []:
+        if not isinstance(b, dict) or b.get("tipo") not in tipos:
+            continue
+        tipo = b["tipo"]
+        titulo = b.get("titulo") or (b.get("grafico") or {}).get("titulo")
+        if tipo == "tabela":
+            nomes = [str(c.get("nome") if isinstance(c, dict) else c)
+                     for c in b.get("colunas") or []]
+            if any(_PESSOA_BLOCO_WEB.search(n) for n in nomes):
+                avisos.append(f"Bloco {titulo or 'tabela'} fica so no PC "
+                              "(traz cliente).")
+                continue
+        if tipo in ("barras", "hbarras") and (_texto_com_pessoa(
+                titulo, grafico_com_nome) or any(
+                    t in str(titulo or "").lower()
+                    for t in _TITULOS_POR_CLIENTE_WEB)):
+            fora.append(str(titulo or ""))
+            continue
+        if tipo == "placar":
+            cs = [{k: c[k] for k in _PLACAR_CHAVES_WEB if k in c}
+                  for c in b.get("cartoes") or []
+                  if isinstance(c, dict) and not any(
+                      _texto_com_pessoa(c.get(k), grafico_com_nome)
+                      for k in ("frase", "detalhe", "dica"))]
+            b = dict(b, cartoes=cs)
+        blocos.append(b)
+    for i, b in enumerate(blocos):
+        if b.get("tipo") == "insights":
+            blocos[i] = dict(b, linhas=_linhas_insight(
+                b.get("linhas"), fora, grafico_com_nome))
+    return blocos, fora, avisos
+
+
+def _corpo_painel_web(r, tipos, grafico_com_nome):
+    """{"kpis", "painel": {"blocos"}} de um painel (ou de um relatorio) do PC."""
+    blocos, _f, avisos = _blocos_painel_web(r, tipos, grafico_com_nome)
+    return ({"kpis": [k for k in (r or {}).get("kpis") or []
+                      if isinstance(k, dict)],
+             "painel": {"blocos": blocos}}, avisos)
+
+
+def selecionar_paineis_web(r: dict, r_uf=None, grafico_com_nome=None) -> dict:
+    """Funcao pura (T-0022): as 9 abas de painel do Painel Executivo (depois
+    das 3 RRM) na forma do farol, {chave: {"titulo", "kpis", "painel":
+    {"blocos"}, "recortes"?, "so_bap"?}}. `r_uf` = {UF: vc_painel montado com
+    o parametro UF}: vira `recortes` das abas que o filtro do PC alcanca
+    (_PAINEIS_UF_WEB); as outras levam `so_bap` (como no PC). Aba que nao veio
+    fica fora. Nada e recalculado."""
+    if grafico_com_nome is None:
+        grafico_com_nome = WEB_GRAFICOS_COM_NOME
+    por_titulo = {p.get("titulo"): p for p in (r or {}).get("paineis") or []
+                  if isinstance(p, dict)}
+    saida = {}
+    for titulo, chave in PAINEIS_WEB:
+        p = por_titulo.get(titulo)
+        if not p:
+            continue
+        corpo, avisos = _corpo_painel_web(p, _TIPOS_PAINEL_WEB,
+                                          grafico_com_nome)
+        aba = {"titulo": titulo, **corpo}
+        if avisos:
+            aba["avisos"] = avisos
+        if chave not in _PAINEIS_UF_WEB:
+            aba["so_bap"] = True
+        else:
+            rec = {}
+            for uf in sorted(r_uf or {}):
+                pu = next((x for x in (r_uf[uf] or {}).get("paineis") or []
+                           if isinstance(x, dict) and x.get("titulo")
+                           == titulo), None)
+                if pu:
+                    rec[uf], _a = _corpo_painel_web(pu, _TIPOS_PAINEL_WEB,
+                                                    grafico_com_nome)
+            if rec:
+                aba["recortes"] = rec
+        saida[chave] = aba
+    return saida
+
+
+def _ufs_do_parametro_web(r) -> list:
+    """Os estados do filtro UF do PC (as opcoes da caixa), sem '(todos)'."""
+    import re                                           # noqa: PLC0415
+    for p in (r or {}).get("parametros") or []:
+        if isinstance(p, dict) and p.get("nome") == "UF":
+            vals = [v[0] if isinstance(v, (list, tuple)) else v
+                    for v in p.get("valores") or []]
+            return sorted(v for v in vals
+                          if isinstance(v, str) and re.fullmatch("[A-Z]{2}", v))
+    return []
+
+
+def montar_por_uf_web(rid: str, rel, raiz, params: dict, hoje=None) -> dict:
+    """{UF: relatorio montado com o parametro UF} (o filtro de estado do PC),
+    para o recorte da web. vc_painel guarda so os `paineis` (memoria). Um
+    estado que falhar fica fora, com aviso no log (o resto segue)."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    saida = {}
+    for uf in _ufs_do_parametro_web(rel):
+        try:
+            r_uf = _rn.montar(rid, Path(raiz), hoje=hoje,
+                              params=dict(params, UF=uf),
+                              tela=(rid == RID_META_WEB))
+        except Exception as erro:                       # noqa: BLE001
+            log.warning("Pacote web: %s do estado %s fora do pacote (%s).",
+                        rid, uf, type(erro).__name__)
+            continue
+        saida[uf] = ({"paineis": r_uf.get("paineis")} if rid == "vc_painel"
+                     else r_uf)
+    return saida
+
+
+def _coluna_meta_web(c, com_grupos):
+    c = c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
+    col = {"nome": c["nome"], "tipo": c.get("tipo") or "texto"}
+    for k in ("largura", "larg_fixa"):
+        if c.get(k) is not None:
+            col[k] = int(c[k])
+    if c.get("oculta"):
+        col["oculta"] = True
+    if com_grupos and c.get("curto"):
+        col["curto"] = str(c["curto"])
+    if c.get("ating"):                  # % ating.: vermelho/amarelo/verde
+        col["chip"] = [list(f) for f in _FAIXA_ATING_WEB]
+    return col
+
+
+def tabela_meta_web(t: dict, _junta: bool = False):
+    """Funcao pura (T-0022): uma tabela do Farol de Metas Equipe no formato
+    web, ou None se nao der (so essa aba fica fora). Colunas, linhas, total,
+    grupos (cabecalho agrupado), filtros e, no Top 30, a carteira inteira
+    (`linhas_filtro`) e o `top_n`, como a tela do PC. Cliente sem documento
+    (RN-GER-011); coluna de telefone/CNPJ... nunca vai."""
+    titulo = (t or {}).get("titulo")
+    pc = list(t.get("colunas") or [])
+    nomes = [c.get("nome") if isinstance(c, dict) else c for c in pc]
+    if not nomes or any(_coluna_proibida_web(n) for n in nomes):
+        log.warning("Pacote web: tabela '%s' do Farol de Metas fora do "
+                    "pacote (coluna proibida ou vazia).", titulo)
+        return None
+    funcs = _funcoes_limpeza_web()
+    grupos = [[str(g), int(n)] for g, n in t.get("grupos") or []]
+    if grupos and sum(n for _g, n in grupos) != len(nomes):
+        grupos = []
+    cols = [_coluna_meta_web(c, bool(grupos)) for c in pc]
+    cli = [i for i, n in enumerate(nomes) if n == "CLIENTE"]
+
+    def limpar(ln):
+        ln = list(ln)
+        for i in cli:
+            ln[i] = _limpar_celula_web(ln[i], funcs["cliente_sem_documento"])
+        return ln
+    brutas = t.get("linhas_filtro") if t.get("top_n") and t.get(
+        "linhas_filtro") else t.get("linhas")
+    tons = (t.get("tons_filtro") if brutas is t.get("linhas_filtro")
+            else t.get("tons")) or []
+    linhas = [limpar(ln) for ln in brutas or []]
+    if any(len(ln) != len(nomes) for ln in linhas):
+        log.warning("Pacote web: tabela '%s' do Farol de Metas fora do "
+                    "pacote (linhas).", titulo)
+        return None
+    saida = {"titulo": titulo, "colunas": cols, "linhas": linhas,
+             "tons": [str(x or "") for x in tons][:len(linhas)]
+             + [""] * max(0, len(linhas) - len(tons))}
+    if t.get("total"):                  # celula vazia do PC ("") = null
+        saida["total"] = [None if v == "" else v for v in t["total"]]
+    if grupos:
+        saida["grupos"] = grupos
+    fl = [f for f in t.get("filtros") or []
+          if (f if isinstance(f, str) else (f or {}).get("coluna")) in nomes]
+    if fl:
+        saida["filtros"] = fl
+    if t.get("top_n"):
+        saida["top_n"] = int(t["top_n"])
+        if t.get("ordem_top"):
+            saida["ordem_top"] = [int(x) for x in t["ordem_top"]]
+        # sem total: com filtro o total e recalculado no PC (callable)
+        saida.pop("total", None)
+    if not _junta:
+        if t.get("juntas_em_cima"):
+            saida["juntas_em_cima"] = True
+        if t.get("titulo_tabela"):
+            saida["titulo_tabela"] = str(t["titulo_tabela"])
+        juntas = []
+        for j in t.get("juntas") or []:
+            tj = tabela_meta_web(j.get("tabela") or {}, _junta=True)
+            if tj is None:
+                return None
+            juntas.append({"titulo": j.get("titulo") or tj["titulo"],
+                           "tabela": tj})
+        if juntas:
+            saida["juntas"] = juntas
+    return saida
+
+
+def tabelas_meta_web(r: dict):
+    """(lista de tabelas, avisos) do Farol de Metas Equipe, na ordem do PC;
+    sem a aba Acomp. RH (regra 8). A aba que nao der fica fora, com aviso."""
+    por_titulo = {t.get("titulo"): t for t in (r or {}).get("tabelas") or []
+                  if isinstance(t, dict)}
+    saida, fora = [], []
+    for titulo in _ABAS_META_WEB:
+        t = por_titulo.get(titulo)
+        if not t:
+            continue
+        tab = tabela_meta_web(t)
+        (saida if tab is not None else fora).append(
+            tab if tab is not None else titulo)
+    avisos = [AVISO_ABAS_FORA.format(lista=", ".join(fora))] if fora else []
+    return saida, avisos
+
+
+def _recortes_meta_web(por_uf, grafico_com_nome) -> dict:
+    """{UF: {"kpis", "painel": {"blocos"}, "tabelas"}}: o Farol de Metas
+    montado pelo PC com o filtro de UF (cartoes, graficos e tabelas do
+    estado). Estado cujas tabelas nao deram fica so com os cartoes."""
+    saida = {}
+    for uf in sorted(por_uf or {}):
+        r_uf = por_uf[uf] or {}
+        corpo, _a = _corpo_painel_web(r_uf, _TIPOS_META_WEB, grafico_com_nome)
+        ins = _linhas_insight(r_uf.get("insights_painel"), [],
+                              grafico_com_nome)
+        if ins:
+            corpo["insights_painel"] = ins
+        tabs, _av = tabelas_meta_web(r_uf)
+        if tabs:
+            corpo["tabelas"] = tabs
+        saida[uf] = corpo
+    return saida
 
 
 # ---------------------------------------------------------------------------
@@ -7943,6 +8241,15 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
     if isinstance(rel, dict):
         val = _para_json(selecionar_abas_web(rel))
         if isinstance(val, dict):
+            try:                    # (T-0022) as outras 9 abas do Painel
+                pn = _para_json(selecionar_paineis_web(
+                    rel, (resultados or {}).get("vc_painel_uf")))
+            except Exception as erro:                   # noqa: BLE001
+                log.warning("Pacote web: abas de painel fora do pacote "
+                            "(%s).", type(erro).__name__)
+                pn = {}
+            if pn:
+                val["paineis"] = pn
             limpos["vc_painel"] = val
     for rid in FAROIS_WEB:                  # (T-0017) cada farol isolado
         rel = (resultados or {}).get(rid)
@@ -7951,7 +8258,8 @@ def montar_pacote_web(resultados: dict, ano: int, mes: int,
         try:
             val = selecionar_farol_web(rid, rel, _baixado_em_da_base(
                 rid, raiz, (arquivos_base or {}).get(rid)),
-                cobranca=(cobranca or {}).get(rid), raiz=raiz)
+                cobranca=(cobranca or {}).get(rid), raiz=raiz,
+                por_uf=(resultados or {}).get(rid + "_uf"))
         except Exception as erro:                       # noqa: BLE001
             log.warning("Pacote web: farol %s fora do pacote (%s).", rid,
                         type(erro).__name__)
@@ -7976,8 +8284,12 @@ def simular_pacote_farol(rid, raiz, destino, ano: int, mes: int,
     hoje = hoje or _agora_manaus().date()
     rels, cobranca = {}, {}
     for r_id in rids:
-        rels[r_id] = _rn.montar(r_id, Path(raiz), hoje=hoje,
-                                params={"ANO": str(ano), "MÊS": str(mes)})
+        params = {"ANO": str(ano), "MÊS": str(mes)}
+        rels[r_id] = _rn.montar(r_id, Path(raiz), hoje=hoje, params=params,
+                                tela=(r_id == RID_META_WEB))
+        if r_id in ("vc_painel", RID_META_WEB):         # (T-0022) por estado
+            rels[r_id + "_uf"] = montar_por_uf_web(r_id, rels[r_id], raiz,
+                                                   params, hoje)
         if r_id == RID_COBRANCA_WEB:
             cobranca.update(preparar_cobranca_web(
                 {r_id: rels[r_id]}, raiz, hoje, False, log=lambda m: None))
@@ -7995,9 +8307,19 @@ def coletar_relatorios_web(ano: int, mes: int) -> dict:
     params = {"ANO": str(ano), "MÊS": str(mes)}
     saida = {"vc_painel": _rn.montar("vc_painel", PASTA_LOCAL,
                                      params=dict(params))}
+    try:                         # (T-0022) o filtro de estado das abas do Painel
+        saida["vc_painel_uf"] = montar_por_uf_web(
+            "vc_painel", saida["vc_painel"], PASTA_LOCAL, params)
+    except Exception as erro:                           # noqa: BLE001
+        log.warning("Pacote web: Painel por estado fora (%s).",
+                    type(erro).__name__)
     for rid in FAROIS_WEB:
         try:
-            saida[rid] = _rn.montar(rid, PASTA_LOCAL, params=dict(params))
+            saida[rid] = _rn.montar(rid, PASTA_LOCAL, params=dict(params),
+                                    tela=(rid == RID_META_WEB))
+            if rid == RID_META_WEB:                     # (T-0022) por estado
+                saida[rid + "_uf"] = montar_por_uf_web(
+                    rid, saida[rid], PASTA_LOCAL, params)
         except Exception as erro:                       # noqa: BLE001
             log.warning("Pacote web: o farol %s nao montou (%s); segue sem "
                         "ele.", rid, type(erro).__name__)
