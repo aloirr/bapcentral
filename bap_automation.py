@@ -6645,7 +6645,6 @@ _TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
 _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
                        "pl_entregas": "Entregas",
                        # (T-0024) cartao por estado dos farois livres
-                       "vc_base": "Clientes", "vc_planner": "Por cliente",
                        "pl_giro": "Todos os produtos",
                        "pl_frw": "Estoque FRW"}
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
@@ -6997,6 +6996,8 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
                   + avisos_extra,
         "recortes": (_recortes_meta_web(por_uf, grafico_com_nome)
                      if rid == RID_META_WEB
+                     else _recortes_kpis_por_uf_web(por_uf)
+                     if rid in RIDS_KPIS_POR_UF_WEB
                      else _recortes_do_farol_web(rid, r)),
         # quando a base foi baixada do ERP (nao a hora da montagem); None = nao sei
         "baixado_em": (_com_fuso_manaus(baixado_em).isoformat()
@@ -7192,6 +7193,22 @@ def _ufs_do_parametro_web(r) -> list:
             return sorted(v for v in vals
                           if isinstance(v, str) and re.fullmatch("[A-Z]{2}", v))
     return []
+
+
+# (T-0024, RN-GER-006) farois cujo cartao do estado e o do PC com o filtro UF
+RIDS_KPIS_POR_UF_WEB = ("vc_base",)
+
+
+def _recortes_kpis_por_uf_web(por_uf) -> dict:
+    """Funcao pura: {UF: {"kpis": cartoes do `montar` com UF=<estado>}}, o
+    mesmo numero do filtro de estado do PC. Sem `por_uf`: {}."""
+    saida = {}
+    for uf in sorted(por_uf or {}):
+        ks = [dict(k) for k in (por_uf[uf] or {}).get("kpis") or []
+              if isinstance(k, dict)]
+        if ks:
+            saida[uf] = {"kpis": ks}
+    return saida
 
 
 def montar_por_uf_web(rid: str, rel, raiz, params: dict, hoje=None) -> dict:
@@ -7534,9 +7551,8 @@ _UF_LINHAS_WEB = {
     ("pv_pedidos", "Pedidos"): ("FILIAL", "filial"),
     ("pl_entregas", "Entregas"): ("UF", "uf"),
     ("pl_entregas", "Pendências dos meses anteriores"): ("UF", "uf"),
-    # (T-0024) UF do cliente (Clientes e Por cliente) e filial (estoque)
-    ("vc_base", "Clientes"): ("UF", "uf"),
-    ("vc_planner", "Por cliente"): ("UF", "uf"),
+    # (T-0024) filial (estoque). Base de clientes: o estado vem do `montar`
+    # com UF (RIDS_POR_UF_WEB); Planner nao tem filtro UF: sem recorte
     ("pl_giro", "Todos os produtos"): ("FILIAL", "filial"),
     ("pl_frw", "Estoque FRW"): ("FILIAL", "filial")}
 
@@ -8654,7 +8670,7 @@ def simular_pacote_farol(rid, raiz, destino, ano: int, mes: int,
         params = params_farol_web(r_id, ano, mes)
         rels[r_id] = _rn.montar(r_id, Path(raiz), hoje=hoje, params=params,
                                 tela=(r_id == RID_META_WEB))
-        if r_id in ("vc_painel", RID_META_WEB):         # (T-0022) por estado
+        if r_id in ("vc_painel", RID_META_WEB) + RIDS_KPIS_POR_UF_WEB:  # por estado
             rels[r_id + "_uf"] = montar_por_uf_web(r_id, rels[r_id], raiz,
                                                    params, hoje)
         if r_id == RID_COBRANCA_WEB:
@@ -8687,9 +8703,9 @@ def coletar_relatorios_web(ano: int, mes: int) -> dict:
             saida[rid] = _rn.montar(rid, PASTA_LOCAL,
                                     params=params_farol_web(rid, ano, mes),
                                     tela=(rid == RID_META_WEB))
-            if rid == RID_META_WEB:                     # (T-0022) por estado
-                saida[rid + "_uf"] = montar_por_uf_web(
-                    rid, saida[rid], PASTA_LOCAL, params)
+            if rid == RID_META_WEB or rid in RIDS_KPIS_POR_UF_WEB:
+                saida[rid + "_uf"] = montar_por_uf_web(   # (T-0022) por estado
+                    rid, saida[rid], PASTA_LOCAL, params_farol_web(rid, ano, mes))
         except Exception as erro:                       # noqa: BLE001
             log.warning("Pacote web: o farol %s nao montou (%s); segue sem "
                         "ele.", rid, type(erro).__name__)
