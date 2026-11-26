@@ -50,31 +50,37 @@
 
   // PC: Farol com as tabelas de baixo numa tela só
   var juntas = document.querySelector(".bc3-juntas");
-  var cima = document.querySelector(".rolagem-dados.sem-rolagem");
+  // a tabela de cima: a que liga as de baixo (Pedidos) ou a tabela da aba (os outros faróis)
+  // T-0031 (Alexandre, 26/11: "Todos os farois devem ser nesse formato do farol de pedido"): a tabela de cima é a
+  // que liga as de baixo (Pedidos) ou a tabela da aba (os outros faróis)
+  var cima = document.querySelector(".rolagem-dados.sem-rolagem") ||
+             document.querySelector(".bc3-corpo > .rolagem-dados");
   function umaTela() {
-    if (!PC.matches || !juntas || !cima) return;
+    if (!PC.matches || !cima) return;
+    cima.classList.add("bc3-cima");
     document.querySelectorAll(".bc3-junta").forEach(function (d) { d.open = true; });
     corpo.classList.add("uma-tela");
     // os Filtros sobem para a barra das abas (não gastam uma linha da tela)
     var filt = document.querySelector(".bc3-corpo > .filtros-det"), acoes = document.querySelector(".bc3-acoes");
     if (filt && acoes) { filt.classList.add("bc3-filt"); acoes.insertBefore(filt, acoes.firstChild); }
-    // as de baixo: 5 linhas por página
-    juntas.querySelectorAll(".bc3-junta").forEach(function (d) {
-      var tb = d.querySelector("tbody");
-      if (!tb) return;
-      var nav = document.createElement("nav"); nav.className = "bc3-pag";
-      d.appendChild(nav);
-      paginar(tb, window.innerHeight < 760 ? 3 : 5, nav);
+    // Alexandre, 26/11: rolagem dentro da tabela, sem aumentar a tabela (no lugar das páginas 1 2 3)
+    // as de baixo: altura de 5 linhas (3 em tela baixa), rolagem por dentro
+    if (juntas) juntas.querySelectorAll(".bc3-junta").forEach(function (d) {
+      var box = d.querySelector(".rolagem-dados"), tb = d.querySelector("tbody"), th = d.querySelector("thead");
+      if (!box || !tb || !tb.rows.length) return;
+      var n = window.innerHeight < 760 ? 3 : 5;
+      var alt = tb.rows[0].getBoundingClientRect().height || 22;
+      box.style.maxHeight = Math.ceil((th ? th.getBoundingClientRect().height : 0) + n * alt + 2) + "px";
+      box.classList.add("bc3-rola");
     });
-    // a de cima: quantas linhas cabem na altura que sobra
-    var rod = document.createElement("div"); rod.className = "bc3-rod";
-    rod.innerHTML = '<span></span><nav class="bc3-pag"></nav>';
-    cima.appendChild(rod);
-    var tb = cima.querySelector("tbody"), thead = cima.querySelector("thead");
-    if (!tb || !tb.rows.length) return;
-    var alt = tb.rows[0].getBoundingClientRect().height || 30;
-    var livre = cima.clientHeight - (thead ? thead.getBoundingClientRect().height : 0) - rod.getBoundingClientRect().height - 4;
-    paginar(tb, Math.max(4, Math.floor(livre / alt)), rod.querySelector("nav"), rod.querySelector("span"), "pedidos");
+    // a de cima: ocupa a altura que sobra e rola por dentro; o rodapé diz quantas linhas há
+    var tb = cima.querySelector("tbody");
+    if (tb && tb.rows.length && !(tb.rows.length === 1 && tb.rows[0].cells.length === 1)) {
+      var rod = document.createElement("div"); rod.className = "bc3-rod";
+      rod.textContent = tb.rows.length + (document.querySelector(".sem-rolagem") ? " pedidos" : " linhas");
+      cima.after(rod);
+    }
+    cima.classList.add("bc3-rola");
   }
   umaTela();
 

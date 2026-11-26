@@ -400,9 +400,10 @@ body.bc3{margin:0;background:#F6F7F5;color:#1E2722;font-family:Inter,"Segoe UI",
 body.uma-tela .bc3-main{height:100vh;overflow:hidden}
 body.uma-tela .bc3-corpo{flex:1;min-height:0;display:flex;flex-direction:column;padding-bottom:12px}
 body.uma-tela .bc3-corpo>*{flex:none}
-body.uma-tela .rolagem-dados.sem-rolagem{flex:1 1 auto;min-height:160px;overflow:hidden;display:flex;flex-direction:column}
-body.uma-tela .rolagem-dados.sem-rolagem table{flex:none}
-body.uma-tela .rolagem-dados.sem-rolagem .bc3-rod{margin-top:auto}
+body.uma-tela .rolagem-dados.bc3-cima{flex:1 1 auto;min-height:160px;overflow:hidden;display:flex;flex-direction:column;max-height:none}
+body.uma-tela .bc3-cima .tab-dados td{white-space:nowrap}
+body.uma-tela .rolagem-dados.bc3-cima table{flex:none}
+body.uma-tela .rolagem-dados.bc3-cima .bc3-rod{margin-top:auto}
 body.uma-tela .sem-rolagem .tab-dados td{padding:.28rem .45rem;white-space:nowrap}
 body.uma-tela .bc3-faixa{padding:12px 22px}body.uma-tela .bc3-tt h1{font-size:21px}body.uma-tela .bc3-ks{margin-top:8px}body.uma-tela .bc3-k b{font-size:20px}
 body.uma-tela .bc3-juntas .tab-dados td{white-space:nowrap}
@@ -455,3 +456,13 @@ body.uma-tela .filtros-det{margin:0 0 6px}body.uma-tela .filtros-det summary{fon
 .bc3-chk{display:flex;align-items:center;gap:7px;height:36px;padding:0 10px;font-size:13px;font-weight:600;color:#33403A;text-decoration:none;white-space:nowrap}
 .bc3-chk i{width:16px;height:16px;border:1.5px solid #9AA6A0;border-radius:4px;display:grid;place-items:center;font-style:normal;font-size:11px;color:#fff}
 .bc3-chk[aria-checked=true] i{background:#2F7D32;border-color:#2F7D32}
+
+/* T-0031 (Alexandre, 26/11): rolagem por dentro da tabela, com o cabeçalho fixo, no lugar das páginas */
+body.uma-tela .rolagem-dados.bc3-cima{overflow:auto;border-radius:10px 10px 0 0}
+body.uma-tela .bc3-rola thead th{position:sticky;top:0;z-index:2;background:#fff;box-shadow:0 1px 0 #E3E8E4}
+body.uma-tela .bc3-juntas .rolagem-dados.bc3-rola{overflow:auto}
+body.uma-tela .bc3-cima+.bc3-rod{border:1px solid #E3E8E4;border-top:0;border-radius:0 0 10px 10px;flex:none}
+@media(max-width:700px){.bc3-abas{overflow-x:auto;scrollbar-width:none;max-width:100%}.bc3-abas::-webkit-scrollbar{display:none}.bc3-abas a{flex:1 0 auto;padding:7px 12px;white-space:nowrap}.bc3-sub{min-width:0}}
+.bc3-juntas{grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
+body:not(.uma-tela) .bc3-juntas .rolagem-dados{max-height:420px;overflow:auto}
+body.uma-tela .dica-rolagem{display:none}

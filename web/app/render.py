@@ -164,7 +164,7 @@ _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 # T-0030: faróis que já usam o visual BC3 (barra lateral + faixa verde, uma tela só no PC, lista que abre no
 # celular). O Farol de Pedidos vai primeiro; os outros entram na mesma lista.
-BC3 = {"pv_pedidos"}
+BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos",)), ("Pós-venda", ("pl_entregas", "pl_inadimplencia")),
                ("Vendas", ("vc_visitas", "vc_meta")))
 

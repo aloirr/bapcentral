@@ -15,7 +15,7 @@
     <a class="bc3-marca" href="/"><i aria-hidden="true"></i>BAP Central</a>
     {% for g in nav %}
     <div class="bc3-grupo"><small>{{ g.nome }}</small>
-      {% for i in g.itens %}{% if i.href %}<a href="{{ i.href }}" class="{{ 'on' if i.ativo }}"{{ ' aria-current="page"'|safe if i.ativo }}>{{ i.nome }}</a>{% else %}<span class="indisp" title="{{ indisponivel }}">{{ i.nome }}</span>{% endif %}{% endfor %}
+      {% for i in g.itens %}{% if i.href %}<a href="{{ i.href }}" class="{{ 'on' if i.ativo }}"{{ ' aria-current="page"'|safe if i.ativo }}>{{ i.nome }}</a>{% else %}<span class="indisp" title="Sem dados no último pacote">{{ i.nome }}</span>{% endif %}{% endfor %}
     </div>
     {% endfor %}
     <form method="post" action="/sair" class="bc3-eu">

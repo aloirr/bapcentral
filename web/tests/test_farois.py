@@ -53,7 +53,7 @@ def test_farol_desenha_kpis_resumo_barras_e_bloco_desconhecido(admin):
     assert "ainda não disponível na web" not in h        # T-0020: bloco que a web não desenha não aparece
     assert "Baixado do ERP" not in h                     # T-0020: mesma hora do pacote: uma data só
     assert "Resumo e gráficos: BAP inteira" not in h
-    assert "<form" not in h.split("<main>")[1]            # nenhum botão de gravar
+    assert 'method="post"' not in h.split("<main")[1]     # nenhum botão de gravar (T-0031: a busca é GET)
 
 
 def test_farol_filtro_por_estado_troca_so_os_cartoes(admin):
@@ -155,7 +155,7 @@ def test_pedidos_em_faixa_e_visita_sem_bloco_indisponivel(admin):
     postar(admin, _tres())
     h = admin.get("/farol/pv_pedidos").text
     assert ('class="kpis faixa"' in h or 'class="bc3-ks"' in h) and "92,0%" in h   # T-0030: no BC3 os números vão à faixa verde
-    assert 'class="kpis"' in admin.get("/farol/pl_entregas").text
+    assert 'class="bc3-ks"' in admin.get("/farol/pl_entregas").text   # T-0031: números na faixa verde
     v = admin.get("/farol/vc_visitas").text
     assert "Visitas por semana" in v and "ainda não disponível na web" not in v
 
