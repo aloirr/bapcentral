@@ -316,7 +316,9 @@ def criar_app() -> FastAPI:
         com_aba = [(c, tit) for c, tit in tabelas.ABAS[rid] if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
         barra = [tabelas.RESUMO] + com_aba if com_aba else []
         ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo",
-                   parcial=bool(rel.get("parciais")) and perfil in PERFIS_PARCIAL.get(rid, ()),
+                   # T-0032 (Alexandre, 26/11: "assim como tem no bap central do python"): o botão aparece sempre
+                   # para quem pode; sem imagem no pacote, a página da parcial diz que ainda não chegou
+                   parcial=perfil in PERFIS_PARCIAL.get(rid, ()),
                    csvs=csvs_de(rel, rid, perfil) if aba in ("pedidos", "solicitacao") else [])
         topo = render.farol_para_tela(rel, (uf[:4] if aba == "resumo" else uf_ok) or None, rid)   # uma vez só
         if aba == "resumo":
