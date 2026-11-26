@@ -315,3 +315,8 @@ footer{color:#5E6B62}
 .csvs-protheus{margin:1rem 0}.csvs-protheus h2{font-size:.95rem;margin:0 0 .4rem}.csvs-protheus h2 small{font-weight:400;color:#667;font-size:.8rem}
 .csvs-protheus ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(20rem,1fr));gap:.3rem .8rem}
 .csvs-protheus li a{display:block;padding:.35rem .6rem;border:1px solid #d5dbd7;border-radius:6px;font-size:.85rem;word-break:break-all}
+/* busca livre na tabela (26/11) */
+.busca-tab{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.4rem 0 .6rem}
+.busca-tab .busca-rot{display:flex;align-items:center;gap:.5rem;font-weight:600;color:#4A564E}
+.busca-tab input[type=search]{min-width:min(320px,70vw);min-height:40px}
+.busca-tab a{color:#2F7D32;font-weight:600}

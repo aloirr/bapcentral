@@ -20,7 +20,7 @@
 {% if subnomes %}
 <nav class="subabas" aria-label="Abas do arquivo">{% for n in subnomes %}<a href="{{ base0 }}&amp;sub={{ loop.index0 }}{{ uf_q }}" class="{{ 'ativa' if loop.index0 == sub }}">{{ n }}</a>{% endfor %}</nav>
 {% endif %}
-{% set sem_rec %}{% for f in tabela.filtros %}{% for v in f.sel %}&{{ f.chave }}={{ v|urlencode }}{% endfor %}{% endfor %}{% endset %}
+{% set sem_rec %}{% for f in tabela.filtros %}{% for v in f.sel %}&{{ f.chave }}={{ v|urlencode }}{% endfor %}{% endfor %}{% if tabela.busca %}&busca={{ tabela.busca|urlencode }}{% endif %}{% endset %}
 {% set fq %}{{ sem_rec }}{% if tabela.rec is not none %}&rec={{ tabela.rec }}{% endif %}{% endset %}
 {% if tabela.recortes %}
 <nav class="filtros recortes" aria-label="Recortes">
@@ -29,12 +29,22 @@
   {% for r in tabela.recortes %}<a href="{{ base }}{{ sem_rec }}&amp;rec={{ r.n }}" class="{{ 'ativa' if r.ativo }}">{{ r.rotulo }} ({{ r.qtd }})</a>{% endfor %}
 </nav>
 {% endif %}
+<form method="get" action="/farol/{{ rid }}" class="busca-tab" role="search">
+  <input type="hidden" name="aba" value="{{ aba }}">
+  {% if sub is defined and sub is not none %}<input type="hidden" name="sub" value="{{ sub }}">{% endif %}
+  {% if uf is defined and uf %}<input type="hidden" name="uf" value="{{ uf }}">{% endif %}
+  {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
+  {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
+  <label class="busca-rot">Buscar <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="Pedido, cliente, produto…" maxlength="60" autocomplete="off"></label>
+  <button type="submit">Buscar</button>{% if tabela.busca %} <a href="{{ base }}{% for f in tabela.filtros %}{% for v in f.sel %}&amp;{{ f.chave }}={{ v|urlencode }}{% endfor %}{% endfor %}">Limpar busca</a>{% endif %}
+</form>
 {% if tabela.filtros and (tabela.total_linhas or not tabela.padrao) %}
 <details class="filtros-det"{{ " open" if not tabela.padrao }}><summary>Filtros</summary>
 <form method="get" action="/farol/{{ rid }}" class="filtros-tab">
   <input type="hidden" name="aba" value="{{ aba }}">
   {% if uf is defined and uf %}<input type="hidden" name="uf" value="{{ uf }}">{% endif %}
   {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
+  {% if tabela.busca %}<input type="hidden" name="busca" value="{{ tabela.busca }}">{% endif %}
   {% for f in tabela.filtros %}
   <label>{{ f.nome }}
     <select name="{{ f.chave }}"{{ ' multiple size=4' if f.multi }}>

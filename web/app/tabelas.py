@@ -725,6 +725,10 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
         idxs = [k for k in idxs if ufl[k] == uf]
     for i, sel in aplicar:
         idxs = [k for k in idxs if str(todas[k][i]) in sel]
+    # busca livre (pedido do Alexandre, 26/11: "cadê o filtro por pedido?"): pedido, cliente, produto...
+    busca = " ".join(str(consulta.get("busca", [""])[0]).split()).upper()[:60]
+    if busca:
+        idxs = [k for k in idxs if any(busca in str(v).upper() for v in todas[k] if v is not None)]
     # recortes (§11.4): índices prontos do PC
     recs = t.get("recortes_linhas") or []
     try:
@@ -777,7 +781,8 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
         "total": ([_celula_tela(tot[c], c, tot, cols, cols[c]["tipo"], centavos) for c in vista]
                   if mostra_total else None),
         "filtros": filtros, "ord": j, "desc": desc, "recortes": recortes, "rec": rec,
-        "padrao": padrao, "filtrado": rec is not None or any(set(f["sel"]) != set(f["padrao"]) for f in filtros),
+        "padrao": padrao and not busca, "busca": busca,
+        "filtrado": rec is not None or bool(busca) or any(set(f["sel"]) != set(f["padrao"]) for f in filtros),
         "uf_aplicada": uf_aplicada, "zebra": bool(t.get("zebra")),
         "idxs": idxs,                                   # as linhas visíveis (todas as páginas), para as juntas
     }
