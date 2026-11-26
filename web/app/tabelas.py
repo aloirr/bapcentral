@@ -707,7 +707,8 @@ def _grupos_tela(t, vista):
 
 def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_tam: int = 100,
                      ordem_tela=None, centavos: bool = False, total_sempre: bool = False,
-                     vazios_no_fim: bool = True, titulo: str | None = None) -> dict:
+                     vazios_no_fim: bool = True, titulo: str | None = None,
+                     excluir: frozenset = frozenset()) -> dict:
     """Filtra, ordena e pagina no servidor (genérica: Inadimplência e as abas do §10.7).
 
     `consulta`: f<i> (lista de valores), rec (índice do recorte), ord, dir, pag. `uf`: estado escolhido
@@ -718,7 +719,7 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
     cols, todas = t["colunas"], t["linhas"]
     n = len(todas)
     filtros, aplicar = _filtros(t, cols, consulta, todas)
-    idxs = list(range(n))
+    idxs = [k for k in range(n) if k not in excluir]        # T-0029: linhas que o usuário pediu para ignorar
     ufl = t.get("uf_linhas")
     uf_aplicada = bool(uf and ufl)
     if uf_aplicada:
@@ -815,6 +816,21 @@ FORA_DAS_JUNTAS = ("UF", "CIDADE", "FORN.", "CLIENTE")
 def colunas_fora_da_junta(tab: dict) -> set[int]:
     nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
     return colunas_ocultas(tab) | {i for i, n in enumerate(nomes) if n in FORA_DAS_JUNTAS}
+
+
+# T-0029 / RN-GER-013 (Alexandre, 26/11/2026): pedido de cliente fora da base de clientes da BAP (pedido interno)
+# chega do PC com este nome; no Farol de Pedidos a caixa "Ignorar" (marcada por padrão) tira essas linhas da tela.
+NOME_FORA_DA_BASE = "CLIENTE FORA DA BASE"
+
+
+def linhas_fora_da_base(t: dict) -> frozenset:
+    """Índices das linhas da tabela cujo cliente é NOME_FORA_DA_BASE (coluna RAZÃO SOCIAL ou CLIENTE)."""
+    nomes = [str(c.get("nome", "")).upper() for c in t.get("colunas") or []]
+    col = next((i for i, n in enumerate(nomes) if n in ("RAZÃO SOCIAL", "CLIENTE")), None)
+    if col is None:
+        return frozenset()
+    return frozenset(k for k, ln in enumerate(t.get("linhas") or [])
+                     if col < len(ln) and str(ln[col] or "").strip().upper() == NOME_FORA_DA_BASE)
 
 
 def colunas_do_celular(tab: dict) -> dict:
