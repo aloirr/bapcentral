@@ -14,7 +14,7 @@
 {% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
 {# RD-0023/RD-0039: sem seletor de estado, o aviso é um só, na própria faixa (não em cada aba) #}
 {% set sem_uf = (not lista_uf) and (rid == 'vc_visitas' or (tela and tela.avisos_info and rid not in livres)) %}
-{% set dicas = {"pv_pedidos": "Buscar pedido ou cliente", "pl_entregas": "Buscar NF ou cliente", "pl_inadimplencia": "Buscar cliente ou NF", "vc_visitas": "Buscar vendedor ou cliente", "vc_meta": "Buscar nome"} %}
+{% set dicas = {"pv_pedidos": "Buscar pedido ou cliente", "pl_entregas": "Buscar NF ou cliente", "pl_inadimplencia": "Buscar cliente ou NF", "vc_visitas": "Buscar vendedor ou cliente", "vc_meta": "Buscar nome", "pl_garantias": "Buscar ticket ou cliente", "pl_devolucoes": "Buscar NF ou cliente", "pl_ncc": "Buscar NCC ou cliente"} %}
 {% from "_faixa.html" import quando, selo_velho, filtro_uf, filtro_uf_off, numeros %}
 <header class="bc3-faixa">
   <div class="bc3-tt">
@@ -58,6 +58,12 @@
     {% set rot_parcial = {"pv_pedidos": "Parcial Pedidos", "vc_visitas": "Parcial Visitas e Conversão", "pl_entregas": "Parcial Entregas"} %}
     {% if parcial is defined and parcial %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}/parcial" title="Parcial para o WhatsApp">{{ rot_parcial.get(rid, "Parcial").split(" e ")[0] }}{% if " e " in rot_parcial.get(rid, "") %}<span class="rot-long"> e {{ rot_parcial[rid].split(" e ")[1] }}</span>{% endif %}</a>{% endif %}
     {# 26/11 (decisão 7 A do Alexandre): sem o botão "Cobrar no WhatsApp" aqui; a aba de mesmo nome fica #}
+    {# T-0023 v2 (§10.9.2, tela-bc3 §11): o botão principal da aba, só para o admin (o corte é no servidor) #}
+    {% if e_tab and tabela.novo %}{% set nv = tabela.novo %}
+    {% if nv.marca %}<span class="ed-marca ed-pend" title="Linhas novas que o PC ainda não confirmou">{{ nv.marca }}</span>{% endif %}
+    {% if nv.erro %}<span class="ed-marca ed-erro" title="O PC não aceitou a linha nova">{{ nv.erro }}</span>{% endif %}
+    <a class="bc3-bt bc3-bt-verde" href="{{ nv.url }}">{{ nv.rotulo }}</a>
+    {% endif %}
     {% if e_tab %}
     <details class="bc3-exp"><summary class="bc3-bt">Exportar</summary>
       <div>{% set qs = request.url.query %}

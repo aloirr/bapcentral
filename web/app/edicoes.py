@@ -1,7 +1,7 @@
 """T-0021: edição na web dos faróis, só do perfil admin, chegando ao PC pelo robô.
 
-Genérico por (rid, tabela, modulo): Pedidos (autorização) e Entregas (a linha) hoje; NCC, Garantias,
-DDR e Expositores entram acrescentando o lugar em `LUGARES` e o módulo do PC em `MODULOS`.
+Genérico por (rid, tabela, modulo): Pedidos (autorização), Entregas (a linha), NCC pendentes, Devoluções e
+Garantias (com linha nova, T-0023 v2); DDR e Expositores entram acrescentando o lugar em `LUGARES`.
 
 Três partes:
 1. a especificação de edição que vem pronta do PC dentro da tabela (`edicao`), validada aqui
@@ -21,11 +21,12 @@ import os
 import re
 import threading
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .arquivos import gravar_json
+from .render import coluna_fora
 
 MANAUS = ZoneInfo("America/Manaus")
 EDITA = ("admin",)                         # decisão do Alexandre (25/11): só o admin, por enquanto
@@ -36,7 +37,15 @@ LUGARES = {
     ("pv_pedidos", "Pedidos"): "autorizacoes",
     ("pl_entregas", "Entregas"): "pos_venda",
     ("pl_entregas", "Pendências dos meses anteriores"): "pos_venda",
+    # T-0023 v2 (contrato §10.9.3): Pós-venda
+    ("pl_ncc", "NCC pendentes"): "ncc",
+    ("pl_devolucoes", "Devoluções"): "pos_venda",
+    ("pl_garantias", "Garantias"): "garantias",
 }
+# lugares com linha nova (`novo`, §10.9.2) e o que a linha nova leva sempre (campo obrigatório do lugar)
+LUGARES_NOVO = {("pl_garantias", "Garantias"): ("ticket",)}
+MSG_NOVO_VAZIO = "Preencha pelo menos um campo além dos padrões."
+RE_CHAVE_NOVA = re.compile(r"^NOVO-[0-9A-F]{8}$")
 TIPOS = ("lista", "data", "texto", "numero")
 STATUS = ("pendente", "aplicada", "erro")
 MSG_ENVIADA = "Edição enviada: aguardando o PC."
@@ -44,18 +53,39 @@ MSG_AGUARDA = "Aguardando o PC"
 MSG_ERRO = "O PC recusou"
 MSG_SEM_CHAVE = "Nota concluída (anterior ao controle de 01/10/2026)."
 ERRO_VISIVEL_DIAS = 3                       # a marca "O PC recusou" fica 3 dias (ou até nova edição)
-MAX_CAMPOS = 10
+MAX_CAMPOS = 16                             # §10.9.1: eram 10; a Garantia tem 14
 MAX_OPCOES = 400
 MAX_GRUPOS = 300
-MAX_TEXTO = 60
+MAX_TEXTO = 60                              # sem `max` no campo
+MAX_TEXTO_TETO = 600                        # teto do `max` (o número vem do núcleo, `MAX_TEXTO_EDICAO`)
+REMOVIDO = "[removido]"
+DATA_MIN = date(2020, 1, 1)                 # data livre (§10.9.1): de 01/01/2020 até hoje + 1 ano
 RE_CAMPO = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
 RE_CHAVE = re.compile(r"^[\w .|/-]{0,80}$")
 RE_DATA_BR = re.compile(r"^(\d{2})/(\d{2})/(\d{4})$")
 RE_ISO = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
-# texto livre não leva documento, e-mail nem telefone (regra 6)
-RE_PESSOAL = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|@|"
-                        r"\(?\d{2}\)?\s?9?\d{4}-\d{4}")
+# Dado pessoal no texto livre (regra 6, RN-GER-011): UMA cópia dos padrões do bloco `padroes-pessoais` do contrato
+# (§10.9.1), que é o do núcleo (`relatorios_nucleo.texto_sem_contato`). Um teste confere as duas contra o bloco.
+RE_EMAIL = re.compile(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+")
+RE_DOC_MEIO = re.compile(r"(?<![\w])(?:\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})(?![\w])")
+RE_DOC_SOLTO = re.compile(r"(?<!\d)(?:\d{14}|\d{11})(?!\d)")
+RE_FONE = re.compile(r"(?<![\w])(?:\+?55[\s.\-]?)?(?:\(?\d{2}\)?[\s.\-]?)?9?\d{4}[\s.\-]?\d{4}(?![\w]|,\d)")
+RE_VALOR_RS = re.compile(r"(R\$\s*\d[\d.]*(?:,\d+)?)")
+RE_PESSOAL = (RE_EMAIL, RE_DOC_MEIO, RE_DOC_SOLTO, RE_FONE)
+
+
+def tem_pessoal(v: str) -> bool:
+    """Há trecho que o núcleo trocaria por "[removido]" (CPF, CNPJ, telefone, e-mail)? O valor em R$ nunca é telefone."""
+    partes = RE_VALOR_RS.split(str(v))
+    return any(r.search(p) for k, p in enumerate(partes) if k % 2 == 0 for r in RE_PESSOAL)
+
+
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _contato(txt) -> bool:
+    """Coluna ou rótulo de contato/telefone: nunca vai ao site (P2 A da T-0023; regra 6)."""
+    return coluna_fora(txt or "") or "CONTATO" in str(txt or "").upper()
 
 
 def agora() -> datetime:
@@ -76,7 +106,7 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
     modulo = LUGARES.get((rid, titulo))
     if modulo is None:
         return "edicao fora dos lugares aceitos"
-    if not isinstance(ed, dict) or set(ed) - {"modulo", "acao", "chaves", "campos"}:
+    if not isinstance(ed, dict) or set(ed) - {"modulo", "acao", "chaves", "campos", "novo"}:
         return "edicao com chave não aceita"
     if ed.get("modulo") != modulo or modulo not in MODULOS:
         return "edicao com modulo diferente do lugar"
@@ -89,18 +119,27 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
     cs = ed.get("campos")
     if not (isinstance(cs, list) and 0 < len(cs) <= MAX_CAMPOS):
         return "edicao.campos inválidos"
+    nv = ed.get("novo")
+    if nv is not None and not ((rid, titulo) in LUGARES_NOVO and isinstance(nv, dict) and set(nv) == {"rotulo"}
+                               and isinstance(nv["rotulo"], str) and 0 < len(nv["rotulo"]) <= 30):
+        return "edicao.novo inválido ou fora dos lugares com linha nova"
     vistos = set()
     for c in cs:
         if not isinstance(c, dict) or set(c) - {"campo", "rotulo", "coluna", "tipo", "opcoes", "caixa",
-                                                 "grupos", "grupo_linhas", "linhas", "sugestoes_linhas"}:
+                                                 "grupos", "grupo_linhas", "linhas", "sugestoes_linhas",
+                                                 "max", "multilinha", "padrao"}:
             return "edicao: campo com chave não aceita"
         if not (isinstance(c.get("campo"), str) and RE_CAMPO.match(c["campo"])) or c["campo"] in vistos:
             return "edicao: nome de campo inválido ou repetido"
+        if c["campo"].startswith(("contato", "fone", "telefone")):
+            return "edicao: o contato do cliente não vai ao site"
         vistos.add(c["campo"])
         if not (isinstance(c.get("rotulo"), str) and 0 < len(c["rotulo"]) <= 60):
             return "edicao: rótulo inválido"
         if c.get("coluna") is not None and c["coluna"] not in nomes_colunas:
             return "edicao: coluna que não está na tabela"
+        if _contato(c.get("coluna")) or _contato(c.get("rotulo")):
+            return "edicao: o contato do cliente não vai ao site"
         if c.get("tipo") not in TIPOS:
             return "edicao: tipo de campo inválido"
         if not _strs(c.get("opcoes", [])):
@@ -109,6 +148,17 @@ def erro_spec(rid: str, titulo: str, ed, nomes_colunas: list[str], n_linhas: int
             return "edicao: caixa inválida"
         if c["tipo"] == "data" and not all(RE_DATA_BR.match(x) for x in c.get("opcoes", [])):
             return "edicao: data fora de dd/mm/aaaa"
+        mx = c.get("max")
+        if mx is not None and not (_int(mx) and 1 <= mx <= MAX_TEXTO_TETO and c["tipo"] in ("texto", "numero")):
+            return "edicao: max inválido"
+        ml = c.get("multilinha")
+        if ml is not None and not (isinstance(ml, bool) and (not ml or (c["tipo"] == "texto" and c.get("caixa") is True))):
+            return "edicao: multilinha inválida (só em texto, com caixa)"
+        pd = c.get("padrao")
+        if pd is not None and not (isinstance(pd, str) and len(pd) <= 80 and not _CTRL.search(pd)
+                                   and (c["tipo"] != "data" or pd == "@hoje" or RE_DATA_BR.match(pd))
+                                   and (c["tipo"] != "lista" or pd in c.get("opcoes", []))):
+            return "edicao: padrao inválido"
         gr, gl = c.get("grupos"), c.get("grupo_linhas")
         if (gr is None) != (gl is None):
             return "edicao: grupos e grupo_linhas andam juntos"
@@ -202,61 +252,172 @@ def atual_txt(c: dict, v) -> str:
             return fmt_numero(numero_br(v))
         except ValueError:
             return ""
+    if isinstance(v, float) and v == int(v):              # QTD 12.0 mostra 12
+        return str(int(v))
     return "" if v is None else str(v)
 
 
-def valores_do_form(ed: dict, k: int, linha: list, nomes: list[str], form: dict) -> tuple[dict, dict, str]:
+def _norm_texto(v: str) -> str:
+    return v.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _mais_um_ano(d: date) -> date:
+    try:
+        return d.replace(year=d.year + 1)
+    except ValueError:                                  # 29/02
+        return d.replace(year=d.year + 1, day=28)
+
+
+def hoje_manaus() -> date:
+    return agora().date()
+
+
+def _checa(c: dict, bruto: str, atual: str, v_atual, hoje: date) -> tuple[str | None, str | None, str]:
+    """Um campo. (valor novo no formato do PC | None se não mudou, o valor de hoje, erro)."""
+    rot, tipo = c["rotulo"], c["tipo"]
+    mx = c.get("max") or MAX_TEXTO
+    if len(bruto) > (mx if tipo in ("texto", "numero") else 80) + 100:
+        return None, None, f"{rot}: valor inválido."
+    if tipo == "texto" and c.get("multilinha"):
+        ctrl = _CTRL.search(bruto.replace("\r\n", "\n").replace("\r", "\n").replace("\n", ""))
+    else:
+        ctrl = _CTRL.search(bruto)
+    if ctrl:
+        return None, None, f"{rot}: valor inválido."
+    ops = c["opcoes_linha"]
+    if tipo == "lista":
+        v = bruto.strip()
+        if v and v not in ops and v != atual:
+            return None, None, f"{rot}: escolha uma opção da lista."
+    elif tipo == "data":
+        v = br_data(bruto.strip()) if bruto.strip() else ""
+        if v and not RE_DATA_BR.match(v):
+            return None, None, f"{rot}: data inválida."
+        if v and ops and v not in ops and v != atual:
+            faixa = f" (de {min(ops, key=iso_de_br)} a {max(ops, key=iso_de_br)})"
+            return None, None, f"{rot}: data fora das permitidas{faixa}."
+        if v and not ops and v != atual:                      # data livre (§10.9.1): existe no calendário, de 2020 até hoje + 1 ano
+            try:
+                d = date(int(v[6:]), int(v[3:5]), int(v[:2]))
+            except ValueError:
+                return None, None, f"{rot}: data inválida."
+            teto = _mais_um_ano(hoje)
+            if not DATA_MIN <= d <= teto:
+                return None, None, f"{rot}: data fora das permitidas (de {DATA_MIN:%d/%m/%Y} até {teto:%d/%m/%Y})."
+    elif tipo == "numero":
+        try:
+            n = numero_br(bruto)
+        except ValueError:
+            return None, None, (f"{rot}: \"{bruto[:20]}\" não é um valor. Escreva só o número "
+                                "(ex.: 278,40) ou deixe vazio.")
+        if n is not None and n < 0:
+            return None, None, f"{rot}: o valor não pode ser negativo."
+        a = None
+        try:
+            a = numero_br(v_atual)
+        except ValueError:
+            pass
+        if (n is None and a is None) or (n is not None and a is not None and abs(n - a) < 0.005):
+            return None, None, ""
+        return fmt_numero(n), fmt_numero(a), ""
+    else:                                                       # texto livre (a lista só sugere)
+        v = _norm_texto(bruto)
+        v = v if c.get("caixa") else v.upper()
+        if v == _norm_texto(atual):
+            return None, None, ""                               # regra 1 do texto: sem mudança, o campo não vai
+        if REMOVIDO in v:                                       # regra 4: o original do PC nunca é trocado pelo texto limpo
+            return None, None, f"{rot}: tire o \"{REMOVIDO}\" e escreva o texto de novo."
+        if len(v) > mx:
+            return None, None, f"{rot}: até {mx} caracteres."
+        if tem_pessoal(v):
+            return None, None, f"{rot}: sem CPF, CNPJ, telefone ou e-mail."
+        return v, _norm_texto(atual), ""
+    if v == atual:
+        return None, None, ""
+    return v, atual, ""
+
+
+def valores_do_form(ed: dict, k: int, linha: list, nomes: list[str], form: dict,
+                    hoje: date | None = None) -> tuple[dict, dict, str]:
     """(mudou {campo: valor no formato do PC}, antes {campo: valor}, erro). Só o que mudou, como o PC."""
+    hoje = hoje or hoje_manaus()
     mudou, antes = {}, {}
     for c in campos_da_linha(ed, k):
         chave = "c_" + c["campo"]
         if chave not in form:
             continue
-        bruto = str(form.get(chave, ""))
-        if len(bruto) > 200 or _CTRL.search(bruto):
-            return {}, {}, f"{c['rotulo']}: valor inválido."
         v_atual = linha[nomes.index(c["coluna"])] if c.get("coluna") in nomes else None
-        atual = atual_txt(c, v_atual)
-        tipo = c["tipo"]
-        if tipo == "lista":
-            v = bruto.strip()
-            if v and v not in c["opcoes_linha"] and v != atual:
-                return {}, {}, f"{c['rotulo']}: escolha uma opção da lista."
-        elif tipo == "data":
-            v = br_data(bruto.strip()) if bruto.strip() else ""
-            if v and not RE_DATA_BR.match(v):
-                return {}, {}, f"{c['rotulo']}: data inválida."
-            if v and v not in c["opcoes_linha"] and v != atual:
-                ops = c["opcoes_linha"]
-                faixa = f" (de {min(ops, key=iso_de_br)} a {max(ops, key=iso_de_br)})" if ops else ""
-                return {}, {}, f"{c['rotulo']}: data fora das permitidas{faixa}."
-        elif tipo == "numero":
-            try:
-                n = numero_br(bruto)
-            except ValueError:
-                return {}, {}, (f"{c['rotulo']}: \"{bruto[:20]}\" não é um valor. Escreva só o número "
-                                "(ex.: 278,40) ou deixe vazio.")
-            if n is not None and n < 0:
-                return {}, {}, f"{c['rotulo']}: o valor não pode ser negativo."
-            a = None
-            try:
-                a = numero_br(v_atual)
-            except ValueError:
-                pass
-            if (n is None and a is None) or (n is not None and a is not None and abs(n - a) < 0.005):
-                continue
-            mudou[c["campo"]], antes[c["campo"]] = fmt_numero(n), fmt_numero(a)
-            continue
-        else:                                           # texto livre (a lista só sugere)
-            v = bruto.strip() if c.get("caixa") else bruto.strip().upper()
-            if len(v) > MAX_TEXTO:
-                return {}, {}, f"{c['rotulo']}: até {MAX_TEXTO} caracteres."
-            if RE_PESSOAL.search(v):
-                return {}, {}, f"{c['rotulo']}: sem CPF, CNPJ, telefone ou e-mail."
-        if v == atual:
-            continue
-        mudou[c["campo"]], antes[c["campo"]] = v, atual
+        v, a, erro = _checa(c, str(form.get(chave, "")), atual_txt(c, v_atual), v_atual, hoje)
+        if erro:
+            return {}, {}, erro
+        if v is not None:
+            mudou[c["campo"]], antes[c["campo"]] = v, a
     return mudou, antes, ""
+
+
+# ------------------------------------------------------------------ 2b. linha nova (§10.9.2)
+def padrao_do_campo(c: dict, hoje: date) -> str:
+    """O valor inicial do campo na linha nova: `padrao` do pacote; "@hoje" = hoje em Manaus (dd/mm/aaaa)."""
+    p = c.get("padrao") or ""
+    return f"{hoje:%d/%m/%Y}" if p == "@hoje" else p
+
+
+def campos_novos(ed: dict, hoje: date | None = None) -> list[dict]:
+    """Os campos da linha nova: os que não têm `linhas`, cada um com o `padrao` dele. A web não calcula número."""
+    hoje = hoje or hoje_manaus()
+    out = []
+    for c in ed["campos"]:
+        if c.get("linhas") is not None:
+            continue
+        out.append({**c, "opcoes_linha": list(c.get("opcoes") or []), "sugestao": "",
+                    "padrao_txt": padrao_do_campo(c, hoje)})
+    return out
+
+
+def valores_do_novo(ed: dict, form: dict, obrigatorios: tuple[str, ...] = (),
+                    hoje: date | None = None) -> tuple[dict, dict, str]:
+    """(valores, antes, erro) da linha nova. Vai só o que difere do padrão, mais os `obrigatorios` do lugar.
+    `antes` = o padrão que o formulário mostrou, só nos campos obrigatórios (ticket da garantia, §10.9.2)."""
+    hoje = hoje or hoje_manaus()
+    valores, antes = {}, {}
+    campos = campos_novos(ed, hoje)
+    for c in campos:
+        chave = "c_" + c["campo"]
+        if chave not in form:
+            continue
+        padrao = c["padrao_txt"]
+        mostrado = str(form.get("p_" + c["campo"], padrao))[:80] if c["campo"] in obrigatorios else padrao
+        if _CTRL.search(mostrado):
+            return {}, {}, f"{c['rotulo']}: valor inválido."
+        v_atual = padrao if c["tipo"] != "numero" else (padrao or None)
+        v, _a, erro = _checa(c, str(form.get(chave, "")), padrao, v_atual, hoje)
+        if erro:
+            return {}, {}, erro
+        if v is not None:
+            valores[c["campo"]] = v
+    for nome in obrigatorios:                           # o campo obrigatório não pode ser apagado
+        if nome in valores and not valores[nome]:
+            rot = next((c["rotulo"] for c in campos if c["campo"] == nome), nome)
+            return {}, {}, f"{rot}: obrigatório."
+    if not valores:
+        return {}, {}, MSG_NOVO_VAZIO
+    for nome in obrigatorios:
+        c = next((x for x in campos if x["campo"] == nome), None)
+        if c is None:
+            return {}, {}, f"{nome}: campo obrigatório fora do pacote."
+        if nome not in valores:
+            v = _norm_texto(str(form.get("c_" + nome, c["padrao_txt"])))
+            v = v if c.get("caixa") else v.upper()
+            if not v:
+                return {}, {}, f"{c['rotulo']}: obrigatório."
+            valores[nome] = v
+        antes[nome] = str(form.get("p_" + nome, c["padrao_txt"]))[:80]
+    return valores, antes, ""
+
+
+def chave_nova() -> str:
+    """"NOVO-" + 8 hexadecimais maiúsculos (uuid4), §10.9.2."""
+    return "NOVO-" + uuid.uuid4().hex[:8].upper()
 
 
 # ------------------------------------------------------------------ 3. fila do site
@@ -319,7 +480,7 @@ class Fila:
             os.fsync(f.fileno())
 
     def registrar(self, *, usuario: str, rid: str, tabela: str, modulo: str, chave: str,
-                  valores: dict, antes: dict, agora_=None) -> dict:
+                  valores: dict, antes: dict, agora_=None, novo: bool = False) -> dict:
         quando = (agora_ or agora()).astimezone(MANAUS).strftime("%Y-%m-%d %H:%M:%S")
         with self._tranca():
             e = self._estado()
@@ -328,6 +489,8 @@ class Fila:
             reg = {"tipo": "edicao", "seq": e["ultimo_seq"], "id": str(uuid.uuid4()), "quando": quando,
                    "usuario": usuario, "rid": rid, "tabela": tabela, "modulo": modulo, "chave": chave,
                    "valores": valores, "antes": antes}
+            if novo:
+                reg["novo"] = True                       # §10.9.2: linha nova, chave NOVO-xxxxxxxx
             self._acrescentar(reg, quando)
             return reg
 
@@ -425,3 +588,18 @@ def dica(sit: dict | None, ed: dict, m: str, admin: bool) -> str:
     if m == "erro" and admin and sit.get("motivo"):
         txt = (txt + " — " if txt else "") + sit["motivo"]
     return txt
+
+
+def contagem_novas(sit: dict, tabela: str, recebido_em: str | None, agora_=None) -> dict:
+    """As linhas novas desta tabela que ainda não chegaram à tabela: {"pendentes": n, "recusadas": n} (§10.9.2).
+    Mesma regra da `marca`: a aplicada segue pendente até chegar um pacote recebido depois da confirmação."""
+    n = {"pendentes": 0, "recusadas": 0}
+    for (tab, chave), s in (sit or {}).items():
+        if tab != tabela or not RE_CHAVE_NOVA.match(str(chave or "")):
+            continue
+        m = marca(s, recebido_em, agora_)
+        if m == "pendente":
+            n["pendentes"] += 1
+        elif m == "erro":
+            n["recusadas"] += 1
+    return n

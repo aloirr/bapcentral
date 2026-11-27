@@ -352,6 +352,8 @@ button{background:var(--verde-escuro);border-color:var(--verde-escuro)}
 .ed-campo select,.ed-campo input{display:block;width:100%;max-width:420px;margin-top:.2rem}
 .ed-campo small{display:block;color:var(--suave);font-size:.75rem}
 .ed-campo .ed-pend-txt{color:var(--atencao-texto);font-weight:600}
+.ed-campo textarea{display:block;width:100%;max-width:520px;margin-top:.2rem;font:inherit;padding:.4rem .5rem;border:1px solid var(--borda);border-radius:6px;resize:vertical}
+.ed-campo .ed-obrig{display:inline;font-weight:600;color:var(--suave)}
 .ed-botoes{display:flex;gap:1rem;align-items:center;margin:1rem 0 .4rem}
 .ed-botoes a{color:var(--verde-escuro);font-weight:600}
 .sel-aviso a{color:var(--verde-escuro);font-weight:600}
