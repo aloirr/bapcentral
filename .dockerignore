@@ -1,0 +1,18 @@
+# Contexto de build do cron bap-visitas-maxima (T-0045, ADR 0004; dockerContext: . no render.yaml).
+# Encurta o envio ao builder e tira do contexto as bases e os arquivos sensíveis.
+# A proteção da imagem continua sendo a lista fechada do COPY em nuvem/visitas/Dockerfile.
+# NÃO excluir: nuvem/visitas/, visitas_maxima.py, visitas_nucleo.py, relatorios_nucleo.py, bap_dados.py, painel_farol.py, requirements-visitas.txt.
+RELATORIOS/
+SISTEMA BAP/
+BAP Ajuda 2.0/
+.coord/
+.claude/
+.git/
+.github/
+docs/
+web/
+tests/
+**/auth/
+**/.env
+**/*_config*.json
+**/__pycache__/

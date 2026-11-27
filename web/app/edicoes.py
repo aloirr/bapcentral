@@ -1,4 +1,4 @@
-"""T-0021: edição na web dos faróis, só do perfil admin, chegando ao PC pelo robô.
+"""T-0021: edição na web dos faróis (admin; e o pós-venda nas Entregas, RN-POS-011), chegando ao PC pelo robô.
 
 Genérico por (rid, tabela, modulo): Pedidos (autorização), Entregas (a linha), NCC pendentes, Devoluções e
 Garantias (com linha nova, T-0023 v2); DDR e Expositores entram acrescentando o lugar em `LUGARES`.
@@ -28,7 +28,30 @@ from zoneinfo import ZoneInfo
 from .arquivos import acrescentar_linha, gravar_json
 
 MANAUS = ZoneInfo("America/Manaus")
-EDITA = ("admin",)                         # decisão do Alexandre (25/11): só o admin, por enquanto
+EDITA = ("admin",)                         # decisão do Alexandre (25/11): só o admin, por enquanto (o que não está em EDITA_LUGAR)
+SEM_CALCULO = ("entregue_em",)            # T-0054: data que o PC NÃO calcula (DT. REAL): sem a dica "volta à calculada"
+# T-0054 (RN-POS-011, contrato §10.9.7): quem edita cada lugar, quando não é só o admin. Uma entrada por linha.
+EDITA_LUGAR = {
+    ("pl_entregas", "Entregas"): ("admin", "pos_venda"),
+    ("pl_entregas", "Pendências dos meses anteriores"): ("admin", "pos_venda"),
+    ("pl_fretes", "Notas com frete"): ("admin", "pos_venda"),   # T-0037 (RN-POS-010, P2 A): vale quando o lugar entrar em LUGARES
+}
+
+
+def pode_editar(perfil: str, lugar: tuple) -> bool:
+    """O servidor decide: o perfil edita este lugar (rid, título da tabela)? Fora da tabela, só o admin (RN-GER-012).
+    O farol liberado a outro perfil (RN-GER-018) não dá edição: só o perfil conta."""
+    return perfil in EDITA_LUGAR.get(tuple(lugar), EDITA)
+
+
+def pode_criar(perfil: str, lugar: tuple) -> bool:
+    """Linha nova só do admin (RN-POS-011, contrato §10.9.2 e §10.9.7): quem está em EDITA e também edita este lugar."""
+    return perfil in EDITA and pode_editar(perfil, lugar)
+
+
+def perfis_do_rid(rid: str) -> tuple:
+    """Quem edita algum lugar deste farol (o 403 antes de ler o formulário)."""
+    return tuple(dict.fromkeys([p for (r, _t), ps in EDITA_LUGAR.items() if r == rid for p in ps] + list(EDITA)))
 # módulos de gravação do PC (bap_relatorios.Janela.salvar): o robô chama a mesma função
 MODULOS = ("autorizacoes", "pos_venda", "ncc", "garantias", "farol", "expositores")
 # onde a web aceita `edicao` no pacote: (rid, título da tabela) -> módulo do PC
@@ -519,9 +542,11 @@ class Fila:
         acrescentar_linha(self.pasta / f"{self.prefixo}_{quando[:7]}.jsonl", reg)
 
     def registrar(self, *, usuario: str, rid: str, tabela: str, modulo: str, chave: str,
-                  valores: dict, antes: dict, agora_=None, novo: bool = False) -> dict:
+                  valores: dict, antes: dict, agora_=None, novo: bool = False, perfil: str = "") -> dict:
         campos = {"id": str(uuid.uuid4()), "usuario": usuario, "rid": rid, "tabela": tabela,
                   "modulo": modulo, "chave": chave, "valores": valores, "antes": antes}
+        if perfil:
+            campos["perfil"] = perfil                    # T-0054 §10.9.7: o robô confere o perfil
         if novo:
             campos["novo"] = True                        # §10.9.2: linha nova, chave NOVO-xxxxxxxx
         return self.registrar_item(campos, agora_=agora_)
@@ -629,14 +654,14 @@ def _hora_manaus(iso: str | None) -> str | None:
     return d.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def dica(sit: dict | None, ed: dict, m: str, admin: bool) -> str:
-    """Texto do title da marca: o que vai ao PC (campos e valores) e, para o admin, o motivo da recusa."""
+def dica(sit: dict | None, ed: dict, m: str, pode: bool) -> str:
+    """Texto do title da marca: o que vai ao PC (campos e valores) e, para quem edita, o motivo da recusa."""
     if not sit or not m:
         return ""
     rot = {c["campo"]: c["rotulo"] for c in ed.get("campos") or []}
     partes = [f"{rot.get(k, k)}: {v or '(vazio)'}" for k, v in (sit.get("valores") or {}).items()]
     txt = " · ".join(partes)
-    if m == "erro" and admin and sit.get("motivo"):
+    if m == "erro" and pode and sit.get("motivo"):
         txt = (txt + " — " if txt else "") + sit["motivo"]
     return txt
 

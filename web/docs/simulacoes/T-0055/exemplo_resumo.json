@@ -1,0 +1,32 @@
+{
+  "versao_leitura": 1,
+  "versao_web": "0.13.0",
+  "pacote": {
+    "lote": "20261127-0612-fictício",
+    "gerado_em": "2026-11-20T08:30:00-04:00",
+    "dados_ate": "24/11/2026 08:10",
+    "du": null
+  },
+  "rid": "pv_pedidos",
+  "nome": "Farol de Pedidos",
+  "cartoes": [
+    {
+      "rot": "Pedidos",
+      "valor": "320",
+      "cor": "ok",
+      "estados": null
+    },
+    {
+      "rot": "Atendimento",
+      "valor": "92,0%",
+      "cor": "atencao",
+      "estados": null
+    },
+    {
+      "rot": "SLA médio",
+      "valor": "3,1 dia(s)",
+      "cor": "",
+      "estados": null
+    }
+  ]
+}

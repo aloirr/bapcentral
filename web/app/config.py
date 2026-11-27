@@ -1,10 +1,13 @@
 """Configuração só por variável de ambiente (segredos nunca no código)."""
 from __future__ import annotations
 
+import hmac
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
+log = logging.getLogger("bap_web")
 TZ_ALVO = "America/Manaus"
 PACOTE_MAX_MB_PADRAO = 25      # o mesmo do render.yaml: sem a variável o pacote de ~2,5 MB não pode dar 413
 
@@ -24,6 +27,7 @@ class Config:
     cookie_seguro: bool
     farol_max: int = 10 * 1024 * 1024      # T-0035: JSON do farol sem anexos (BAP_WEB_FAROL_MAX_MB)
     visitas_token: str = ""                # T-0045: Bearer do cron de visitas (BAP_VISITAS_TOKEN; só as rotas do §3)
+    leitura_token: str = ""                # T-0055: Bearer da porta de leitura (BAP_WEB_LEITURA_TOKEN; separado do BAP_WEB_TOKEN)
     cache_mb: float = 96.0                 # T-0035: orçamento estimado do cache de faróis (BAP_WEB_CACHE_MB)
 
 
@@ -47,6 +51,15 @@ def carregar() -> Config:
         cache_mb = float(os.environ.get("BAP_WEB_CACHE_MB", "96"))
     except ValueError as e:
         raise ConfigErro("BAP_WEB_FAROL_MAX_MB ou BAP_WEB_CACHE_MB inválido.") from e
+    leitura = os.environ.get("BAP_WEB_LEITURA_TOKEN", "")
+    motivo = ""
+    if leitura:
+        repetido = [n for n in ("BAP_WEB_TOKEN", "BAP_VISITAS_TOKEN", "SESSION_SECRET")
+                    if os.environ.get(n) and hmac.compare_digest(leitura.encode(), os.environ[n].encode())]
+        motivo = "token com menos de 32 caracteres" if len(leitura) < 32 else (f"token igual ao {repetido[0]}" if repetido else "")
+    if motivo:
+        log.warning("porta de leitura desligada: %s", motivo)      # nunca o valor
+        leitura = ""
     return Config(
         dados=Path(dados),
         segredo=segredo,
@@ -58,4 +71,5 @@ def carregar() -> Config:
         farol_max=int(farol_mb * 1024 * 1024),
         cache_mb=cache_mb,
         visitas_token=os.environ.get("BAP_VISITAS_TOKEN", ""),
+        leitura_token=leitura,
     )

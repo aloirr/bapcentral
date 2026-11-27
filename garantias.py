@@ -54,6 +54,8 @@ CAMPOS = ("dt_solicitacao", "cod_cliente", "cliente", "cod_produto",
           "dt_prazo",
           "cli_fantasia", "cli_endereco", "cli_bairro", "cli_cidade",
           "cli_uf", "cli_telefone", "cli_vendedor", "cli_supervisor")
+# (RN-GER-012, T-0023) no PC so o contato segue editavel
+CAMPOS_CONTATO = ("contato_nome", "contato_fone")
 # (14/10, Alexandre) o CADASTRO do cliente editavel na garantia: vale o
 # da garantia; em branco, o da base de clientes (a base nao muda - ela vem
 # do Protheus; a correcao fica no diario da garantia)
@@ -224,8 +226,27 @@ def gravar(raiz, ticket, campos: dict, arquivo=None, agora=None) -> int:
             "%d/%m/%Y")
     if st and st not in FECHADOS and texto(atual.get("dt_fechamento")):
         campos.setdefault("dt_fechamento", "")     # reaberta
-    mudou = {k: texto(v) for k, v in campos.items()
-             if k in CAMPOS and texto(v) != texto(atual.get(k))}
+    mudou = _mudou(atual, campos)
+    if not mudou:
+        return 0
+    _anexar(raiz, ticket, mudou, arquivo, agora)
+    return len(mudou)
+
+
+def _mudou(atual: dict, campos: dict) -> dict:
+    """So os campos de CAMPOS cujo valor difere do atual (em texto)."""
+    return {k: texto(v) for k, v in campos.items()
+            if k in CAMPOS and texto(v) != texto(atual.get(k))}
+
+
+def gravar_contato(raiz, ticket, campos: dict, arquivo=None,
+                   agora=None) -> int:
+    """RN-GER-012 / T-0023 (P2 A): grava so contato_nome e contato_fone
+    que mudaram (ignora as outras chaves); nao deduz status nem
+    dt_fechamento. Devolve quantos campos gravou (0 = nada)."""
+    atual = ler(raiz).get(texto(ticket), {})
+    mudou = _mudou(atual, {k: v for k, v in campos.items()
+                           if k in CAMPOS_CONTATO})
     if not mudou:
         return 0
     _anexar(raiz, ticket, mudou, arquivo, agora)
