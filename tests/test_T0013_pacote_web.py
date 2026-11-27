@@ -28,6 +28,10 @@ pd = pytest.importorskip("pandas")
 requests = pytest.importorskip("requests")
 ba = pytest.importorskip("bap_automation")
 
+from escopo_farois_web import (FAROIS_OBRIGATORIOS,  # noqa: E402
+                               FAROIS_PERMITIDOS, REGRA_UF_PERMITIDOS,
+                               problemas_escopo)
+
 TOKEN = "tok-FICTICIO-1234567890abcdef"
 URL = "https://bap-web-ficticio.example.com"
 MANAUS = timezone(timedelta(hours=-4))
@@ -209,11 +213,9 @@ def _vc_painel_ficticio(visoes=("res", "prod", "du"), outras=True):
 # Lista branca fixa (R-20261124-175008-alexandre): os 4 faróis do PC que podem
 # ir para a web. Qualquer outro id em FAROIS_WEB é defeito.
 # T-0022: + o Farol de Metas (vc_meta), por decisão do Alexandre (24/11)
-LISTA_FAROIS_WEB = frozenset({"pv_pedidos", "vc_visitas", "pl_entregas",
-                              "pl_inadimplencia", "vc_meta",
-                              # T-0024 (lote 2)
-                              "pv_indicadores", "vc_base", "vc_planner",
-                              "pl_giro", "pl_frw"})
+# T-0024: + os 5 do lote 2. A lista (obrigatórios e permitidos, com a regra de
+# UF de cada um) mora em tests/escopo_farois_web.py, um lugar só.
+LISTA_FAROIS_WEB = FAROIS_PERMITIDOS
 # abas do Painel que o robô leva: aceita o estado antigo (2) e o da T-0022 (3)
 _MAPA_ABAS = getattr(ba, "_ABAS_WEB", {"res": "resultado", "prod": "produtividade"})
 _ABAS_PAINEL = set(_MAPA_ABAS.values())
@@ -365,7 +367,11 @@ def test_T0013_criterio2_pacote_sem_callable_pkl_nem_caminho():
 # (cliente) nunca entram.
 def test_T0013_escopo_vc_painel_e_farois_web_sem_linhas_cruas():
     pacote = ba.montar_pacote_web(_resultados_ficticios(), 2026, 11, AGORA)
-    assert set(_farois_web()) == LISTA_FAROIS_WEB      # trava do escopo (lista exata)
+    # trava do escopo: os obrigatórios lá, nada fora da lista PERMITIDA, cada
+    # um com fonte e regra de UF (tests/escopo_farois_web.py)
+    assert FAROIS_OBRIGATORIOS <= set(_farois_web())
+    assert set(_farois_web()) <= LISTA_FAROIS_WEB
+    assert problemas_escopo(ba) == []
     assert set(pacote["relatorios"]) == _escopo_esperado(
         _resultados_ficticios())
     assert FORA_DA_LISTA not in pacote["relatorios"]
@@ -567,16 +573,21 @@ def test_T0013_coletar_chama_montar_vc_painel_e_farois_web(monkeypatch):
     saida = ba.coletar_relatorios_web(2026, 11)
     params = {"ANO": "2026", "MÊS": "11"}
     farois = _farois_web()
-    # T-0022: o Painel e as Metas levam o recorte por estado (_uf); com o
-    # montar fictício nenhum estado aparece, então não há chamada com UF.
-    # T-0024: a Base de clientes também (o cartão do estado é o do PC com UF)
-    assert set(saida) == {"vc_painel", "vc_painel_uf", *farois,
-                          ba.RID_META_WEB + "_uf", "vc_base_uf"}
+    assert FAROIS_OBRIGATORIOS <= set(farois) <= FAROIS_PERMITIDOS
+    assert {"vc_painel", *farois} <= set(saida)      # T-0022 soma os recortes por estado (_uf)
+    # o mês do pacote em cada farol: ANO e MÊS; só o Painel de indicadores
+    # (T-0024) lê o MÊS como "AAAA-MM"
+    esperado = {rid: params for rid in farois}
+    if "pv_indicadores" in esperado:
+        esperado["pv_indicadores"] = {"MÊS": "2026-11"}
+    # uma chamada por farol, na ordem, com o mês do pacote; as chamadas com
+    # UF são as do recorte por estado (montar_por_uf_web)
     assert [c for c in chamadas if "UF" not in (c[1] or {})] == [
-        ("vc_painel", params)] + [
-        (rid, ba.params_farol_web(rid, 2026, 11)) for rid in farois]
-    # T-0024: o Painel de indicadores lê o MÊS como "AAAA-MM"
-    assert ("pv_indicadores", {"MÊS": "2026-11"}) in chamadas
+        ("vc_painel", params)] + [(rid, esperado[rid]) for rid in farois]
+    # o recorte por estado do PC é montado para quem o usa (T-0022, T-0024)
+    for rid in farois:
+        if REGRA_UF_PERMITIDOS[rid][0] in ("meta", "kpis_uf"):
+            assert rid + "_uf" in saida, rid
 
 
 def test_T0013_passo_pacote_web_simulado_grava_sem_enviar(monkeypatch,

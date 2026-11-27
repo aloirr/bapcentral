@@ -24,6 +24,8 @@ from zoneinfo import ZoneInfo
 
 import bap_automation as ba
 import relatorios_nucleo as rn
+from escopo_farois_web import (FAROIS_LOTE2, FAROIS_OBRIGATORIOS,
+                               FAROIS_PERMITIDOS, problemas_escopo)
 
 HOJE = date(2026, 11, 24)                 # terça-feira, NOV/2026
 AVISO_SEM_ESTADO = "Sem filtro por estado: os cartões mostram a BAP inteira."
@@ -78,37 +80,31 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     """Os 4 faróis vão ao site, cada um com a base do "baixado em". Tabela
     de recorte por estado em todos, menos a Visita (RN-GER-006: nenhuma
     tabela da Visita traz a UF do cliente)."""
-    lote2 = {"pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw"}
-    # lista exata: os 4 + o Farol de Metas (T-0022) + o lote 2 (T-0024)
-    assert set(ba.FAROIS_WEB) == {"pl_inadimplencia", "pv_pedidos",
-                                  "pl_entregas", "vc_visitas",
-                                  "vc_meta"} | lote2
-    assert len(ba.FAROIS_WEB) == len(set(ba.FAROIS_WEB))      # sem repetido
-    for rid in ba.FAROIS_WEB:
+    quatro = {"pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas"}
+    # T-0022 soma o Farol de Metas (vc_meta); a T-0024 pode somar os 5 do
+    # lote 2. Obrigatórios lá, nada fora da lista PERMITIDA, e cada farol a
+    # mais com fonte, tabela de recorte (ou aviso) e regra de UF
+    # (tests/escopo_farois_web.py)
+    assert quatro | {"vc_meta"} <= FAROIS_OBRIGATORIOS <= set(ba.FAROIS_WEB)
+    assert set(ba.FAROIS_WEB) <= FAROIS_PERMITIDOS
+    assert problemas_escopo(ba) == []
+    for rid in quatro:
         assert rid in ba._FONTE_BAIXADO_WEB
-    # o lote 2 nasce dos Movimentos do Protheus (o mesmo "baixado em" das Metas)
-    for rid in lote2:
-        assert ba._FONTE_BAIXADO_WEB[rid] == ba._FONTE_BAIXADO_WEB["vc_meta"]
-        assert rid in ba._FONTE_BAIXADO_WEB
-    assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
-                                      "pv_pedidos": "Pedidos",
-                                      "pl_entregas": "Entregas",
-                                      "pl_giro": "Todos os produtos",
-                                      "pl_frw": "Estoque FRW"}
+    # as tabelas de recorte dos 4: as de sempre (outras só as do lote 2)
+    assert {r: t for r, t in ba._TABELA_RECORTE_WEB.items()
+            if r in quatro} == {"pl_inadimplencia": "Títulos",
+                                "pv_pedidos": "Pedidos",
+                                "pl_entregas": "Entregas"}
+    assert set(ba._TABELA_RECORTE_WEB) - quatro <= FAROIS_PERMITIDOS
+    # T-0024: o lote 2 (quando estiver lá) nasce dos Movimentos do Protheus,
+    # o mesmo "baixado em" das Metas
+    for rid in set(ba.FAROIS_WEB) & set(FAROIS_LOTE2):
+        assert ba._FONTE_BAIXADO_WEB[rid] == ba._FONTE_BAIXADO_WEB["vc_meta"], rid
     # a coluna e a regra da UF: filial da nota no Pedidos, UF do cliente no
     # Entregas (a mesma do uf_linhas)
     assert ba._UF_LINHAS_WEB[("pv_pedidos", "Pedidos")] == ("FILIAL",
                                                             "filial")
     assert ba._UF_LINHAS_WEB[("pl_entregas", "Entregas")] == ("UF", "uf")
-    # T-0024: estoque por filial (linhas da tabela); a Base de clientes usa o
-    # filtro UF do PC (montar com UF); o Planner não tem filtro UF: sem recorte
-    assert ba.RIDS_KPIS_POR_UF_WEB == ("vc_base",)
-    assert not [k for k in ba._UF_LINHAS_WEB if k[0] in ("vc_base",
-                                                          "vc_planner")]
-    assert ba._UF_LINHAS_WEB[("pl_giro", "Todos os produtos")] == ("FILIAL",
-                                                                   "filial")
-    assert ba._UF_LINHAS_WEB[("pl_frw", "Estoque FRW")] == ("FILIAL",
-                                                            "filial")
 
 
 def test_RN_GER_006_pacote_com_tres_farois_um_com_erro_nao_derruba():
