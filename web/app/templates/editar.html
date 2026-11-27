@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {# T-0021: a janelinha "Editar" do PC na web: uma lista por campo, data por seletor; só o admin #}
-{% from "_faixa_simples.html" import faixa_simples %}
+{% from "_faixa.html" import faixa_simples %}
 {% block titulo %}{{ acao }} · {{ farol_nome }}{% endblock %}
 {% block faixa %}{{ faixa_simples(acao ~ " · " ~ farol_nome) }}{% endblock %}
 {% block cabeca %}<meta name="robots" content="noindex, nofollow">{% endblock %}

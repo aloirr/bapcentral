@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_faixa_simples.html" import faixa_simples %}
+{% from "_faixa.html" import faixa_simples %}
 {% block titulo %}Usuários{% endblock %}
 {# T-0034 (parecer de UX §2.10): um só botão principal na tela ("Novo usuário"); "Desativar" é perigo e pede confirmação #}
 {% block faixa %}{{ faixa_simples("Usuários", [
@@ -26,7 +26,7 @@
   <span class="u-nome">{{ x.login }}</span>
   <span class="u-perfil">{{ rot_perfil.get(x.perfil, x.perfil) }}</span>
   <span class="u-selos">
-    {% if x.ativo %}<span class="selo selo-ok">Ativo</span>{% else %}<span class="selo selo-cinza">Desativado</span>{% endif %}
+    {% if not x.ativo %}<span class="selo selo-cinza">Desativado</span>{% endif %}
     {% if x.trocar_senha %}<span class="selo selo-atencao">Troca de senha pendente</span>{% endif %}
   </span>
   <span class="u-acoes">

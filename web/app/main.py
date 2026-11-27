@@ -25,7 +25,7 @@ log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
 MANAUS = ZoneInfo("America/Manaus")
 VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
-RELATORIO = ("vc_painel", "Painel Executivo")
+PAINEL_RID = "vc_painel"
 FORM_MAX = 16 * 1024
 FECHAR_MAX = 256 * 1024
 ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca", "/api/edicoes")   # saúde e robô seguem; as telas param
@@ -60,6 +60,12 @@ def fmt_manaus(iso: str | None) -> str:
     return d.astimezone(MANAUS).strftime("%d/%m/%Y %H:%M")
 
 
+def fmt_manaus_curto(iso: str | None) -> str:
+    """"dd/mm hh:mm", a data da faixa no celular (contrato tela-bc3 §8)."""
+    f = fmt_manaus(iso)
+    return f[:5] + " " + f[-5:] if len(f) >= 16 else f
+
+
 def hhmm(iso: str | None) -> str:
     """"hh:mm" se for de hoje (Manaus); senão "dd/mm hh:mm"."""
     f = fmt_manaus(iso)
@@ -85,6 +91,9 @@ def criar_app() -> FastAPI:
     modelos.env.filters["fone"] = cobranca.fone_bonito
     modelos.env.filters["aba_curta"] = tabelas.aba_curta           # T-0033: nomes curtos nas abas (cabem a 1366)
     modelos.env.globals["dados_popup"] = tabelas.dados_do_popup
+    modelos.env.filters["manaus_curto"] = fmt_manaus_curto
+    modelos.env.globals["kpis_da_faixa"] = render.kpis_da_faixa    # RD-0065: a regra "comum na faixa, rico no corpo" é uma só
+    modelos.env.globals["kpis_do_corpo"] = render.kpis_do_corpo
     modelos.env.globals["datas_proximas"] = render.datas_proximas  # T-0020: uma data só
     diario = cobranca.Diario(cfg.dados)
     diario.limpar()                                   # §10.6.5: também quando o app sobe
@@ -145,7 +154,8 @@ def criar_app() -> FastAPI:
             u = usuarios.obter(request.session.get("u", ""))
         info = ind.indice()
         # T-0035 (ADR 0003, §4.4): a faixa mostra a data do farol; passou de 26 h = selo "Desatualizado"
-        rid_pg = ctx.get("rid") or ("vc_painel" if request.url.path == "/painel" else None)
+        no_painel = request.url.path == "/painel"
+        rid_pg = ctx.get("rid") or (PAINEL_RID if no_painel else None)
         ent = ind.entrada(rid_pg) if rid_pg else None
         gerado_farol = (ent or {}).get("gerado_em") or (info["gerado_em"] if info else None)
         try:
@@ -158,7 +168,8 @@ def criar_app() -> FastAPI:
         # ou, no Painel Executivo, "painel". Sem usuário (login, acesso negado): a mesma casca, sem lateral.
         if u:
             no_pacote = (info or {}).get("farois") or {}
-            ativo = ctx.get("rid") or ("painel" if request.url.path == "/painel" else None)
+            # o item da lateral marcado: o farol, o painel ou, na conta, "usuarios" e "senha" (contrato §3)
+            ativo = ctx.get("rid") or {"/painel": "painel", "/usuarios": "usuarios", "/senha": "senha"}.get(request.url.path)
             ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ativo,
                                              painel=u["perfil"] in VERES, admin=u["perfil"] == "admin")
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
@@ -266,7 +277,7 @@ def criar_app() -> FastAPI:
     @app.get("/painel", response_class=HTMLResponse)
     async def painel(request: Request, aba: str = "resultado", uf: str = ""):
         usuario(request, VERES)
-        rel = ind.farol(RELATORIO[0])
+        rel = ind.farol(PAINEL_RID)
         abas = render.localizar_abas(rel) if rel else []
         paineis = render.localizar_paineis(rel) if rel else []     # T-0022: as outras 9 abas do PC
         if not abas and not paineis:

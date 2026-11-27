@@ -7,33 +7,23 @@
 {# com filtro os números ficam e ganham "sem o filtro" (feito em main.py); a fila e a Solicitação também levam os do Resumo #}
 {% set ks_todos = (kpis if (kpis is defined and kpis) else (tela.kpis if tela else [])) or [] %}
 {# cartão com barras por estado ou linhas de detalhe fica no corpo (Resumo); a faixa leva só os números #}
-{% set ks = ks_todos|rejectattr('estados')|rejectattr('linhas')|list %}
+{% set ks = kpis_da_faixa(ks_todos) %}
 {% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
 {% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
 {# RD-0023/RD-0039: sem seletor de estado, o aviso é um só, na própria faixa (não em cada aba) #}
 {% set sem_uf = (not lista_uf) and (rid == 'vc_visitas' or (tela and tela.avisos_info)) %}
 {% set dicas = {"pv_pedidos": "Buscar pedido ou cliente", "pl_entregas": "Buscar NF ou cliente", "pl_inadimplencia": "Buscar cliente ou NF", "vc_visitas": "Buscar vendedor ou cliente", "vc_meta": "Buscar nome"} %}
+{% from "_faixa.html" import quando, selo_velho, filtro_uf, filtro_uf_off, numeros %}
 <header class="bc3-faixa">
   <div class="bc3-tt">
     <h1>{{ farol_nome }}</h1>
     {% if fila is defined and pc_ate %}<span class="bc3-quando">Cobranças do PC até {{ pc_ate|hhmm }}</span>
-    {% elif gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}, horário de Manaus">Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}{% if sem_uf %} · <span class="bc3-sem-uf">Sem filtro por estado</span>{% endif %}</span>{% endif %}
-    {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
-    {% if lista_uf %}
-    <nav class="bc3-uf" aria-label="Filtro por estado">
-      <a href="{{ base_uf }}{{ sub_q }}" class="{{ 'on' if not uf_at }}">BAP</a>
-      {% for u in lista_uf %}<a href="{{ base_uf }}{{ sub_q }}&amp;uf={{ u }}" class="{{ 'on' if u == uf_at }}">{{ u }}</a>{% endfor %}
-    </nav>
-    {% elif ufs_off %}
-    {# aba só da BAP: o seletor fica no mesmo lugar, desligado (a faixa não muda de altura entre as abas, contrato §4.2) #}
-    <nav class="bc3-uf bc3-uf-off" aria-label="Filtro por estado (esta aba é da BAP inteira)" title="Esta aba mostra a BAP inteira"><a class="on">BAP</a>{% for u in ufs_off %}<span>{{ u }}</span>{% endfor %}</nav>
-    {% endif %}
+    {% else %}{% call quando(gerado_em) %}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}{% if sem_uf %} · <span class="bc3-sem-uf">Sem filtro por estado</span>{% endif %}{% endcall %}{% endif %}
+    {{ selo_velho(desatualizado) }}
+    {% if lista_uf %}{{ filtro_uf(base_uf ~ sub_q, lista_uf, uf_at) }}
+    {% elif ufs_off %}{{ filtro_uf_off(ufs_off) }}{% endif %}
   </div>
-  {% if ks %}
-  <div class="bc3-ks">
-    {% for k in ks %}<div class="bc3-k t-{{ k.cor }}"><small>{{ k.rot }}</small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
-  </div>
-  {% endif %}
+  {{ numeros(ks) }}
 </header>
 <div class="bc3-sub">
   {% if abas %}

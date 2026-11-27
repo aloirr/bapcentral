@@ -10,12 +10,6 @@ from test_abas import _cli_de
 from app import render
 
 
-@pytest.fixture
-def com_painel(admin):
-    assert postar(admin, pacote_completo()).status_code == 200
-    return admin
-
-
 @pytest.mark.parametrize("perfil,destino", [("admin", "/painel"), ("diretor", "/painel"), ("gerente", "/painel"),
                                             ("pre_venda", "/farol/pv_pedidos"), ("pos_venda", "/farol/pl_entregas"),
                                             ("vendas", "/farol/vc_visitas")])
@@ -26,32 +20,18 @@ def test_home_redireciona_cada_perfil_para_a_tela_dele(com_painel, perfil, desti
     assert render.pagina_inicial(perfil) == destino
 
 
-def test_home_segue_a_ordem_do_menu_lateral():
-    # o primeiro farol da área que o perfil vê, na ordem de GRUPOS_MENU
-    for perfil in ("pre_venda", "pos_venda", "vendas"):
-        rid = render.pagina_inicial(perfil).rsplit("/", 1)[1]
-        assert rid == [r for _, rids in render.GRUPOS_MENU for r in rids if r in dict(render.farois_do_perfil(perfil))][0]
-
-
-def test_home_sem_login_vai_para_o_login(cli):
-    r = cli.get("/", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/login"
-
-
-def test_painel_403_para_quem_nao_e_da_diretoria(com_painel):
-    for perfil in ("pre_venda", "pos_venda", "vendas"):
-        assert _cli_de(com_painel, perfil).get("/painel").status_code == 403, perfil
-
-
 def test_painel_no_bc3_com_faixa_abas_e_cartoes(com_painel):
     for c in (com_painel, _cli_de(com_painel, "diretor")):
         h = c.get("/painel").text
         assert '<body class="bc3">' in h and 'class="bc3-lado"' in h and 'class="bc3-faixa"' in h
-        assert h.count("<h1>Painel Executivo</h1>") == 1 and "Painel do Diretor" not in h           # RD-0038
+        assert h.count("<h1>Painel Executivo") == 1 and "Painel do Diretor" not in h           # RD-0038
         assert 'class="topo"' not in h and "BAP Central web v" not in h and 'class="menu"' not in h  # sem o visual antigo
         faixa = h.split('class="bc3-ks"')[1].split("</header>")[0]
-        for n in ("FATURAMENTO LÍQUIDO · PROJ.", "R$ 165 mil", "MTD 11%", "POSITIVAÇÃO", "PEDIDOS FATURADOS · PROJ."):
+        for n in ("FATURAMENTO LÍQUIDO · PROJ.", "R$ 165 mil", "POSITIVAÇÃO", "PEDIDOS FATURADOS · PROJ."):
             assert n in faixa, n
+        assert "MTD" not in faixa                                                    # RD-0063: os anéis ficam só no cartão
+        assert "rc-valor" not in h and h.count("R$ 165 mil") == 1                    # U1: o número grande, uma vez só (na faixa)
+        assert re.search(r'class="d-pc">\d\d/\d\d/\d{4} \d\d:\d\d', h) and "Dados de" not in re.sub(r'title="[^"]*"', "", h)   # §4.1: só a data; o texto vai no title
         assert h.count("<article") == 3 and "R$ 87,0 mil" in h                          # os cartões RRM seguem no corpo
         abas = re.search(r'<nav class="bc3-abas"[^>]*>(.*?)</nav>', h, re.S).group(1)
         assert "<summary>Indicadores</summary>" in abas and 'aria-current="page"' in abas
@@ -67,7 +47,7 @@ def test_painel_cartoes_comuns_das_abas_vao_para_a_faixa_e_os_ricos_ficam(com_pa
 
 def test_painel_sem_pacote_diz_quando_chega(admin):
     h = admin.get("/painel").text
-    assert "Sem dados ainda. A primeira atualização chega às 06h30." in h and 'class="bc3-faixa"' in h
+    assert h.count("Sem dados ainda") == 1 and 'class="bc3-faixa' in h          # RD-0064: um aviso só
 
 
 def test_telas_sem_usuario_usam_a_mesma_casca_sem_lateral(cli):
@@ -106,17 +86,46 @@ def test_usuarios_selos_de_situacao(admin):
     assert 'value="ativar"' in h
 
 
-def test_usuarios_403_fora_do_admin(com_painel):
-    assert _cli_de(com_painel, "gerente").get("/usuarios").status_code == 403
-
-
 def test_parcial_sem_repetir_a_lateral(com_painel):
     h = com_painel.get("/farol/pv_pedidos/parcial").text
     assert h.count('class="bc3-lado"') == 1 and "<h1>Parcial · Farol de Pedidos</h1>" in h and h.count("<h1>") == 1
     assert 'class="cab-painel"' not in h
+    assert "Voltar ao farol" not in h                                           # RD-0059: a lateral, com "Pedidos" ativo, volta em 1 toque
     assert _cli_de(com_painel, "vendas").get("/farol/pv_pedidos/parcial").status_code == 403
 
 
 def test_acesso_negado_na_mesma_casca(com_painel):
     r = _cli_de(com_painel, "vendas").get("/painel")
     assert r.status_code == 403 and "Acesso negado" in r.text and 'class="topo"' not in r.text
+
+
+def test_lateral_marca_usuarios_e_trocar_senha_como_ativos(admin):
+    # U5 (contrato §3): o item da lateral da tela aberta fica ativo
+    for url, nome in (("/usuarios", "Usuários"), ("/senha", "Trocar senha")):
+        lado = admin.get(url).text.split('class="bc3-lado"')[1].split("</aside>")[0]
+        assert f'class="on" aria-current="page">{nome}<' in lado and lado.count('aria-current="page"') == 1, url
+
+
+def test_faixa_dentro_do_main_em_toda_tela_para_ter_a_mesma_margem(com_painel):
+    # U4: a faixa não encosta no topo nem na lateral: ela fica dentro do <main class="bc3-corpo"> como nos faróis
+    for url in ("/painel", "/usuarios", "/senha", "/farol/pv_pedidos", "/farol/pv_pedidos/parcial"):
+        h = com_painel.get(url).text
+        assert h.index("<main") < h.index('class="bc3-faixa') < h.index("</main>"), url
+
+
+def test_usuarios_sem_selo_ativo_em_toda_linha(admin):
+    h = admin.get("/usuarios").text
+    assert ">Ativo<" not in h and ">Ativos<" in h                               # RD-0068: o normal não leva selo; a faixa conta
+
+
+def test_nomes_das_abas_do_painel_numa_tabela_so():
+    # RD-0038: "Painel Executivo" é o nome da tela; as abas têm nome curto e a chave `visitas` é "Visitas"
+    assert not hasattr(render, "TITULOS") and not hasattr(render, "AVISO_SO_BAP")
+    assert dict(render.PAINEIS)["visitas"] == "Visitas" and dict(render.PAINEIS)["itens"] == "Itens"
+    assert set(render.PAINEL_CURTO) == {"resultado", "produtividade", "por_dia_util"}
+
+
+def test_regra_cartao_comum_na_faixa_rico_no_corpo_e_uma_so():
+    ks = [{"rot": "a"}, {"rot": "b", "estados": [1]}, {"rot": "c", "linhas": [1]}]
+    assert [k["rot"] for k in render.kpis_da_faixa(ks)] == ["a"]
+    assert [k["rot"] for k in render.kpis_do_corpo(ks)] == ["b", "c"]

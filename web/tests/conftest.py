@@ -109,6 +109,14 @@ def postar(cli, corpo=None, token=TOKEN, **kw):
                     headers=h, **kw)
 
 
+@pytest.fixture
+def com_painel(admin):
+    """T-0034 (RD-0067): o admin logado, com o pacote completo do Painel Executivo (T-0022) já enviado."""
+    from painel22_fixture import pacote_completo
+    assert postar(admin, pacote_completo()).status_code == 200
+    return admin
+
+
 def guardado(amb) -> dict:
     """T-0035: o que a web guardou do lote vigente, remontado: {"gerado_em", "recebido_em", "relatorios": {rid: farol}}."""
     import gzip

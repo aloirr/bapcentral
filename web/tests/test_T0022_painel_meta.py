@@ -18,12 +18,6 @@ def _corpo(h):
     return h.split("<main")[1]
 
 
-@pytest.fixture
-def com_painel(admin):
-    assert postar(admin, pacote_completo()).status_code == 200
-    return admin
-
-
 def test_pacote_completo_valida_e_robo_antigo_tambem():
     assert pacotes.validar(pacote_completo()) == []
     antigo = pacote_completo()
@@ -50,7 +44,7 @@ def test_resumo_gerencial_traz_placar_insights_e_grafico(com_painel):
     c = _corpo(com_painel.get("/painel?aba=resumo").text)
     assert c.count('class="pl-c ') == 2 and "No ritmo de hoje o mês fecha abaixo do desafio." in c
     assert "A projeção está 48% abaixo do desafio." in c and "Entrega x resultado" in c
-    assert "O que o painel diz" in c and "<h1>" not in c
+    assert "O que o painel diz" in c and c.count("<h1>") == 1             # só o título da faixa, que agora fica dentro do <main>
 
 
 def test_faturamento_leva_as_tabelas_de_baixo_do_pc(com_painel):
@@ -61,17 +55,18 @@ def test_faturamento_leva_as_tabelas_de_baixo_do_pc(com_painel):
 
 def test_filtro_de_estado_troca_cartoes_e_graficos_nas_abas_alcancadas(com_painel):
     base = _corpo(com_painel.get("/painel?aba=faturamento").text)
-    am = _corpo(com_painel.get("/painel?aba=faturamento&uf=AM").text)
+    h_am = com_painel.get("/painel?aba=faturamento&uf=AM").text
+    am = _corpo(h_am)
     assert "Estado AM · Faturamento" in am and "Faturamento projetado" not in am and "Por filial" not in am
-    assert "R$ 100 mil" in com_painel.get("/painel?aba=faturamento&uf=AM").text and "Faturamento projetado" in base   # o número está na faixa
-    assert 'class="on">AM<' in com_painel.get("/painel?aba=faturamento&uf=AM").text
+    assert "R$ 100 mil" in h_am and "Faturamento projetado" in base   # o número está na faixa
+    assert 'class="on">AM<' in h_am
 
 
 def test_aba_da_bap_inteira_ignora_o_estado_e_avisa(com_painel):
-    h = _corpo(com_painel.get("/painel?aba=inadimplencia&uf=AM").text)
+    pg = com_painel.get("/painel?aba=inadimplencia&uf=AM").text
     # T-0034 (contrato §4.2): sem aviso no corpo; o seletor fica desligado, com o title
-    assert render.AVISO_SO_BAP not in h and "Carteira por faixa" in h and "Esta aba é só da BAP inteira" in com_painel.get("/painel?aba=inadimplencia&uf=AM").text
-    assert "bc3-uf-off" in com_painel.get("/painel?aba=inadimplencia&uf=AM").text
+    assert "Carteira por faixa" in _corpo(pg) and "Esta aba mostra a BAP inteira" in pg
+    assert "bc3-uf-off" in pg and 'aria-disabled="true"' in pg
 
 
 def test_coluna_km_por_cliente_vai_mas_coluna_cliente_nao():

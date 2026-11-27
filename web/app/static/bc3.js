@@ -25,7 +25,10 @@
   var cima = document.querySelector(".rolagem-dados.sem-rolagem") ||
              document.querySelector(".bc3-corpo > .rolagem-dados");
   function umaTela() {
-    if (!PC.matches || !cima) return;
+    if (!PC.matches) return;
+    // Painel Executivo: a página não rola; o gráfico e as tabelas rolam por dentro (estilo.css, `.painel-corpo`)
+    if (document.querySelector(".painel-corpo, .parcial-corpo")) { corpo.classList.add("uma-tela"); return; }
+    if (!cima) return;
     cima.classList.add("bc3-cima");
     document.querySelectorAll(".bc3-junta").forEach(function (d) { d.open = true; });
     corpo.classList.add("uma-tela");

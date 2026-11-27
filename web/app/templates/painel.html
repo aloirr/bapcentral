@@ -2,14 +2,17 @@
 {% block titulo %}Painel Executivo{% endblock %}
 {% from "_estados.html" import barras_estados %}
 {# T-0034: o Painel Executivo no BC3 (RD-0038: "Painel Executivo" é o nome único). A faixa leva os números; o corpo, os cartões ricos e os gráficos #}
+{% from "_faixa.html" import faixa_simples %}
+{# PC: a página não rola (§7.1); gráfico e tabelas ficam lado a lado, cada caixa rola por dentro (classe `painel-corpo`, bc3.js) #}
+{% block mainclass2 %} painel-corpo{% endblock %}
 {% block faixa %}
-{% if not tela and not tela_f %}
-<header class="bc3-faixa"><div class="bc3-tt"><h1>Painel Executivo</h1></div></header>
+{% if not tela and not tela_f %}{{ faixa_simples("Painel Executivo") }}
 {% else %}{% include "_painel_cab.html" %}{% endif %}
 {% endblock %}
 {% block corpo %}
 {% if not tela and not tela_f %}
-<p class="aviso atencao">Sem dados ainda. A primeira atualização chega às 06h30.</p>
+{# sem pacote, o aviso é o da casca (base.html); com pacote que veio sem o painel, este #}
+{% if gerado_em %}<p class="aviso atencao">O painel não veio no último pacote do PC.</p>{% endif %}
 {% elif tela_f %}
 {% for a in tela_f.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
 {% with tela=tela_f, rot_resumo="O que o painel diz" %}{% include "_resumo.html" %}{% endwith %}
@@ -21,8 +24,7 @@
   <div class="rc-topo">
     <div class="rc-id">
       <div class="rc-rot">{{ c.titulo }}</div>
-      <div class="rc-valor">{{ c.valor }}</div>
-      {% if c.legenda %}<div class="rc-leg">{{ c.legenda }}</div>{% endif %}
+      {# o número grande e a legenda estão na faixa (RD-0063): o cartão fica com os anéis, a variação e as barras #}
     </div>
     {% if c.aneis %}
     <div class="rc-aneis">
@@ -52,6 +54,5 @@
 </article>
 {% endfor %}
 </section>
-{% if tela.como_ler %}<p class="como">{{ tela.como_ler }}</p>{% endif %}
 {% endif %}
 {% endblock %}

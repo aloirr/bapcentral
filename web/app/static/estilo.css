@@ -102,8 +102,6 @@
 
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.4 var(--fonte);background:var(--fundo);color:var(--c-1b2430)}
-.sair{display:flex;gap:.6rem;align-items:center;font-size:.9rem}
-main{max-width:1200px;margin:0 auto;padding:1rem}
 .aviso{margin:0;padding:.5rem 1rem;font-size:.9rem}
 .aviso.info{background:var(--c-eef4ec)}.aviso.atencao{background:var(--atencao-claro)}.aviso.alerta{background:var(--alerta-claro)}
 .caixa{background:var(--cartao);max-width:420px;margin:1.5rem auto;padding:1.2rem;border-radius:10px;box-shadow:0 1px 4px var(--c-0002);display:grid;gap:.8rem}
@@ -247,7 +245,6 @@ button{background:var(--verde-escuro);color:var(--branco);border-color:var(--ver
 .filtros-det summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
 .selo-erro{background:var(--alerta-claro);color:var(--alerta)}
 /* T-0017 (§10.7): abas de tabela de Pedidos, Entregas e Visita */
-main.larga{max-width:none}
 .subabas{display:flex;flex-wrap:wrap;gap:.35rem;margin:.4rem 0 .8rem}
 .subabas a{white-space:nowrap;padding:.3rem .7rem;border-radius:6px;border:1px solid var(--c-cfdccb);background:var(--cartao);color:var(--c-1b2430);text-decoration:none;font-size:.85rem;min-height:32px;display:inline-flex;align-items:center}
 .subabas a.ativa{background:var(--verde-escuro);border-color:var(--verde-escuro);color:var(--branco)}
@@ -282,10 +279,8 @@ main.larga{max-width:none}
 .rolagem-dados .tab-dados tfoot td:first-child{z-index:3}
 /* T-0020 · visual C (decisão do Alexandre, 25/11/2026): cores e logo da BAP AUTOPARTS, um só estilo de botão, sem bordas pesadas */
 body{background:var(--fundo);color:var(--texto);font-family:var(--fonte)}
-.sair{color:var(--suave);font-size:.85rem}.sair button{background:none;border:0;color:var(--verde-escuro);font-weight:600}
 .aviso.info{background:transparent;color:var(--suave);font-size:.78rem;text-align:right;padding:.4rem 1.4rem 0}
-.aviso.info.faixa-pc,main .aviso.info{text-align:left;background:var(--c-eef4ec);color:var(--texto);border-radius:8px;padding:.45rem .8rem;margin:.3rem 0}
-main{max-width:1320px;padding:.6rem 1.4rem}
+main .aviso.info{text-align:left;background:var(--c-eef4ec);color:var(--texto);border-radius:8px;padding:.45rem .8rem;margin:.3rem 0}
 main h1{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
 .filtros a,.subabas a{border:0;background:var(--c-e6eae5);border-radius:8px;color:var(--c-4a564e);font-weight:600}
 .filtros a.ativa,.subabas a.ativa{background:var(--verde-escuro);color:var(--branco)}
@@ -425,7 +420,7 @@ body.bc3{margin:0;background:var(--fundo);color:var(--texto);font-family:var(--f
 .bc3 .rolagem-dados{background:var(--cartao);border:1px solid var(--borda);border-radius:10px;box-shadow:none;max-height:75vh;overflow:auto}
 .bc3 .tab-dados th{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--suave);background:var(--cartao);border-bottom:1px solid var(--borda);position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--borda)}
 .bc3 .tab-dados td{border-bottom:1px solid var(--c-f0f2f0)}
-.bc3-selo,.selo-velho{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--atencao-texto);background:var(--atencao-claro);border:1px solid var(--atencao);border-radius:999px;padding:1px 8px;margin-bottom:3px}
+.bc3-selo{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--atencao-texto);background:var(--atencao-claro);border:1px solid var(--atencao);border-radius:999px;padding:1px 8px;margin-bottom:3px}
 .bc3 .filtros-det,.bc3 .recortes{margin:0 0 8px}
 .bc3 .filtros-det>summary{list-style:none}.bc3 .filtros-det>summary::-webkit-details-marker{display:none}.bc3 .filtros-det>summary::before{content:none}.bc3 .filtros-det>summary::after{content:"▾";margin-left:6px;font-size:11px}.bc3 .filtros-det[open]>summary::after{content:"▴"}
 .bc3-mais[hidden]{display:none!important}
@@ -531,7 +526,7 @@ body.uma-tela .aviso{margin:0 0 6px}
   .bc3-faixa{--t-faixa-titulo:24px;--t-faixa-numero:22px}
 }
 @media(max-width:600px){
-  main{padding:.6rem}.rrm{grid-template-columns:1fr}.rc{min-height:0}
+  .rrm{grid-template-columns:1fr}.rc{min-height:0}
   .filtros a{min-height:44px;display:inline-flex;align-items:center}
   .kpis{grid-template-columns:1fr 1fr;gap:8px}.kpi-valor{font-size:1.3rem}.graficos{grid-template-columns:1fr}.hb-l{grid-template-columns:minmax(60px,34%) 1fr auto}
   .kpi-est{grid-column:1/-1}
@@ -541,7 +536,7 @@ body.uma-tela .aviso{margin:0 0 6px}
   .tab-dados th,.tab-dados td{padding:.3rem .45rem;font-size:.8rem}
   .subabas a,.filtros.recortes a{min-height:44px}
   .tab-dados th:first-child,.tab-dados td:first-child{max-width:11.5rem;min-width:8rem;white-space:normal;overflow-wrap:anywhere}
-  main{padding:.6rem}.aviso.info{padding:.3rem .8rem 0}.cob{min-width:0}
+  .aviso.info{padding:.3rem .8rem 0}.cob{min-width:0}
 }
 
 
@@ -562,7 +557,7 @@ body.sem-lado .bc3-corpo{display:grid;place-items:center;min-height:100vh}
 .selo-cinza{background:var(--grade);color:var(--suave)}.selo-atencao{background:var(--atencao-claro);color:var(--atencao-texto)}
 
 /* Usuários: uma linha por usuário; o único botão principal da tela é "Novo usuário" */
-.u-novo{margin:0 0 12px}.u-novo>summary{display:inline-flex;margin-bottom:8px}
+.u-novo{margin:10px 0 12px}.u-novo>summary{display:inline-flex;margin-bottom:8px}
 .u-novo>summary::-webkit-details-marker,.u-det>summary::-webkit-details-marker{display:none}
 .u-lista{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .u-linha{display:grid;grid-template-columns:minmax(120px,1.2fr) 100px minmax(0,2fr) auto;gap:8px 14px;align-items:center;background:var(--cartao);border:1px solid var(--borda);border-radius:10px;padding:8px 14px}
@@ -581,7 +576,7 @@ body.sem-lado .bc3-corpo{display:grid;place-items:center;min-height:100vh}
 .bc3-ind>div a{padding:7px 12px;color:var(--texto);text-decoration:none;font-size:13px;border-bottom:0}
 .bc3-abas a.so-cel{display:none}
 /* controle de período da Parcial: o segmentado em fundo claro (mesmo do Solicitação BAP) */
-.bc3-uf-claro{margin-left:0;background:var(--grade)}.bc3-uf-claro a{color:var(--texto)}.bc3-uf-claro a.on{background:var(--cartao);color:var(--texto);box-shadow:0 1px 3px var(--c-0002)}
+.bc3-uf-claro{background:var(--grade)}.bc3-uf-claro a{color:var(--texto)}.bc3-uf-claro a.on{background:var(--cartao);color:var(--texto);box-shadow:0 1px 3px var(--c-0002)}
 .bc3-sub>.bc3-uf{margin-left:0}
 @media(max-width:700px){
   .bc3-ind{display:none}.bc3-abas a.so-cel:not(.so-pc){display:flex}
@@ -590,6 +585,22 @@ body.sem-lado .bc3-corpo{display:grid;place-items:center;min-height:100vh}
   .bc3-corpo .caixa{max-width:none}.bc3-login{max-width:none}
   .bt-principal,.bt-neutro,.bt-perigo-cheio,.u-det>summary{min-height:var(--alvo)}
   body.sem-lado .bc3-corpo{padding:16px}
+  .bc3-faixa.simples .bc3-ks{min-height:0}.bc3-k em{display:block;margin:0;white-space:normal}
 }
-.bc3-corpo>p>.bc3-bt{display:inline-flex}
-@media(max-width:700px){.bc3-faixa.simples .bc3-ks{min-height:0}.bc3-k em{display:block;margin:0;white-space:normal}}
+
+/* T-0034: a data da faixa é curta no celular; o texto inteiro vai no `title` (contrato §4.1) */
+.d-cel{display:none}
+@media(max-width:700px){.d-pc{display:none}.d-cel{display:inline}}
+.bc3-info{font-size:14px;font-weight:400;margin-left:8px;opacity:.85;cursor:help}
+
+/* Painel Executivo no PC (§7.1, §7.4): a página não rola. Os cartões RRM dividem a altura que sobra; o gráfico e as tabelas
+   ficam lado a lado, cada caixa com a rolagem por dentro (o padrão das juntas, §6.4). `uma-tela` é ligada pelo bc3.js. */
+body.uma-tela .painel-corpo,body.uma-tela .parcial-corpo{overflow:auto}
+body.uma-tela .parcial-corpo .parcial{flex:1 1 0;min-height:120px;margin:0}
+body.uma-tela .painel-corpo .rrm{flex:1 1 0;min-height:0;margin:4px 0 0;grid-template-rows:minmax(0,1fr)}
+body.uma-tela .painel-corpo .rc{min-height:0}
+body.uma-tela .painel-corpo .rc-barras{min-height:0}body.uma-tela .painel-corpo .rc-barras .area{min-height:100px}
+body.uma-tela .painel-corpo .graficos{flex:1 1 0;min-height:240px;margin:4px 0 0;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));grid-auto-rows:minmax(200px,1fr);overflow:auto}
+body.uma-tela .painel-corpo .graf{overflow:auto;display:flex;flex-direction:column}
+body.uma-tela .painel-corpo .graf-tab{grid-column:auto}
+body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}

@@ -1,13 +1,14 @@
 {% extends "base.html" %}
-{% from "_faixa_simples.html" import faixa_simples %}
+{% from "_faixa.html" import faixa_simples %}
 {% block titulo %}Parcial · {{ farol_nome }}{% endblock %}
 {% block cabeca %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {# T-0034 (RD-0059): a lateral da casca já é o menu; a faixa leva só o título #}
 {% block faixa %}{{ faixa_simples("Parcial · " ~ farol_nome) }}{% endblock %}
+{# PC: a página não rola; a imagem rola por dentro da caixa (bc3.js, estilo.css `.parcial-corpo`) #}
+{% block mainclass2 %} parcial-corpo{% endblock %}
 {% block corpo %}
 {% if not opcoes %}
 <p class="aviso atencao">A parcial ainda não chegou do PC.</p>
-<p><a class="bc3-bt" href="/farol/{{ rid }}">Voltar ao farol</a></p>
 {% else %}
 <div class="bc3-sub">
   <nav class="bc3-uf bc3-uf-claro" aria-label="Período">{% for k, n in opcoes %}<a href="/farol/{{ rid }}/parcial?q={{ k }}" class="{{ 'on' if k == q }}"{{ ' aria-current="page"'|safe if k == q }}>{{ n }}</a>{% endfor %}</nav>
@@ -15,7 +16,6 @@
     <a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}/parcial.png?q={{ q }}&amp;baixar=1">Baixar imagem</a>
     <button type="button" class="bc3-bt" id="copiar" data-url="/farol/{{ rid }}/parcial.png?q={{ q }}">Copiar imagem</button>
     <a class="bc3-bt" href="/farol/{{ rid }}/parcial.pdf?q={{ q }}">Baixar PDF</a>
-    <a class="bc3-bt" href="/farol/{{ rid }}">Voltar ao farol</a>
     <span id="msg-copia" class="como" role="status"></span>
   </div>
 </div>

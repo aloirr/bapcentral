@@ -1,26 +1,17 @@
 {# T-0034: cabeçalho BC3 do Painel Executivo (contrato tela-bc3 §4 e §5; parecer de UX §5.2): faixa com os números da aba,
    abas curtas numa linha ("Indicadores ▾" leva as últimas no PC; "Mais ▾" no celular) e o filtro de estado.
    Os números vêm prontos de `render.faixa_painel` (a web não recalcula). #}
+{% from "_faixa.html" import quando, selo_velho, filtro_uf, filtro_uf_off, numeros %}
 {% set filtro_ufs = (filtros.ufs if filtros else []) or [] %}
 <header class="bc3-faixa">
   <div class="bc3-tt">
-    <h1>Painel Executivo</h1>
-    {% if gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}, horário de Manaus{{ ' · ' ~ sub_painel if sub_painel }}">Dados de {{ gerado_em|manaus }}{% if sub_painel %} · {{ sub_painel }}{% endif %}</span>{% endif %}
-    {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
-    {% if filtro_ufs %}
-    <nav class="bc3-uf" aria-label="Filtro por estado">
-      <a href="/painel?aba={{ aba }}" class="{{ 'on' if not uf }}">BAP</a>
-      {% for u in filtro_ufs %}<a href="/painel?aba={{ aba }}&amp;uf={{ u }}" class="{{ 'on' if u == uf }}">{{ u }}</a>{% endfor %}
-    </nav>
-    {% elif ufs_off %}
-    <nav class="bc3-uf bc3-uf-off" aria-label="Filtro por estado (esta aba é da BAP inteira)" title="Esta aba é só da BAP inteira"><a class="on">BAP</a>{% for u in ufs_off %}<span>{{ u }}</span>{% endfor %}</nav>
-    {% endif %}
+    <h1>Painel Executivo{% if tela and tela.como_ler %}<span class="bc3-info" tabindex="0" role="note" title="{{ tela.como_ler }}" aria-label="Como ler: {{ tela.como_ler }}">ⓘ</span>{% endif %}</h1>
+    {{ quando(gerado_em, sub_painel) }}
+    {{ selo_velho(desatualizado) }}
+    {% if filtro_ufs %}{{ filtro_uf("/painel?aba=" ~ aba, filtro_ufs, uf) }}
+    {% elif ufs_off %}{{ filtro_uf_off(ufs_off) }}{% endif %}
   </div>
-  {% if faixa_ks %}
-  <div class="bc3-ks">
-    {% for k in faixa_ks %}<div class="bc3-k t-{{ k.cor }}"><small>{{ k.rot }}</small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
-  </div>
-  {% endif %}
+  {{ numeros(faixa_ks) }}
 </header>
 {% if abas %}
 {# PC: as 7 primeiras na linha e o resto em "Indicadores"; celular: a primeira, a segunda e a aberta, e o resto em "Mais" #}
