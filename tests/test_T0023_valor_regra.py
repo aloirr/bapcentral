@@ -30,14 +30,10 @@ from types import SimpleNamespace
 import pytest
 
 import bap_automation as ba
-
-if "pl_ncc" not in getattr(ba, "FAROIS_WEB", ()) or not hasattr(ba, "CAMPOS_LUGAR_WEB"):
-    pytest.skip("robô da T-0023 v2 (modulo-robo/T-0023-robo) ainda não entrou", allow_module_level=True)
-
-import bap_dados as bd  # noqa: E402
-import garantias as gm  # noqa: E402
-import ncc_controle as nc  # noqa: E402
-import relatorios_nucleo as rn  # noqa: E402
+import bap_dados as bd
+import garantias as gm
+import ncc_controle as nc
+import relatorios_nucleo as rn
 
 RAIZ = Path(__file__).resolve().parent.parent
 HOJE = date(2026, 11, 24)
@@ -143,15 +139,13 @@ def test_ADR0003_10_10_4_teto_de_1_MB_tira_so_o_historico(real):
 
 
 def test_T0023_a_web_aceita_os_3_farois(real):
-    """Desenho 5.1: a web aceita cada farol (tabelas.validar sem erro). Só
-    roda quando a web da T-0023 (COLUNAS_RID, contrato 10.10.1) entrar."""
+    """Desenho 5.1: a web aceita cada farol (tabelas.validar sem erro), com as
+    colunas por (rid, título) da web (COLUNAS_RID, contrato 10.10.1)."""
     _pcs, f = real
     antes = set(sys.modules)
     sys.path.insert(0, str(RAIZ / "web"))
     try:
         from app import tabelas
-        if not hasattr(tabelas, "COLUNAS_RID"):
-            pytest.skip("web da T-0023 v2 (tabelas.COLUNAS_RID, §10.10.1) ainda não entrou")
         for rid in TRES:
             assert tabelas.validar(rid, f[rid]) == [], rid
     finally:
@@ -516,8 +510,7 @@ def test_RN_GER_002_faturado_liquido_zero_ou_negativo_mostra_traco():
     assert series, "sem gráfico \"% devolvido do faturado\" no Resumo"
     assert all(x is None or x == "—" or x >= 0 for vs in series for x in vs)
     # a regra única do núcleo: líquido <= 0 = sem percentual
-    if hasattr(rn, "pct_do_liquido"):
-        assert rn.pct_do_liquido(dev[d6], vnd[d6] - dev[d6]) is None
+    assert rn.pct_do_liquido(dev[d6], vnd[d6] - dev[d6]) is None
     # a semana de 05/10 tem faturado líquido positivo: número normal
     sem = [date(2026, 10, d) for d in range(5, 12)]
     rot_s, val_s = _serie_resumo(r, "% devolvido do faturado · semana a semana · OUT/26")

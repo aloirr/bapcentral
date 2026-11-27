@@ -223,8 +223,7 @@ def _sem_as_chaves_do_cor_pc(src):
 
 
 def _marca_web():
-    if not MARCA_WEB.is_file():
-        pytest.skip("web/app/marca.py ausente")
+    assert MARCA_WEB.is_file(), "web/app/marca.py ausente"
     spec = importlib.util.spec_from_file_location("_marca_web_t0033",
                                                   MARCA_WEB)
     mod = importlib.util.module_from_spec(spec)
@@ -234,8 +233,7 @@ def _marca_web():
 
 def _cor_pc():
     cor = getattr(_marca_web(), "COR_PC", None)
-    if not cor:
-        pytest.skip("sem marca.COR_PC na web (UX A8 da T-0037)")
+    assert cor, "sem marca.COR_PC na web (UX A8 da T-0037)"
     return cor
 
 
@@ -334,9 +332,6 @@ UFS_TESTE = ("AM", "PA", "RR", "AP", "MA", "AC", "RO", "PI")
 def _pacote_fretes_com_cores_do_pc(cor):
     import bap_automation as ba                         # noqa: PLC0415
     import relatorios_nucleo as rn                      # noqa: PLC0415
-    if not (hasattr(rn, "kpis_fretes")
-            and "pl_fretes" in getattr(ba, "FAROIS_WEB", ())):
-        pytest.skip("robô/faróis da T-0037 ainda não entraram")
     r = rn.montar("pl_fretes", RAIZ, hoje=date(2026, 11, 24),
                   params=ba.params_farol_web("pl_fretes", 2026, 11))
     pac = ba.montar_pacote_web({"pl_fretes": r}, 2026, 11, raiz=RAIZ)

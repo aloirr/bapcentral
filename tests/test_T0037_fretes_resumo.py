@@ -9,8 +9,7 @@ do VLR NF) e ao "Frete estimado" (RN-POS-007 e RN-POS-009); a barra do mês é
 o mesmo nº de notas. Sem dado pessoal (RN-GER-011, regra 6).
 
 Base: o pacote real das bases congeladas, hoje = 24/11/2026. Teste trazido
-do modulo-robo (robô 91e6f8a). Contrato §10.12; desenho docs/desenho/T-0037.md.
-Sem os faróis e o robô da T-0037, pula.
+do modulo-robo (robô 91e6f8a). Contrato §10.13; desenho docs/desenho/T-0037.md.
 """
 import json
 import re
@@ -21,12 +20,6 @@ import pytest
 
 import bap_automation as ba
 import relatorios_nucleo as rn
-
-if not (hasattr(rn, "kpis_fretes")
-        and "pl_fretes" in getattr(ba, "FAROIS_WEB", ())
-        and hasattr(ba, "blocos_resumo_fretes_web")):
-    pytest.skip("robô/faróis da T-0037 ainda não entraram",
-                allow_module_level=True)
 
 RAIZ = Path(__file__).resolve().parent.parent
 HOJE = date(2026, 11, 24)

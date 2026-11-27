@@ -8,15 +8,11 @@ transportadora) e "Sem acompanhamento" (nota sem a CHAVE da entrega). Valor
 transportadora" (RN-POS-009, cartões do Fretes). A UF é a do cliente
 (RN-POS-007). Linhas FICTÍCIAS (17 células, a CHAVE na 17ª).
 
-Teste trazido do modulo-farois. Sem os faróis da T-0037, pula.
+Teste trazido do modulo-farois.
 """
 import pytest
 
 import relatorios_nucleo as rn
-
-if not hasattr(rn, "rotulo_agrupa_fretes"):
-    pytest.skip("faróis da T-0037 (rotulo_agrupa_fretes) ainda não entraram",
-                allow_module_level=True)
 
 COL_CIDADE, COL_UF, COL_TRANSP, COL_CHAVE = 6, 7, 11, 16
 

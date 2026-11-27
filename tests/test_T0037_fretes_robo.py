@@ -1,10 +1,8 @@
 """T-0037 — Farol de Fretes na web (robô + faróis), dados FICTÍCIOS.
 
 Valor × regra em todo número (desenho docs/desenho/T-0037.md, contrato
-§10.12). Regras: RN-POS-007 a 010 (propostas), RN-GER-006 (fretes = UF do
+§10.13). Regras: RN-POS-007 a 010 (propostas), RN-GER-006 (fretes = UF do
 cliente), RN-GER-011 (cliente sem documento), RN-GER-012 (edição só no site).
-
-Os testes entram antes do robô e dos faróis: sem eles, pulam.
 """
 import ast
 from pathlib import Path
@@ -14,11 +12,6 @@ import pytest
 
 import bap_automation as ba
 import relatorios_nucleo as rn
-
-if not hasattr(rn, "kpis_fretes") or "pl_fretes" not in getattr(
-        ba, "FAROIS_WEB", ()):
-    pytest.skip("robô/faróis da T-0037 ainda não entraram",
-                allow_module_level=True)
 
 RAIZ = Path(__file__).resolve().parent.parent
 NOV, OUT = rn.rotulo_mes("2026-11"), rn.rotulo_mes("2026-10")
@@ -172,7 +165,7 @@ def test_RN_GER_011_pacote_quatro_abas_colunas_so_o_mes(tmp_path):
     assert [t["titulo"] for t in tabs] == [
         "Notas com frete", "Por UF", "Por cidade", "Por transportadora"]
     notas = tabs[0]
-    # contrato §10.12.3: as 16 colunas, sem a CHAVE
+    # contrato §10.13.3: as 16 colunas, sem a CHAVE
     assert [c["nome"] for c in notas["colunas"]] == [c[0] for c in COLS]
     assert [(c["nome"], c["tipo"]) for c in notas["colunas"]] == [
         c[:2] for c in COLS]
@@ -274,10 +267,9 @@ def _reg(seq, valores, chave="FILIAL FICTICIA|900001|1"):
 ])
 def test_RN_POS_010_validar_edicao_do_fretes(reg, motivo):
     # texto recusado: a frase com o teto do campo, que vem do núcleo (T-0023,
-    # RD-0135); no robô sem a T-0023, a constante antiga
-    texto = (ba.motivo_texto_web(rn.max_texto_edicao("pos_venda",
-                                                     "responsavel"))
-             if hasattr(ba, "motivo_texto_web") else ba.MOTIVO_TEXTO_WEB)
+    # RD-0135)
+    texto = ba.motivo_texto_web(rn.max_texto_edicao("pos_venda",
+                                                    "responsavel"))
     esperado = {"": "", "opcao": ba.MOTIVO_OPCAO_WEB,
                 "chave": ba.MOTIVO_CHAVE_WEB, "data": ba.MOTIVO_DATA_WEB,
                 "texto": texto}[motivo]
@@ -337,10 +329,8 @@ def test_RN_POS_010_frete_real_recusado_no_fretes_aceito_no_entregas():
 
 
 def test_RN_POS_010_campos_lugar_web_do_fretes_sem_frete_real():
-    """Contrato §10.12.4: os 5 campos do lugar, pela tabela por lugar
+    """Contrato §10.13.4: os 5 campos do lugar, pela tabela por lugar
     (CAMPOS_LUGAR_WEB); o Entregas segue com os do módulo (com frete_real)."""
-    if not hasattr(ba, "CAMPOS_LUGAR_WEB"):
-        pytest.skip("CAMPOS_LUGAR_WEB ainda não entrou")
     esperado = {"etapa": "lista", "transportadora": "lista",
                 "prevista_manual": "data", "entregue_em": "data",
                 "responsavel": "livre"}

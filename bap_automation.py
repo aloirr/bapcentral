@@ -8085,6 +8085,15 @@ EDICOES_WEB = {
     ("pl_garantias", "Garantias"): {
         "modulo": "garantias", "arquivo": "RELATORIOS/_GARANTIAS",
         "aba": "", "acao": "Editar", "novo": True}}
+# (T-0054, RN-POS-011, contrato 10.9.7) quem edita, por lugar: igual a
+# edicoes.EDITA_LUGAR da web. Lugar fora da tabela = so o admin (RN-GER-012)
+EDITA_LUGAR_WEB = {
+    ("pl_entregas", "Entregas"): ("admin", "pos_venda"),
+    ("pl_entregas", "Pendências dos meses anteriores"):
+        ("admin", "pos_venda"),
+    # (R-20261127-103925, P2 A) Fretes da T-0037: no main o lugar ainda nao
+    # esta em EDICOES_WEB (recusado antes), entao a linha nao muda nada
+    ("pl_fretes", "Notas com frete"): ("admin", "pos_venda")}
 # os campos de cada modulo e o tipo de conferencia no robo: "lista" (lista
 # fechada do PC), "data" (dd/mm/aaaa), "data_livre" (uma data do calendario,
 # de 01/01/2020 a hoje + 1 ano), "livre" (texto de uma linha), "longo" (texto
@@ -9629,6 +9638,7 @@ ARQ_ESTADO_EDICOES_WEB = "ESTADO_EDICOES_WEB.json"
 _PAGINAS_MAX_EDICOES_WEB = 50
 # motivos de recusa (vao ao site): frases fixas, sem dado pessoal
 MOTIVO_LUGAR_WEB = "tabela ou campo que não edita na web"
+MOTIVO_PERFIL_WEB = "perfil sem edição neste farol"
 MOTIVO_CHAVE_WEB = "chave da linha inválida"
 MOTIVO_OPCAO_WEB = "valor fora das opções do PC"
 MOTIVO_DATA_WEB = "data inválida"
@@ -9776,6 +9786,10 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
     lugar = EDICOES_WEB.get((reg.get("rid"), reg.get("tabela")))
     if not lugar or reg.get("modulo") != lugar["modulo"]:
         return MOTIVO_LUGAR_WEB
+    # (T-0054) perfil conferido; registro sem perfil (fila antiga) segue
+    if "perfil" in reg and reg["perfil"] not in EDITA_LUGAR_WEB.get(
+            (reg.get("rid"), reg.get("tabela")), ("admin",)):
+        return MOTIVO_PERFIL_WEB
     chave = reg.get("chave")
     novo = reg.get("novo") is True
     if novo and not lugar.get("novo"):
@@ -9931,11 +9945,10 @@ def aplicar_edicao_web(raiz, reg: dict, opcoes: dict,
     return "aplicada", ""
 
 
-def ler_estado_edicoes_web(raiz) -> dict:
+def _ler_estado_fila_web(arq) -> dict:
     """{"epoca", "ate_seq", "a_confirmar"}; sem arquivo (ou torto): do zero."""
     try:
-        d = json.loads((_pasta_edicoes_web(raiz) / ARQ_ESTADO_EDICOES_WEB)
-                       .read_text(encoding="utf-8"))
+        d = json.loads(Path(arq).read_text(encoding="utf-8"))
         n, ep = int(d.get("ate_seq")), d.get("epoca")
         ac = d.get("a_confirmar") or []
         if n < 0 or not isinstance(ep, str) or not isinstance(ac, list):
@@ -9945,13 +9958,18 @@ def ler_estado_edicoes_web(raiz) -> dict:
         return {"epoca": "", "ate_seq": 0, "a_confirmar": []}
 
 
-def gravar_estado_edicoes_web(raiz, estado: dict) -> None:
-    pasta = _pasta_edicoes_web(raiz)
-    pasta.mkdir(parents=True, exist_ok=True)
-    alvo = pasta / ARQ_ESTADO_EDICOES_WEB
-    tmp = alvo.with_suffix(".tmp")
+def _gravar_estado_fila_web(arq, estado: dict) -> None:
+    arq = Path(arq)
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    tmp = arq.with_suffix(".tmp")
     tmp.write_text(json.dumps(estado, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, alvo)
+    os.replace(tmp, arq)
+
+
+def ler_estado_edicoes_web(raiz) -> dict:
+    """{"epoca", "ate_seq", "a_confirmar"}; sem arquivo (ou torto): do zero."""
+    return _ler_estado_fila_web(_pasta_edicoes_web(raiz)
+                                / ARQ_ESTADO_EDICOES_WEB)
 
 
 def _arq_aplicadas_web(raiz) -> Path:
@@ -9993,6 +10011,8 @@ def _registrar_aplicada_web(raiz, reg, status, motivo, epoca,
         linha["antes"] = reg["antes"]
     if reg.get("novo") is True:
         linha["novo"] = True
+    if reg.get("perfil") is not None:          # (T-0054) quem editou
+        linha["perfil_web"] = reg["perfil"]
     linha.update(extra or {})
     with open(arq, "a", encoding="utf-8") as f:
         f.write(json.dumps(linha, ensure_ascii=False) + "\n")
@@ -10000,21 +10020,24 @@ def _registrar_aplicada_web(raiz, reg, status, motivo, epoca,
         os.fsync(f.fileno())
 
 
-def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
-                       log=print) -> dict | None:
-    """GET <base>/api/edicoes?desde=<seq> (Bearer), repetindo enquanto
-    `mais`. {"epoca", "linhas", "ate_seq"} ou None (404 = web antiga, 401,
-    rede...). Log sem dado pessoal e sem token."""
+def _baixar_fila_web(rota: str, rotulo: str, desde: int, base: str,
+                     token: str, sessao=None, log=print,
+                     mudo_404=False) -> dict | None:
+    """GET <base><rota>?desde=<seq> (Bearer), repetindo enquanto `mais`.
+    {"epoca", "linhas", "ate_seq"} ou None (404 = web antiga, 401, rede...).
+    Log sem dado pessoal e sem token. `mudo_404`: 404 nao vira log (a web
+    antiga, sem as visitas da nuvem, e um estado normal)."""
     sessao = sessao or __import__("requests")
     cab = {"Authorization": f"Bearer {token}"}
     linhas, atual, epoca = [], int(desde), None
     for _ in range(_PAGINAS_MAX_EDICOES_WEB):
         try:
-            r = sessao.get(f"{base}/api/edicoes", params={"desde": atual},
+            r = sessao.get(f"{base}{rota}", params={"desde": atual},
                            headers=cab, timeout=30)
             if r.status_code != 200:
-                log(f"Edicoes web: o site respondeu {r.status_code}; sigo "
-                    "sem importar.")
+                if not (mudo_404 and r.status_code == 404):
+                    log(f"{rotulo}: o site respondeu {r.status_code}; sigo "
+                        "sem importar.")
                 break
             d = r.json()
             pag, ate, ep = d["linhas"], int(d["ate_seq"]), str(d["epoca"])
@@ -10022,7 +10045,7 @@ def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
                                               and ep != epoca):
                 raise ValueError("resposta")
         except Exception as erro:                       # noqa: BLE001
-            log("Edicoes web: falha ao puxar as edicoes do site "
+            log(f"{rotulo}: falha ao puxar as edicoes do site "
                 f"({type(erro).__name__}); sigo sem importar.")
             break
         epoca = ep
@@ -10038,53 +10061,79 @@ def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
     return {"epoca": epoca, "linhas": linhas, "ate_seq": atual}
 
 
-def confirmar_edicoes_web(epoca: str, resultados: list, base: str,
-                          token: str, sessao=None, log=print) -> bool:
+def _confirmar_fila_web(rota: str, rotulo: str, epoca: str, resultados: list,
+                        base: str, token: str, sessao=None, log=print,
+                        extra=None, mudo_404=False):
+    """POST <base><rota>/confirmar. Devolve o status HTTP (200 = ok) ou None
+    se a rede falhou. `extra`: chaves a mais no corpo (o `fechados_pc` das
+    visitas)."""
     sessao = sessao or __import__("requests")
     try:
-        r = sessao.post(f"{base}/api/edicoes/confirmar",
-                        json={"epoca": str(epoca), "resultados": resultados},
+        corpo = {"epoca": str(epoca), "resultados": resultados}
+        if extra:
+            corpo.update(extra)
+        r = sessao.post(f"{base}{rota}/confirmar", json=corpo,
                         headers={"Authorization": f"Bearer {token}"},
                         timeout=30)
         if r.status_code == 200:
-            return True
-        log(f"Edicoes web: a confirmacao voltou {r.status_code}; confirmo "
-            "de novo na proxima rodada.")
+            return 200
+        if not (mudo_404 and r.status_code == 404):
+            log(f"{rotulo}: a confirmacao voltou {r.status_code}; confirmo "
+                "de novo na proxima rodada.")
+        return r.status_code
     except Exception as erro:                           # noqa: BLE001
-        log(f"Edicoes web: falha ao confirmar ({type(erro).__name__}); "
+        log(f"{rotulo}: falha ao confirmar ({type(erro).__name__}); "
             "confirmo de novo na proxima rodada.")
-    return False
+    return None
 
 
-def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
-                            log=print, gravar=gravar_edicoes_pc,
-                            opcoes=None) -> dict:
-    """Puxa, grava no PC (na ordem do seq; a primeira que fica pendente -
-    Excel aberto - para a fila ate a proxima rodada), guarda o estado e
-    confirma. Devolve {"aplicadas", "erros", "pendentes", "confirmado"}.
-    Nunca levanta."""
+def puxar_fila_web(raiz, rota, arq_estado, aplicar, ja_feitos, registrar,
+                   base, token, sessao, log, extra_confirmar=None,
+                   rotulo="Edicoes web", preparar=None, mudo_404=False):
+    """O laco `desde`/`epoca`/confirmar das filas do site que confirmam item
+    a item (edicoes e lotes de visitas; T-0045, contrato §4.4). Puxa, aplica
+    no PC na ordem do seq (a primeira que fica pendente - Excel aberto - para
+    a fila ate a proxima rodada), guarda o estado e confirma. Nunca levanta.
+    Devolve {"aplicadas", "erros", "pendentes", "confirmado"}.
+
+    rota           "/api/edicoes" ou "/api/visitas/lotes" (o confirmar e
+                   <rota>/confirmar)
+    arq_estado     o JSON do estado ({epoca, ate_seq, a_confirmar})
+    preparar()     opcional: roda uma vez, depois do GET, antes do laco
+    ja_feitos(reg, epoca) -> (status, motivo) | None: o que o PC ja gravou
+    aplicar(reg, extra) -> (status, motivo); "pendente" para a fila; `extra`
+                   e um dict que o aplicar pode preencher (o `chave_pc` da
+                   garantia) e que vai ao registrar
+    registrar(reg, status, motivo, epoca, extra): so quando aplicar() rodou
+    extra_confirmar() -> dict: chaves a mais no POST (o `fechados_pc`); com
+                   ele o POST sai em toda volta, mesmo sem resultado novo
+    """
     cont = {"aplicadas": 0, "erros": 0, "pendentes": 0, "confirmado": False}
     try:
-        estado = ler_estado_edicoes_web(raiz)
+        estado = _ler_estado_fila_web(arq_estado)
         desde = estado["ate_seq"] if estado["epoca"] else 0
-        res = baixar_edicoes_web(desde, base, token, sessao, log)
+        res = _baixar_fila_web(rota, rotulo, desde, base, token, sessao, log,
+                               mudo_404)
         if res and res["epoca"] != estado["epoca"]:
             if estado["epoca"]:
-                log("Edicoes web: a fila do site recomecou (epoca nova); "
+                log(f"{rotulo}: a fila do site recomecou (epoca nova); "
                     "puxo tudo de novo.")
             estado = {"epoca": res["epoca"], "ate_seq": 0, "a_confirmar": []}
             if desde:
-                res = baixar_edicoes_web(0, base, token, sessao, log)
+                res = _baixar_fila_web(rota, rotulo, 0, base, token, sessao,
+                                       log, mudo_404)
                 if res and res["epoca"] != estado["epoca"]:
                     res = None
         if not res:
-            if estado["a_confirmar"] and estado["epoca"]:
-                cont["confirmado"] = confirmar_edicoes_web(
-                    estado["epoca"], estado["a_confirmar"], base, token,
-                    sessao, log)
+            if estado["epoca"] and (estado["a_confirmar"]
+                                    or extra_confirmar is not None):
+                extra = extra_confirmar() if extra_confirmar else None
+                cont["confirmado"] = _confirmar_fila_web(
+                    rota, rotulo, estado["epoca"], estado["a_confirmar"],
+                    base, token, sessao, log, extra, mudo_404) == 200
             return cont
-        opcoes = opcoes if opcoes is not None else opcoes_edicao_web(raiz)
-        ja = aplicadas_web(raiz)
+        if preparar:
+            preparar()
         resultados = {int(x["seq"]): x for x in estado["a_confirmar"]
                       if isinstance(x, dict) and "seq" in x}
         ate = estado["ate_seq"]
@@ -10095,39 +10144,273 @@ def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
             if reg.get("status") != "pendente":
                 ate = seq                   # ja confirmada no site
                 continue
-            if str(reg.get("id")) in ja:
-                status, motivo = ja[str(reg.get("id"))]
+            feito = ja_feitos(reg, res["epoca"])
+            if feito is not None:
+                status, motivo = feito
             else:
-                extra = {}
-                status, motivo = aplicar_edicao_web(
-                    raiz, reg, opcoes, gravar, _saida=extra)
+                extra = {}              # o que o aplicar quer no registro
+                status, motivo = aplicar(reg, extra)
                 if status == "pendente":
                     cont["pendentes"] += 1
-                    log(f"Edicoes web: {motivo}; a fila espera a proxima "
+                    log(f"{rotulo}: {motivo}; a fila espera a proxima "
                         "rodada.")
                     break
-                _registrar_aplicada_web(raiz, reg, status, motivo,
-                                        res["epoca"], extra)
+                registrar(reg, status, motivo, res["epoca"], extra)
             cont["aplicadas" if status == "aplicada" else "erros"] += 1
             resultados[seq] = {"seq": seq, "status": status, "motivo": motivo}
             ate = seq
         estado = {"epoca": res["epoca"], "ate_seq": ate,
                   "a_confirmar": sorted(resultados.values(),
                                         key=lambda x: x["seq"])}
-        gravar_estado_edicoes_web(raiz, estado)
+        _gravar_estado_fila_web(arq_estado, estado)
         if cont["aplicadas"] or cont["erros"]:
-            log(f"Edicoes web: {cont['aplicadas']} gravada(s) no PC, "
+            log(f"{rotulo}: {cont['aplicadas']} gravada(s) no PC, "
                 f"{cont['erros']} recusada(s).")
-        if estado["a_confirmar"]:
-            cont["confirmado"] = confirmar_edicoes_web(
-                estado["epoca"], estado["a_confirmar"], base, token, sessao,
-                log)
+        if estado["a_confirmar"] or extra_confirmar is not None:
+            extra = extra_confirmar() if extra_confirmar else None
+            codigo = _confirmar_fila_web(
+                rota, rotulo, estado["epoca"], estado["a_confirmar"], base,
+                token, sessao, log, extra, mudo_404)
+            cont["confirmado"] = codigo == 200
             if cont["confirmado"]:
-                gravar_estado_edicoes_web(raiz, dict(estado, a_confirmar=[]))
+                _gravar_estado_fila_web(arq_estado,
+                                        dict(estado, a_confirmar=[]))
+            elif codigo == 409 and extra_confirmar is not None:
+                # a epoca do site mudou no meio da volta: recomeca do zero
+                _gravar_estado_fila_web(arq_estado, {
+                    "epoca": "", "ate_seq": 0, "a_confirmar": []})
     except Exception as erro:                           # noqa: BLE001
-        log(f"Edicoes web: nao terminei ({type(erro).__name__}); tento de "
+        log(f"{rotulo}: nao terminei ({type(erro).__name__}); tento de "
             "novo na proxima rodada.")
     return cont
+
+
+def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
+                            log=print, gravar=gravar_edicoes_pc,
+                            opcoes=None) -> dict:
+    """Puxa, grava no PC (na ordem do seq; a primeira que fica pendente -
+    Excel aberto - para a fila ate a proxima rodada), guarda o estado e
+    confirma. Devolve {"aplicadas", "erros", "pendentes", "confirmado"}.
+    Nunca levanta."""
+    est = {"opcoes": opcoes, "ja": {}}
+
+    def preparar():
+        if est["opcoes"] is None:
+            est["opcoes"] = opcoes_edicao_web(raiz)
+        est["ja"] = aplicadas_web(raiz)
+
+    return puxar_fila_web(
+        raiz, "/api/edicoes",
+        _pasta_edicoes_web(raiz) / ARQ_ESTADO_EDICOES_WEB,
+        aplicar=lambda reg, extra: aplicar_edicao_web(
+            raiz, reg, est["opcoes"], gravar, _saida=extra),
+        ja_feitos=lambda reg, _epoca: est["ja"].get(str(reg.get("id"))),
+        registrar=lambda reg, status, motivo, epoca, extra:
+        _registrar_aplicada_web(raiz, reg, status, motivo, epoca, extra),
+        base=base, token=token, sessao=sessao, log=log, preparar=preparar)
+
+
+# (T-0045, contrato visitas-nuvem §4) O robo do PC importa o que a nuvem
+# baixou da Maxima: GET /api/visitas/lotes -> /api/visitas/lote/<seq> ->
+# Excel no ANALITICO -> confirmar (+ o `fechados_pc`). Antes do pacote, no
+# mesmo ponto das edicoes. Nunca derruba a rodada; log sem nome e sem token.
+PASTA_VISITAS_WEB = Path("RELATORIOS") / "_VISITAS_WEB"
+ARQ_ESTADO_VISITAS_WEB = "ESTADO_VISITAS_WEB.json"
+ARQ_IMPORTADOS_VISITAS_WEB = "IMPORTADOS_VISITAS_WEB.jsonl"
+ROTA_VISITAS_WEB = "/api/visitas/lotes"
+_RX_DIA_VISITAS_WEB = re.compile(r"^\d{8}$")
+
+
+def _importados_visitas_web(raiz) -> dict:
+    """{"<epoca>:<seq>": (status, motivo)} do registro so de acrescimo."""
+    saida = {}
+    arq = Path(raiz) / PASTA_VISITAS_WEB / ARQ_IMPORTADOS_VISITAS_WEB
+    try:
+        for ln in arq.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(ln)
+                saida[f"{r['epoca']}:{r['seq']}"] = (r["status"],
+                                                     r.get("motivo", ""))
+            except (ValueError, KeyError, TypeError):
+                continue
+    except OSError:
+        pass
+    return saida
+
+
+def _registrar_importado_visitas_web(raiz, reg, status, motivo, epoca):
+    arq = Path(raiz) / PASTA_VISITAS_WEB / ARQ_IMPORTADOS_VISITAS_WEB
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    linha = {"seq": reg.get("seq"), "epoca": epoca, "dia": reg.get("dia"),
+             "arquivos": reg.get("arquivos"), "status": status,
+             "motivo": motivo,
+             "em": _agora_manaus().strftime("%Y-%m-%d %H:%M:%S")}
+    with open(arq, "a", encoding="utf-8") as f:
+        f.write(json.dumps(linha, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _corpo_do_lote_visitas_web(r, reg):
+    """Os bytes JSON do lote (descomprime se veio gzip) ou None se o sha256
+    nao confere (o do cabecalho e o da linha, quando existem)."""
+    import hashlib                                      # noqa: PLC0415
+    bruto = r.content
+    if bruto[:2] == b"\x1f\x8b":
+        bruto = gzip.decompress(bruto)
+    sha = hashlib.sha256(bruto).hexdigest()
+    for esperado in ((r.headers or {}).get("X-BAP-SHA256"),
+                     reg.get("sha256")):
+        if esperado and str(esperado).lower() != sha:
+            return None
+    return bruto
+
+
+def _validar_lote_visitas_web(raiz, reg, corpo):
+    """(lista de (pasta, nome, bytes), None) ou (None, motivo). Confere tudo
+    ANTES de gravar qualquer Excel. motivo em sha256, nome, pasta, dia."""
+    import hashlib                                      # noqa: PLC0415
+    vm = _importar_do_pc("visitas_maxima", raiz)
+    dia = str(corpo.get("dia") or "")
+    if (corpo.get("versao") != 1 or dia != str(reg.get("dia"))
+            or not _RX_DIA_VISITAS_WEB.match(dia)):
+        return None, "dia"
+    try:
+        d = datetime.strptime(dia, "%Y%m%d").date()
+    except ValueError:
+        return None, "dia"
+    if d > _agora_manaus().date():
+        return None, "dia"
+    arquivos = corpo.get("arquivos")
+    if not isinstance(arquivos, list) or not arquivos:
+        return None, "nome"
+    saida = []
+    for a in arquivos:
+        if not isinstance(a, dict):
+            return None, "nome"
+        pasta, nome = a.get("pasta"), a.get("nome")
+        motivo, _ = vm.conferir_importado(pasta, nome, dia)
+        if motivo:
+            return None, motivo
+        try:
+            dados = base64.b64decode(a.get("b64") or "", validate=True)
+        except Exception:                               # noqa: BLE001
+            return None, "sha256"
+        if (hashlib.sha256(dados).hexdigest() != str(a.get("sha256")).lower()
+                or (a.get("bytes") is not None
+                    and int(a["bytes"]) != len(dados))):
+            return None, "sha256"
+        saida.append((pasta, nome, dados))
+    return saida, None
+
+
+def _anotar_maior_visitas_web(vn, raiz, chave, quando) -> None:
+    """RN-VIS-002: no indice do PC vale a MAIOR hora (empate: a nuvem). A
+    regra e a do nucleo (`juntar_baixado`); a hora do PC nunca recua."""
+    atual = vn.indice(raiz).get(chave)
+    if atual:
+        j = vn.juntar_baixado({chave: quando.isoformat()}, {chave: atual})
+        if j.get(chave, {}).get("origem") == "pc":
+            return
+    vn.anotar_baixado(raiz, chave, quando)
+
+
+def _aplicar_lote_visitas_web(raiz, reg, base, token, sessao, res):
+    """Um lote: (status, motivo). `pendente` = tento na proxima volta."""
+    vm = _importar_do_pc("visitas_maxima", raiz)
+    vn = _importar_do_pc("visitas_nucleo", raiz)
+    try:
+        r = sessao.get(f"{base}/api/visitas/lote/{int(reg['seq'])}",
+                       headers={"Authorization": f"Bearer {token}"},
+                       timeout=60)
+    except Exception:                                   # noqa: BLE001
+        return "pendente", "falha de rede ao buscar o lote"
+    if r.status_code == 404:                  # saiu pela retencao: a nuvem baixa de novo
+        return "erro", "sha256"
+    if r.status_code != 200:
+        return "pendente", f"o site respondeu {r.status_code} ao buscar o lote"
+    try:
+        bruto = _corpo_do_lote_visitas_web(r, reg)
+        if bruto is None:
+            return "erro", "sha256"
+        corpo = json.loads(bruto.decode("utf-8"))
+        if not isinstance(corpo, dict):
+            return "erro", "dia"
+        arquivos, motivo = _validar_lote_visitas_web(raiz, reg, corpo)
+    except (ValueError, OSError, EOFError):
+        return "erro", "sha256"
+    if motivo:
+        return "erro", motivo
+    try:
+        for pasta, nome, dados in arquivos:
+            vm.gravar_excel_importado(raiz, pasta, nome, dados)
+        eq = corpo.get("equipe") or {}
+        vn.gravar_equipe_maxima(raiz, eq.get("filiais") or {},
+                                eq.get("supervisores") or {},
+                                eq.get("representantes") or {})
+        d = datetime.strptime(corpo["dia"], "%Y%m%d").date()
+        vn.montar_dia(raiz, d, corpo.get("extras") or {})
+        q = vn._quando_manaus(corpo.get("baixado_em"))   # RN-VIS-002
+        quando = (q or _agora_manaus()).replace(tzinfo=None)  # o indice: Manaus sem fuso
+        _anotar_maior_visitas_web(vn, raiz, corpo["dia"], quando)
+        if vn.montar_mes(raiz, d.year, d.month):
+            _anotar_maior_visitas_web(vn, raiz, f"{d.year}{d.month:02d}",
+                                      quando)
+    except PermissionError:
+        return "pendente", "arquivo aberto no Excel"
+    except OSError:
+        return "pendente", "falha de disco"
+    except Exception as erro:                           # noqa: BLE001
+        # nao e disco nem Excel aberto: repetir daria o mesmo erro e seguraria
+        # a fila. Erro do lote (motivo do contrato §4.3); o log so tem a classe
+        return "erro", "dia"
+    res["lotes"] += 1
+    res["arquivos"] += len(arquivos)
+    if corpo["dia"] not in res["dias"]:
+        res["dias"].append(corpo["dia"])
+    return "aplicada", ""
+
+
+def sincronizar_visitas_web(raiz, base: str, token: str, log=print,
+                            sessao=None) -> dict:
+    """Importa os lotes de visitas que a nuvem baixou da Maxima e manda o
+    `fechados_pc` (o que o PC fechou, contrato §4.3) em toda volta. Usa o
+    mesmo laco das edicoes (`puxar_fila_web`). Nunca levanta e nunca derruba
+    a rodada. Devolve {"lotes", "arquivos", "dias", "erro"}.
+    404 da web antiga = "sem visitas da nuvem": segue, sem erro."""
+    res = {"lotes": 0, "arquivos": 0, "dias": [], "erro": None}
+    try:
+        sessao = sessao or __import__("requests")
+        vm = _importar_do_pc("visitas_maxima", raiz)
+        vn = _importar_do_pc("visitas_nucleo", raiz)
+        est = {"ja": {}}
+
+        def fechados():
+            return {"fechados_pc": vm.fechados_pc(
+                vn.indice(raiz), _agora_manaus().date())}
+        puxar_fila_web(
+            raiz, ROTA_VISITAS_WEB,
+            Path(raiz) / PASTA_VISITAS_WEB / ARQ_ESTADO_VISITAS_WEB,
+            aplicar=lambda reg, _extra: _aplicar_lote_visitas_web(
+                raiz, reg, base, token, sessao, res),
+            ja_feitos=lambda reg, epoca: est["ja"].get(
+                f"{epoca}:{reg.get('seq')}"),
+            registrar=lambda reg, st, mo, ep, _extra:
+            _registrar_importado_visitas_web(raiz, reg, st, mo, ep),
+            base=base, token=token, sessao=sessao, log=log,
+            extra_confirmar=fechados, rotulo="Visitas web",
+            preparar=lambda: est.__setitem__(
+                "ja", _importados_visitas_web(raiz)),
+            mudo_404=True)
+        if res["lotes"]:
+            vm.depois_de_baixar(raiz, log)      # uma vez por importacao
+            log(f"Visitas web: {res['arquivos']} Excel de "
+                f"{len(res['dias'])} dia(s).")
+    except Exception as erro:                           # noqa: BLE001
+        res["erro"] = type(erro).__name__
+        log(f"Visitas web: nao terminei ({type(erro).__name__}); tento de "
+            "novo na proxima rodada.")
+    return res
 
 
 def gravar_lote_simulado_web(pacote: dict, pasta) -> dict:
@@ -10167,6 +10450,9 @@ def passo_pacote_web(simular_pacote: bool = False) -> dict:
             _base = _base_web(_segredo_web("BAP_WEB_URL", "url"))
             if _base and _tk:
                 sincronizar_edicoes_web(
+                    PASTA_LOCAL, _base, _tk,
+                    log=lambda m: log.info("%s", str(m).replace(_tk, "***")))
+                sincronizar_visitas_web(      # (T-0045) o que a nuvem baixou
                     PASTA_LOCAL, _base, _tk,
                     log=lambda m: log.info("%s", str(m).replace(_tk, "***")))
         resultados = coletar_relatorios_web(hoje.year, hoje.month)

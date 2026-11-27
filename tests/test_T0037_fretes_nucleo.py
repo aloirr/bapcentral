@@ -10,21 +10,16 @@ Duas partes:
   de uma UF batem com o faturado líquido do farol de origem
   (_eventos_faturamento, o mesmo do indicador "Faturamento (R$)" líquido) e
   com o pacote da web.
-Desenho: docs/desenho/T-0037.md §3 e §9 (P3 B); contrato §10.12.2.
+Desenho: docs/desenho/T-0037.md §3 e §9 (P3 B); contrato §10.13.2.
 """
-import json
 from collections import defaultdict
 from datetime import date
 
 import pytest
 
 import relatorios_nucleo as rn
+from apoio_fretes import HOJE, PARAMS, contexto_fretes, item
 
-if not hasattr(rn, "kpis_fretes"):
-    pytest.skip("faróis da T-0037 ainda não entraram", allow_module_level=True)
-
-HOJE = date(2026, 11, 24)
-PARAMS = {"ANO": "2026", "MÊS": "11"}
 NOV = rn.rotulo_mes("2026-11")
 TR1 = "TRANSPORTADORA FICTICIA 1"
 CAD = {"pct_padrao": 5, "transportadoras": [
@@ -37,23 +32,16 @@ CLIENTES = [   # cod, nome, cidade, uf (Manaus e Belém: capitais sem frete)
 ]
 
 
-def _it(tipo, cli, nf, valor, dt_nf, dt_ped=None, fil="0101"):
-    return {"tipo": tipo, "cliente": cli, "filial": fil, "nf": nf,
-            "serie": "1", "pedido": "P" + nf, "valor": valor, "dt_nf": dt_nf,
-            "dt_pedido": dt_ped or dt_nf, "razao": "", "p_tab": 0, "qtd": 1,
-            "produto": "", "vend": ""}
-
-
 ITENS = [
-    _it("VND", "000201", "000001", 600.0, date(2026, 11, 10), date(2026, 11, 8)),
-    _it("VND", "000201", "000001", 400.0, date(2026, 11, 10), date(2026, 11, 8)),
-    _it("VND", "000202", "000002", 2000.0, date(2026, 11, 12)),
-    _it("VND", "000202", "000005", 800.0, date(2026, 11, 13)),
-    _it("VND", "000203", "000003", 6000.0, date(2026, 11, 11)),   # Manaus
-    _it("VND", "000204", "000006", 3000.0, date(2026, 11, 11)),   # Belém
-    _it("DEV", "000201", "000007", 500.0, date(2026, 11, 15)),    # devolução
-    _it("VEA", "000202", "", 900.0, None, date(2026, 11, 20)),    # em aberto
-    _it("VND", "000201", "000004", 9999.0, date(2025, 11, 10)),   # > 12 meses
+    item("VND", "000201", "000001", 600.0, date(2026, 11, 10), date(2026, 11, 8)),
+    item("VND", "000201", "000001", 400.0, date(2026, 11, 10), date(2026, 11, 8)),
+    item("VND", "000202", "000002", 2000.0, date(2026, 11, 12)),
+    item("VND", "000202", "000005", 800.0, date(2026, 11, 13)),
+    item("VND", "000203", "000003", 6000.0, date(2026, 11, 11)),   # Manaus
+    item("VND", "000204", "000006", 3000.0, date(2026, 11, 11)),   # Belém
+    item("DEV", "000201", "000007", 500.0, date(2026, 11, 15)),    # devolução
+    item("VEA", "000202", "", 900.0, None, date(2026, 11, 20)),    # em aberto
+    item("VND", "000201", "000004", 9999.0, date(2025, 11, 10)),   # > 12 meses
 ]
 ENTREGAS = [
     {"filial": "0101", "nf": "1", "chave": "0101|1|1", "etapa": "ENTREGUE",
@@ -67,21 +55,7 @@ ENTREGAS = [
 
 @pytest.fixture
 def farol(tmp_path):
-    # cadastro de transportadoras FICTÍCIO, só na pasta temporária
-    (tmp_path / "transportadoras_config.json").write_text(
-        json.dumps(CAD), encoding="utf-8")
-    ctx = rn.Contexto(tmp_path, hoje=HOJE, params=dict(PARAMS))
-    ctx._b["tabela"] = {"itens": [dict(i) for i in ITENS], "clientes": {},
-                        "filiais": {"0101": "FILIAL FICTICIA"}}
-    ctx._b["base"] = {"clientes": [
-        {"cod": c, "nome": n, "fantasia": "", "cidade": cid, "uf": uf,
-         "segmento": "", "vend": "", "status": "ATIVO"}
-        for c, n, cid, uf in CLIENTES], "pessoas": {}}
-    ctx._b["posvenda"] = {"existe": True, "entregas": [dict(e) for e in
-                                                        ENTREGAS],
-                          "devolucoes": []}
-    r = rn.fretes(ctx)
-    return r, r["tabelas"][0]
+    return contexto_fretes(tmp_path, ITENS, CLIENTES, ENTREGAS, CAD)
 
 
 def _k(kpis):
@@ -236,8 +210,6 @@ def test_RN_POS_009_uf_bate_com_o_faturado_liquido_da_uf(real):
 
 def test_RN_POS_009_web_bate_com_o_pc_bap_e_uf(real):
     import bap_automation as ba
-    if "pl_fretes" not in getattr(ba, "FAROIS_WEB", ()):
-        pytest.skip("robô da T-0037 ainda não entrou")
     r, _liq = real
     t = r["tabelas"][0]
     notas = ba.tabelas_farol_web("pl_fretes", r)[0][0]
