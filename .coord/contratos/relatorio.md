@@ -741,10 +741,10 @@ Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do clien
 
 **`pl_fretes`** (T-0037, §10.12; `tons` do PC: `alerta`, `ok` ou `""`)
 - **"Notas com frete"** (16; não sai nenhuma): `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa, código e nome) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto [D6]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote, oculto), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA`. A edição vai pela §10.12.4.
-- **"Por UF"** (5): `MÊS` texto · `UF` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
-- **"Por cidade"** (5): `MÊS` texto · `CIDADE` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
-- **"Por transportadora"** (5): `MÊS` texto · `TRANSPORTADORA` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
-  - As 3 abas de resumo terminam nas mesmas 3 colunas de número (`NOTAS`, `VLR NF` e `VLR FRETE`; no robô, `bap_automation._RESUMO_FRETES_WEB`). Filtro: `MÊS`. Os rótulos vêm prontos do PC (`relatorios_nucleo.rotulo_agrupa_fretes`, §10.12.3).
+- **"Por UF"** (5): `MÊS` texto (o) · `UF` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+- **"Por cidade"** (5): `MÊS` texto (o) · `CIDADE` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+- **"Por transportadora"** (5): `MÊS` texto (o) · `TRANSPORTADORA` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+  - As 3 abas de resumo terminam nas mesmas 3 colunas de número (`NOTAS`, `VLR NF` e `VLR FRETE`; no robô, `bap_automation._RESUMO_FRETES_WEB`). Filtro: `MÊS` (padrão = mês do pacote, oculto). O `MÊS` vai oculto, como no "Notas com frete" e no "Entregas": com só o mês do pacote [P1 A], a coluna repetiria o mesmo valor em todas as linhas, mas o filtro oculto precisa dela (RD-0198). No PC, nada muda (lá o "(todos)" mostra os 12 meses). Os rótulos vêm prontos do PC (`relatorios_nucleo.rotulo_agrupa_fretes`, §10.12.3).
 
 **Mudou no PC?** Primeiro muda esta lista (acréscimo, PR do engenheiro-software), depois o código. Até lá, o PC deixa a aba fora (§10.7.6), e as outras seguem.
 
@@ -1578,7 +1578,7 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
   - hoje, no recorte, o denominador do "% do faturado" é o VND da BAP inteira;
   - ele passa a ser o faturado líquido de devolução (RN-GER-002) dos clientes daquela UF;
   - na BAP inteira, o número muda só pela troca do bruto pelo líquido (P3 B).
-- **Resumo (`painel.blocos` e `insights_painel`):** o PC do Fretes não tem `painel`. O robô monta o Resumo com a função pura `bap_automation.blocos_resumo_fretes_web(r)`, a partir dos `graficos`, das 3 tabelas de resumo e dos números do PC, sem recalcular regra. Ela devolve `(blocos, frases)`, nesta ordem (`row` 0 a 4, `col` 0):
+- **Resumo (`painel.blocos` e `insights_painel`):** o PC do Fretes não tem `painel`. O robô monta o Resumo com a função pura `bap_automation.blocos_resumo_fretes_web(r)`, a partir dos `graficos`, das 3 tabelas de resumo e dos números do PC, sem recalcular regra. Ela devolve `(blocos, frases)`: os blocos nesta ordem (`row` 0 a 3, `col` 0), e as frases à parte:
   1. **1 bloco `barras`** (`colspan` 3): o primeiro gráfico do PC com `rotulos`, o "Mês a mês: notas com frete" (12 meses).
      - Cor da série no site: só vale um hex que esteja em `web/app/marca.TOKENS`; qualquer outra cor vira o `--grafico-3` (`web/app/render._cor`).
   2. **3 blocos `tabela`**, um por aba de resumo (`_TABELAS_RESUMO_FRETES_WEB`): "Por UF (MÊS)", "Por cidade (MÊS)" e "Por transportadora (MÊS)".
@@ -1588,28 +1588,29 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
      - `total`: `TOTAL` · soma das NOTAS · soma dos VLR NF · soma dos VLR FRETE. As somas são feitas sobre os valores sem arredondar, e só o total é arredondado: as 3 tabelas dão o mesmo total.
      - Os rótulos vêm prontos do PC (`rotulo_agrupa_fretes`, §10.12.3); o robô não os reescreve.
      - `tabela` entra no Fretes por `_TIPOS_BLOCO_EXTRA_WEB["pl_fretes"]`; vale a trava de coluna de pessoa do §10.1 (UF, cidade e transportadora passam).
-  3. **1 bloco `insights`** ("Resumo gerencial"), com até 2 frases `info`, só as que os cartões não dizem:
+  3. **As frases** (`frases`), sem bloco `insights`: vão só em `insights_painel`, de onde a web lê (RD-0192). São até 2 frases `info`, só as que os cartões não dizem:
      - a UF de maior VLR NF, só com 2 ou mais linhas no "Por UF": "<UF> concentra P% do valor das notas com frete.";
      - a transportadora de maior VLR NF: "<TRANSPORTADORA> leva P% do valor.".
      - A escolha da maior não considera "Sem UF", "Sem transportadora" nem "Sem acompanhamento". O total do P% inclui essas linhas (é o TOTAL da tabela).
-  - As mesmas frases vão em `insights_painel`, quando o PC não mandou nenhuma.
+  - O `selecionar_farol_web` põe as frases em `insights_painel` quando o PC não mandou nenhuma. O título "Resumo gerencial" é da tela, não do pacote.
   - Os blocos são da BAP inteira: o `recortes[UF]` leva só os `kpis` (§10.1).
 
 #### 10.12.3 Abas e colunas (`TabelaWeb7`, §10.7.2; a lista entra no §10.7.3 via `_COLUNAS_TABELAS_WEB`)
 
-| Chave da aba (URL) | `titulo` (PC) | Colunas depois do corte (nome · tipo) | Filtros | Edição |
-|---|---|---|---|---|
-| `notas` | "Notas com frete" | `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa: `cliente_sem_documento`, RN-GER-011) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto (D6 A) | `MÊS` (padrão = mês do pacote, oculto [P1]), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA` | **sim** (§10.12.4) |
-| `uf` | "Por UF" | `MÊS` texto · `UF` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda | `MÊS` | não |
-| `cidade` | "Por cidade" | `MÊS` texto · `CIDADE` texto ("CIDADE / UF") · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda | `MÊS` | não |
-| `transportadora` | "Por transportadora" | `MÊS` texto · `TRANSPORTADORA` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda | `MÊS` | não |
+Colunas, tipos, colunas ocultas e filtros das 4 abas: **§10.7.3 (`pl_fretes`)**, a fonte única. O teste `test_T0017_colunas_robo_igual_contrato_1073` lê de lá. Aqui ficam só a chave da URL e a edição:
 
-- **Rótulos das 3 abas de resumo** (função pura `relatorios_nucleo.rotulo_agrupa_fretes`, no PC; o robô e a web não reescrevem):
+| Chave da aba (URL) | `titulo` (PC) | Edição |
+|---|---|---|
+| `notas` | "Notas com frete" | **sim** (§10.12.4) |
+| `uf` | "Por UF" | não |
+| `cidade` | "Por cidade" | não |
+| `transportadora` | "Por transportadora" | não |
+
+- **Rótulos das 3 abas de resumo** (função pura `relatorios_nucleo.rotulo_agrupa_fretes`, no PC, com as constantes `SEM_UF`, `SEM_CIDADE`, `SEM_TRANSP` e `SEM_ACOMP`; o robô usa as mesmas constantes e não reescreve o rótulo):
   - "Por UF": a UF, ou "Sem UF";
   - "Por cidade": "CIDADE / UF", com "Sem cidade / <UF>", "<CIDADE> / Sem UF" ou "Sem cidade / Sem UF" (nunca a barra solta);
   - "Por transportadora": o nome; vazia, "Sem transportadora" (a nota tem linha no acompanhamento, o mesmo critério do cartão "Sem transportadora") ou **"Sem acompanhamento"** (a nota não tem chave nem transportadora). As duas linhas ficam separadas para a "Sem transportadora" bater com o cartão.
 
-- (o) = oculta.
 - **A linha do PC de "Notas com frete" tem 17 células.**
   - A 17ª é a CHAVE da entrega (`filial|nf|serie`, a `chave` da aba ENTREGAS); fica `""` sem acompanhamento.
   - O robô corta a célula a mais e manda só a chave, dentro de `edicao.chaves`, como no "Entregas" (§10.7.3).
@@ -1617,11 +1618,7 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
   - "Por UF" tem recorte por UF (coluna `UF`, UF do cliente).
   - "Por cidade" e "Por transportadora" vão sem recorte; a tela avisa "só na BAP inteira".
 - **Período das linhas [P1 A]:** só o mês do pacote, nas 4 abas (D2 A do §10.7.9). Como "Por UF" e "Por cidade" são títulos genéricos, o `_TABELAS_SO_MES_WEB` aceita também o par `(rid, título)`.
-- **Tela (`tela-bc3.md` §6.2):** "Notas com frete" tem 16 colunas e entra na `GRADE` (até 10 na grade, o resto no popup da linha), pelo par `("pl_fretes", "Notas com frete")`:
-  - `chave` **NF**; `grade` (9 colunas): NF · CLIENTE · CIDADE · UF · VLR FRETE · ETAPA · TRANSPORTADORA · ENTREGAR ATÉ · ENTREGUE. O VLR NF fica fora da grade (vai ao popup): com estas larguras (datas e moeda) e a coluna Editar do admin, 9 é o que cabe a 1366 sem rolagem (`tela-bc3.md` §6.1 e §7.2); o teto de 10 continua valendo;
-  - `blocos`: Nota (DATA PED., DATA NF, FILIAL, VLR NF) · Entrega (SLA ENTREGA, RESPONSÁVEL); `cel`: NF · CLIENTE · (vazio) · VLR FRETE (no celular, a ETAPA vai ao item aberto);
-  - as 3 de resumo têm 5 colunas e ficam fora da `GRADE`;
-  - abas curtas (§13.3): Resumo · Notas · UF · Cidade · Transportadora; busca "Buscar NF ou cliente".
+- **Tela (`tela-bc3.md` §6.2):** a grade do "Notas com frete" é a `web/app/tabelas.GRADE[("pl_fretes", "Notas com frete")]`, a fonte única (colunas, `blocos` do popup e `cel`). A regra: até 10 colunas, chave **NF**, as 4 editáveis (ETAPA, TRANSPORTADORA, ENTREGAR ATÉ e ENTREGUE) na grade e o RESPONSÁVEL no popup. As 3 de resumo ficam fora da `GRADE`. Abas curtas (§13.3): Resumo · Notas · UF · Cidade · Transportadora; busca "Buscar NF ou cliente".
 - **Corte acima do teto** (§10.8.7): o `pl_fretes` entra em "os outros" (todas as `tabelas` saem, com o `AVISO_ABAS_FORA`).
 
 #### 10.12.4 Edição de "Notas com frete" (a mesma linha da aba ENTREGAS)
