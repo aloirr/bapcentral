@@ -16354,6 +16354,17 @@ def codigo_do_cliente(texto_cliente) -> str:
     return m.group(1) if m else ""
 
 
+# RD-0002: os cabecalhos do Excel de correcao, em um lugar so (o
+# gravar_correcao e o robo usam estes). Com a coluna CLIENTE; o
+# correcao_linhas (RN-GER-011) devolve as linhas sem ela.
+CAB_CORRIGIR = ("A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
+                "A1_VEND ATUAL", "A1_VEND CORRETO", "VENDEDOR CORRETO",
+                "SUPERVISOR", "STATUS PROTHEUS")
+CAB_ANALISAR = ("A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
+                "VENDEDOR NO PLANNER", "A1_VEND ATUAL", "SITUAÇÃO",
+                "O QUE FAZER")
+
+
 def correcao_linhas(ctx, chaves=None) -> dict:
     """As linhas do Excel de correcao, sem a coluna CLIENTE (RN-GER-011):
     corrigir = CORRIGIR NO PROTHEUS (10 colunas); analisar = ANALISAR (9).
@@ -16389,12 +16400,7 @@ def gravar_correcao(ctx, destino, chaves=None):
     ws = wb.active
     ws.title = "CORRIGIR NO PROTHEUS"
     an = wb.create_sheet("ANALISAR")
-    cab1 = ["A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
-            "A1_VEND ATUAL", "A1_VEND CORRETO", "VENDEDOR CORRETO",
-            "SUPERVISOR", "STATUS PROTHEUS"]
-    cab2 = ["A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
-            "VENDEDOR NO PLANNER", "A1_VEND ATUAL", "SITUAÇÃO", "O QUE FAZER"]
-    for w, cab in ((ws, cab1), (an, cab2)):
+    for w, cab in ((ws, CAB_CORRIGIR), (an, CAB_ANALISAR)):
         for j, x in enumerate(cab, 1):
             c = w.cell(1, j, x)
             c.font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
