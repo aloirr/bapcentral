@@ -10,7 +10,7 @@ from conftest import postar, token_form
 from edicao_fixture import pacote_editavel
 from test_farois import _usuario
 
-from app import VERSAO, acesso, edicoes
+from app import acesso, edicoes
 
 URL_ENT = "/farol/pl_entregas?aba=entregas"
 PEND = "Pendências dos meses anteriores"
@@ -123,9 +123,6 @@ def test_RN_GER_018_farol_liberado_nao_da_edicao(ped, amb):
     assert c.post("/farol/pl_entregas/editar", data=dict(campos, csrf=token_form(c, "/senha"))).status_code == 403
     assert not (amb / "edicoes").exists() or _fila(amb) == []
 
-
-def test_T0054_versao():
-    assert VERSAO == "0.12.0"
 
 
 def test_RN_POS_011_formulario_diz_a_nota_e_o_cliente(ped):

@@ -645,31 +645,31 @@ def criar_app() -> FastAPI:
         return sel
 
     def edicao_tela(rid, titulo, t_pc, linhas, u, volta, sit, recebido):
-        """Por linha da tela: botão de editar (admin com chave) e a marca "Aguardando o PC"/"O PC recusou".
+        """Por linha da tela: botão de editar (quem edita o lugar, com chave) e a marca "Aguardando o PC"/"O PC recusou".
         Sem `edicao` no pacote, ou perfil sem edição e sem marca, a coluna não aparece."""
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         if not isinstance(ed, dict):
             return None
-        admin = edicoes.pode_editar(u["perfil"], (rid, titulo))
+        pode = edicoes.pode_editar(u["perfil"], (rid, titulo))
         algum = False
         for ln in linhas:
             ch = edicoes.chave_da_linha(ed, ln["k"])
             s = sit.get((titulo, ch)) if ch else None
             m = edicoes.marca(s, recebido)
             url = (f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "chave": ch, "volta": volta})
-                   if admin and ch else "")
-            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, admin), "sem_chave": admin and not ch}
+                   if pode and ch else "")
+            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, pode), "sem_chave": pode and not ch}
             algum = algum or bool(m)
-        if not admin and not algum:
+        if not pode and not algum:
             return None
-        return {"cab": ed.get("acao") or "Editar", "admin": admin}
+        return {"cab": ed.get("acao") or "Editar", "pode": pode}
 
     SEM_ESTADO_AVISO = ("pl_garantias", "pl_devolucoes", "pl_ncc")
     RESUMO_PELA_GRADE = SEM_ESTADO_AVISO + ("pl_entregas",)     # T-0054: "NF 900502 · CLIENTE ... · MA"
 
     def novo_tela(rid, titulo, t_pc, u, volta, sit, recebido):
-        """O botão da linha nova (`novo`, §10.9.2): só o admin, só onde o pacote traz `edicao.novo`. O servidor decide;
-        quem não é admin não recebe nem o botão nem a contagem."""
+        """O botão da linha nova (`novo`, §10.9.2): só quem edita o lugar, só onde o pacote traz `edicao.novo`. O servidor decide;
+        quem não edita não recebe nem o botão nem a contagem."""
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         nv = ed.get("novo") if isinstance(ed, dict) else None
         if not nv or not edicoes.pode_editar(u["perfil"], (rid, titulo)):

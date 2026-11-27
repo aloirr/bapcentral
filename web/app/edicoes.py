@@ -1,4 +1,4 @@
-"""T-0021: edição na web dos faróis, só do perfil admin, chegando ao PC pelo robô.
+"""T-0021: edição na web dos faróis (admin; e o pós-venda nas Entregas, RN-POS-011), chegando ao PC pelo robô.
 
 Genérico por (rid, tabela, modulo): Pedidos (autorização), Entregas (a linha), NCC pendentes, Devoluções e
 Garantias (com linha nova, T-0023 v2); DDR e Expositores entram acrescentando o lugar em `LUGARES`.
@@ -46,7 +46,7 @@ def pode_editar(perfil: str, lugar: tuple) -> bool:
 
 def perfis_do_rid(rid: str) -> tuple:
     """Quem edita algum lugar deste farol (o 403 antes de ler o formulário)."""
-    return tuple(dict.fromkeys(p for (r, _t), ps in EDITA_LUGAR.items() if r == rid for p in ps)) + EDITA
+    return tuple(dict.fromkeys([p for (r, _t), ps in EDITA_LUGAR.items() if r == rid for p in ps] + list(EDITA)))
 # módulos de gravação do PC (bap_relatorios.Janela.salvar): o robô chama a mesma função
 MODULOS = ("autorizacoes", "pos_venda", "ncc", "garantias", "farol", "expositores")
 # onde a web aceita `edicao` no pacote: (rid, título da tabela) -> módulo do PC
