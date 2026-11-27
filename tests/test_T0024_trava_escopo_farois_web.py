@@ -27,7 +27,8 @@ _NOMES = ("FAROIS_WEB", "_FONTE_BAIXADO_WEB", "_TABELA_RECORTE_WEB",
           "_UF_LINHAS_WEB", "RID_META_WEB", "selecionar_farol_web")
 # Ordem dos PRs da T-0036: testes (#177) antes do robô (#159). Os 4 do Analista
 # são permitidos e não obrigatórios: sem eles em ba.FAROIS_WEB (o main sem o
-# robô), os testes só da T-0036 pulam; com o robô, tudo compara.
+# robô), os testes só da T-0036 pulam; com o robô, tudo compara. A
+# tolerância sai no testes/T-0036-sem-tolerancia depois do #159.
 ROBO_T0036 = bool(set(FAROIS_T0036) & set(ba.FAROIS_WEB))
 _precisa_robo = pytest.mark.skipif(
     not ROBO_T0036, reason="o robô da T-0036 (modulo-robo/T-0036-pacotes) não "

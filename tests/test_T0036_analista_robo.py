@@ -35,7 +35,8 @@ MES_ROT = "NOV/26"
 RIDS = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 # Ordem dos PRs da T-0036: testes (#177) antes do robô (#159). Sem os 4 do
 # Analista em ba.FAROIS_WEB (o main sem o robô), só os testes do núcleo rodam;
-# com o robô presente (um que seja), tudo compara.
+# com o robô presente (um que seja), tudo compara. O pulo sai no
+# testes/T-0036-sem-tolerancia depois do #159.
 ROBO_T0036 = bool(set(RIDS) & set(getattr(ba, "FAROIS_WEB", ())))
 _SO_NUCLEO = ("test_RN_GER_011_codigo_do_cliente_sem_nome",
               "test_RN_GER_011_codigo_do_cliente_documento_no_comeco_nao_vira_codigo")
@@ -383,8 +384,11 @@ def test_RN_GER_005_pesquisa_sem_000040(real):
            for v in _col(div, "VENDEDOR") if str(v).startswith("000040")]
     pesq = _tab(pac["vc_preco"], "Pesquisa de mercado")
     vends = {str(v).strip() for v in _col(pesq, "VENDEDOR")}
-    assert not any(str(v).startswith("000040") for v in vends)
-    assert not (set(v40) & vends), "vendedor 000040 na pesquisa"
+    # só contagens na falha (regra 6: nenhum nome de vendedor impresso)
+    n_cod = sum(1 for v in vends if v.startswith("000040"))
+    assert n_cod == 0, "código 000040 na pesquisa"
+    n_nome = len(set(v40) & vends)
+    assert n_nome == 0, "vendedor 000040 na pesquisa"
 
 
 # ============================================ RN-GER-006: estado das linhas
@@ -450,14 +454,6 @@ def test_RN_GER_011_colunas_positivas_coluna_a_mais_no_pc_tira_a_aba():
         k["valor"] for k in rels["vc_saldo"]["kpis"]]
 
 
-def _web_tem_t0036():
-    return "vc_saldo" in (RAIZ / "web" / "app" / "tabelas.py").read_text(
-        encoding="utf-8")
-
-
-@pytest.mark.xfail(not _web_tem_t0036(), strict=True,
-                   reason="a web deste checkout ainda não tem a T-0036 "
-                   "(merge do modulo-web/T-0036-analista pendente)")
 def test_RN_GER_011_colunas_positivas_web_aceita_o_pacote_real_do_robo(
         real, web_app):
     """O pacote real do robô passa na validação da web (§10.11.2)."""
@@ -641,7 +637,13 @@ def test_RN_GER_011_correcao_real_igual_ao_excel_do_pc_sem_cliente(real,
     for aba, chave in (("CORRIGIR NO PROTHEUS", "corrigir"),
                        ("ANALISAR", "analisar")):
         sem_cliente = [[str(v) for v in r[:3] + r[4:]] for r in xl[aba][1:]]
-        assert sem_cliente == cor[chave]["linhas"], aba
+        site = cor[chave]["linhas"]
+        # igualdade linha a linha, com só contagens na falha (regra 6: sem
+        # nome de vendedor ou supervisor das bases na mensagem)
+        n_xl, n_site = len(sem_cliente), len(site)
+        assert n_xl == n_site, aba
+        n_dif = sum(1 for a, b in zip(sem_cliente, site) if a != b)
+        assert n_dif == 0, f"{aba}: linhas diferentes do Excel do PC"
     # valor x regra: n1 = linhas de "Clientes divergentes" com SITUAÇÃO em
     # rn.SIT_CORRIGIR = cartão "Vendedor diferente"; n2 = as outras linhas =
     # "Sem vendedor no Planner" + "Fora da base do Planner" + "Código

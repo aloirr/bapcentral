@@ -13,7 +13,8 @@ Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
   passa com a regra de UF dos cartões e a das linhas de cada aba
   (UF_LINHAS_T0036), escritas aqui à mão a partir do contrato §10.11.1/§10.11.3;
   os 4 são permitidos e não obrigatórios (os testes, #177, entram antes do
-  robô, #159), mas vão juntos: só parte deles reprova;
+  robô, #159; a tolerância sai no testes/T-0036-sem-tolerancia depois do
+  #159), mas vão juntos: só parte deles reprova;
 - a lista PERMITIDA é a dos obrigatórios mais os 4 da T-0036: um farol fora
   dela reprova.
 
