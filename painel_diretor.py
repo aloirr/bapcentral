@@ -193,6 +193,11 @@ def _mes_ant(ano, mes, n=1):
 
 
 # ------------------------------------------------------------ calculo
+# decisao 48: cartoes que ficam ATE ONTEM (a lista A conta hoje)
+GRUPO_B = {"visitas", "conv_visitados", "primeira_visita", "aderencia",
+           "jornada"}
+
+
 def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     """Os 16 cartoes, a leitura do mes e os textos livres. ctx: o Contexto
     do Painel Executivo (raiz, hoje, tabela, base, feriados)."""
@@ -336,6 +341,13 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
         """Um cartao no padrao. real/proj/meta em numero; fmt formata.
         du: o texto da linha da media por dia util (05/11)."""
         gap_fmt = gap_fmt or fmt
+        # decisao 48: o grupo B segue ate ONTEM e diz o periodo no titulo;
+        # markup e desconto sao razao do mes inteiro ("ate hoje")
+        if (ano, mes) == (hoje.year, hoje.month):
+            if chave in ("markup", "desconto"):
+                titulo += " · até hoje"
+            elif chave in GRUPO_B and corte < corte_a:
+                titulo += f" · até {corte:%d/%m}"
         if linhas is None:
             linhas = [("Projeção", fmt(proj)), (rot_du, du or "—")]
             if meta and real is None:
@@ -408,22 +420,28 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     cols, _ls, tot = tab("vc_meta", "Por gerente")
     ix = {c: i for i, c in enumerate(cols)}
     desafio = tot[ix["FAT. META"]] if tot and "FAT. META" in ix else None
-    fat, pos = fat_e_pos(ano, mes, corte)
-    proj = fat / ndp * ndm if ndp else None
+    # T-0060 / decisao 43: faturamento, positivacao e pedidos CONTAM hoje
+    # (hoje = DU passado); o resto (visitas, TMA...) segue ate ontem
+    corte_a, ndp_a = corte, ndp
+    if rn.PROJECAO_COM_HOJE and (ano, mes) == (hoje.year, hoje.month):
+        corte_a = min(hoje, fim_mes)
+        ndp_a = du_ate(corte_a)
+    fat, pos = fat_e_pos(ano, mes, corte_a)
+    proj = fat / ndp_a * ndm if ndp_a else None
     card(1, "fat", "Faturamento líquido", fat, proj, f_moeda, "vc_meta",
          "Farol de Metas (Por gerente, FAT. META = desafio comercial)",
          "VND − DEV pela data da NF, sem internos; projeção = real ÷ DU "
          "passados × DU do mês; GAP = desafio − real; % ating. = projeção "
-         "÷ desafio", meta=desafio, du=por_du(fat, ndp, f_moeda))
+         "÷ desafio", meta=desafio, du=por_du(fat, ndp_a, f_moeda))
 
     k_pos = kpi_de("vc_meta", "Positivação")
     meta_pos = _num(re.sub(r".*meta do mês", "", k_pos.get("detalhe", "")))
     card(1, "pos", "Positivação", len(pos),
-         len(pos) / ndp * ndm if ndp else None, f_int,
+         len(pos) / ndp_a * ndm if ndp_a else None, f_int,
          "vc_meta", "Farol de Metas (POSIT.)",
          "cliente com líquido (VND − DEV) > 0 no mês; média/DU = "
          "positivados ÷ DU até a última NF", meta=meta_pos,
-         du=por_du(len(pos), ndp, f_1))
+         du=por_du(len(pos), ndp_a, f_1))
 
     def fim_de(a, m):
         return date(a + (m == 12), m % 12 + 1, 1) - timedelta(days=1)
@@ -439,8 +457,8 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
          "realizado); média/DU = faturamento/DU ÷ positivados/DU; MoM x mês anterior fechado, M3M x média dos 3 meses "
          "anteriores", ant=ticket_de(*a_ant),
          media3=sum(tk3) / len(tk3) if len(tk3) == 3 else None,
-         du=(f"{f_moeda(fat / ndp)} ÷ {f_1(len(pos) / ndp)}"
-             if pos and ndp else "—"))
+         du=(f"{f_moeda(fat / ndp_a)} ÷ {f_1(len(pos) / ndp_a)}"
+             if pos and ndp_a else "—"))
 
     k_mk = kpi_de("vc_markup", "Markup")
     mk = _num(k_mk.get("valor"))
@@ -808,8 +826,8 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
                 f"{a} {b}" for a, b in c["linhas"]
                 if a in ("Projeção", "GAP meta", "% ating. proj.", "MoM"))))
     return {"comp": comp, "ano": ano, "mes": mes, "mes_nome": MESES_L[mes],
-            "prox_mes": MESES_C[mes % 12 + 1], "dados_ate": corte,
-            "ndp": ndp, "ndm": ndm, "cards": cards, "leitura": leitura,
+            "prox_mes": MESES_C[mes % 12 + 1], "dados_ate": corte_a, "dados_ate_b": corte,
+            "ndp": ndp_a, "ndm": ndm, "ndp_vis": ndp, "cards": cards, "leitura": leitura,
             "acoes": [(a.get("t", ""), a.get("d", ""))
                       for a in cfg.get("acoes") or [] if isinstance(a, dict)],
             "compromisso": cfg.get("compromisso") or {},

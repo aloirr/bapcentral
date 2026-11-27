@@ -139,6 +139,14 @@ def por_filial_da_nota(ctx, comp) -> dict:
         saida["pecas"][uf] = x["pecas"]
         saida["posit"][uf] = len(x["cli"])
         saida["pedidos"][uf] = len(x["nf"])
+    # T-0060 (D2a): PEDIDOS = (filial, pedido) faturados, liquido > 0, sem
+    # a conta 000040 (nao mais as notas distintas)
+    por_uf = defaultdict(list)
+    for it in ctx.tabela["itens"]:
+        if it.get("dt_nf") and mes_de(it["dt_nf"]) == comp:
+            por_uf[uf_da_filial(it.get("filial")) or "?"].append(it)
+    for uf, its in por_uf.items():
+        saida["pedidos"][uf] = len(pedidos_faturados_ate(its))
     return saida
 
 
@@ -264,6 +272,9 @@ def estados_do_cartao(rel, k) -> dict:
     pf_ = ((rel or {}).get("_por_filial") or {}).get(chave_f) \
         if chave_f else None
     real_uf = pf_ if pf_ is not None else real_t
+    liq_uf = (rel or {}).get("_liquido_por_uf")
+    if liq_uf and "faturado" in r_:             # T-0060 (D2d)
+        real_uf, pf_, chave_f = liq_uf, liq_uf, "fat"
     if chave_f in ("fat", "pecas"):
         eh_dinheiro = True
     if not real_uf:
@@ -272,7 +283,12 @@ def estados_do_cartao(rel, k) -> dict:
     proj_c = next((_num_do_texto(v) for r, v, _t in k.get("linhas") or []
                    if sem_acento(r).lower().startswith("projecao do mes")),
                   None)
-    fator = (proj_c / real_c) if (proj_c and real_c) else None
+    # T-0060 (item 3): o fator da projecao vem do real SEM hoje (hoje fica
+    # fora do DU e da projecao); o faturamento por UF tira o de hoje
+    hoje_uf = ((rel or {}).get("_hoje_uf") or {}) if chave_f == "fat" else {}
+    hoje_t = sum(hoje_uf.values()) if hoje_uf else 0.0
+    base_c = (real_c - hoje_t) if real_c is not None else None
+    fator = (proj_c / base_c) if (proj_c and base_c) else None
     barras, soma = [], 0.0
     # (10/11) as 4 UFs da RRM e, depois, as outras filiais com valor (MT,
     # AP: a soma das barras fecha o cartao)
@@ -286,7 +302,7 @@ def estados_do_cartao(rel, k) -> dict:
             continue
         v = v or 0.0
         soma += v
-        vb = v * fator if fator else v
+        vb = (v - hoje_uf.get(uf, 0.0)) * fator if fator else v
         txt = moeda_curta(vb) if eh_dinheiro else (
             f"{br(vb, 1)}%" if eh_pct else br(vb))
         m_ = meta_uf.get(uf)
@@ -2180,7 +2196,7 @@ def farol_pedidos(ctx):
                    if l[I_SIT] != "EM ABERTO"
                    or rotulo_no_periodo(ctx, l[I_MES])})
         return [
-            kpi("Pedidos", br(dig), "neutro",
+            kpi("Pedidos digitados", br(dig), "neutro",
                 moeda(sum(l[I_VEN] for l in ls))),
             # (22/10, Alexandre) FATURADO = o real, ja sem as devolucoes
             kpi("Faturado", moeda(sum(l[I_VEN] for l in fat) - dev_f),
@@ -2810,6 +2826,80 @@ def clientes_positivados(ctx, comp) -> set:
             and positivou(ctx, it["cliente"], comp)}
 
 
+# ---- T-0060: UMA base de periodo para o Painel (rotulo e conta) -----------
+# Decisao 43: HOJE CONTA no real, na projecao, na positivacao e
+# nos pedidos (hoje = DU passado). True = decisao 43 (padrao); False volta
+# a regra 4 (hoje fora do DU: "ate ontem" + "+ hoje"). A troca e esta linha.
+PROJECAO_COM_HOJE = True
+# Volume (unidades): hoje entra junto com o faturamento (gerente, decisao 43).
+# False = o Volume volta a ficar ate ontem (so o volume; o fator segue o do
+# faturamento) [SUPOSICAO: a troca completa pede revisar vol_proj]
+VOLUME_COM_HOJE = True
+CONTA_TESTE = "000040"
+
+
+def _conta_valida(it) -> bool:
+    """Fora a conta 000040 (teste); os CNPJs internos ja saem da tabela."""
+    return _cod6(it.get("vend")) != CONTA_TESTE
+
+
+def base_projecao(real_com_hoje, de_hoje, pos_com_hoje, pos_ate_ontem) -> dict:
+    """RN-GER-007 (puro): {real_ate_ontem, hoje, pos_ate_ontem,
+    pos_com_hoje}. real_ate_ontem = real total - o liquido de hoje."""
+    real_com_hoje = real_com_hoje or 0.0
+    de_hoje = de_hoje or 0.0
+    return {"real_ate_ontem": real_com_hoje - de_hoje, "hoje": de_hoje,
+            "real_com_hoje": real_com_hoje,
+            "pos_ate_ontem": pos_ate_ontem, "pos_com_hoje": pos_com_hoje}
+
+
+def pedidos_faturados_ate(itens, ate=None) -> set:
+    """RN-GER-014 (puro): os PEDIDOS faturados = chave (filial, pedido) das
+    vendas (VND) com data da NF <= ate, so os de liquido > 0 (pedido
+    devolvido por inteiro sai), sem a conta 000040."""
+    liq = defaultdict(float)
+    for it in itens:
+        d = it.get("dt_nf")
+        if not d or (ate is not None and d > ate) or not _conta_valida(it):
+            continue
+        v = _liquido(it)
+        if v is not None and it.get("pedido"):
+            liq[(it["filial"], it["pedido"])] += v
+    return {k for k, v in liq.items() if v > 0.005}
+
+
+def clientes_positivados_ate(itens, ate, universo=None) -> set:
+    """RN-GER-015 (puro): clientes com LIQUIDO > 0 no mes de `ate`, so com
+    as notas ate `ate`; universo (conjunto de codigos) limita aos da base
+    cadastral. Sem a conta 000040."""
+    liq = defaultdict(float)
+    for it in itens:
+        d = it.get("dt_nf")
+        if not d or d > ate or (d.year, d.month) != (ate.year, ate.month) \
+                or not _conta_valida(it):
+            continue
+        v = _liquido(it)
+        if v is not None:
+            liq[it["cliente"]] += v
+    return {c for c, v in liq.items() if v > 0.005
+            and (universo is None or c in universo)}
+
+
+def venda_liquida_por_uf(itens, ate) -> dict:
+    """RN-GER-016 (puro): {UF: venda - devolucao} do mes de `ate`, ate a
+    data, UF = filial da nota (por_filial_da_nota); sem a conta 000040."""
+    saida = defaultdict(float)
+    for it in itens:
+        d = it.get("dt_nf")
+        if not d or d > ate or (d.year, d.month) != (ate.year, ate.month) \
+                or not _conta_valida(it):
+            continue
+        v = _liquido(it)
+        if v is not None:
+            saida[uf_da_filial(it.get("filial")) or "?"] += v
+    return dict(saida)
+
+
 def _m3m_por(ctx, comp, chave):
     """{chave: M3M} - a media mensal do liquido nos 3 meses ANTES do mes da
     meta (a mesma janela do FAT. M3M do Gerador de Meta)."""
@@ -3295,8 +3385,16 @@ def _cartoes_farol(ls, cols, resta, esperado, hoje_de=None, hoje_total=None):
         return sum((hoje_de.get(norm_nome(l[0])) or {}).get(ind) or 0.0
                    for l in ls if l)
 
+    # decisao 43/48: a projecao do Metas conta hoje (o real ja inclui hoje).
+    # Pecas e cadastros ficam "ate hoje" (o corte em ontem e do lote 2).
+    esperado_b = esperado
+
     def proj_de(real_, ind):
-        return None if real_ is None else real_ - de_hoje(ind)
+        if real_ is None:
+            return None
+        if PROJECAO_COM_HOJE:
+            return real_
+        return real_ - de_hoje(ind)
     real = soma("FAT. REAL")
     saida = [_cartao_indicador("Faturamento · desafio comercial",
                                soma("FAT. META"), real, resta, esperado,
@@ -3313,9 +3411,12 @@ def _cartoes_farol(ls, cols, resta, esperado, hoje_de=None, hoje_total=None):
                            ("CAD.", "Cad. com compra", False)):
         if f"{nome} META" in idx:
             r_ = soma(f"{nome} REAL")
-            saida.append(_cartao_indicador(rot, soma(f"{nome} META"),
-                                           r_, resta, esperado, din,
-                                           real_proj=proj_de(r_, nome)))
+            if PROJECAO_COM_HOJE and nome in ("PEÇAS", "CAD.") and resta:
+                rot += " · até hoje"
+            saida.append(_cartao_indicador(
+                rot, soma(f"{nome} META"), r_, resta,
+                esperado if nome == "POSIT." else esperado_b, din,
+                real_proj=proj_de(r_, nome)))
     if "CID. META" in idx and soma("CID. META"):
         # (15/10) e estoque, nao ritmo: sem projecao nem nec./dia
         m_, r_ = soma("CID. META"), soma("CID. REAL")
@@ -8877,6 +8978,8 @@ def _du_fechados(ctx, ano, mes) -> int:
 def _hoje_fora_do_du(ctx, ano, mes) -> bool:
     """(06/11) o mes que esta correndo ja tem dia util FECHADO: entao hoje
     (o dia aberto) fica fora dos DU e da projecao."""
+    if PROJECAO_COM_HOJE:               # decisao 43: hoje e DU passado
+        return False
     return _du_fechados(ctx, ano, mes) > 0
 
 
@@ -8886,8 +8989,10 @@ def _de_hoje(ctx, it, qtd=False):
     (entra inteiro). qtd=True: a quantidade (com sinal da devolucao)."""
     d = it.get("dt_nf")
     hoje = getattr(ctx, "hoje", None)
-    if not d or not hoje or d != hoje or it.get("_ped") or \
-            not _hoje_fora_do_du(ctx, hoje.year, hoje.month):
+    fora = _hoje_fora_do_du(ctx, hoje.year, hoje.month) if hoje else False
+    if qtd and not VOLUME_COM_HOJE and hoje and PROJECAO_COM_HOJE:
+        fora = True                     # so o Volume fica ate ontem
+    if not d or not hoje or d != hoje or it.get("_ped") or not fora:
         return 0.0
     if qtd:
         return ((it["qtd"] or 0) if it["tipo"] == "VND"
@@ -8992,12 +9097,8 @@ def painel_executivo(ctx):
         kpi("Desafio comercial", moeda(meta) if meta else "—", "neutro",
             (f"falta {moeda(max(0, meta - real))}" if meta
              else "sem desafio no mês")),
-        kpi("Real + pedidos" if ped_v else "Real", moeda(real), "ok",
-            (f"faturado {moeda(real - ped_v)} + pedidos {moeda(ped_v)}"
-             if ped_v else
-             f"ating. {p(at)} · {moeda((real - hoje_v) / du_pass)}/dia"
-             if meta and du_pass else
-             f"{moeda((real - hoje_v) / du_pass)}/dia" if du_pass else "")),
+        _kpi_real(ctx, itens, real, hoje_v, ped_v, meta, at, du_pass, mes,
+                  du_rest),
         _kpi_pedidos(ctx, abertos, flag_ped and corre_mes),
         kpi("Projeção", moeda(tend), "info",
             ("no ritmo de hoje" + (" + pedidos" if ped_v else ""))
@@ -9231,6 +9332,9 @@ def painel_executivo(ctx):
     corre = f"{hoje.year}-{hoje.month:02d}"
     f_corre = _fator_do_mes(ctx, hoje.year, hoje.month)[0]
     ja, lm = set(), []
+    for m in meses:                     # T-0060 (D2a): pedidos faturados
+        por_mes[m]["ped"] = pedidos_faturados_ate(
+            [it for it in itens if it["dt_nf"] and mes_de(it["dt_nf"]) == m])
     for m in meses:
         x = por_mes[m]
         ja |= x["cli"]
@@ -9238,7 +9342,7 @@ def painel_executivo(ctx):
         sku_nf = (sum(len(v) for v in nfs.values()) / len(nfs)) if nfs else 0
         lm.append([rotulo_mes(m), x["real"], len(x["cli"]),
                    len(ja) - len(x["cli"]), len(nfs), sku_nf,
-                   x["vnd"] / len(x["ped"]) if x["ped"] else 0.0,
+                   x["real"] / len(x["ped"]) if x["ped"] else 0.0,
                    _mkp(x["vc"], x["cu"]), x["vc"] - x["cu"],
                    (x["real"] - x["aberto"] - x["hoje"])
                    * (f_corre if m == corre else 1.0) + x["aberto"]
@@ -9579,6 +9683,14 @@ def _abas_do_painel(ctx, r, d):
             x["vnd"] += it["valor"]
         else:
             x["vol"] -= abs(it["qtd"] or 0)
+    # T-0060 (D2a): PEDIDOS = (filial, pedido) faturados com liquido > 0,
+    # sem a conta 000040 (pedidos_faturados_ate); ticket = LIQUIDO / pedidos
+    por_m = defaultdict(list)
+    for it in itens:
+        if it["dt_nf"]:
+            por_m[mes_de(it["dt_nf"])].append(it)
+    for m in alvo:
+        pm[m]["ped"] = pedidos_faturados_ate(por_m.get(m, []))
 
     def ipp_de(nfs):
         return (sum(len(v) for v in nfs.values()) / len(nfs)) if nfs \
@@ -9610,9 +9722,9 @@ def _abas_do_painel(ctx, r, d):
     ipp3 = (sum(sum(len(v) for v in pm[m]["nf"].values()) for m in m3_p)
             / n_nf3) if n_nf3 else None
     n_ped = len(atual["ped"])
-    tk = atual["vnd"] / n_ped if n_ped else None
+    tk = atual["real"] / n_ped if n_ped else None
     n_ped3 = sum(len(pm[m]["ped"]) for m in m3_p)
-    tk3 = (sum(pm[m]["vnd"] for m in m3_p) / n_ped3) if n_ped3 else None
+    tk3 = (sum(pm[m]["real"] for m in m3_p) / n_ped3) if n_ped3 else None
 
     def var_de(a, b):
         return ((a / b - 1) * 100.0) if a is not None and b else None
@@ -9851,7 +9963,7 @@ def _abas_do_painel(ctx, r, d):
     pm_preco = (atual["real"] / vol) if vol else None
     pm3 = (m3_real / m3_vol) if m3_vol else None
     kpis_vol = [
-        kpi("Volume", br(vol), "ok", "unidades líquidas (venda − devolução)"),
+        _kpi_volume(ctx, comp, vol, atual["vol_hoje"]),
         kpi("Projeção", br(vol_proj), "info",
             "no ritmo de hoje" if fator > 1 else "mês fechado"),
         kpi("M3M", br(m3_vol) if m3_vol is not None else "—", "neutro",
@@ -9913,6 +10025,15 @@ def _abas_do_painel(ctx, r, d):
             if tt_ and tt_[0] is not None:
                 kpis_p.insert(1, kpi("Conversão", p(tt_[0]), "neutro",
                                      "visitados que compraram"))
+        # decisao 48: o periodo REAL do dado no rotulo: o do proprio Farol
+        # de Visita (o "real ate dd/mm" do cartao Visitas, o mesmo Espelho)
+        if comp == corre:
+            m_ate = next((re.search(r"até (\d\d/\d\d)", k_.get("detalhe") or "")
+                          for k_ in kpis_p if k_["rotulo"] == "Visitas"), None)
+            if m_ate:
+                for k_ in kpis_p:
+                    if k_["rotulo"] != "Visitas" and "até" not in k_["rotulo"]:
+                        k_["rotulo"] += f" · até {m_ate.group(1)}"
         paineis.append({"titulo": "Produtividade", "kpis": kpis_p,
                         "painel": _grade_painel(itens_p)})
     except Exception as erro:                           # noqa: BLE001
@@ -9979,9 +10100,7 @@ def _abas_do_painel(ctx, r, d):
     novos = next((c_ for c_ in (d.get("vis_cartoes") or [])
                   if c_["farol"] == "Novos e reativados"), None)
     kpis_pos = [
-        kpi("Positivados", br(n_pos), "ok",
-            f"{br(pct_de(n_pos, cart) or 0, 1)}% da carteira ({br(cart)})"
-            if cart else "clientes com compra no mês"),
+        _kpi_positivados(ctx, itens, comp, n_pos, cart),
         kpi("Meta de positivação", br(tot_pv[1]) if tot_pv[1] else "—",
             _tom_ating(tot_pv[3]) or "neutro",
             f"ating. {p(tot_pv[3])} · falta {br(tot_pv[4] or 0)}"
@@ -10050,7 +10169,8 @@ def _abas_do_painel(ctx, r, d):
         kpi("Ticket por pedido", moeda(tk) if tk else "—", tom_var(var_tk),
             f"M3M {moeda(tk3)} ({sinal(var_tk)})" if tk3 else ""),
         kpi("Notas", br(len(nfs_at)), "neutro", "notas de venda no mês"),
-        kpi("Pedidos", br(n_ped), "neutro", "pedidos faturados no mês")]
+        kpi("Pedidos faturados", br(n_ped), "neutro",
+            "líquidos, sem a conta de teste")]
     paineis.append({"titulo": "Itens por pedido", "kpis": kpis_ipp,
                     "painel": _grade_painel([
                         (_barras(g_ipp), False, 1),
@@ -10191,6 +10311,102 @@ def _abas_do_painel(ctx, r, d):
                            "pedido e Markup). Positivação por vendedor e "
                            "supervisor: a meta do Farol de Metas.")
     r["avisos"] += avisos_abas
+
+
+def _periodo_do_dia(ctx, comp):
+    """(ontem, "dd/mm") quando o mes `comp` corre e hoje esta fora do DU;
+    senao None (nada muda no cartao)."""
+    hoje = ctx.hoje
+    if not comp or comp != f"{hoje.year}-{hoje.month:02d}" or \
+            not _hoje_fora_do_du(ctx, hoje.year, hoje.month):
+        return None
+    ontem = hoje - timedelta(days=1)
+    return ontem, ontem.strftime("%d/%m")
+
+
+def _kpi_volume(ctx, comp, vol, vol_hoje):
+    """T-0060 (D1): o Volume da aba na mesma base do Real."""
+    per = _periodo_do_dia(ctx, comp)
+    det = "unidades líquidas (venda − devolução)"
+    if not per or not vol_hoje:
+        return kpi("Volume", br(vol), "ok", det)
+    if PROJECAO_COM_HOJE:
+        return kpi("Volume", br(vol), "ok", det,
+                   [("até " + per[1], br(vol - vol_hoje), "")])
+    return kpi(f"Volume até {per[1]}", br(vol - vol_hoje), "ok", det,
+               [("+ hoje", br(vol_hoje), ""), ("= com hoje", br(vol), "")])
+
+
+def _kpi_positivados(ctx, itens, comp, n_pos, cart):
+    """T-0060 (D1/D2b): Positivados na base da projecao ("55 ate 26/11 ·
+    58 com hoje"); sem venda de hoje, como era."""
+    det = (f"{br(pct_de(n_pos, cart) or 0, 1)}% da carteira ({br(cart)})"
+           if cart else "clientes com compra no mês")
+    per = _periodo_do_dia(ctx, comp)
+    if not per:
+        return kpi("Positivados", br(n_pos), "ok", det)
+    reais = [it for it in itens if not it.get("_ped")]
+    ate_o = len(clientes_positivados_ate(reais, per[0]))
+    com_h = len(clientes_positivados_ate(reais, ctx.hoje))
+    na_base = len(clientes_positivados_ate(
+        reais, ctx.hoje, set(ctx.tabela.get("clientes") or ())))
+    if na_base != com_h:                # D2b: "55 positivados (54 na base)"
+        det += f" · {br(na_base)} na base cadastral"
+    if ate_o == com_h:
+        return kpi("Positivados", br(n_pos), "ok", det)
+    if PROJECAO_COM_HOJE:
+        return kpi("Positivados", br(com_h), "ok", det,
+                   [(f"até {per[1]}", br(ate_o), "")])
+    return kpi(f"Positivados até {per[1]}", br(ate_o), "ok", det,
+               [("com hoje", br(com_h), "")])
+
+
+def _comp_do_kpi(ctx):
+    ano, mes = periodo(ctx)
+    return f"{ano}-{mes:02d}" if mes else ""
+
+
+def _kpi_real(ctx, itens, real, hoje_v, ped_v, meta, at, du_pass, mes,
+              du_rest=0):
+    """T-0060 (D1): o cartao Real do Painel Executivo. Com venda de hoje
+    (e hoje fora do DU) o cartao diz de qual periodo e o numero:
+    (a) padrao: "Real ate ONTEM · base da projecao" + "+ hoje = total";
+    (b) PROJECAO_COM_HOJE: o total com hoje. Positivacao: "N ate ontem ·
+    M com hoje". Sem venda de hoje, o cartao segue como era."""
+    rot = "Real + pedidos" if ped_v else "Real"
+    dia = f"{moeda((real - hoje_v) / du_pass)}/dia" if du_pass else ""
+    base = (f"faturado {moeda(real - ped_v)} + pedidos {moeda(ped_v)}"
+            if ped_v else
+            f"ating. {p(at)} · {dia}" if meta and du_pass else dia)
+    hoje = ctx.hoje
+    if PROJECAO_COM_HOJE and mes and du_pass and \
+            f"{hoje.year}-{hoje.month:02d}" == _comp_do_kpi(ctx):
+        # decisao 43: um Real so, ate hoje, hoje = DU passado
+        return kpi(f"Real até {hoje:%d/%m}", moeda(real), "ok", base,
+                   [("DU", f"{du_pass} de {du_pass + (du_rest or 0)}", "")])
+    if not hoje_v or not mes or ped_v or \
+            not _hoje_fora_do_du(ctx, hoje.year, hoje.month):
+        return kpi(rot, moeda(real), "ok", base)
+    ontem = hoje - timedelta(days=1)
+    reais = [it for it in itens if not it.get("_ped")]
+    b = base_projecao(
+        real, hoje_v,
+        len(clientes_positivados_ate(reais, hoje)),
+        len(clientes_positivados_ate(reais, ontem)))
+    d_ = ontem.strftime("%d/%m")
+    pos = (f"{br(b['pos_ate_ontem'])} até {d_} · "
+           f"{br(b['pos_com_hoje'])} com hoje")
+    linhas = [("+ hoje", moeda(hoje_v), ""),
+              ("= com hoje", moeda(b["real_com_hoje"]), ""),
+              ("Positivados", pos, "")]
+    if PROJECAO_COM_HOJE:
+        return kpi(rot, moeda(real), "ok", base,
+                   [(f"base da projeção até {d_}",
+                     moeda(b["real_ate_ontem"]), ""), linhas[2]])
+    at_o = pct_de(b["real_ate_ontem"], meta) if meta else None
+    det = (f"ating. {p(at_o)} · {dia}" if meta and du_pass else dia)
+    return kpi(f"Real até {d_} · base da projeção",
+               moeda(b["real_ate_ontem"]), "ok", det, linhas)
 
 
 def _kpi_pedidos(ctx, abertos, somando):
@@ -11981,6 +12197,13 @@ def saldo_desconto(ctx):
         return cs
     mes_atual = mes_escolhido(ctx)
     r["kpis"] = cartoes([l for l in linhas if rotulo_no_periodo(ctx, l[I_MES])])
+    # T-0060 (D2d): as barras por UF do cartao Faturado = LIQUIDO (a mesma
+    # conta do cartao), nao o VLR VENDA bruto da tabela
+    a_, m_ = periodo(ctx)
+    if m_:
+        r["_liquido_por_uf"] = venda_liquida_por_uf(
+            ctx.tabela["itens"], min(ctx.hoje, date(
+                a_ + (m_ == 12), m_ % 12 + 1, 1) - timedelta(days=1)))
     por_mes = defaultdict(list)
     for l in linhas:
         por_mes[l[I_MES]].append(l)
@@ -19766,6 +19989,15 @@ def montar(rid: str, raiz, hoje=None, log=None, params=None,
             rel.setdefault("avisos", []).append(
                 f"Resumo gerencial no formato antigo: {erro}")
     rel.pop("_eventos", None)
+    try:                    # T-0060: o liquido de HOJE por UF (fora da base)
+        a_, m_ = periodo(ctx)
+        if a_ == ctx.hoje.year and m_ in (0, ctx.hoje.month) and \
+                _hoje_fora_do_du(ctx, ctx.hoje.year, ctx.hoje.month):
+            rel["_hoje_uf"] = {u: v for u, v in venda_liquida_por_uf(
+                [i for i in ctx.tabela["itens"] if i.get("dt_nf") == ctx.hoje],
+                ctx.hoje).items() if v}
+    except Exception:                                   # noqa: BLE001
+        pass
     equipe = rel.pop("_equipe", None)
     if tela and equipe:
         try:

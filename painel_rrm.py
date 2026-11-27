@@ -87,10 +87,16 @@ def compacto(v, dinheiro=False):
     return br(v, 0) if a >= 10 or a == int(a) else br(v, 1)
 
 
+GRUPO_B_RRM = {"pecas", "cad", "vis", "convv", "prim", "fora", "jorn",
+               "ini", "ult", "alm", "tma", "tmd"}
+
+
 def _hora(s):
-    """'08:53' -> 8,883 (horas); None/'' -> None."""
-    m_ = re.match(r"\s*(\d{1,2}):(\d{2})", str(s or ""))
-    return int(m_.group(1)) + int(m_.group(2)) / 60 if m_ else None
+    """'08:53' -> 8,883 (horas); '00:15:53' -> 0,2647 (com os segundos,
+    T-0060: arredonda so no fim); None/'' -> None."""
+    m_ = re.match(r"\s*(\d{1,2}):(\d{2})(?::(\d{2}))?", str(s or ""))
+    return (int(m_.group(1)) + int(m_.group(2)) / 60
+            + int(m_.group(3) or 0) / 3600) if m_ else None
 
 
 def _num(v):
@@ -227,10 +233,13 @@ def _da_tabela_uf(ctx, ano, mes, ate, top):
             if it["cliente"] not in prim or d < prim[it["cliente"]][0]:
                 prim[it["cliente"]] = (d, uf)
     cad = defaultdict(int)
+    # T-0060 (item 4): cadastro com COMPRA = positivado (liquido > 0 ate a
+    # data), a mesma regra do Metas
+    posit = rn.clientes_positivados_ate(ctx.tabela["itens"], ate)
     for cod, c in (ctx.tabela.get("clientes") or {}).items():
         dc = rn._dia(c.get("dtcad"))
         if dc and dc.year == ano and dc.month == mes and dc <= ate \
-                and cod in prim:
+                and cod in prim and cod in posit:
             cad[prim[cod][1]] += 1
     pos = {u: sum(1 for v in cs.values() if v > 0.005)
            for u, cs in cli.items()}
@@ -328,6 +337,10 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
 
     top = dc.get("top30") or []
     uf_at = _da_tabela_uf(ctx, *at, ate, top)
+    ate_b = dd.get("dados_ate_b") or ate     # decisao 48: o grupo B vai ate ontem
+    if ate_b != ate:
+        uf_b = _da_tabela_uf(ctx, *at, ate_b, top)
+        uf_at["pecas"], uf_at["cad"] = uf_b["pecas"], uf_b["cad"]
     uf_ant = _da_tabela_uf(ctx, *ant, fim(*ant), top)
 
     # metas do mes e por estado (Farol de Metas Equipe, Por supervisor)
@@ -382,6 +395,10 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
 
     def card(lista, chave, titulo, valor, legenda="", aneis=(), fx=(),
              estados=None, ajuda=""):
+        if corre and ate_b != ate and chave in GRUPO_B_RRM:
+            titulo += f" · até {ate_b:%d/%m}"
+        elif corre and chave in ("markup", "desc"):
+            titulo += " · até hoje"
         lista.append({"chave": chave, "titulo": titulo, "valor": valor,
                       "legenda": legenda, "aneis": list(aneis),
                       "faixa": list(fx), "estados": estados,
@@ -438,7 +455,8 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
                    ating=lambda v: v / META_MARKUP * 100,
                    leg_meta="atingimento da meta (mín. 15%)"),
          "venda ÷ custo − 1 (Farol de Markup); mínimo 15%; estado = "
-         "Farol de Markup Por UF (filial da nota)")
+         "Farol de Markup Por UF (filial da nota); inclui as notas de hoje "
+         "(razão: não se projeta)")
     ds = V["desc"][at]
     mes_txt = f"{MESES_C[at[1]].upper()}/{str(at[0])[2:]}"
     card(res, "desc", "Desconto comercial", pc(ds, 1), "",
