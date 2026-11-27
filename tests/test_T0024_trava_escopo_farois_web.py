@@ -35,7 +35,8 @@ def test_RN_GER_006_trava_lista_permitida_e_os_cinco_do_lote2():
                                    "pl_entregas", "vc_visitas", "vc_meta"}
     assert set(FAROIS_LOTE2) == {"pv_indicadores", "vc_base", "vc_planner",
                                  "pl_giro", "pl_frw"}
-    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS | set(FAROIS_LOTE2)
+    assert FAROIS_PERMITIDOS == (FAROIS_OBRIGATORIOS | set(FAROIS_LOTE2)
+                                 | {"pl_fretes"})          # T-0037
     assert "pl_garantias" not in FAROIS_PERMITIDOS
 
 

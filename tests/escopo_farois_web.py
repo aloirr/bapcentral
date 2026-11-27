@@ -1,7 +1,7 @@
 """Trava do escopo de bap_automation.FAROIS_WEB (T-0013, T-0017, T-0022,
 T-0024): a lista PERMITIDA dos faróis que o robô leva ao site, num lugar só.
 
-Vale com e sem o lote 2 da T-0024 (PR #91):
+Vale com e sem o lote 2 da T-0024 (PR #91) e o Fretes da T-0037:
 - os faróis OBRIGATÓRIOS (os do main) têm de estar em FAROIS_WEB, cada um com
   a fonte do "baixado em" e a regra de UF de sempre;
 - um farol a mais só passa se estiver em FAROIS_LOTE2, com a fonte, a tabela
@@ -44,10 +44,17 @@ FAROIS_LOTE2 = {
     "pl_giro": ("tabela", "Todos os produtos", "FILIAL", "filial"),
     "pl_frw": ("tabela", "Estoque FRW", "FILIAL", "filial"),
 }
+# T-0037 (Fretes, contrato §10.11): pode estar lá; fretes = UF do cliente
+# (fonte: os Movimentos do Protheus, como o vc_meta)
+FAROIS_T0037 = {
+    "pl_fretes": ("tabela", "Notas com frete", "UF", "uf"),
+}
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
-REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_LOTE2}
+REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_LOTE2,
+                       **FAROIS_T0037}
 FAROIS_PERMITIDOS = frozenset(REGRA_UF_PERMITIDOS)
 assert not FAROIS_OBRIGATORIOS & set(FAROIS_LOTE2)       # sem repetição
+assert not (FAROIS_OBRIGATORIOS | set(FAROIS_LOTE2)) & set(FAROIS_T0037)
 
 _KPI_FICTICIO = [{"rotulo": "Itens", "valor": "1", "cor": "ok"}]
 
