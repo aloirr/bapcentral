@@ -91,10 +91,11 @@ def test_perfil_x_aba_403_ou_200(com_tabelas):
 
 def test_ve_tabelas_D1_recomendacao_A():
     # D1 (recomendação A): o perfil de cada farol vê as tabelas; o diretor, só o Resumo
-    assert tabelas.VE_TABELAS == {"pv_pedidos": ("admin", "gerente", "pre_venda"),
-                                  "pl_entregas": ("admin", "gerente", "pos_venda"),
-                                  "vc_visitas": ("admin", "gerente", "vendas"),
-                                  "vc_meta": ("admin", "gerente", "vendas")}      # T-0022
+    base = {k: tabelas.VE_TABELAS[k] for k in ("pv_pedidos", "pl_entregas", "vc_visitas", "vc_meta")}
+    assert base == {"pv_pedidos": ("admin", "gerente", "pre_venda"),
+                    "pl_entregas": ("admin", "gerente", "pos_venda"),
+                    "vc_visitas": ("admin", "gerente", "vendas"),
+                    "vc_meta": ("admin", "gerente", "vendas")}      # T-0022
     assert all("diretor" not in p for p in tabelas.VE_TABELAS.values())
 
 
@@ -401,7 +402,11 @@ def test_cada_tabela_na_tela_e_igual_ao_fixture(rid):
         assert tela["total_linhas"] == len(t["linhas"]), t["titulo"]
         for k, ln in enumerate(tela["linhas"]):
             for cel, j in zip(ln["cel"], [c["i"] for c in tela["cols"]]):
-                assert cel["t"] == _esp(t["linhas"][k][j], t["colunas"][j]["tipo"]), (t["titulo"], k, t["colunas"][j]["nome"])
+                esp = _esp(t["linhas"][k][j], t["colunas"][j]["tipo"])
+                if cel.get("cod"):                      # T-0033 (UX §3.2): "900001 - NOME" vira o nome; o código vai ao popup
+                    assert esp == f'{cel["cod"]} - {cel["t"]}' and t["colunas"][j]["nome"] == "CLIENTE", (t["titulo"], k)
+                else:
+                    assert cel["t"] == esp, (t["titulo"], k, t["colunas"][j]["nome"])
             assert ln["tom"] == (t.get("tons") or [""] * len(t["linhas"]))[k]
         for c in tela["cols"]:                                       # nada oculto na tela
             assert not t["colunas"][c["i"]].get("oculta")
@@ -431,7 +436,7 @@ def test_solicitacao_igual_ao_fixture_com_7_subabas(com_tabelas):
         h = com_tabelas.get(f"/farol/pv_pedidos?aba=solicitacao&sub={k}").text
         assert tela["cols"][0]["nome"] in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&sub=99").text
-    assert "CÓD. PRODUTO" in h and 'class="ativa">Lojas' in h        # sub fora da lista: a primeira
+    assert "CÓD. PRODUTO" in h and 'class="on">Lojas' in h        # sub fora da lista: a primeira
     h = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&sub=1").text
     assert "ESTOQUE NA ORIGEM" in h and ">CD</a>" in h and "Filiais excluídas" in h
 
@@ -506,21 +511,44 @@ def test_ordenacao_filtro_multi_e_paginas(com_tabelas):
     p = pacote_tres_farois()
     t = _tab(p["relatorios"]["vc_visitas"], "Cliente a cliente")
     ix = {c["nome"]: k for k, c in enumerate(t["colunas"])}
-    c0 = {}
-    tela = tabelas.tabela_para_tela(t, c0)
+    assert tabelas.PAGINA_TAM == 500                                         # T-0033: 500 linhas por vez (carregar mais)
+    tela = tabelas.tabela_para_tela(t, {})
+    assert tela["total_linhas"] == 230 and tela["paginas"] == 1 and len(tela["linhas"]) == 230
+    tela = tabelas.tabela_para_tela(t, {}, pagina_tam=100)                   # a mesma regra, com a página menor
     assert tela["total_linhas"] == 230 and tela["paginas"] == 3 and len(tela["linhas"]) == 100
-    t3 = tabelas.tabela_para_tela(t, {"pag": ["3"]})
+    t3 = tabelas.tabela_para_tela(t, {"pag": ["3"]}, pagina_tam=100)
     assert len(t3["linhas"]) == 30 and t3["pag"] == 3
-    assert tabelas.tabela_para_tela(t, {"pag": ["99"]})["pag"] == 3
+    assert tabelas.tabela_para_tela(t, {"pag": ["99"]}, pagina_tam=100)["pag"] == 3
     d = tabelas.tabela_para_tela(t, {"ord": [str(ix["VALOR PEDIDO"])], "dir": ["desc"]}, pagina_tam=5)
     vals = [ln["cel"][[c["i"] for c in d["cols"]].index(ix["VALOR PEDIDO"])]["t"] for ln in d["linhas"]]
     assert [v for v in vals if v][:1] == ["R$ 1.800"]                          # no desc, o maior vem antes dos demais
     m = tabelas.tabela_para_tela(t, {f"f{ix['CURVA']}": ["A", "B"]})
     assert m["total_linhas"] == sum(1 for ln in t["linhas"] if ln[ix["CURVA"]] in ("A", "B"))
-    h = com_tabelas.get("/farol/vc_visitas?aba=cliente&pag=2").text
-    assert "Página 2 de 3" in h and "« Anterior" in h and "Próxima »" in h
     h = com_tabelas.get(f"/farol/vc_visitas?aba=cliente&f{ix['CURVA']}=A&f{ix['CURVA']}=C").text
-    assert "Página 1 de" in h
+    assert "Página" not in h and "data-mais" not in h                          # cabe numa vez: sem "carregar mais"
+
+
+def test_T0033_carregar_mais_500_linhas_por_vez_pela_rota_linhas(admin):
+    """T-0033 (contrato visual §7.2): a tabela traz 500 linhas e, ao rolar, `/farol/<rid>/linhas` traz as próximas;
+    a mesma regra de perfil, o mesmo filtro e a mesma ordem; a contagem da aba é a do servidor."""
+    p = pacote_tres_farois()
+    t = _tab(p["relatorios"]["vc_visitas"], "Cliente a cliente")
+    n = len(t["linhas"])
+    vezes = 1100 // n + 1
+    for chave in ("linhas", "uf_linhas", "tons"):
+        if isinstance(t.get(chave), list) and len(t[chave]) == n:
+            t[chave] = t[chave] * vezes
+    t["linhas"] = t["linhas"][:1100]
+    for chave in ("uf_linhas", "tons"):
+        if isinstance(t.get(chave), list):
+            t[chave] = t[chave][:1100]
+    assert postar(admin, p).status_code == 200
+    h = admin.get("/farol/vc_visitas?aba=cliente").text
+    assert "1100" in h and 'data-mais="/farol/vc_visitas/linhas?' in h and "pag=2" in h
+    r2 = admin.get("/farol/vc_visitas/linhas?aba=cliente&pag=2")
+    assert r2.status_code == 200 and r2.text.count("<tr") == 500 and "pag=3" in r2.text
+    r3 = admin.get("/farol/vc_visitas/linhas?aba=cliente&pag=3")
+    assert r3.status_code == 200 and r3.text.count("<tr") == 100 and 'data-mais=""' in r3.text and "pag=4" not in r3.text
 
 
 def test_total_so_sem_filtro_nem_recorte():
@@ -540,17 +568,70 @@ def test_estado_filtra_linhas_pelo_uf_linhas_e_cartoes_da_aba_viram_traco(com_ta
     esperado = [k for k, ln in enumerate(t["linhas"]) if ln[20] == "EM ABERTO" and t["uf_linhas"][k] == "PA"]
     assert tela["total_linhas"] == len(esperado) and not tela["padrao"]
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
-    assert f"{len(esperado)} linhas" in h and tabelas.AVISO_CARTOES in h
-    assert "3,6 dia(s)" not in h and '<div class="kpi-valor">—</div>' not in h
+    # §10.7.2/D5: com estado os cartões da aba saem e entra o aviso (nunca o número da BAP inteira)
+    assert f"{len(esperado)} linhas" in h and "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h
+    assert "3,6 dia(s)" not in h and "<em>BAP inteira</em>" not in h and '<b>—</b>' not in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos").text                 # sem estado: os cartões prontos da aba
-    assert "3,6 dia(s)" in h and tabelas.AVISO_CARTOES not in h
+    assert "3,6 dia(s)" in h and "Cartões sem filtro" not in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=XX").text           # estado desconhecido: ignora
-    assert "3,6 dia(s)" in h
+    assert "3,6 dia(s)" in h and "Cartões sem filtro" not in h
 
 
 def test_cartoes_da_aba_sem_numero_com_recorte_ou_filtro(com_tabelas):
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&f8=MANAUS").text
-    assert tabelas.AVISO_CARTOES in h and "3,6 dia(s)" not in h and 'class="kpis' not in h   # cartões somem
+    assert "3,6 dia(s)" not in h and "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and '<b>—</b>' not in h   # filtro: os cartões da aba saem e fica o aviso
+
+
+def test_cartao_com_detalhe_do_pc_so_aparece_no_padrao(admin):
+    # §10.7.2: o `detalhe` do PC vale no padrão; com estado ou filtro o cartão sai (sem marca inventada pela web)
+    p, r = _rel("pv_pedidos")
+    _tab(r, "Pedidos")["kpis_padrao"][5]["detalhe"] = "em aberto"                # o cartão "Volume"
+    assert postar(admin, p).status_code == 200
+    h = admin.get("/farol/pv_pedidos?aba=pedidos").text
+    assert "<em>em aberto</em>" in h and "Cartões sem filtro" not in h
+    for q in ("uf=PA", "f8=MANAUS"):
+        h = admin.get("/farol/pv_pedidos?aba=pedidos&" + q).text
+        assert "em aberto" not in h and "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and "BAP inteira" not in h
+
+
+def test_faixa_da_aba_leva_o_cartao_com_linhas_no_padrao(com_tabelas, admin):
+    # defeito 1 (dado real): os cartões do Visita trazem `linhas`; a faixa das abas de tabela não pode ficar vazia no padrão
+    p = pacote_tres_farois()
+    t = _tab(p["relatorios"]["pv_pedidos"], "Pedidos")
+    for k in t["kpis_padrao"]:
+        k["linhas"] = [["linha", "1"]]
+    assert postar(admin, p).status_code == 200
+    h = admin.get("/farol/pv_pedidos?aba=pedidos").text
+    faixa = h.split('class="bc3-faixa"')[1].split("</header>")[0]
+    assert "3,6 dia(s)" in faixa and "SLA médio" in faixa.replace("SLA MÉDIO", "SLA médio") and "bc3-aviso-k" not in faixa
+    assert len(re.findall(r'class="bc3-k[ "]', faixa)) == len([k for k in t["kpis_padrao"] if k["valor"] != "—"])
+
+
+def test_A1_aba_sem_kpis_padrao_leva_na_faixa_os_mesmos_numeros_do_resumo(admin):
+    # revisão A1: o cartão inteiro (com `linhas` ou barras por estado) só vai à faixa quando a aba tem `kpis_padrao`;
+    # a Inadimplência e a Solicitação BAP mostram na faixa o mesmo que o Resumo (o cartão com `linhas` fica no corpo)
+    from cobranca_fixture import pacote_cobranca
+    p = pacote_cobranca()
+    ks = p["relatorios"]["pl_inadimplencia"]["kpis"]
+    ks[0]["linhas"] = [["Faixa", "1"]]
+    assert postar(admin, p).status_code == 200
+    faixa = lambda h: h.split('class="bc3-faixa"')[1].split("</header>")[0]
+    numeros = lambda h: re.findall(r'<small>(.*?)</small><b>(.*?)</b>', faixa(h))
+    resumo = numeros(admin.get("/farol/pl_inadimplencia").text)
+    assert resumo and numeros(admin.get("/farol/pl_inadimplencia?aba=titulos").text) == resumo
+    p3 = pacote_tres_farois()
+    p3["relatorios"]["pv_pedidos"]["kpis"][0]["linhas"] = [["linha", "1"]]
+    assert postar(admin, p3).status_code == 200
+    resumo = numeros(admin.get("/farol/pv_pedidos").text)
+    assert resumo and numeros(admin.get("/farol/pv_pedidos?aba=solicitacao").text) == resumo
+
+
+def test_solicitacao_bap_ignora_o_estado_tambem_nos_cartoes_de_cima(com_tabelas):
+    # defeito 2: a aba não tem estado (D5); `&uf=` na URL não pode trocar os cartões de cima pelos do estado
+    sem = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao").text
+    com = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&uf=AM").text
+    pega = lambda h: re.findall(r'<small>(.*?)</small><b>(.*?)</b>', h.split('class="bc3-faixa"')[1].split("</header>")[0])
+    assert pega(sem) == pega(com) and pega(sem)
 
 
 def test_entregas_estado_filtra_linhas_e_junta_de_pendencias(com_tabelas):
@@ -568,7 +649,7 @@ def test_entregas_estado_filtra_linhas_e_junta_de_pendencias(com_tabelas):
 
 def test_visita_e_solicitacao_sem_estado_com_aviso(com_tabelas):
     h = com_tabelas.get("/farol/vc_visitas?aba=dia&uf=AM").text
-    assert tabelas.AVISO_SEM_ESTADO in h and "Filtro por estado" not in h
+    assert h.count("Sem filtro por estado") == 1 and 'aria-label="Filtro por estado"' not in h   # um aviso só, na faixa (RD-0023)
     h = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&uf=AM").text
     assert "Estado" not in h.split("<main")[1] and 'class="kpis' not in h and ">Lojas<" in h
 
@@ -611,10 +692,10 @@ def test_junta_aparece_na_pagina_com_titulo_do_quadro(com_tabelas):
 def test_selos_faixa_barra_e_pela_linha(com_tabelas):
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos").text
     assert 'class="atend-trilho"' in h and "background:#62BB47" in h              # barra do % ATENDIDO
-    assert 'class="selo" style="background:#B3261E;color:#FFFFFF"' in h             # SLA > 4 em faixa
+    assert 'class="selo" style="background:#B3261E;color:#FFFFFF"' in h             # SLA > 4 em faixa: a cor vem do PC, a web só desenha
     h = com_tabelas.get("/farol/pl_entregas?aba=entregas").text
-    assert 'class="selo" style="background:#E5F3DF;color:#2F7D32"' in h             # SLA pela linha (TOM SLA = ok)
-    assert 'style="background:#B3261E;color:#FFFFFF"' in h
+    assert 'class="selo" style="background:#F0F7EC;color:#2F7D32"' in h             # SLA pela linha (TOM SLA = ok)
+    assert 'style="background:#FDECEA;color:#B42318"' in h                          # chip_tom alerta: contrato novo
     h = com_tabelas.get("/farol/vc_visitas?aba=vendedor").text
     assert 'style="background:#FBDDDA;color:#B3261E"' in h and 'style="background:#E5F3DF;color:#2F7D32"' in h
 
@@ -654,7 +735,7 @@ def test_robo_antigo_so_resumo_e_aba_pedida_diz_indisponivel(admin):
     h = admin.get("/farol/pv_pedidos").text
     assert "R$ 112 mil" in h and 'class="abas' not in h
     r = admin.get("/farol/pv_pedidos?aba=pedidos")
-    assert r.status_code == 200 and "ainda não disponível na web" in r.text.lower()
+    assert r.status_code == 200 and "este farol não veio no último pacote do pc" in r.text.lower()
 
 
 def test_aba_que_ficou_fora_some_da_barra_e_nao_quebra(admin):
@@ -692,7 +773,7 @@ def test_inadimplencia_igual_ao_golden_gerado_com_o_codigo_anterior():
         for i, q in enumerate(g["consultas"]):
             novo = cobranca.tabela_para_tela(t, t["titulo"], q, pagina_tam=5)
             velho = g["saida"][f'{t["titulo"]}|{i}']
-            novo = json.loads(json.dumps(novo, ensure_ascii=False))
+            novo = json.loads(json.dumps(novo, ensure_ascii=False, default=lambda o: sorted(o) if isinstance(o, (set, frozenset)) else str(o)))   # T-0033: conjuntos novos (fora da base...)
             for chave in velho:                                           # as chaves de antes, com o mesmo valor
                 if chave == "cols":
                     assert [{k: c[k] for k in ("i", "nome", "tipo", "num")} for c in novo[chave]] == velho[chave]
@@ -700,7 +781,10 @@ def test_inadimplencia_igual_ao_golden_gerado_com_o_codigo_anterior():
                     assert [{"tom": ln["tom"], "cel": [{k: c[k] for k in ("t", "f", "c")} for c in ln["cel"]]}
                             for ln in novo[chave]] == velho[chave]
                 elif chave == "total":
-                    assert (None if novo[chave] is None else [{k: c[k] for k in ("t", "f", "c")} for c in novo[chave]]) == velho[chave]
+                    nt = None if novo[chave] is None else [{k: c[k] for k in ("t", "f", "c")} for c in novo[chave]]
+                    if nt is not None:                 # T-0033: o rótulo "Total" entra na 1ª célula que estava vazia
+                        nt = [{**n, "t": ""} if n["t"] == "Total" and v["t"] in ("", "—") else n for n, v in zip(nt, velho[chave])]
+                    assert nt == velho[chave]
                 elif chave == "filtros":
                     assert [{k: f_[k] for k in ("nome", "chave", "i", "multi", "opcoes", "sel")} for f_ in novo[chave]] == velho[chave]
                 else:
@@ -725,13 +809,11 @@ def test_config_padrao_do_pacote_e_25_mb_como_o_render_yaml(monkeypatch, amb):
         assert re.search(r"BAP_WEB_PACOTE_MAX_MB\s*\n\s*value:\s*['\"]?25", yaml.read_text(encoding="utf-8"))
 
 
-def test_recorte_ativo_esconde_os_cartoes_da_visita_e_mostra_o_aviso(com_tabelas):
-    h = com_tabelas.get("/farol/vc_visitas?aba=dia&rec=0").text
-    assert 'class="kpis' not in h and tabelas.AVISO_CARTOES in h
-    h = com_tabelas.get("/farol/vc_visitas?aba=dia").text                    # sem recorte: os cartões voltam
-    assert ('class="kpis' in h or 'class="bc3-ks"' in h) and tabelas.AVISO_CARTOES not in h
-    h = com_tabelas.get("/farol/vc_visitas?aba=dia&f5=SEM%20VISITA").text    # filtro de coluna também
-    assert 'class="kpis' not in h and tabelas.AVISO_CARTOES in h
+def test_visita_sem_kpis_padrao_mantem_os_cartoes_de_cima_com_recorte_ou_filtro(com_tabelas):
+    # §10.7.2: sem `kpis_padrao` a aba mostra os `kpis` de cima; só os cartões da aba (kpis_padrao) saem com filtro
+    for q in ("", "&rec=0", "&f5=SEM%20VISITA"):
+        h = com_tabelas.get("/farol/vc_visitas?aba=dia" + q).text
+        assert 'class="bc3-ks"' in h and "Cartões sem filtro" not in h
 
 
 def test_linha_sem_visita_tem_contadores_zerados_e_horas_vazias():
@@ -845,23 +927,22 @@ def test_total_fixo_so_sem_filtro_recorte_ou_estado(com_tabelas):
 
 # ------------------------------------------------------------------ cartões, estado vazio, avisos
 def test_aviso_dos_cartoes_e_o_do_contrato_e_estado_tira_os_cartoes(com_tabelas):
-    assert tabelas.AVISO_CARTOES == "Cartões sem filtro. Com filtro, veja as linhas na tabela."
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
-    assert tabelas.AVISO_CARTOES in h and 'class="kpis' not in h and "kpi-valor\">—" not in h
+    assert "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and "<b>—</b>" not in h and "BAP inteira</em>" not in h
     h = com_tabelas.get("/farol/pl_entregas?aba=entregas&uf=PA").text
-    assert tabelas.AVISO_CARTOES in h and 'class="kpis' not in h
+    assert "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and "<b>—</b>" not in h
     assert not hasattr(render, "kpis_sem_numero")
 
 
-def test_tabela_vazia_so_diz_nenhuma_linha_neste_mes(com_tabelas):
+def test_tabela_vazia_sem_filtro_diz_nenhuma_linha_hoje(com_tabelas):
     h = com_tabelas.get("/farol/vc_visitas?aba=indicacao").text
-    assert "Nenhuma linha neste mês." in h and "0 linhas" not in h and '<details class="filtros-det"' not in h
+    assert "Nenhuma linha hoje." in h and "neste mês" not in h and "0 linhas" not in h and '<details class="filtros-det"' not in h
     assert "Role para o lado" not in h
 
 
 def test_visita_mantem_o_aviso_sem_filtro_por_estado_em_cada_aba(com_tabelas):
     for chave in tabelas.chaves("vc_visitas"):
-        assert tabelas.AVISO_SEM_ESTADO in com_tabelas.get(f"/farol/vc_visitas?aba={chave}").text, chave
+        assert com_tabelas.get(f"/farol/vc_visitas?aba={chave}").text.count("Sem filtro por estado") == 1, chave
 
 
 def test_painel_usa_a_mesma_grade_das_abas(com_tabelas):

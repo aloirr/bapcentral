@@ -1,28 +1,12 @@
 {% from "_grade.html" import grade with context %}
-{% from "_acoes.html" import acoes with context %}
-{% from "_estados.html" import cartoes %}
-{% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
-{% set uf_q = ('&uf=' ~ uf) if (uf is defined and uf) else '' %}
-{% set base0 = '/farol/' ~ rid ~ '?aba=' ~ aba %}
-{% set fora_q = '&fora=1' if (tabela.fora_base and tabela.fora_base.mostrar) else '' %}
-{% set base = base0 ~ sub_q ~ uf_q ~ fora_q %}
-{% if not bc3 %}<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tabela.total_linhas %}<span>{{ tabela.total_linhas }} {{ "linha" if tabela.total_linhas == 1 else "linhas" }}</span>{% endif %}</header>
-{{ acoes(rid, parcial=parcial, exportar=True) }}
-{% if ufs %}
-<nav class="filtros" aria-label="Filtro por estado">
-  <a href="{{ base0 }}{{ sub_q }}" class="{{ 'ativa' if not uf }}">BAP inteira</a>
-  {% for u in ufs %}<a href="{{ base0 }}{{ sub_q }}&amp;uf={{ u }}" class="{{ 'ativa' if u == uf }}">{{ u }}</a>{% endfor %}
-</nav>
-{% endif %}
-{% endif %}{% if ed_enviada %}<p class="aviso info ed-ok" role="status">{{ ed_enviada }}</p>{% endif %}
+{# T-0033: só o visual BC3 (a busca, o filtro de estado e o Exportar vivem em `_bc3_cab.html`); a rolagem é por dentro #}
+{% set sub_q = ("&sub=" ~ sub) if (sub is defined and sub is not none) else "" %}
+{% set uf_q = ("&uf=" ~ uf) if (uf is defined and uf) else "" %}
+{% if ed_enviada %}<p class="aviso info ed-ok" role="status">{{ ed_enviada }}</p>{% endif %}
 {% if aviso_uf %}<p class="aviso info">{{ aviso_uf }}</p>{% endif %}
-{% if not bc3 %}{% if kpis and not aviso_kpis %}{{ cartoes(kpis, faixa, "Sem cartões nesta aba.") }}{% endif %}
-{% if aviso_kpis %}<p class="aviso info">{{ aviso_kpis }}</p>{% endif %}{% endif %}
 {% if subnomes %}
-<nav class="subabas" aria-label="Abas do arquivo">{% for n in subnomes %}<a href="{{ base0 }}&amp;sub={{ loop.index0 }}{{ uf_q }}" class="{{ 'ativa' if loop.index0 == sub }}">{{ n }}</a>{% endfor %}</nav>
+<nav class="bc3-uf bc3-sub-abas" aria-label="Abas do arquivo">{% for n in subnomes %}<a href="{{ base0 }}&amp;sub={{ loop.index0 }}{{ uf_q }}" class="{{ 'on' if loop.index0 == sub }}">{{ n }}</a>{% endfor %}</nav>
 {% endif %}
-{% set sem_rec %}{% for f in tabela.filtros %}{% for v in f.sel %}&{{ f.chave }}={{ v|urlencode }}{% endfor %}{% endfor %}{% if tabela.busca %}&busca={{ tabela.busca|urlencode }}{% endif %}{% endset %}
-{% set fq %}{{ sem_rec }}{% if tabela.rec is not none %}&rec={{ tabela.rec }}{% endif %}{% endset %}
 {% if tabela.recortes %}
 <nav class="filtros recortes" aria-label="Recortes">
   <span class="f-rot">Recorte</span>
@@ -30,15 +14,6 @@
   {% for r in tabela.recortes %}<a href="{{ base }}{{ sem_rec }}&amp;rec={{ r.n }}" class="{{ 'ativa' if r.ativo }}">{{ r.rotulo }} ({{ r.qtd }})</a>{% endfor %}
 </nav>
 {% endif %}
-{% if not bc3 %}<form method="get" action="/farol/{{ rid }}" class="busca-tab" role="search">
-  <input type="hidden" name="aba" value="{{ aba }}">
-  {% if sub is defined and sub is not none %}<input type="hidden" name="sub" value="{{ sub }}">{% endif %}
-  {% if uf is defined and uf %}<input type="hidden" name="uf" value="{{ uf }}">{% endif %}
-  {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
-  {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
-  <label class="busca-rot">Buscar <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="Pedido, cliente, produto…" maxlength="60" autocomplete="off"></label>
-  <button type="submit">Buscar</button>{% if tabela.busca %} <a href="{{ base }}{% for f in tabela.filtros %}{% for v in f.sel %}&amp;{{ f.chave }}={{ v|urlencode }}{% endfor %}{% endfor %}">Limpar busca</a>{% endif %}
-</form>{% endif %}
 {% if tabela.filtros and (tabela.total_linhas or not tabela.padrao) %}
 <details class="filtros-det"{{ " open" if not tabela.padrao }}><summary>Filtros</summary>
 <form method="get" action="/farol/{{ rid }}" class="filtros-tab">
@@ -59,28 +34,15 @@
 </form></details>
 {% endif %}
 {% if tabela.em_cima %}{% for j in juntas %}<section class="junta-cima">{{ grade(j, "", "", "Nenhuma linha.") }}</section>{% endfor %}{% endif %}
-{{ grade(tabela, base, fq, "Nenhuma linha neste mês." if tabela.padrao else "Nenhuma linha neste filtro.") }}
-{% if tabela.paginas > 1 %}
-{% set q %}{% if tabela.ord is not none %}&amp;ord={{ tabela.ord }}&amp;dir={{ 'desc' if tabela.desc else 'asc' }}{% endif %}{{ fq }}{% endset %}
-<nav class="paginas">{% if tabela.pag > 1 %}<a href="{{ base }}{{ q }}&amp;pag={{ tabela.pag - 1 }}">« Anterior</a>{% endif %}
-  <span>Página {{ tabela.pag }} de {{ tabela.paginas }}</span>
-  {% if tabela.pag < tabela.paginas %}<a href="{{ base }}{{ q }}&amp;pag={{ tabela.pag + 1 }}">Próxima »</a>{% endif %}</nav>
-{% endif %}
+{{ grade(tabela, base, fq, "Nenhuma linha hoje." if tabela.padrao else "Nenhuma linha com este filtro.", mais=mais) }}
 {% set juntas = [] if tabela.em_cima else juntas %}
-{% if tabela.sel is defined %}<p class="aviso info sel-aviso">Tabelas de baixo só com {{ tabela.sel_rotulo or 'a linha escolhida' }}. <a href="{{ base }}{{ fq }}">Mostrar todas</a></p>
-{% elif tabela.sel_col is defined and tabela.sel_col is not none and juntas and tabela.total_linhas and not bc3 %}<p class="como">Passe o mouse no número do pedido para ver os dados dele; clique para ver só ele nas tabelas de baixo.</p>{% endif %}
-{% if juntas %}<div class="juntas{{ ' bc3-juntas' if bc3 }}">{% endif %}
+{% if tabela.sel is defined %}<p class="aviso info sel-aviso">Tabelas de baixo só com {{ tabela.sel_rotulo or 'a linha escolhida' }}. <a href="{{ base }}{{ fq }}">Mostrar todas</a></p>{% endif %}
+{% if juntas %}<div class="juntas bc3-juntas">{% endif %}
 {% for j in juntas %}
-{% if bc3 %}<details class="junta bc3-junta"{{ ' open' if loop.first }}><summary><h2>{{ j.titulo }} <small>{{ j.total_linhas }} {{ "linha" if j.total_linhas == 1 else "linhas" }}</small></h2></summary>{% else %}<section class="junta"><h2>{{ j.titulo }} <small>{{ j.total_linhas }} {{ "linha" if j.total_linhas == 1 else "linhas" }}</small></h2>{% endif %}
-  {{ grade(j, "", "", "Nenhuma linha ligada às linhas de cima.", junta=(tabela.sel_col is defined and tabela.sel_col is not none)) }}
+<details class="junta bc3-junta"{{ ' open' if loop.first }}><summary><h2>{{ j.titulo }} <small>{{ j.total_linhas }} {{ "linha" if j.total_linhas == 1 else "linhas" }}</small></h2></summary>
+  {{ grade(j, "", "", "Nenhuma linha ligada às linhas de cima.", junta=true) }}
   {% if j.mais %}<p class="como">Mostrando as primeiras 200 linhas.</p>{% endif %}
-{{ '</details>'|safe if bc3 else '</section>'|safe }}
+</details>
 {% endfor %}
 {% if juntas %}</div>{% endif %}
-{% if tabela.sel_col is defined and tabela.sel_col is not none %}<div id="pop-pedido" class="pop-pedido" role="tooltip" hidden></div><script src="/static/popup_pedido.js"></script>{% endif %}
-{% if csvs and not bc3 %}
-<section class="csvs-protheus" aria-label="Arquivos para importar no Protheus">
-  <h2>Arquivos para importar no Protheus <small>{{ csvs|length }} {{ "arquivo" if csvs|length == 1 else "arquivos" }}, últimos 30 dias</small></h2>
-  <ul>{% for c in csvs %}<li><a href="/farol/pv_pedidos/csv/{{ c.nome|urlencode }}" download="{{ c.nome }}">{{ c.nome }}</a></li>{% endfor %}</ul>
-</section>
-{% endif %}
+<div id="pop-linha" class="pop-pedido" role="tooltip" hidden></div><script src="/static/popup_linha.js"></script>

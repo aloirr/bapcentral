@@ -11,11 +11,13 @@ import math
 import re
 import unicodedata
 
+from . import marca
+
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
-TITULOS = {"res": "Painel do Diretor · resultado",
-           "prod": "Painel do Diretor · produtividade",
-           "du": "Painel do Diretor · por dia útil"}
+TITULOS = {"res": "Painel Executivo · resultado",
+           "prod": "Painel Executivo · produtividade",
+           "du": "Painel Executivo · por dia útil"}
 
 
 def br(v, d=0) -> str:
@@ -110,7 +112,7 @@ def localizar_abas(rel: dict) -> list[dict]:
     return abas
 
 
-COMO_LER_ESTADO = ("Número do estado como na barra dele no Painel do Diretor do PC; "
+COMO_LER_ESTADO = ("Número do estado como na barra dele no Painel Executivo do PC; "
                    "% = atingimento da meta do estado, ou variação × mês anterior sem meta. "
                    "Cartão com — não tem número por estado.")
 
@@ -151,13 +153,22 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
     "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
     "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+    # T-0024 (lote 2): o perfil de cada quadrado do PC (bap_central.py)
+    "pv_indicadores": ("Painel de indicadores", ("admin", "diretor", "gerente", "pre_venda")),
+    "vc_base": ("Farol de Clientes", ("admin", "diretor", "gerente", "vendas")),
+    "vc_planner": ("Farol Roteirização", ("admin", "diretor", "gerente", "vendas")),
+    "pl_giro": ("Farol de Giro de Produtos", ("admin", "diretor", "gerente", "vendas")),
+    "pl_frw": ("Farol de Estoque FRW", ("admin", "diretor", "gerente", "pre_venda", "pos_venda")),
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
     "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
 }
 TONS = ("ok", "atencao", "alerta", "info")
-AVISO_UF = "Resumo e gráficos: BAP inteira."
+LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")    # T-0024: faróis de abas livres
+# T-0024 (R4 do parecer de UX): nome curto na barra lateral; o nome completo do PC fica no título da faixa
+NOME_MENU = {"pv_indicadores": "Indicadores", "vc_base": "Clientes", "vc_planner": "Roteirização",
+             "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW"}
+AVISO_UF = "Os outros cartões, o resumo e os gráficos: só na BAP inteira."   # T-0033 (RD-0034): um aviso só
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
-SEM_RECORTE = "só na BAP inteira"
 INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -165,8 +176,9 @@ _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 # T-0030: faróis que já usam o visual BC3 (barra lateral + faixa verde, uma tela só no PC, lista que abre no
 # celular). O Farol de Pedidos vai primeiro; os outros entram na mesma lista.
 BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
-GRUPOS_MENU = (("Pré-venda", ("pv_pedidos",)), ("Pós-venda", ("pl_entregas", "pl_inadimplencia")),
-               ("Vendas", ("vc_visitas", "vc_meta")))
+GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
+               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_frw")),
+               ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")))   # T-0024: lote 2 no menu
 
 
 def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
@@ -178,7 +190,8 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
         grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
                                                        "ativo": ativo == "painel"}]})
     for nome, rids in GRUPOS_MENU:
-        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": meus[r], "ativo": r == ativo}
+        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r].removeprefix("Farol de ")),
+                  "ativo": r == ativo}
                  for r in rids if r in meus]
         if itens:
             grupos.append({"nome": nome, "itens": itens})
@@ -324,8 +337,8 @@ def _bloco_barras(b) -> dict:
     formato = g.get("formato", "num")
     series = []
     for s in _lista(g.get("series")):
-        series.append({"nome": str(s.get("nome", "")), "cor": _cor(s.get("cor"), "#8fa79a"),
-                       "cor_neg": _cor(s.get("cor_negativo"), "#b3261e"),
+        series.append({"nome": str(s.get("nome", "")), "cor": _cor(s.get("cor"), marca.TOKENS["--grafico-3"]),
+                       "cor_neg": _cor(s.get("cor_negativo"), marca.TOKENS["--alerta"]),
                        "vals": [_num(v) for v in _lista(s.get("valores"))],
                        "txt": [str(t) for t in _lista(s.get("rotulos"))]})
     meta = _num(g.get("meta"))
@@ -363,7 +376,7 @@ def _bloco_hbarras(b) -> dict:
         v = vals[i] if i < len(vals) else None
         linhas.append({"rot": r_, "txt": fmt_valor(v, formato),
                        "larg": 0 if not v else round(max(2.0, 100 * abs(v) / mx), 1),
-                       "cor": _cor(cores[i] if i < len(cores) else None, "#8fa79a")})
+                       "cor": _cor(cores[i] if i < len(cores) else None, marca.TOKENS["--grafico-3"])})
     return {"tipo": "hbarras", "titulo": str(b.get("titulo", "")), "linhas": linhas,
             "ref": {"pos": round(100 * abs(ref) / mx, 1), "txt": fmt_valor(ref, formato)} if ref else None}
 
@@ -505,6 +518,57 @@ def _blocos(painel) -> tuple[list[dict], list[dict]]:
     return ins, out
 
 
+_RE_PERIODO = re.compile(r"^(.*?) · (dia a dia|semana a semana|mês a mês)\b")
+_ROTULO_PERIODO = {"dia a dia": "Dia", "semana a semana": "Semana", "mês a mês": "Mês"}
+
+
+def agrupar_periodos(blocos: list[dict]) -> list[dict]:
+    """T-0024 (R2 do parecer de UX): os gráficos "métrica · dia a dia / semana a semana / mês a mês" viram UM cartão
+    por métrica, com o seletor Dia · Semana · Mês dentro. O resto dos blocos segue como veio, na mesma ordem."""
+    grupos: dict[str, dict] = {}
+    out: list[dict] = []
+    for b in blocos:
+        m = _RE_PERIODO.match(b.get("titulo", "")) if b.get("tipo") == "barras" else None
+        if not m:
+            out.append(b)
+            continue
+        g = grupos.get(m.group(1))
+        if g is None:
+            g = grupos[m.group(1)] = {"tipo": "periodos", "titulo": m.group(1), "vistas": []}
+            out.append(g)
+        g["vistas"].append({"nome": _ROTULO_PERIODO[m.group(2)], "b": b})
+    return [g if g.get("tipo") != "periodos" or len(g["vistas"]) > 1 else g["vistas"][0]["b"] for g in out]
+
+
+def _dados_do_bloco(b: dict):
+    """Os números que o bloco desenha (para achar gráfico repetido); None se não souber."""
+    if b.get("tipo") == "periodos":
+        return tuple(_dados_do_bloco(v["b"]) for v in b["vistas"])
+    if b.get("tipo") == "barras":
+        return tuple(tuple(x.get("txt") for x in c.get("barras") or []) for c in b.get("cols") or [])
+    if b.get("tipo") == "hbarras":
+        return tuple(l.get("txt") for l in b.get("linhas") or [])
+    return None
+
+
+def sem_graficos_repetidos(blocos: list[dict]) -> list[dict]:
+    """T-0024 (reteste de UX, N2): o mesmo número não aparece em dois gráficos do Resumo. Sai o bloco que desenha
+    os mesmos números de outro, e o gráfico de colunas de uma só série que repete as barras de mesmo assunto
+    (ex.: "Venda perdida prevista por filial" × "Venda perdida prevista (R$) por filial")."""
+    vistos, saida = set(), []
+    for b in blocos:
+        d = _dados_do_bloco(b)
+        if d is not None and d in vistos:
+            continue
+        if d is not None:
+            vistos.add(d)
+        saida.append(b)
+    barras_h = [" ".join(b.get("titulo", "").split()[:3]) for b in saida if b.get("tipo") == "hbarras"]
+    return [b for b in saida
+            if not (b.get("tipo") == "barras" and len(b.get("legenda") or []) <= 1
+                    and " ".join(b.get("titulo", "").split()[:3]) in barras_h and len(b.get("cols") or []) <= 12)]
+
+
 def recortes_farol(rel: dict) -> list[str]:
     rec = rel.get("recortes")
     return sorted(rec) if isinstance(rec, dict) else []
@@ -519,9 +583,10 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
         r_uf = rel["recortes"][uf]
         rec = [r for r in _lista(r_uf.get("kpis")) if isinstance(r, dict)]
         todos = [k for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
-        # cartão da BAP inteira que o estado não tem (ex.: fotos sem filial): "—" e a dica
+        # cartão da BAP inteira que o estado não tem (ex.: fotos sem filial): "—" sem dica (o `cartao_vazio` o tira e o
+        # AVISO_UF diz uma vez só que os outros são da BAP inteira)
         kpis = [next((r for r in rec if r.get("rotulo") == k.get("rotulo")), None)
-                or {"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro", "detalhe": SEM_RECORTE}
+                or {"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro"}
                 for k in todos]
         kpis += [r for r in rec if r.get("rotulo") not in {k.get("rotulo") for k in todos}]
     elif re.match(r"^[A-Z]{2}$", uf):
@@ -534,11 +599,19 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
     # T-0022: o estado traz o painel dele (Painel Executivo e Farol de Metas); sem painel, o da BAP inteira
     fonte = r_uf if isinstance(r_uf.get("painel"), dict) else rel
     ins_blocos, blocos = _blocos(fonte.get("painel"))
+    if rid in LOTE2:                                    # T-0024 (R2): um cartão por métrica, Dia · Semana · Mês dentro
+        blocos = sem_graficos_repetidos(agrupar_periodos(blocos))
     cartoes = [k for k in map(_kpi, _lista(kpis)) if k and not cartao_vazio(k)]
+    insights = sem_repeticao(_insights(fonte.get("insights_painel")) or ins_blocos, cartoes)
+    ditas = {i["texto"] for i in insights}                 # RD-0035: a frase fica só em "O que o painel diz"
+    for b in blocos:
+        for c in (b.get("cartoes") or []) if b.get("tipo") == "placar" else []:
+            if c.get("frase") in ditas:
+                c["frase"] = ""
     return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
             "faixa": bool(rel.get("kpis_faixa")),   # cartões em faixa fina, como o PC
             "kpis": cartoes,
-            "insights": sem_repeticao(_insights(fonte.get("insights_painel")) or ins_blocos, cartoes), "blocos": blocos,
+            "insights": insights, "blocos": blocos,
             "avisos": [str(a) for a in _lista(rel.get("avisos")) if not str(a).startswith("Sem filtro por estado")],
             "avisos_info": [str(a) for a in _lista(rel.get("avisos")) if str(a).startswith("Sem filtro por estado")],
             "aviso_uf": (((SEM_DADO_UF.format(uf=uf) + " ") if sem_dado else "") + AVISO_UF
