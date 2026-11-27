@@ -796,7 +796,10 @@ def test_T0017_colunas_robo_igual_web(web_app):
         (n, tp, bool(o), s) for n, tp, o, s in cols]
         for rid, tabs in ba._COLUNAS_TABELAS_WEB.items() if rid not in fora
         for t, cols in tabs.items()}
-    assert sorted(robo, key=str) == sorted(web, key=str)
+    assert sorted(robo, key=str) == sorted(web, key=str), (
+        f"só no robô: {sorted(set(robo) - set(web), key=str)}; só na web: "
+        f"{sorted(set(web) - set(robo), key=str)} (farol novo: o robô entra "
+        "depois da web e do contrato)")
     for titulo, cols in robo.items():
         assert [c[:3] for c in cols] == [tuple(c) for c in web[titulo]], \
             titulo
@@ -812,7 +815,10 @@ def test_T0017_colunas_robo_igual_contrato_1073():
     contrato = _contrato_1073(fora)
     assert contrato is not None, "§10.7.3 ausente no contrato"
     robo = _robo(fora)
-    assert sorted(contrato) == sorted(robo)
+    assert sorted(contrato) == sorted(robo), (
+        f"só no robô: {sorted(set(robo) - set(contrato))}; só no contrato: "
+        f"{sorted(set(contrato) - set(robo))} (farol novo: o robô entra "
+        "depois do contrato §10.7.3 e da web)")
     for titulo in robo:
         assert contrato[titulo] == robo[titulo], titulo
     txt = (RAIZ / ".coord" / "contratos" / "relatorio.md").read_text(
