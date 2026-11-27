@@ -147,12 +147,14 @@ def baixado_em(raiz, chave: str, caminho: Path) -> datetime | None:
 
 
 def dia_fechado(raiz, d: date) -> bool:
-    """O arquivo do dia existe e foi baixado num dia depois dele."""
+    """O arquivo do dia existe e foi baixado num dia depois dele (a regra
+    unica esta em dia_fechado_no_indice, RN-VIS-002)."""
     arq = arquivo_do_dia(raiz, d)
     if not arq.exists():
         return False
     quando = baixado_em(raiz, f"{d:%Y%m%d}", arq)
-    return bool(quando and quando.date() > d)
+    return bool(quando) and dia_fechado_no_indice(
+        {f"{d:%Y%m%d}": quando.isoformat()}, d)
 
 
 def mes_fechado(raiz, ano: int, mes: int) -> bool:
@@ -738,6 +740,57 @@ def _periodo(txt) -> tuple:
     return tuple(out) if len(out) == 2 else (None, None)
 
 
+def _eventos_espelho(linhas):
+    """O laco UNICO de leitura do Espelho (ler_espelho e filtrar_espelho).
+    Por linha nao vazia, gera:
+      ("titulo",  ri, cel, colunas)            linha de titulos da lista
+      ("cliente", ri, cel, reg, colunas)       linha da lista (reg: campo->valor)
+      ("rotulo",  ri, i, campo, vals, rotulo, cels) cabecalho "Rotulo:" + valores
+      ("solta",   ri, i, v)                    celula sem rotulo no cabecalho
+    ri comeca em 1; cel = [(coluna, valor)]; cels = [(coluna, valor)] do rotulo."""
+    colunas = None
+    for ri, r in enumerate(linhas, start=1):
+        cel = [(i, v) for i, v in enumerate(r)
+               if v is not None and _texto(v) != ""]
+        if not cel:
+            continue
+        rot = [_rotulo(v) for _, v in cel]
+        # a linha de titulos da lista (repete a cada pagina)
+        if "DATA" in rot and "CLIENTE" in rot and "CODIGO" in rot:
+            colunas = {}
+            for i, v in cel:
+                campo = _COLUNAS_ESPELHO.get(_rotulo(v))
+                if campo:
+                    colunas[i] = campo
+            yield ("titulo", ri, cel, colunas)
+            continue
+        if colunas:
+            reg = {campo: r[i] if i < len(r) else None
+                   for i, campo in colunas.items()}
+            yield ("cliente", ri, cel, reg, colunas)
+            continue
+        # cabecalho: "Rotulo:" e o valor nas celulas seguintes
+        k = 0
+        while k < len(cel):
+            i, v = cel[k]
+            txt = _texto(v)
+            if txt.endswith(":"):
+                chave = _rotulo(txt[:-1])
+                campo = next((c for r_, c in _ROTULOS_ESPELHO.items()
+                              if chave == r_ or chave.startswith(
+                                  r_ + " ")), None)
+                j = k + 1
+                while j < len(cel) and not _texto(
+                        cel[j][1]).endswith(":"):
+                    j += 1
+                yield ("rotulo", ri, i, campo, [x for _, x in cel[k + 1:j]],
+                       chave, cel[k + 1:j])
+                k = j
+            else:
+                yield ("solta", ri, i, v)
+                k += 1
+
+
 def ler_espelho(caminho) -> dict | None:
     """O Excel do Espelho de Rotas (Analitico) de UM representante: o
     cabecalho (os numeros do GridRca) e a lista de clientes."""
@@ -749,50 +802,16 @@ def ler_espelho(caminho) -> dict | None:
         wb = load_workbook(caminho, read_only=True, data_only=True)
     except Exception:                                     # noqa: BLE001
         return None
-    cab, linhas, colunas = {}, [], None
+    cab, linhas = {}, []
     try:
         for ws in wb.worksheets:
-            for r in ws.iter_rows(values_only=True):
-                cel = [(i, v) for i, v in enumerate(r)
-                       if v is not None and _texto(v) != ""]
-                if not cel:
-                    continue
-                rot = [_rotulo(v) for _, v in cel]
-                # a linha de titulos da lista (repete a cada pagina)
-                if "DATA" in rot and "CLIENTE" in rot and "CODIGO" in rot:
-                    colunas = {}
-                    for i, v in cel:
-                        campo = _COLUNAS_ESPELHO.get(_rotulo(v))
-                        if campo:
-                            colunas[i] = campo
-                    continue
-                if colunas:
-                    reg = {campo: r[i] if i < len(r) else None
-                           for i, campo in colunas.items()}
+            for ev in _eventos_espelho(ws.iter_rows(values_only=True)):
+                if ev[0] == "cliente":
+                    reg = ev[3]
                     if _texto(reg.get("codigo")) or _texto(reg.get("cliente")):
                         linhas.append(reg)
-                    continue
-                # cabecalho: "Rotulo:" e o valor nas celulas seguintes
-                k = 0
-                while k < len(cel):
-                    i, v = cel[k]
-                    txt = _texto(v)
-                    if txt.endswith(":"):
-                        chave = _rotulo(txt[:-1])
-                        campo = next((c for r_, c in _ROTULOS_ESPELHO.items()
-                                      if chave == r_ or chave.startswith(
-                                          r_ + " ")), None)
-                        vals = []
-                        j = k + 1
-                        while j < len(cel) and not _texto(
-                                cel[j][1]).endswith(":"):
-                            vals.append(cel[j][1])
-                            j += 1
-                        if campo:
-                            cab[campo] = vals
-                        k = j
-                    else:
-                        k += 1
+                elif ev[0] == "rotulo" and ev[3]:
+                    cab[ev[3]] = ev[4]
     finally:
         wb.close()
     if "rca" not in cab:
@@ -1480,18 +1499,12 @@ def dias_a_baixar(indice: dict | None, de: date, ate: date, hoje: date,
 
 
 # --- lista de permitidas do Espelho (RN-VIS-007, contrato 3.6) -----------
+# o que NAO sobe do Espelho (o resto das tabelas do ler_espelho sobe)
+_COLUNAS_FORA_DA_NUVEM = ("KM DIST", "BONIF", "OBSERVACAO")
 ESPELHO_PERMITIDAS = {
-    "cabecalho": ("PERIODO", "FILIAL", "SUPERVISOR", "RCA",
-                  "PRIMEIRO CLIENTE", "ULTIMO CLIENTE", "ULTIMA POSICAO",
-                  "TEMPO DESLOCAMENTO", "TEMPO MEDIO ATENDIMENTO",
-                  "VALOR VENDIDO", "EM ANDAMENTO", "KM TRABALHADO",
-                  "KM TOTAL", "CLIENTES AGENDADOS", "QTDE VISITADOS AGENDA",
-                  "QTDE VISITADOS FORA AGENDA", "QTDE POSITIVADOS AGENDA",
-                  "QTDE POSITIVADOS FORA AGENDA",
-                  "% VISITAS REALIZADAS NA SEQUENCIA PREVISTA"),
-    "colunas": ("DATA", "ORD PREV", "ORD REA", "INICIO", "FIM", "ATEND",
-                "PER", "CODIGO", "CLIENTE", "ENDERECO", "N PEDIDO",
-                "PEDIDO", "JUSTIFICATIVA", "AGEN", "PDV"),
+    "cabecalho": tuple(_ROTULOS_ESPELHO),
+    "colunas": tuple(c for c in _COLUNAS_ESPELHO
+                     if c not in _COLUNAS_FORA_DA_NUVEM),
 }
 
 # formato conferido por coluna (o resto e texto)
@@ -1527,6 +1540,14 @@ _RX_FORMATO = {
 }
 
 
+def _varrer_digitos(s: str) -> str | None:
+    for tipo, rx in (("cnpj", _RX_CNPJ), ("cpf", _RX_CPF),
+                     ("telefone", _RX_FONE)):
+        if rx.search(s):
+            return tipo
+    return None
+
+
 def achar_dado_pessoal(valor, formato: str = "texto") -> str | None:
     """RN-VIS-007: a rede da varredura. Devolve o TIPO achado ("email",
     "cnpj", "cpf", "telefone" ou "formato") ou None. Nunca devolve o
@@ -1538,7 +1559,7 @@ def achar_dado_pessoal(valor, formato: str = "texto") -> str | None:
     if isinstance(valor, (int, float)):
         s = str(int(valor)) if float(valor).is_integer() else str(valor)
         if formato == "texto":
-            return None
+            return _varrer_digitos(s)
         if formato in ("hora", "data", "sn"):
             return "formato"
         if formato in ("ord", "codigo", "n_pedido"):
@@ -1557,13 +1578,23 @@ def achar_dado_pessoal(valor, formato: str = "texto") -> str | None:
     return None
 
 
+def _rotulo_seguro(rot: str) -> str | None:
+    """Nome de coluna/rotulo que pode sair em `colunas_fora`: so se parece
+    com nome (sem digitos longos) e passa na varredura; senao None."""
+    rot = (rot or "")[:40]
+    if not rot or re.search(r"\d{4,}", rot) or achar_dado_pessoal(rot):
+        return None
+    return rot
+
+
 def filtrar_espelho(origem, destino, limpar_cliente=None,
                     limpar_texto=None) -> dict:
     """RN-VIS-007: copia o Espelho de `origem` para `destino` so com as
     colunas permitidas (mesma posicao; o resto fica vazio), limpa CLIENTE e
     JUSTIFICATIVA e varre o que sobrou. Devolve {"colunas_fora", "limpos",
-    "achados"}; nenhum valor de celula na saida. Com achado, quem chama NAO
-    deve mandar o destino."""
+    "achados"}: `colunas_fora` leva so NOMES de colunas/rotulos cortados
+    (nunca valor de celula); nenhum valor de celula na saida. Com achado,
+    quem chama NAO deve mandar o destino. Usa o mesmo laco do ler_espelho."""
     from openpyxl import Workbook                         # noqa: PLC0415
     try:
         from xlsx_rapido import load_workbook             # noqa: PLC0415
@@ -1573,15 +1604,17 @@ def filtrar_espelho(origem, destino, limpar_cliente=None,
         import relatorios_nucleo as _rn                   # noqa: PLC0415
         limpar_cliente = limpar_cliente or _rn.cliente_sem_documento
         limpar_texto = limpar_texto or _rn.texto_sem_contato
-    perm_cab = set(ESPELHO_PERMITIDAS["cabecalho"])
-    perm_col = set(ESPELHO_PERMITIDAS["colunas"])
+    perm_cab = {_ROTULOS_ESPELHO[r] for r in ESPELHO_PERMITIDAS["cabecalho"]}
+    perm_col = {_COLUNAS_ESPELHO[c] for c in ESPELHO_PERMITIDAS["colunas"]}
+    nome_cab = {v: k for k, v in _ROTULOS_ESPELHO.items()}
+    nome_col = {v: k for k, v in _COLUNAS_ESPELHO.items()}
     fora: list[str] = []
     limpos = {"CLIENTE": 0, "JUSTIFICATIVA": 0}
     achados: dict = {}
 
     def _fora(rot):
-        rot = (rot or "?")[:40]
-        if rot not in fora and len(fora) < 20:
+        rot = _rotulo_seguro(rot)
+        if rot and rot not in fora and len(fora) < 20:
             fora.append(rot)
 
     def _achar(col, v, fmt):
@@ -1595,26 +1628,28 @@ def filtrar_espelho(origem, destino, limpar_cliente=None,
     try:
         for ws in wb.worksheets:
             wo = saida.create_sheet(ws.title[:31])
-            colunas = None          # {indice: rotulo da coluna}
-            for ri, r in enumerate(ws.iter_rows(values_only=True), start=1):
-                cel = [(i, v) for i, v in enumerate(r)
-                       if v is not None and _texto(v) != ""]
-                if not cel:
-                    continue
-                rot = [_rotulo(v) for _, v in cel]
-                if "DATA" in rot and "CLIENTE" in rot and "CODIGO" in rot:
-                    colunas = {i: _rotulo(v) for i, v in cel}
-                    for i, v in cel:
-                        if _rotulo(v) in perm_col:
+            for ev in _eventos_espelho(ws.iter_rows(values_only=True)):
+                tipo, ri = ev[0], ev[1]
+                if tipo == "titulo":
+                    for i, v in ev[2]:
+                        campo = _COLUNAS_ESPELHO.get(_rotulo(v))
+                        if campo in perm_col:
                             wo.cell(ri, i + 1, v)
                         else:
                             _fora(_rotulo(v))
-                    continue
-                if colunas is not None:
+                elif tipo == "cliente":
+                    cel, reg, colunas = ev[2], ev[3], ev[4]
+                    # rodape/total no meio da lista: sem data valida nem codigo,
+                    # nao e linha de cliente (o ler_espelho tambem ignora)
+                    if not (_data_espelho(reg.get("data"))
+                            or re.fullmatch(r"\d{6,8}",
+                                            _texto(reg.get("codigo")))):
+                        continue
                     for i, v in cel:
-                        col = colunas.get(i, "")
-                        if col not in perm_col:
+                        campo = colunas.get(i)
+                        if campo not in perm_col:
                             continue
+                        col = nome_col[campo]
                         if col == "CLIENTE":
                             novo = limpar_cliente(v)
                             limpos[col] += int(novo != _texto(v))
@@ -1625,30 +1660,18 @@ def filtrar_espelho(origem, destino, limpar_cliente=None,
                             v = novo
                         _achar(col, v, _FORMATO_COLUNA.get(col, "texto"))
                         wo.cell(ri, i + 1, v)
-                    continue
-                k = 0
-                while k < len(cel):
-                    i, v = cel[k]
-                    txt = _texto(v)
-                    if not txt.endswith(":"):
-                        _fora(_rotulo(txt))
-                        k += 1
+                elif tipo == "rotulo":
+                    i, campo, cels = ev[2], ev[3], ev[6]
+                    if campo not in perm_cab:
+                        _fora(ev[5])
                         continue
-                    chave = _rotulo(txt[:-1])
-                    j = k + 1
-                    while j < len(cel) and not _texto(cel[j][1]).endswith(":"):
-                        j += 1
-                    nome = next((p for p in perm_cab if chave == p
-                                 or chave.startswith(p + " ")), None)
-                    if nome is None:
-                        _fora(chave)
-                    else:
-                        wo.cell(ri, i + 1, v)
-                        for ii, vv in cel[k + 1:j]:
-                            _achar(nome, vv,
-                                   _FORMATO_CABECALHO.get(nome, "texto"))
-                            wo.cell(ri, ii + 1, vv)
-                    k = j
+                    nome = nome_cab[campo]
+                    wo.cell(ri, i + 1, nome + ":")
+                    for ii, vv in cels:
+                        _achar(nome, vv,
+                               _FORMATO_CABECALHO.get(nome, "texto"))
+                        wo.cell(ri, ii + 1, vv)
+                # "solta": celula sem rotulo, descartada sem registrar nada
         saida.save(destino)
     finally:
         wb.close()
