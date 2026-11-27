@@ -4496,7 +4496,8 @@ class DialogoGarantia(tk.Toplevel):
 # (perfil admin); o robo grava no PC pela mesma funcao (autorizacoes.gravar e
 # pos_venda.gravar_edicoes). Aqui fica so a leitura.
 AUTORIZA_EM = ()
-EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas")}
+EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas"),
+                 ("pl_fretes", "Notas com frete")}
 MSG_EDICAO_SO_WEB = "A edição agora é só pela BAP Central web."
 
 

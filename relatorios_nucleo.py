@@ -8001,6 +8001,55 @@ def devolucoes(ctx):
     return r
 
 
+def rotulo_agrupa_fretes(i, l) -> str:
+    """(T-0037, A2/A3) Rotulo da linha das tabelas Por UF (i=7), Por cidade
+    (i=6) e Por transportadora (i=11) do Farol de Fretes. Funcao pura.
+    Vazio vira "Sem UF", "Sem cidade" ou "Sem transportadora"; a cidade leva
+    a UF ("SERRA BONITA / Sem UF", nunca a barra solta). Nota sem chave (sem
+    acompanhamento) e sem transportadora vai para "Sem acompanhamento": assim
+    "Sem transportadora" tem o mesmo criterio do cartao (chave e sem transp.)."""
+    v = (l[i] or "").strip() if isinstance(l[i], str) else (l[i] or "")
+    if i == 7:
+        return v or "Sem UF"
+    if i == 6:
+        return (v or "Sem cidade") + " / " + ((l[7] or "").strip() or "Sem UF")
+    if not v:
+        return "Sem transportadora" if l[16] else "Sem acompanhamento"
+    return v
+
+
+def kpis_fretes(ls, fat_por_mes_uf, uf=None) -> list:
+    """Os 6 cartoes do Fretes (RN-POS-009). ls = linhas de "Notas com frete"
+    (MES=0, CIDADE=6, UF=7, VLR NF=8, VLR FRETE=9, ETAPA=10, TRANSP.=11,
+    ENTREGAR ATE=12, ENTREGUE=13, CHAVE=16). fat_por_mes_uf = {(mes, uf):
+    faturado LIQUIDO de devolucao (RN-GER-002, pela data da NF; P3 B)} de
+    todas as notas, por UF do cliente. Denominador: meses visiveis; com `uf`
+    (o recorte, informado por quem chama) so o faturado dessa UF; uf=None
+    soma todas as UFs (BAP inteira, nunca adivinhada pelas linhas). `uf` pode
+    ser um texto ou um conjunto de UFs (filtro com varios estados: soma-as)."""
+    meses_vis = {l[0] for l in ls}
+    ufs = None if not uf else {uf} if isinstance(uf, str) else set(uf)
+    fat = sum(v for (m, u), v in fat_por_mes_uf.items()
+              if m in meses_vis and (ufs is None or u in ufs))
+    val = sum(l[8] for l in ls)
+    fr = sum(l[9] or 0 for l in ls)
+    entregues = [l for l in ls if l[13] or l[10] in ("ENTREGUE", CONCLUIDA)]
+    com_data = [l for l in ls if l[13]]
+    no_prazo = [l for l in com_data if l[12] and l[13] <= l[12]]
+    return [
+        kpi("Notas com frete", br(len(ls)), "neutro", moeda(val)),
+        kpi("% do faturado", p(pct_de(val, fat)), "info"),
+        kpi("Frete estimado", moeda(fr), "neutro",
+            p(pct_de(fr, val)) + " do valor"),
+        kpi("Cidades atendidas", br(len({l[6] for l in ls})), "neutro"),
+        kpi("Entregues", br(len(entregues)), "ok",
+            f"{p(pct_de(len(no_prazo), len(com_data)))} no prazo"
+            if com_data else ""),
+        kpi("Sem transportadora", br(sum(
+            1 for l in ls if l[16] and not l[11])), "atencao"),
+    ]
+
+
 def fretes(ctx):
     import transportadoras as tr                         # noqa: PLC0415
     hoje = ctx.hoje
@@ -8010,7 +8059,15 @@ def fretes(ctx):
     cad = tr.carregar(ctx.raiz)
     meses = ultimos_meses(hoje, 12)
     ent = _entregas_por_nf(ctx)
-    por_mes = defaultdict(lambda: [0, 0.0, 0.0])
+    por_mes = defaultdict(int)          # notas com frete por mes
+    # {(mes, UF do cliente): faturado liquido de devolucao} (RN-GER-002, P3 B)
+    fat = defaultdict(float)
+    for it in ctx.tabela["itens"]:
+        v = _liquido(it) if it["dt_nf"] else None
+        if v is None or mes_de(it["dt_nf"]) not in meses:
+            continue
+        fat[(rotulo_mes(mes_de(it["dt_nf"])),
+             ctx.cliente(it["cliente"]).get("uf", ""))] += v
     linhas, tons = [], []
     for (fil, nf, serie), itens in _pedidos(ctx, "VND").items():
         i0 = itens[0]
@@ -8019,11 +8076,9 @@ def fretes(ctx):
             continue
         cli = ctx.cliente(i0["cliente"])
         valor = sum(i["valor"] for i in itens)
-        por_mes[rotulo_mes(m)][2] += valor
         if not bd.e_frete(cli.get("cidade")):
             continue
-        por_mes[rotulo_mes(m)][0] += 1
-        por_mes[rotulo_mes(m)][1] += valor
+        por_mes[rotulo_mes(m)] += 1
         e = ent.get((fil, nf.lstrip("0")), {})
         prazo = ctx.mais_uteis(i0["dt_pedido"],
                                ctx.prazo_entrega(i0["cliente"])) \
@@ -8050,31 +8105,16 @@ def fretes(ctx):
     for l in linhas:
         l[3] = l[3].lstrip("0")
 
-    def cartoes(ls):
-        meses_vis = {l[0] for l in ls}
-        fat = sum(por_mes[x][2] for x in meses_vis)
-        val = sum(l[8] for l in ls)
-        entregues = [l for l in ls if l[13] or l[10] in ("ENTREGUE", CONCLUIDA)]
-        com_data = [l for l in ls if l[13]]
-        no_prazo = [l for l in com_data if l[12] and l[13] <= l[12]]
-        return [
-            kpi("Notas com frete", br(len(ls)), "neutro", moeda(val)),
-            kpi("% do faturado", p(pct_de(val, fat)), "info"),
-            kpi("Frete estimado", moeda(sum(l[9] or 0 for l in ls)), "neutro",
-                p(pct_de(sum(l[9] or 0 for l in ls), val)) + " do valor"),
-            kpi("Cidades atendidas", br(len({l[6] for l in ls})), "neutro"),
-            kpi("Entregues", br(len(entregues)), "ok",
-                f"{p(pct_de(len(no_prazo), len(com_data)))} no prazo"
-                if com_data else ""),
-            kpi("Sem transportadora", br(sum(
-                1 for l in ls if l[16] and not l[11])), "atencao"),
-        ]
+    def cartoes(ls, filtro=None):
+        f = filtro or {}
+        return kpis_fretes(ls, fat, f.get(7) or f.get("UF") or None)
+
     r["kpis"] = cartoes([l for l in linhas if rotulo_no_periodo(ctx, l[0])])
     r["graficos"].append({
         "titulo": "Mês a mês: notas com frete",
         "rotulos": [rotulo_mes(x) for x in meses],
         "series": [{"nome": "notas", "cor": AZUL,
-                    "valores": [por_mes[rotulo_mes(x)][0] for x in meses]}],
+                    "valores": [por_mes[rotulo_mes(x)] for x in meses]}],
         "formato": "num"})
     cols = [col("MÊS", "texto", 58, oculta=True), col("DATA PED.", "dia", 70),
             col("DATA NF", "dia", 66), col("NF", "texto", 78),
@@ -8098,7 +8138,7 @@ def fretes(ctx):
                             ("Por transportadora", 11, 220)):
         g = defaultdict(lambda: [0, 0.0, 0.0])
         for l in linhas:
-            k = (l[0], (l[i] or "(sem)") + (f" / {l[7]}" if i == 6 else ""))
+            k = (l[0], rotulo_agrupa_fretes(i, l))
             g[k][0] += 1
             g[k][1] += l[8]
             g[k][2] += l[9] or 0
