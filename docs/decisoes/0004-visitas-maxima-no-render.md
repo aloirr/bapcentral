@@ -39,7 +39,7 @@ Texto literal (R-20261127-005437-alexandre, com a numeração do po, 2 a 6 = D1 
 - **antes de ligar:** um **diagnóstico real no Render** (confirmação, captcha, bloqueio, dado pessoal, memória e tempo). A agenda nasce desligada e só o admin a liga, depois do "ok" do Alexandre (§3.1);
 - **"Baixar de novo", "Retomar", "Rodar diagnóstico" e "Ligar a agenda" só para o admin.** A D3 fala só do "Atualizar visitas"; esta divisão vai explícita na simulação do designer-ux (§9, item 4), para o Alexandre ver;
 - **entrega ao site:** rotas próprias com token próprio (`BAP_VISITAS_TOKEN`) e um **lote por dia**, não o pacote por farol do §10.8 (§5.3);
-- **o lote leva só as colunas permitidas do Espelho**, e um achado de CNPJ, CPF, telefone ou e-mail trava tudo até a decisão do Alexandre (§7, RN-VIS-007);
+- **o lote leva só as colunas permitidas do Espelho**, limpas e com varredura de dado pessoal (§7, RN-VIS-007);
 - **teto diário de logins na Máxima** (§3.1, RN-VIS-008);
 - **um índice só de "dia baixado"**, que o PC e a nuvem alimentam (§5.1);
 - **botão fora de hora:** uma **fila no disco do site**, que o cron lê a cada 10 min, não a API do Render (§3.3);
@@ -111,7 +111,7 @@ O texto exato está em `docs/desenho/T-0045-render-yaml.diff`, explicado no `doc
 
 **Donos:** o `Dockerfile` e o `nuvem/**` hoje são "sem-dono"; as linhas do `.coord/donos.json` estão no desenho, §3 (governança 1, §9). Até elas entrarem, o `Dockerfile` fica como texto.
 
-**Sem dependência nova no PC:** o robô DT-AMADMBAP-03 importa com `requests` e a biblioteca padrão. O Playwright e o `openpyxl` já estão no `requirements.txt` do PC. Nada de pyarrow nem de Git. Na imagem, o `requirements-visitas.txt` leva o Playwright e o `openpyxl` (o filtro do §7).
+**Sem dependência nova no PC:** o robô DT-AMADMBAP-03 importa com `requests` e a biblioteca padrão. O Playwright e o `openpyxl` já estão no `requirements.txt` do PC. Nada de pyarrow nem de Git. Na imagem, o `requirements-visitas.txt` leva o Playwright e o `openpyxl`, e o `COPY` leva o `relatorios_nucleo.py` e o `bap_dados.py` (a limpeza do §7; os dois só importam a biblioteca padrão no topo).
 
 ## 3. Quando roda e quem aperta (D2, D3)
 
@@ -122,7 +122,7 @@ O texto exato está em `docs/desenho/T-0045-render-yaml.diff`, explicado no `doc
 - **A agenda nasce desligada.** O primeiro trabalho do cron, com as variáveis presentes, é o diagnóstico. Só o admin liga a agenda, com diagnóstico `ok` e o robô do PC novo no ar (é ele que conta ao site os dias que o PC já fechou, §5.1).
 - **Teto diário de logins (RN-VIS-008): 8 por dia, somando todos os motivos,** e um teto por motivo (agenda 4 = 1 + 3 retentativas; pedido 3; retentativa 1; diagnóstico 2). O site conta **na concessão**, porque cada concessão é um login, mesmo que a rodada caia depois. Por que 8:
   - **risco de bloqueio:** sem teto, uma falha que deixa tentar de novo dispararia a cada 10 min até 21h50, cerca de 96 logins por dia. 8 é cerca de 3 vezes o uso normal (1 agenda e 1 ou 2 botões), em horários espaçados, e a senha recusada nunca tenta de novo (RN-VIS-005);
-  - **custo:** no pior caso, todos os dias no teto (4 agendas e 1 retentativa de 8 min, 3 rodadas de pedido de 45 min), são cerca de 175 min por dia, ou cerca de US$ 3 por mês a mais [SUPOSIÇÃO de preço]. Sem teto, 96 × 8 min chegariam a cerca de US$ 13 por mês;
+  - **custo (o teto em dinheiro):** no pior caso, os 8 logins de todo dia com rodadas de até 45 min, são 360 min por dia, ou **cerca de US$ 6 por mês** a mais [SUPOSIÇÃO de preço]. Sem teto, 96 × 8 min chegariam a cerca de US$ 13 por mês;
   - **o dia normal não chega perto:** 1 agenda e 1 botão são 2 logins.
 - **Retentativa (RN-VIS-006):** marcada como feita já na concessão, para ficar uma só mesmo que falhe.
 
@@ -167,7 +167,7 @@ O site guarda uma **concessão** (lease): só uma rodada ativa por vez, gravada 
 
 - **Tempo-limite da rodada:** 45 min, conferido no fim de cada dia; o que faltar continua na volta seguinte. Um vigia liga o `parar` do `Robo` e, se ele não parar, encerra o processo com saída de erro. O teto do Render (12 h) nunca é o freio. Os valores estão no contrato, §2.
 - **Do fim da rodada até a tela:** até 30 min para o robô do PC importar (§5.1), mais a rodada do robô (cerca de 9 min): **até cerca de 40 min**. Na tela, o "baixado em" do farol muda nessa volta.
-- **Conta do custo (Standard):** a agenda dá 30 × 8 min; 10 botões de 25 min por mês; e as voltas sem trabalho do §3.3. São cerca de 1.900 min por mês, **cerca de US$ 1 a 3 por mês**; o teto do §3.1 limita o pior mês a cerca de US$ 4 [SUPOSIÇÃO: preço a conferir no painel].
+- **Conta do custo (Standard):** a agenda dá 30 × 8 min; 10 botões de 25 min por mês; e as voltas sem trabalho do §3.3. São cerca de 1.900 min por mês, **cerca de US$ 1 a 3 por mês**; o teto do §3.1 limita o pior mês a cerca de US$ 7, com as voltas sem trabalho [SUPOSIÇÃO: preço a conferir no painel].
 
 ## 5. Como as visitas chegam ao site e voltam ao PC sem perder dado
 
@@ -184,7 +184,7 @@ robô do PC --pacote por farol (§10.8, com o vc_visitas novo)--> site --> Farol
 3. **No PC,** o robô traz os lotes na volta de 30 min, antes de montar o pacote (`bap_automation.sincronizar_visitas_web`; passos no contrato, §4.4), com **o mesmo laço `desde`/`epoca`/confirmar das edições**, extraído para uma função só, e monta com as mesmas funções do botão do PC (`depois_de_baixar`): uma regra num lugar só. Assim, o pacote dessa rodada já sai com as visitas novas.
 4. **Um índice só de "dia baixado".** O PC tem o seu (`diario/_baixados.json`) e o site tem o `indice`. Para que nenhum lado baixe de novo o que o outro fechou:
    - **nuvem → PC:** a importação anota o dia com o `baixado_em` da nuvem; o `plano` do botão do PC já pula dia fechado;
-   - **PC → nuvem:** o robô do PC manda, em toda volta, os dias fechados dos últimos 40 dias (`fechados_pc`, contrato §4.3), e o site junta no `indice` pela mesma função pura (`juntar_baixado`, vale a hora maior). A nuvem decide só por esse `indice`;
+   - **PC → nuvem:** o robô do PC manda, em toda volta, os dias que ele fechou (`fechados_pc`, contrato §4.3), e o site junta no `indice` pela mesma função pura (`juntar_baixado`, vale a hora maior). A nuvem decide só por esse `indice`;
    - **a janela que sobra:** o PC conta ao site o que fechou em até 30 min. Um dia baixado no PC nesse intervalo pode ser baixado de novo pela nuvem uma vez; o PC grava com outro nome e vale o mais novo (regra de hoje). É por isso que a agenda só liga com o robô do PC novo no ar (§3.1).
 5. **Excel aberto** (`ACOMPANHAMENTO_VISITAS_BAP.xlsx` aberto por alguém): os arquivos do dia já ficaram gravados, e o acompanhamento devolve "aberto no Excel" (comportamento de hoje). Na volta seguinte, ele acrescenta o que faltou, porque a função é idempotente.
 6. **O Farol de Visita e o Farol de Metas do PC** leem `RELATORIOS/Visitas` como hoje e não mudam. O Excel da nuvem tem só as colunas permitidas (§7), e o `ler_espelho` lê dele o mesmo que do Excel do PC (teste do contrato, §3.6).
@@ -197,7 +197,7 @@ O po registra no `docs/produto/03-regras.md`; os testes citam. Quando estiverem 
 - **RN-VIS-004:** uma rodada da nuvem por vez (concessão de 10 min). O pedido do botão espera na fila.
 - **RN-VIS-005:** senha recusada, confirmação, captcha ou bloqueio pedidos pela Máxima **pausam** as rodadas da nuvem até o "Retomar" do admin. Não há segunda tentativa de login.
 - **RN-VIS-006:** dia com vendedor que falhou é baixado de novo **uma vez**, com sucesso ou falha. Depois disso, ele fica como está ("Baixar de novo" pelo admin ou pelo PC).
-- **RN-VIS-007:** do Espelho, só as colunas da lista de permitidas saem do contêiner. CNPJ, CPF, telefone, e-mail ou valor fora do formato nessas colunas **não sobem**, pausam a agenda e o botão, e o "Retomar" só vale com a decisão do Alexandre.
+- **RN-VIS-007:** do Espelho, só as colunas da lista de permitidas saem do contêiner, e o nome do cliente e o texto livre saem limpos pela RN-GER-011. CNPJ, CPF, telefone, e-mail ou valor fora do formato que sobrarem **não sobem** e pausam a agenda e o botão. O "Retomar" fica registrado com o id da decisão do Alexandre e volta ao diagnóstico.
 - **RN-VIS-008:** no máximo 8 logins da nuvem na Máxima por dia de Manaus, com teto por motivo; chegou ao teto, a nuvem para até o dia seguinte, e o botão do PC continua.
 
 ### 5.3 Por que um lote próprio, e não o pacote por farol do §10.8
@@ -215,13 +215,12 @@ O atraso é o preço; montar o farol no Render fica para uma ADR futura, se o Pl
 
 Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5. Aqui ficam só os casos que viram decisão:
 - **Confirmação, captcha ou bloqueio no diagnóstico:** a agenda não é ligada, e o caso vira ADR nova com duas saídas: a liberação, na Máxima, dos IPs de saída do Render (publicados por região), ou a volta à opção A do po (senha no cofre do notebook do robô).
-- **Dado pessoal no Espelho (`DADO_PESSOAL`, no diagnóstico ou numa rodada):** nada sobe, e o po leva ao Alexandre a coluna e o tipo (nunca o valor). As saídas: (a) a coluna sai da lista de permitidas, com o efeito no `montar_dia` medido pelo teste de igualdade; (b) o trecho é mascarado no filtro; (c) o Alexandre aceita aquele tipo naquela coluna. As três mudam o contrato (v2). O admin só retoma com o id do recado da decisão.
+- **Dado pessoal no Espelho (`DADO_PESSOAL`, no diagnóstico ou numa rodada):** nada sobe, e o po leva ao Alexandre a coluna e o tipo (nunca o valor). A limpeza da RN-GER-011 já é o desenho (contrato §3.6); o achado é o que sobrou dela. As saídas: (a) a coluna sai da lista de permitidas, com o efeito no `montar_dia` medido pelo teste de igualdade; (b) a limpeza passa a cobrir aquela coluna; (c) o Alexandre aceita aquele tipo naquela coluna. As três mudam o contrato (v2) e o código do cron: retomar sem a mudança só acha o mesmo dado de novo. **O id do recado no "Retomar" é registro, não controle:** o site não confere se o recado existe nem quem o escreveu, e qualquer admin pode digitar um id bem formado. O controle é o diagnóstico de novo, rodado no código novo, antes de a agenda voltar.
 - **O que o usuário nunca vê:** a senha, o usuário da Máxima, o texto cru do erro da Máxima, a URL com `PWE=` (o `url_limpa` já mascara) e o valor de qualquer célula do Espelho.
 
 ## 7. Segurança
 
-- **A senha só no cron:** `BAP_MAXIMA_USUARIO` e `BAP_MAXIMA_SENHA` ficam **só no `bap-visitas-maxima`**, nunca no `bap-central`, que atende a internet. O Alexandre cria os valores no painel; o time nunca vê nem pede o valor. Nada disso vai em código, `render.yaml`, log, recado ou commit. O cron lê os 2 segredos antes de abrir o Playwright e não parte com depuração ligada (contrato, §1).
-- **Proibido no cron:** trace, vídeo, HAR, `page.on("console")` e print de tela (D5). Os testes conferem.
+- **A senha só no cron:** `BAP_MAXIMA_USUARIO` e `BAP_MAXIMA_SENHA` ficam **só no `bap-visitas-maxima`**, nunca no `bap-central`, que atende a internet. O Alexandre cria os valores no painel; o time nunca vê nem pede o valor. Nada disso vai em código, `render.yaml`, log, recado ou commit. O cron lê os 2 segredos antes de abrir o Playwright; o que é proibido no cron (ambiente e código) está numa lista só, no contrato, §1.
 - **Cookies e sessão:** contexto novo a cada rodada, sem `storage_state`. O contêiner do cron é descartado no fim, e o cron não tem disco. **Nada da sessão da Máxima é guardado**, nem no disco do site.
 - **Logs sem dado pessoal (regra 6):**
   - o `Robo` hoje escreve o nome do vendedor no log ("NOME ✔"). O modulo-robo troca o `log` por **eventos** (`evento`, `fase`, `dia`, `n`, `codigo`) e uma função `texto_do_evento` de dois modos: no PC, com nome (a janela de hoje); na nuvem, sem nome;
@@ -231,7 +230,8 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 - **Sem chave da API do Render no site** (§3.3).
 - **Dado de cliente no disco do Render (regra 6):** o Espelho traz código, nome e endereço de cliente, e pode trazer outras colunas (observação, por exemplo) com telefone ou e-mail digitados. O adendo 5 da ADR 0001 já leva código e nome de cliente do `vc_visitas` ao Render; o endereço é novo. Por isso:
   - **lista de permitidas, não de proibidas:** o lote leva só as colunas que o `ler_espelho` usa (contrato, §3.6). Coluna nova da Máxima nunca sai do contêiner por engano;
-  - **varredura do que fica:** CNPJ, CPF, telefone, e-mail ou valor fora do formato nas colunas permitidas travam o dia e pausam tudo (RN-VIS-007). Melhor parar a nuvem e usar o PC por uns dias do que guardar dado pessoal no Render;
+  - **limpar com a regra que o site já usa, e só depois procurar:** o cadastro traz CPF ou CNPJ no nome do cliente com frequência (84 em 2.216 nomes no Pedidos, `.coord/contratos/relatorio.md`); sem a limpeza da RN-GER-011, a nuvem pausaria quase todo dia;
+  - **varredura do que sobrou** (RN-VIS-007): é melhor parar a nuvem e usar o PC por uns dias do que guardar dado pessoal no Render;
   - o diagnóstico faz o mesmo antes de ligar a agenda, e mostra as colunas que ficaram de fora;
   - o lote é **só trânsito**: nenhuma rota o mostra, e ele sai pela retenção (`LOTE_GUARDA_DIAS`).
 - **Conta da Máxima (D4):** um usuário próprio do robô, com o mínimo de leitura do Painel Auditoria. Um vazamento do painel do Render expõe só esse usuário, que o Alexandre desativa na Máxima.
@@ -244,7 +244,7 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 - `test_RN_VIS_004_segunda_concessao_409`, `test_RN_VIS_004_concessao_vencida_libera`, `test_RN_VIS_004_concessao_sobrevive_ao_reinicio`;
 - `test_RN_VIS_005_senha_recusada_pausa_sem_segunda_tentativa`, `test_RN_VIS_005_classificar_login_captcha_confirmacao_bloqueio`, `test_RN_VIS_005_retomar_so_admin`;
 - `test_RN_VIS_006_vendedor_que_falhou_tenta_uma_vez`, `test_RN_VIS_006_refeito_marcado_na_concessao_mesmo_com_falha`;
-- `test_RN_VIS_007_filtro_deixa_so_as_permitidas`, `test_RN_VIS_007_ler_espelho_igual_antes_e_depois_do_filtro`, `test_RN_VIS_007_permitidas_igual_ao_contrato`, `test_RN_VIS_007_cnpj_cpf_telefone_email_e_formato_achados`, `test_RN_VIS_007_achado_nao_sobe_e_pausa`, `test_RN_VIS_007_retomar_exige_recado_do_alexandre`, `test_RN_VIS_007_diagnostico_com_achado_nao_liga_agenda`, `test_RN_VIS_007_saida_sem_valor_de_celula`;
+- `test_RN_VIS_007_filtro_deixa_so_as_permitidas`, `test_RN_VIS_007_ler_espelho_igual_antes_e_depois_do_filtro`, `test_RN_VIS_007_permitidas_igual_ao_contrato`, `test_RN_VIS_007_cnpj_cpf_telefone_email_e_formato_achados`, `test_RN_VIS_007_achado_nao_sobe_e_pausa`, `test_RN_VIS_007_retomar_registra_recado_e_volta_ao_diagnostico`, `test_RN_VIS_007_cliente_e_justificativa_limpos_antes_da_varredura`, `test_RN_VIS_007_diagnostico_com_achado_nao_liga_agenda`, `test_RN_VIS_007_saida_sem_valor_de_celula`;
 - `test_RN_VIS_008_teto_por_motivo`, `test_RN_VIS_008_teto_da_soma_trava_tudo`, `test_RN_VIS_008_conta_na_concessao`, `test_RN_VIS_008_zera_na_virada_do_dia_de_manaus`, `test_RN_VIS_008_429_no_teto`;
 - `deve_rodar`: diagnóstico pendente; agenda desligada; 06h00 com ontem aberto; ontem fechado pelo PC; pausado; pedido; fora da janela; retentativas às 06h30, 07h00 e 07h30 só com código de `NOVA_TENTATIVA`; nenhuma 5ª tentativa da agenda;
 - laço do PC: os testes de `sincronizar_edicoes_web` rodam também no `puxar_fila_web` com o `aplicar` das visitas;
@@ -254,7 +254,7 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 - saída do processo: só 0 ou 1 (inclusive o vigia);
 - imagem: o `Dockerfile` não tem `COPY . .` nem `ADD .`;
 - códigos: todo `fim` traz um código da lista do contrato, §5, e o `STATUS_DO_CODIGO` cobre todos;
-- ponta a ponta sem rede: Excel de exemplo **sem dado pessoal** (fixture gerada) → filtro → lote → importação → `diario/AAAAMMDD.csv` igual ao do PC com o mesmo Excel sem filtro;
+- ponta a ponta sem rede: Excel de exemplo **sem dado pessoal** (fixture gerada) → filtro → lote → importação → `diario/AAAAMMDD.csv` igual ao do PC com o mesmo Excel sem filtro (a limpeza só toca o nome e a justificativa, que o CSV do dia não usa);
 - **diagnóstico no Render** (contrato, §6): o resultado vai ao Alexandre antes de ligar a agenda;
 - **conferência de 5 dias úteis:** o mesmo dia baixado pelo PC e pela nuvem dá o mesmo `ler_espelho` por vendedor.
 
@@ -283,7 +283,8 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 ## 10. Consequências e riscos
 
 - **A Máxima pode estranhar o IP do Render** (EUA, Oregon) e pedir confirmação a cada login, ou bloquear. É o maior risco [SUPOSIÇÃO]. O diagnóstico mostra isso antes de ligar a agenda; as saídas estão no §6.
-- **O Espelho pode trazer dado pessoal** numa coluna de texto livre (justificativa). A nuvem para no primeiro achado, e o PC segue como reserva até a decisão do §6. Pode haver falso positivo (um número com cara de telefone); o custo é usar o PC por uns dias, nunca guardar o dado.
+- **O Espelho pode trazer dado pessoal** que a limpeza não pega (num endereço, por exemplo). A nuvem para no primeiro achado, e o PC segue como reserva até a decisão do §6. Pode haver falso positivo (um número com cara de telefone); o custo é usar o PC por uns dias, nunca guardar o dado.
+- **`relatorios_nucleo.py` na imagem:** ele muda com frequência, e cada mudança refaz a imagem do cron (`buildFilter`). Se os minutos de build pesarem, as funções da RN-GER-011 vão para um módulo pequeno (pedido ao dono do `relatorios_nucleo`).
 - **Sessão única na Máxima** [SUPOSIÇÃO]: com o usuário próprio do robô, o PC e a nuvem usam logins diferentes. O aviso do §3.4 continua para quem usar o mesmo login.
 - **Os termos de uso da Máxima** valem para a automação no Render como valem hoje no PC. Essa confirmação é do Alexandre.
 - **Imagem Docker grande:** cada mudança no código das visitas refaz cerca de 2 GB de imagem. O `buildFilter` limita isso ao código da nuvem. Os minutos de build entram na franquia do Render [SUPOSIÇÃO].
@@ -292,3 +293,4 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 - **Rede privada sem TLS:** o Bearer do cron trafega em claro dentro da rede privada do Render. É a rede da própria conta [SUPOSIÇÃO]; se o diagnóstico mostrar que o cron não alcança o `hostport`, a troca é para a URL pública com HTTPS (PR de governança).
 - **Preços do Render não conferidos:** todos os valores em dólar são [SUPOSIÇÃO] e são confirmados no painel antes do "autorizo".
 - **`bap_dados.VERSAO` fica em 27:** nada aqui toca o cache dos núcleos.
+- **Processo no contêiner:** o Python como PID 1 não recolheria os processos do Chromium nem trataria o `SIGTERM` do Render. Por isso, `tini` como PID 1, `SIGTERM` tratado e Chromium com `--disable-dev-shm-usage` (contrato, §2; `Dockerfile` no desenho, §3).

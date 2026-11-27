@@ -22,7 +22,9 @@
 | | `BAP_MAXIMA_SENHA` | **segredo** (`sync: false`), criado pelo Alexandre no painel | a senha desse usuário. **Só neste serviço** |
 | `bap-central` (site) | `BAP_VISITAS_TOKEN` | `render.yaml`: `generateValue: true` (o Render sorteia) | confere o Bearer das rotas do cron |
 
-- **Proibido no cron:** `DEBUG` que contenha `pw`, `PWDEBUG` e `PLAYWRIGHT_*` de trace ou vídeo. Com qualquer um deles, o `rodar.py` sai com `CONFIG_INSEGURA` antes de abrir o navegador.
+- **Proibido no cron** (a única lista; os testes conferem as duas partes):
+  - no ambiente: `DEBUG` que contenha `pw`, `PWDEBUG` e `PLAYWRIGHT_*` de trace ou vídeo. Com qualquer um, o `rodar.py` sai com `CONFIG_INSEGURA` antes de abrir o navegador;
+  - no código: trace, vídeo, HAR, `page.on("console")` e print de tela (D5).
 - **Leitura dos segredos:** o `rodar.py` lê `BAP_MAXIMA_USUARIO` e `BAP_MAXIMA_SENHA` com `os.environ.pop(...)` **antes** de abrir o Playwright (o driver, processo filho, não herda). A senha vai só no `fill` do login e em seguida vira `None`.
 - **O robô do PC não ganha variável nova:** ele usa o `BAP_WEB_TOKEN` e a URL do site de hoje.
 
@@ -52,6 +54,11 @@
 | `LOTE_GUARDA_DIAS` | 7 depois de confirmado; 30 sem confirmação | web | retenção em `/var/data/visitas/lotes/` |
 
 Os tempos internos do `Robo` (login 45 s, `goto` 60 s, seletores de 40 s) continuam os do PC.
+
+**Processo e navegador na nuvem:**
+- o `tini` é o PID 1 do contêiner (`ENTRYPOINT` do `Dockerfile`): recolhe os processos do Chromium que sobrarem e repassa os sinais ao Python;
+- o `rodar.py` trata o `SIGTERM` do Render (deploy ou parada manual) ligando o `parar` do `Robo`, como o vigia aos `RODADA_TETO_MIN`. O que não fechar antes do fim do processo vira `RODADA_INTERROMPIDA` no site;
+- o Chromium abre com `--disable-dev-shm-usage` (o `/dev/shm` do contêiner é pequeno; sem isso, a aba cai e aparece `NAVEGADOR_FALHOU`).
 
 ## 3. API do cron (Bearer `BAP_VISITAS_TOKEN`)
 
@@ -99,7 +106,7 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 2. fora da `JANELA` → `None`;
 3. `tentativas_hoje.total >= LOGINS_DIA_MAX` → `None` (a tela mostra `TETO_DIA`);
 4. `diagnostico.estado == "pendente"` e `diagnostico` abaixo do teto → `"diagnostico"`;
-5. `agenda == "desligada"` → `None` (o pedido do botão também espera a agenda ligada);
+5. `agenda == "desligada"` ou `diagnostico.estado != "ok"` → `None` (o pedido do botão também espera; a agenda ligada só volta a rodar com o diagnóstico limpo);
 6. `pedido`, com `pedido.rodadas < PEDIDO_MAX_RODADAS` e `pedido` abaixo do teto → `"pedido"`;
 7. ontem não fechado no `indice` e `agenda` abaixo do teto:
    - `n == 0` e `agora >= AGENDA_HORA` → `"agenda"`;
@@ -201,15 +208,18 @@ O Excel que a Máxima entrega **nunca sai do contêiner**. Para cada Excel, o cr
 | Lista de clientes (colunas) | `DATA`, `ORD PREV`, `ORD REA`, `INICIO`, `FIM`, `ATEND`, `PER`, `CODIGO`, `CLIENTE`, `ENDERECO`, `N PEDIDO`, `PEDIDO`, `JUSTIFICATIVA`, `AGEN`, `PDV` | `DATA` data; `ORD *` até 3 dígitos; `INICIO`, `FIM`, `ATEND`, `PER` hora; `CODIGO` 6 a 8 dígitos; `N PEDIDO` até 10 dígitos; `PEDIDO` número; `AGEN` S ou N; `CLIENTE`, `ENDERECO`, `JUSTIFICATIVA`, `PDV` texto |
 
 - **Tudo o que não está na lista sai**: as colunas `KM DIST`, `BONIF` e `OBSERVACAO`, qualquer coluna ou rótulo novo da Máxima, títulos de página, rodapés e linhas sem rótulo conhecido. A célula fica vazia no `destino`, com a mesma posição, para o `ler_espelho` ler igual.
-- **Varredura do que fica:** a função pura `visitas_nucleo.achar_dado_pessoal(valor, formato) -> str | None` em cada célula mantida:
+- **Limpeza do que fica (RN-GER-011), antes da varredura**, com as funções que o pacote do site já usa (`relatorios_nucleo`, sem copiar o regex):
+  - `CLIENTE` → `relatorios_nucleo.cliente_sem_documento` (tira CPF/CNPJ do começo, do meio e do fim do nome; o cadastro traz documento no nome com frequência);
+  - `JUSTIFICATIVA` (texto livre) → `relatorios_nucleo.texto_sem_contato` (telefone, e-mail e documento viram `[removido]`).
+- **Varredura do que sobrou:** a função pura `visitas_nucleo.achar_dado_pessoal(valor, formato) -> str | None` em cada célula mantida, já limpa. É a rede para o que a limpeza não pegou:
   - `email`: `[\w.+-]+@[\w-]+(\.[\w-]+)+`;
   - `cnpj`: `\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}` ou 14 dígitos seguidos;
   - `cpf`: `\d{3}\.\d{3}\.\d{3}-\d{2}` ou 11 dígitos seguidos;
   - `telefone`: `\(?\d{2}\)?\s?9?\d{4}-\d{4}` ou `\(\d{2}\)\s?\d{8,9}`;
   - `formato`: o valor não casa com o formato da coluna (tabela acima).
-- **Devolve** `{"colunas_fora": [rótulos], "achados": [{"coluna", "tipo", "n"}]}`. Rótulo = `_rotulo` (A–Z, 0–9, `%` e espaço), até 40 caracteres e até 20 rótulos. **Nenhum valor** de célula na saída nem no log.
+- **Devolve** `{"colunas_fora": [rótulos], "limpos": {"CLIENTE": int, "JUSTIFICATIVA": int}, "achados": [{"coluna", "tipo", "n"}]}` (`limpos` = células que a limpeza mudou). Rótulo = `_rotulo` (A–Z, 0–9, `%` e espaço), até 40 caracteres e até 20 rótulos. **Nenhum valor** de célula na saída nem no log.
 - **Achado em qualquer Excel do dia:** o lote desse dia **não sobe**. O cron para a rodada, fecha o navegador e manda o `fim` com `DADO_PESSOAL`, `fase: "filtro"` e os `achados`. Os dias já mandados ficam.
-- **Teste de igualdade:** para todo Excel da fixture, `ler_espelho(destino)` = `ler_espelho(origem)`, fora o campo `arquivo`. Se um dia o `ler_espelho` passar a ler outra coluna, ela tem de entrar na lista (v2), senão o teste falha.
+- **Teste de igualdade:** para todo Excel da fixture, `ler_espelho(destino)` = `ler_espelho(origem)`, fora o campo `arquivo` e com `cliente` e `justificativa` passados pelas 2 funções da limpeza. O efeito no `VISITAS_POR_CLIENTE.xlsx` e no acompanhamento é conferido pelo código do cliente (o mesmo conjunto de códigos e de contagens). Se um dia o `ler_espelho` passar a ler outra coluna, ela tem de entrar na lista (v2), senão o teste falha.
 
 ## 4. API do robô do PC (Bearer `BAP_WEB_TOKEN`) e tela
 
@@ -263,7 +273,7 @@ O Excel que a Máxima entrega **nunca sai do contêiner**. Para cada Excel, o cr
 | `GET /visitas/atualizar` | todos os que veem o Farol de Visita | estado (agenda, pausa, rodada em andamento, `TETO_DIA`), lotes à espera do PC ("Baixado às HHhMM · esperando o PC importar") e as 10 últimas rodadas (código e texto do §5; a mais recente em destaque, no topo) |
 | `POST /visitas/atualizar` `{de, ate}` | `admin`, `gerente` (D3) | grava o pedido. Padrão: os dias abertos no `indice` até hoje; no máximo 7 |
 | `POST /visitas/refazer` `{de, ate}` | `admin` | o mesmo, com `refazer: true` (baixa de novo dia fechado) |
-| `POST /visitas/retomar` `{recado?}` | `admin` | tira a pausa (RN-VIS-005). Com `pausado.codigo == "DADO_PESSOAL"`, só com `recado` = o id da decisão do Alexandre (`^R-\d{8}-\d{6}-alexandre$`), gravado no `pedidos.jsonl`; sem ele, 400 (RN-VIS-007) |
+| `POST /visitas/retomar` `{recado?}` | `admin` | tira a pausa (RN-VIS-005). Com `pausado.codigo == "DADO_PESSOAL"` (RN-VIS-007): pede `recado` (`^R-\d{8}-\d{6}-alexandre$`; sem ele, 400), grava no `pedidos.jsonl` e volta o `diagnostico` a `pendente`. O site não confere o recado (ADR 0004, §6) |
 | `POST /visitas/diagnostico` | `admin` | volta o diagnóstico a `pendente` |
 | `POST /visitas/agenda` `{ligar}` | `admin` | liga ou desliga a agenda. Ligar só nas condições do §3.1 |
 
@@ -285,7 +295,7 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 | `MAXIMA_CONFIRMACAO` | erro | a Máxima pediu código por SMS ou e-mail, confirmação de novo dispositivo, aceite de termo ou troca de senha | **pausa** | "A Máxima pediu uma confirmação. Use o Atualizar visitas do PC; o admin retoma aqui depois." |
 | `MAXIMA_CAPTCHA` | erro | apareceu captcha (iframe ou elemento conhecido) | **pausa** | o mesmo texto do `MAXIMA_CONFIRMACAO` |
 | `MAXIMA_BLOQUEIO` | erro | conta bloqueada, acesso negado ou HTTP 403 na página de login | **pausa** | "A Máxima bloqueou o acesso do site. Use o Atualizar visitas do PC." |
-| `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato | **pausa** (RN-VIS-007); o lote do dia não sobe; o "Retomar" pede o id da decisão do Alexandre | "O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: <coluna>). Use o Atualizar visitas do PC." |
+| `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato | **pausa** (RN-VIS-007); o lote do dia não sobe; "Retomar" no §4.5 | "O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: <coluna>). Use o Atualizar visitas do PC." |
 | `MAXIMA_FORA` | erro | tempo esgotado no `goto` do login, ou HTTP 5xx | agenda: nova tentativa (§3.1); botão: o pedido sai da fila | "A Máxima não respondeu. Tentamos de novo às HHhMM." / "Tente mais tarde." |
 | `TELA_MUDOU` | erro | `ErroRobo` numa fase (`fase` obrigatória) | nova tentativa (§3.1); 2 rodadas seguidas na mesma fase **pausam a agenda** | "A tela da Máxima mudou (etapa: <fase>). Use o Atualizar visitas do PC até a correção." |
 | `NAVEGADOR_FALHOU` | erro | o Chromium não abriu ou caiu (`Target closed`, falta de memória) | nova tentativa (§3.1); 2 seguidas aparecem no `/saude` | "O navegador do site parou. Tentamos de novo às HHhMM." |
@@ -322,12 +332,12 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 ```json
 {"tempos_s": {"login": 21.4, "maxgestao": 9.8, "filtros": 30.2, "vendedor": [44.0, 51.3]},
  "fonte_pico": "cgroup", "chromium": "<versão>",
- "espelho": {"colunas_fora": ["KM DIST", "BONIF", "OBSERVACAO"], "achados": []}}
+ "espelho": {"colunas_fora": ["KM DIST", "BONIF", "OBSERVACAO"], "limpos": {"CLIENTE": 3, "JUSTIFICATIVA": 0}}}
 ```
 
   - `fonte_pico`: de onde veio o `pico_mb` do `fim` (`cgroup`, `cgroup_v1` ou `indisponivel`).
-  - `espelho`: a saída do `filtrar_espelho` (§3.6) nos 2 Excel, somada. Com `achados` não vazio, o `codigo` é `DADO_PESSOAL`.
-- **Resultado:** uma linha `DIAGNOSTICO codigo=... pico_mb=... login_s=... vendedor_s=... colunas_fora=<n> achados=<n>` no log do Render e o mesmo na tela do admin. Com `OK`, o `diagnostico.estado` vira `ok`; a agenda continua `desligada` até o admin ligar, depois do "ok" do Alexandre.
+  - `espelho`: as `colunas_fora` e os `limpos` do `filtrar_espelho` (§3.6) nos 2 Excel, somados. Os achados vão só no `achados` do `fim` (§3.5), e com eles o `codigo` é `DADO_PESSOAL`.
+- **Resultado:** uma linha `DIAGNOSTICO codigo=... pico_mb=... login_s=... vendedor_s=... colunas_fora=<n> limpos=<n> achados=<n>` no log do Render e o mesmo na tela do admin. Com `OK`, o `diagnostico.estado` vira `ok`; a agenda continua `desligada` até o admin ligar, depois do "ok" do Alexandre.
 - **Antes do "ok":** o Alexandre confere no painel do Render a duração de 3 voltas **sem trabalho** (a conta de custo da ADR 0004, §3.3, supõe 30 s cada).
 
 ## 7. Disco do site (`/var/data/visitas/`)
@@ -340,7 +350,3 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 | `rodadas.jsonl` | só acréscimo: o `fim` de cada rodada, mais `RODADA_INTERROMPIDA` |
 
 Cerca de 15 MB por mês, dentro do disco de 1 GB.
-
-## 8. Ordem de publicação
-
-ADR 0004, §9.

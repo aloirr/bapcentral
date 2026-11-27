@@ -11,7 +11,7 @@ index fc19792..c4675e0 100644
  services:
    - type: web
      name: bap-central
-@@ -29,7 +30,48 @@ services:
+@@ -29,7 +30,51 @@ services:
          sync: false
        - key: BAP_ADMIN_SENHA_INICIAL
          sync: false
@@ -40,7 +40,10 @@ index fc19792..c4675e0 100644
 +        - nuvem/visitas/**
 +        - visitas_maxima.py
 +        - visitas_nucleo.py
++        - relatorios_nucleo.py
++        - bap_dados.py
 +        - requirements-visitas.txt
++        - .dockerignore
 +    envVars:
 +      - key: TZ
 +        value: America/Manaus

@@ -21,7 +21,7 @@
 **Serviço novo `bap-visitas-maxima` (no fim do `services:`):**
 - `type: cron`, `runtime: docker`, `plan: standard`, `region: oregon` (a mesma do site, para a rede privada).
 - **Horário:** `schedule` em UTC, de 10 em 10 min das 10h00 às 01h50 UTC. Manaus é UTC−4 o ano todo (sem horário de verão): 10h00 UTC = 06h00 de Manaus; 01h50 UTC = 21h50. A agenda das 06h00 (D2) e o teto do dia são decididos pelo código (`deve_rodar`, contrato §3.1), não pelo `schedule`: o `schedule` só acorda o cron para ver se há trabalho.
-- **`buildFilter`:** só o código da imagem (`nuvem/visitas/**`, `visitas_maxima.py`, `visitas_nucleo.py`, `requirements-visitas.txt`). Sem ele, todo commit no `main` refaria a imagem de cerca de 2 GB.
+- **`buildFilter`:** só o que entra na imagem ou muda o build (`nuvem/visitas/**`, `visitas_maxima.py`, `visitas_nucleo.py`, `relatorios_nucleo.py`, `bap_dados.py`, `requirements-visitas.txt`, `.dockerignore`). Sem ele, todo commit no `main` refaria a imagem de cerca de 2 GB.
 - **Variáveis:** as do contrato, §1. **Nenhum valor secreto:** os 2 únicos segredos (`BAP_MAXIMA_USUARIO` e `BAP_MAXIMA_SENHA`) estão com `sync: false`: o Render cria a variável vazia e pede o valor no sync do Blueprint.
 - **Sem `disk`:** o cron job não aceita disco (§2.1). Tudo que fica vai ao site pela API (contrato, §3).
 - **Sem `dockerCommand`:** vale o `CMD` do `Dockerfile`.
@@ -68,17 +68,25 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# tini como PID 1: recolhe os processos do Chromium e repassa o SIGTERM ao Python (contrato, §2).
+# [SUPOSIÇÃO] a imagem roda como root até o USER abaixo, e o apt do Ubuntu 24.04 tem o tini.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tini \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY requirements-visitas.txt ./
 # [SUPOSIÇÃO] --break-system-packages: o Python do Ubuntu 24.04 é "externally managed" (PEP 668).
 RUN pip install --break-system-packages -r requirements-visitas.txt
 
 # Lista FECHADA. Proibido "COPY . ." ou "ADD .": levaria as bases (RELATORIOS/, com dado de cliente) para a imagem.
-COPY visitas_maxima.py visitas_nucleo.py ./
+# relatorios_nucleo + bap_dados: a limpeza da RN-GER-011 no filtro do Espelho (contrato, §3.6); só biblioteca padrão no topo.
+COPY visitas_maxima.py visitas_nucleo.py relatorios_nucleo.py bap_dados.py ./
 COPY nuvem/visitas/ ./nuvem/visitas/
 
 # Usuário sem privilégio que a imagem do Playwright já traz.
 USER pwuser
 
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["python", "-m", "nuvem.visitas.rodar"]
 ```
 
@@ -97,9 +105,9 @@ tests/
 **/__pycache__/
 ```
 
-- O `visitas_nucleo.py` importa o `xlsx_rapido`, o `meta_nucleo` e o `pastas_bap` só dentro de funções de montagem, que a nuvem não chama. O `ler_espelho` cai no `openpyxl` quando não acha o `xlsx_rapido` (por isso ele está no `requirements-visitas.txt`). Se o `rodar.py` precisar de outro arquivo, ele entra na lista do `COPY` e no `buildFilter`, e nunca uma pasta inteira.
-- Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`, e a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`.
+- O `visitas_nucleo.py` importa o `xlsx_rapido`, o `meta_nucleo` e o `pastas_bap` só dentro de funções de montagem, que a nuvem não chama. O `ler_espelho` cai no `openpyxl` quando não acha o `xlsx_rapido` (por isso ele está no `requirements-visitas.txt`). O `relatorios_nucleo.py` e o `bap_dados.py` só importam a biblioteca padrão no topo (conferido: importar os dois não carrega `pandas`, `openpyxl`, `meta_nucleo` nem `pastas_bap`). Se o `rodar.py` precisar de outro arquivo, ele entra na lista do `COPY` e no `buildFilter`, e nunca uma pasta inteira.
+- Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`; a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`; todo arquivo do `COPY` está no `buildFilter`.
 
 ## 4. Ordem do merge
 
-ADR 0004, §9 (itens 2, 7, 8, 10 e 11). Se o `render.yaml` entrar antes do código, o build do cron fica vermelho no painel até o código chegar; o site não cai.
+ADR 0004, §9 (itens 2, 7, 8, 10 e 11).
