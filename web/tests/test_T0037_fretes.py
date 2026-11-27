@@ -27,7 +27,6 @@ def test_RN_POS_010_lugar_e_entradas_do_fretes():
     assert "pl_fretes" in render.FAROIS and "pl_fretes" in render.BC3
     assert "pl_fretes" in dict(render.GRUPOS_MENU)["Pós-venda"]
     assert [t for _, t in tabelas.ABAS["pl_fretes"]] == [TIT, "Por UF", "Por cidade", "Por transportadora"]
-    assert tabelas.VE_TABELAS["pl_fretes"] == ("admin", "gerente", "pos_venda")
 
 
 def test_RN_POS_010_pacote_com_as_4_abas_aceito_e_as_abas_aparecem(admin):

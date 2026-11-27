@@ -544,7 +544,7 @@ def validar(rid: str, r: dict) -> list[str]:
     if "tabelas" not in r:
         return []
     if rid not in RIDS:
-        return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas, pl_fretes e vc_visitas"]
+        return [f"{rid}: tabelas só no {', '.join(RIDS)}"]
     ts = r["tabelas"]
     if not isinstance(ts, list) or len(ts) > len(ABAS[rid]):
         return [f"{rid}: tabelas precisa ser lista de até {len(ABAS[rid])} abas"]

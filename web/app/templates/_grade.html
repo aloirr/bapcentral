@@ -1,7 +1,7 @@
 {# Grade de tabela do farol. `tab` = tabelas.tabela_para_tela (ou uma junta); `base` liga os cabeçalhos à ordenação #}
 {% macro celula(v) %}{% if v.b %}<span class="atend"><span class="atend-trilho"><i style="width:{{ v.b.w }}%;background:{{ v.b.f }}"></i></span><b>{{ v.t }}</b></span>{% elif v.f %}<span class="selo" style="background:{{ v.f }};color:{{ v.c }}">{{ v.t }}</span>{% else %}{{ v.t }}{% endif %}{% endmacro %}
 {# T-0021: botão de editar (admin) e marca "Aguardando o PC" / "O PC recusou" numa coluna à esquerda #}
-{% macro edcel(e) %}{% if e.url %}<a class="bt-ed" href="{{ e.url }}">Editar</a>{% elif e.sem_chave %}<span class="ed-nao" title="{{ e.msg_sem_chave }}">—</span>{% endif %}{% if e.marca == 'pendente' %}<span class="ed-marca ed-pend" title="{{ e.dica }}">Aguardando o PC</span>{% elif e.marca == 'erro' %}<span class="ed-marca ed-erro" title="{{ e.dica }}">O PC recusou</span>{% endif %}{% endmacro %}
+{% macro edcel(e) %}{% if e.url %}<a class="bt-ed" href="{{ e.url }}">Editar</a>{% elif e.sem_chave %}<span class="ed-nao" title="{{ e.msg_sem_chave }}">Sem edição</span>{% endif %}{% if e.marca == 'pendente' %}<span class="ed-marca ed-pend" title="{{ e.dica }}">Aguardando o PC</span>{% elif e.marca == 'erro' %}<span class="ed-marca ed-erro" title="{{ e.dica }}">O PC recusou</span>{% endif %}{% endmacro %}
 {% macro grade(tab, base="", fq="", vazio="Nenhuma linha neste filtro.", junta=false) %}
 {% set ed = tab.edicao if tab.edicao is defined else none %}
 {% set sc = tab.sel_col if (base and tab.sel_col is defined) else none %}
