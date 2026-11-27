@@ -25,7 +25,7 @@ Codigos de saida: 0 ok (ou nada a fazer) | 1 erro de origem ou argumento |
 2 trava "instalado por fora" (limite 5) | 3 backup falhou | 4 troca falhou
 (restaurado) | 10 limite 1: nenhum commit do main com 2 h ou mais (ou o
 instalado ja e mais novo que ele) | 11 limite 2: CI do PR de origem nao esta
-verde | 12 limite 3: web do commit escolhido mais nova que a do ``/saude``
+verde | 12 limite 3: web do commit escolhido diferente da do ``/saude``
 (ou sem resposta) | 13 limite 4: fora da janela 06h00-07h30 (Manaus) | 14
 limite 4: robo rodando | 15 API do GitHub indisponivel ou sem cota (60/h) |
 16 rotina pausada (``SISTEMA BAP\\PAUSAR_ATUALIZACAO``).
@@ -33,10 +33,10 @@ limite 4: robo rodando | 15 API do GitHub indisponivel ou sem cota (60/h) |
 Modos (T-0018, ADR 0002, R-20261124-214958-alexandre):
  - ``--diario``: a tarefa agendada das 06h30 no notebook do robo. So instala
    se os 5 limites passarem (funcoes puras ``escolher_commit_maduro``,
-   ``ci_verde``, ``web_do_commit_cabe_no_site``,
+   ``ci_verde``, ``versoes_batem``,
    ``dentro_da_janela``/``robo_rodando`` e a trava do ``planejar``). Com o
    HEAD do ``main`` com menos de 2 h, instala o commit mais novo com 2 h ou
-   mais (T-0056), se a web dele for igual ou anterior a do ``/saude``. Nunca instala os ``.bat`` de instalacao, o proprio
+   mais (T-0056), se a web dele for igual a do ``/saude``. Nunca instala os ``.bat`` de instalacao, o proprio
    atualizador, o ``tarefa_bap.xml`` nem ``.json`` (esses seguem com
    "instale"). Baixa o zip do SHA conferido, sem token (repositorio
    publico). Grava ``SISTEMA BAP\\VERSAO_INSTALADA.txt`` e uma linha por
@@ -341,39 +341,6 @@ def versoes_batem(versao_main: str | None, versao_site: str | None) -> bool:
     if not versao_main or not versao_site:
         return False
     return str(versao_main).strip() == str(versao_site).strip()
-
-
-def _tupla_versao(versao: str) -> tuple[int, ...] | None:
-    """``"0.10.0"`` -> ``(0, 10, 0)``; fora de ``N(.N)*`` -> ``None``."""
-    texto = str(versao).strip()
-    if not re.fullmatch(r"\d+(?:\.\d+)*", texto):
-        return None
-    partes = [int(p) for p in texto.split(".")]
-    while len(partes) > 1 and partes[-1] == 0:  # "1.0" == "1.0.0"
-        partes.pop()
-    return tuple(partes)
-
-
-def web_do_commit_cabe_no_site(versao_commit: str | None,
-                               versao_site: str | None) -> bool:
-    """Limite 3 (T-0056): a web do commit a instalar e IGUAL ou ANTERIOR a do ``/saude``.
-
-    O risco que o limite segura e um robo mais novo que o site (manda um
-    pacote que o site ainda nao entende): web do commit mais nova que a do
-    site -> espera o deploy. Web do commit mais velha que a do site pode: o
-    site novo le o pacote antigo (os testes condicionais da web garantem; a
-    mudanca incompativel exige versao nova do contrato e ADR). Comparacao
-    numerica (``0.10.0`` > ``0.9.0``); versao fora de ``N(.N)*`` so vale se
-    for igual (``versoes_batem``). Sem versao de um dos lados nao passa.
-    """
-    if versoes_batem(versao_commit, versao_site):
-        return True
-    if not versao_commit or not versao_site:
-        return False
-    commit, site = _tupla_versao(versao_commit), _tupla_versao(versao_site)
-    if commit is None or site is None:
-        return False
-    return commit <= site
 
 
 def dentro_da_janela(agora: datetime, inicio: dtime = JANELA_INICIO,
@@ -904,7 +871,7 @@ def rodar_diario(producao: Path, simular: bool = False,
     cota da API; SHA do ``main`` (ja instalado -> 0); limite 1 (HEAD com
     menos de 2 h -> o commit mais novo com 2 h, ``escolher_commit_maduro``,
     T-0056); limite 2; zip do SHA escolhido; limite 3
-    (``web_do_commit_cabe_no_site``); plano com ``so_com_instale``; limite 5;
+    (``versoes_batem``); plano com ``so_com_instale``; limite 5;
     troca. Limite que falha -> nada trocado, codigo proprio e 1 linha no log,
     que diz qual commit foi escolhido e por que.
     """
@@ -957,20 +924,22 @@ def rodar_diario(producao: Path, simular: bool = False,
                               f"?sha=main&per_page={COMMITS_LISTADOS}")
         except ErroApi as erro:
             return fim(CODIGO_API, f"{cabeca}; API do GitHub: {erro}")
-        escolha = escolher_commit_maduro(lista if isinstance(lista, list) else [],
-                                         agora, instalado)
+        if not isinstance(lista, list):
+            return fim(CODIGO_API, f"{cabeca}; API do GitHub: lista de commits invalida")
+        escolha = escolher_commit_maduro(lista, agora, instalado)
         if escolha.situacao == "nenhum_maduro":
             return fim(CODIGO_LIMITE_IDADE,
-                       f"limite 1: {cabeca}; nenhum commit com 2 h entre os "
+                       f"limite 1: {cabeca}; nenhum commit com {HORAS_MINIMAS_COMMIT:g} h entre os "
                        f"{COMMITS_LISTADOS} mais novos do main")
         if escolha.situacao == "instalado_mais_novo":
             return fim(CODIGO_LIMITE_IDADE,
                        f"limite 1: {cabeca}; o instalado ({instalado[:7]}) ja e mais "
-                       "novo que o ultimo commit com 2 h")
+                       f"novo que o ultimo commit com {HORAS_MINIMAS_COMMIT:g} h")
         sha = escolha.sha
         contexto = f"{cabeca}; escolhido {sha[:7]} ({horas_desde(escolha.data, agora)} h); "
         if escolha.situacao == "ja_instalado":
-            return fim(CODIGO_OK, "nada a fazer: o commit mais novo com 2 h ja esta instalado")
+            return fim(CODIGO_OK, f"nada a fazer: o commit mais novo com "
+                       f"{HORAS_MINIMAS_COMMIT:g} h ja esta instalado")
 
     try:
         pulls = _get_json(f"{URL_API}/repos/{REPO}/commits/{sha}/pulls")
@@ -1001,10 +970,10 @@ def rodar_diario(producao: Path, simular: bool = False,
 
         v_main = info.get("versao_web")
         v_site = versao_do_site()
-        if not web_do_commit_cabe_no_site(v_main, v_site):
+        if not versoes_batem(v_main, v_site):
             return fim(CODIGO_LIMITE_VERSAO_WEB,
                        f"limite 3: web do commit {v_main or '?'} x /saude "
-                       f"{v_site or 'sem resposta'} (so igual ou anterior; deploy pendente?)")
+                       f"{v_site or 'sem resposta'} (tem de ser igual; deploy pendente?)")
 
         try:
             plano = planejar(origem, producao, lambda rel: datas[rel],

@@ -94,10 +94,10 @@ exit /b %BAP_CODIGO%
   - O commit escolhido passa pelos mesmos limites 2, 3, 4 e 5, e o zip baixado é o dele.
   - Se o `VERSAO_INSTALADA.txt` aponta para um commit **mais novo** que o escolhido (instalação manual), nada volta para trás: sai 10.
   - Se o escolhido já está instalado, sai 0 sem baixar nada. Sem commit maduro entre os 100 mais novos, sai 10.
-- **Limite 3, novo (`web_do_commit_cabe_no_site`):** a web do commit escolhido tem de ser **igual ou anterior** à do `/saude`, com comparação numérica (`0.10.0` > `0.9.0`). Versão fora de `N(.N)*` só vale igual. Sem resposta do site, não passa.
-  - O risco que o limite segura é o **robô mais novo que o site**: um pacote que o site ainda não entende. Esse caso continua barrado (web do commit > site = deploy pendente → 12).
-  - Web do commit anterior à do site pode, porque o site novo lê o pacote antigo: os testes condicionais da web garantem, e mudança incompatível do pacote exige versão nova do contrato e ADR. "Só igual" travaria todo dia em que o HEAD novo trouxe web nova, que é justamente o caso da T-0056.
-  - Risco que fica: uma web que deixe de ler o pacote antigo sem versão nova do contrato. A regra do contrato (versão nova + ADR) é a proteção. Nesse caso, a correção é pausar a rotina (`PAUSAR_ATUALIZACAO`).
+  - Resposta da lista que não é lista (ex.: dict de erro) sai 15 (API), sem troca.
+- **Limite 3, sem mudança (`versoes_batem`):** a web do commit escolhido tem de ser **igual** à do `/saude`. Sem resposta do site, não passa (12).
+  - Efeito: se a web mudou num commit das últimas 2 h e o site já subiu essa web nova, o commit maduro escolhido traz a web antiga, diferente da do site, e o dia desiste com 12, como hoje. A T-0056 resolve o dia em que o HEAD novo não mexeu na web.
+  - Afrouxar para "igual ou anterior" (o site novo lê o pacote antigo; a proteção seria a regra do contrato, versão nova + ADR) fica como **proposta para decisão do Alexandre**: mexe num limite da regra 11 do CLAUDE.md, que é governança.
 - **Log:** continua com uma linha por rodada. Depois da escolha, a linha diz qual commit foi escolhido e por quê, com a vírgula decimal: `HEAD ddddddd com 0,5 h; escolhido aaaaaaa (9,0 h); instalado: ...`, ou `HEAD com 9,0 h; ...` quando o HEAD já serve. O `main <sha>` da linha é o do commit escolhido.
 - **Cota:** até 4 requisições pagas por rodada (main, lista só com o HEAD novo, pulls, check-runs), mais o `/rate_limit`, que não gasta. `REQUISICOES_MINIMAS_API` passa de 4 para 5 (uma de folga).
 - O `atualizar_do_github.py` continua em `SO_COM_INSTALE`: a mudança só entra na produção com o "instale" do Alexandre (`ATUALIZAR_DO_GITHUB.bat`). Desenho e casos de teste: `docs/desenho/T-0056.md`.
