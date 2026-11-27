@@ -46,7 +46,8 @@ def test_RN_GER_018_pode_ver_perfil_mais_excecoes():
     assert acesso.pode_ver(u, "vc_visitas")                     # padrão
     assert not acesso.pode_ver(u, "vc_planner")                 # tirado
     assert acesso.pode_ver(u, "pv_pedidos")                     # liberado
-    assert acesso.liberado(u, "pv_pedidos") and not acesso.liberado(u, "vc_visitas")
+    assert "pv_pedidos" in acesso.visiveis("vendas", u["acesso"]) - acesso.padrao_do_perfil("vendas")   # liberado
+    assert acesso.contagem(u) == (1, 1)
     assert not acesso.pode_ver(u, "pl_entregas")                # fora do perfil e sem exceção
     assert acesso.pode_ver({"perfil": "vendas"}, "vc_planner")   # sem o campo: o perfil puro (nada a migrar)
 
@@ -59,9 +60,9 @@ def test_RN_GER_018_rid_inexistente_inerte():
     assert "outro_que_nao_existe" not in [r for r, _ in acesso.farois_do_usuario(u)]
     with pytest.raises(ValueError):
         acesso.excecoes("vendas", {"nao_existe"})
-    # inerte e guardado: ao normalizar, o rid desconhecido do acesso antigo fica
+    # inerte e guardado: ao gravar, o rid desconhecido do acesso antigo fica
     antigo = {"menos": ["nao_existe"], "mais": ["outro_que_nao_existe"]}
-    n = acesso.normalizar("vendas", {"menos": [], "mais": []}, antigo)
+    n = acesso.excecoes("vendas", acesso.padrao_do_perfil("vendas"), antigo)
     assert n == {"menos": ["nao_existe"], "mais": ["outro_que_nao_existe"]}
 
 
@@ -157,6 +158,7 @@ def test_RN_GER_018_liberado_ve_so_o_resumo(admin):
     assert v.get("/farol/pv_pedidos/editar?tab=x&chave=y").status_code == 403
     assert v.post("/farol/pl_inadimplencia/cobranca", data={"csrf": "x"}).status_code == 403
     assert "Exportar" not in v.get("/farol/pv_pedidos").text
+    assert "telefone" not in v.get("/farol/pl_inadimplencia").text.lower()
     assert v.get("/farol/pl_entregas/parcial.png?q=acum").status_code == 403       # a de Entregas lista cliente
     # os cortes de dado seguem pelo perfil: o diretor continua só no Resumo (RN-GER-014)
     d = _com(admin, "lib.diretor", "diretor", mais=[])
@@ -180,16 +182,30 @@ def test_RN_GER_018_trade_sem_farol_e_liberado(admin):
     assert t2.get("/farol/pv_pedidos").status_code == 200 and t2.get("/farol/vc_visitas").status_code == 403
 
 
-def test_RN_GER_018_cortes_de_dado_por_cima(admin):
-    """Liberar a tela não abre dado: Cobrar e edição seguem pelo perfil (RN-POS-004, RN-GER-012)."""
+def test_RN_GER_018_corte_por_cima_com_excecao(admin):
+    """Tirar e devolver o farol não dá Cobrar a quem o perfil não dá (RN-POS-004); a tela do liberado não mostra telefone (RN-GER-011)."""
     assert postar(admin, pacote_tres_farois()).status_code == 200
-    g = _com(admin, "corte.gerente", "gerente")
-    assert g.get("/farol/pv_pedidos/editar?tab=x&chave=y").status_code == 403           # edição só do admin
-    a = _com(admin, "corte.analista", "analista")
-    assert a.get("/farol/pv_pedidos/editar?tab=x&chave=y").status_code == 403
+    g = _com(admin, "corte.gerente", "gerente", menos=["pl_inadimplencia"])
+    assert g.get("/farol/pl_inadimplencia").status_code == 403
+    assert _salvar(admin, "corte.gerente", acesso.padrao_do_perfil("gerente")).status_code == 200
+    assert g.get("/farol/pl_inadimplencia").status_code == 200 and g.get("/farol/pl_inadimplencia?aba=cobrar").status_code == 403
     v = _com(admin, "corte.vendas", "vendas", mais=["pl_inadimplencia"])
     assert "telefone" not in v.get("/farol/pl_inadimplencia").text.lower()
-    assert v.get("/farol/pl_inadimplencia?aba=cobrar").status_code == 403
+
+
+def test_RN_GER_018_vc_painel_nao_e_rota_de_farol(admin):
+    """O Painel está na lista de acesso, mas só abre por /painel: em /farol/vc_painel é 403 (nunca 500)."""
+    for url in ("/farol/vc_painel", "/farol/vc_painel/linhas", "/farol/vc_painel/editar", "/farol/vc_painel/exportar?formato=xlsx"):
+        assert admin.get(url).status_code == 403, url
+    assert admin.post("/farol/vc_painel/editar", data={"csrf": "x"}).status_code == 403
+    assert admin.get("/painel").status_code == 200
+
+
+def test_RN_GER_018_atualizar_visitas_so_de_quem_tem_o_farol_pelo_perfil(admin):
+    assert _com(admin, "vis.pre", "pre_venda", mais=["vc_visitas"]).get("/visitas/atualizar").status_code == 403
+    assert _com(admin, "vis.trade", "trade", mais=["vc_visitas"]).get("/visitas/atualizar").status_code == 403
+    assert _usuario(admin, "vis.vendas", "vendas").get("/visitas/atualizar").status_code == 200
+    assert _usuario(admin, "vis.diretor", "diretor").get("/visitas/atualizar").status_code == 200
 
 
 # ------------------------------------------------------------------ tela, registro e erros
@@ -315,7 +331,7 @@ def test_RN_GER_018_estrutural_nenhuma_checagem_direta_do_perfil_no_farol():
     for arq in (MAIN.parent / "render.py", MAIN.parent / "usuarios.py", MAIN.parent / "visitas.py"):
         assert not re.search(r"in\s+(render\.)?FAROIS\[[^\]]+\]\[1\]", arq.read_text(encoding="utf-8")), arq.name
     arvore = ast.parse(fonte)
-    guardas = ("exige(", "acesso.pode_ver(", "parciais_de(", "tabelas_para_exportar(", "acao_visitas(")
+    guardas = ("exige(", "exige_farol(", "acesso.pode_ver(", "parciais_de(", "tabelas_para_exportar(", "acao_visitas(")
     visto = []
     for no in ast.walk(arvore):
         if not isinstance(no, (ast.FunctionDef, ast.AsyncFunctionDef)):

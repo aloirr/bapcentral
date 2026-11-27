@@ -10,7 +10,7 @@
 {% block corpo %}
 {# T-0050 (simulação v2): as duas partes do acesso — "Do perfil" (desmarque para tirar) e "Liberar além do perfil" #}
 {% macro partes(p, desativado=false, generico=false) %}
-<div class="f-partes">
+<div class="f-partes{{ ' f-partes-sem-perfil' if not p.perfil }}">
   <fieldset class="f-parte f-perfil"><legend>Do perfil</legend>
   {% if p.perfil %}<p class="f-nota">Desmarque para tirar.</p><div class="f-grupos">
     {% for g in p.perfil %}<div class="f-grupo"><h3>{{ g.nome }}</h3>
@@ -60,7 +60,7 @@
         <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="login" value="{{ x.login }}">
         <input type="hidden" name="acao" value="acesso"><input type="hidden" name="lista" value="1">
         {{ partes(x.partes) }}
-        {% if x.alterado %}<p class="f-quando">Alterado em {{ x.alterado.quando }} por {{ x.alterado.quem }}</p>{% endif %}
+        {% if x.alterado %}<p class="f-quando">Alterado em {{ x.alterado.quando|manaus }} por {{ x.alterado.quem }}</p>{% endif %}
         <div class="f-rodape"><button type="submit" class="bt-neutro">Salvar acesso</button></div>
       </form>
     </details>

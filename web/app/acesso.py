@@ -9,7 +9,7 @@ from __future__ import annotations
 from . import render
 
 PAINEL = "vc_painel"            # o Painel Executivo entra na lista (P2 A)
-NOME_PAINEL = "Painel Executivo"
+NOME_PAINEL = render.NOME_PAINEL
 
 
 def rids_da_lista() -> tuple[str, ...]:
@@ -22,9 +22,7 @@ def rids_da_lista() -> tuple[str, ...]:
 
 
 def nome_do(rid: str) -> str:
-    if rid == PAINEL:
-        return NOME_PAINEL
-    return render.NOME_MENU.get(rid) or render.FAROIS[rid][0].removeprefix("Farol de ")
+    return NOME_PAINEL if rid == PAINEL else render.nome_curto(rid)
 
 
 def perfil_ve(perfil: str, rid: str) -> bool:
@@ -50,11 +48,6 @@ def pode_ver(usuario: dict, rid: str) -> bool:
     return perfil_ve(usuario.get("perfil", ""), rid) or rid in _lista(usuario, "mais")
 
 
-def liberado(usuario: dict, rid: str) -> bool:
-    """Veio por "mais": o perfil não vê e o admin liberou."""
-    return pode_ver(usuario, rid) and not perfil_ve(usuario.get("perfil", ""), rid)
-
-
 def farois_do_usuario(usuario: dict) -> list[tuple[str, str]]:
     """[(rid, nome)] dos faróis (sem o Painel) que o usuário vê, na ordem de `FAROIS`: menu e página inicial."""
     return [(rid, nome) for rid, (nome, _) in render.FAROIS.items() if pode_ver(usuario, rid)]
@@ -64,13 +57,17 @@ def padrao_do_perfil(perfil: str) -> set[str]:
     return {r for r in rids_da_lista() if perfil_ve(perfil, r)}
 
 
-def excecoes(perfil: str, marcados) -> dict:
-    """Do formulário (caixas marcadas) para {"menos", "mais"}. Rid desconhecido: ValueError."""
+def excecoes(perfil: str, marcados, antigo: dict | None = None) -> dict:
+    """Do formulário (caixas marcadas) para {"menos", "mais"}; rid desconhecido: ValueError.
+    Os rids desconhecidos do acesso `antigo` ficam guardados (inertes), como no desenho §7."""
     marcados = set(marcados)
-    if not marcados <= set(rids_da_lista()):
+    conhecidos = set(rids_da_lista())
+    if not marcados <= conhecidos:
         raise ValueError("rid desconhecido")
     pad = padrao_do_perfil(perfil)
-    return {"menos": sorted(pad - marcados), "mais": sorted(marcados - pad)}
+    antigo = antigo or {}
+    return {"menos": sorted((pad - marcados) | {r for r in antigo.get("menos", ()) if r not in conhecidos}),
+            "mais": sorted((marcados - pad) | {r for r in antigo.get("mais", ()) if r not in conhecidos})}
 
 
 def visiveis(perfil: str, acesso: dict | None) -> set[str]:
@@ -85,33 +82,18 @@ def mudancas(perfil: str, antes: dict | None, depois: dict | None) -> list[tuple
             for r in rids_da_lista() if (r in a) != (r in d)]
 
 
-def normalizar(perfil: str, acesso: dict | None, preservar_antigo: dict | None = None) -> dict:
-    """Guarda só o que muda o que a pessoa vê. Rids desconhecidos (inertes) do acesso antigo são preservados."""
-    acesso = acesso or {}
-    conhecidos = set(rids_da_lista())
-    menos = {r for r in acesso.get("menos", ()) if r in conhecidos and perfil_ve(perfil, r)}
-    mais = {r for r in acesso.get("mais", ()) if r in conhecidos and not perfil_ve(perfil, r)} - menos
-    antigo = preservar_antigo or {}
-    menos |= {r for r in antigo.get("menos", ()) if r not in conhecidos}
-    mais |= {r for r in antigo.get("mais", ()) if r not in conhecidos}
-    return {"menos": sorted(menos), "mais": sorted(mais)}
-
-
 def contagem(usuario: dict) -> tuple[int, int]:
     """(tirados, liberados) com efeito para o usuário: os selos da linha."""
     perfil = usuario.get("perfil", "")
-    lista = rids_da_lista()
-    n_menos = sum(1 for r in _lista(usuario, "menos") if r in lista and perfil_ve(perfil, r))
-    n_mais = sum(1 for r in _lista(usuario, "mais")
-                 if r in lista and not perfil_ve(perfil, r) and r not in _lista(usuario, "menos"))
-    return n_menos, n_mais
+    vis, pad = visiveis(perfil, usuario.get("acesso")), padrao_do_perfil(perfil)
+    return len(pad - vis), len(vis - pad)
 
 
 def _grupos(rids) -> list[dict]:
     rids = set(rids)
     saida = []
     if PAINEL in rids:
-        saida.append({"nome": "Diretoria", "itens": [PAINEL]})
+        saida.append({"nome": render.GRUPO_PAINEL, "itens": [PAINEL]})
     visto = {PAINEL}
     for nome, lista in render.GRUPOS_MENU:
         itens = [r for r in lista if r in rids]

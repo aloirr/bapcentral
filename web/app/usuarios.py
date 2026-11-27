@@ -50,6 +50,10 @@ MSG_FALHA = "Não deu para salvar agora. Tente de novo em 1 minuto."
 MANAUS = ZoneInfo("America/Manaus")
 
 
+def _acesso_de(u: dict) -> dict:
+    return {k: list((u.get("acesso") or {}).get(k, ())) for k in ("menos", "mais")}
+
+
 class Usuarios:
     def __init__(self, cfg: Config):
         self.caminho = cfg.dados / "usuarios.json"
@@ -82,7 +86,7 @@ class Usuarios:
         return None if u is None else {"login": login.lower(), **{
             k: u[k] for k in ("perfil", "ativo", "trocar_senha", "bloqueado_ate", "erros")},
             "sessao": u.get("sessao", 0),
-            "acesso": {k: list((u.get("acesso") or {}).get(k, ())) for k in ("menos", "mais")}}
+            "acesso": _acesso_de(u)}
 
     def listar(self) -> list[dict]:
         return [self.obter(l) for l in sorted(self._dados["usuarios"])]
@@ -143,12 +147,12 @@ class Usuarios:
     def _excecoes(self, login, perfil, marcados, antigo=None) -> dict:
         marcados = set(marcados)
         try:
-            exc = ac.excecoes(perfil, marcados)
+            exc = ac.excecoes(perfil, marcados, antigo)
         except ValueError:
             raise Erro(MSG_LISTA_MUDOU)
-        if not marcados and (ac.padrao_do_perfil(perfil) or exc["mais"]):
+        if not marcados and ac.padrao_do_perfil(perfil):
             raise Erro(MSG_SEM_FAROL.format(login=login))
-        return ac.normalizar(perfil, exc, antigo)
+        return exc
 
     def _gravar_com_registro(self, alvo, perfil, antes, depois, quem, acao):
         """RN-GER-018: acrescenta as linhas do registro, grava o json; se o json falhar, acrescenta "desfeito"."""
@@ -173,7 +177,7 @@ class Usuarios:
             u = self._dados["usuarios"].get(alvo)
             if u is None:
                 raise Erro("Usuário não encontrado.")
-            antes = {k: list((u.get("acesso") or {}).get(k, ())) for k in ("menos", "mais")}
+            antes = _acesso_de(u)
             depois = self._excecoes(alvo, u["perfil"], marcados, antes)
             mud = ac.mudancas(u["perfil"], antes, depois)
             if depois == antes:
@@ -190,7 +194,7 @@ class Usuarios:
             return mud
 
     def ultima_mudanca(self, login: str) -> dict | None:
-        """{"quando": "dd/mm/aaaa hh:mm", "quem": login} da última mudança de acesso do usuário (não desfeita)."""
+        """{"quando": ISO de Manaus, "quem": login} da última mudança de acesso do usuário (não desfeita)."""
         try:
             linhas = self.registro.read_text(encoding="utf-8").splitlines()
         except OSError:
@@ -209,11 +213,7 @@ class Usuarios:
         if not regs:
             return None
         r = regs[-1]
-        try:
-            quando = datetime.fromisoformat(r["quando"]).astimezone(MANAUS).strftime("%d/%m/%Y %H:%M")
-        except (KeyError, ValueError):
-            return None
-        return {"quando": quando, "quem": r.get("quem", "")}
+        return {"quando": r.get("quando", ""), "quem": r.get("quem", "")}     # a tela formata com o filtro `manaus`
 
     def definir_ativo(self, login: str, ativo: bool):
         with self.trava:

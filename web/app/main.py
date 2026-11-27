@@ -20,8 +20,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import VERSAO, acesso, cobranca, config, edicoes, exportar, marca, pacotes, render, tabelas, visitas
-from . import usuarios as usuarios_mod
-from .usuarios import PERFIS, Erro, ErroGravacao, Usuarios, MAX_ERROS
+from .usuarios import PERFIS, Erro, ErroGravacao, Usuarios, MAX_ERROS, MSG_LISTA_MUDOU
 
 log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
@@ -166,6 +165,12 @@ def criar_app() -> FastAPI:
         if not acesso.pode_ver(u, rid):
             raise PermissionError
 
+    def exige_farol(u: dict, rid: str) -> None:
+        """Rotas `/farol/{rid}`: além do `exige`, o rid precisa ser de um farol (o Painel tem a rota `/painel`): senão 403."""
+        if rid not in render.FAROIS:
+            raise PermissionError
+        exige(u, rid)
+
     @app.exception_handler(PermissionError)
     async def _nega(request, exc):
         return pagina(request, "erro.html", status=403, u=None,
@@ -193,9 +198,12 @@ def criar_app() -> FastAPI:
             # o item da lateral marcado: o farol, o painel ou, na conta, "usuarios" e "senha" (contrato §3)
             ativo = ctx.get("rid") or {"/painel": "painel", "/usuarios": "usuarios", "/senha": "senha",
                                        "/visitas/atualizar": "visitas_atualizar"}.get(request.url.path)
+            # o link "Atualizar" só para quem pode apertar (UX 8): calculado uma vez, para a lateral e para a tela
+            pode_vis = u["perfil"] in PODEM_PEDIR and acesso.pode_ver(u, "vc_visitas")
             ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ativo, painel=acesso.pode_ver(u, PAINEL_RID),
-                                             admin=u["perfil"] == "admin", vistos=acesso.farois_do_usuario(u))
-            ctx["pode_visitas"] = u["perfil"] in PODEM_PEDIR and acesso.pode_ver(u, "vc_visitas")   # o link "Atualizar" só para quem pode apertar (UX 8)
+                                             admin=u["perfil"] == "admin", vistos=acesso.farois_do_usuario(u),
+                                             atualizar_visitas=pode_vis)
+            ctx["pode_visitas"] = pode_vis
             if u["trocar_senha"]:
                 ctx["nav"] = []             # troca obrigatória: só a casca (marca e Sair), sem links que não levam a lugar nenhum
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
@@ -304,9 +312,7 @@ def criar_app() -> FastAPI:
         if u["perfil"] == "trade" and not vistos and not com_painel:
             # T-0036 (2 A, UX 9): até a T-0025-v2 o Trade Marketing não tem farol; casca BC3, uma frase neutra
             return pagina(request, "trade_inicio.html", bc3=True, sem_pacote_ok=True)
-        destino = render.pagina_inicial(u["perfil"], vistos, com_painel and acesso.perfil_ve(u["perfil"], PAINEL_RID))
-        if destino == "/senha" and com_painel:              # só o Painel liberado: abre nele
-            destino = "/painel"
+        destino = render.pagina_inicial(u["perfil"], vistos, com_painel, acesso.padrao_do_perfil(u["perfil"]))
         return RedirectResponse(destino, status_code=302)
 
     @app.get("/painel", response_class=HTMLResponse)
@@ -402,7 +408,7 @@ def criar_app() -> FastAPI:
                    # para quem pode; sem imagem no pacote, a página da parcial diz que ainda não chegou
                    parcial=tem_parcial(u, rid),
                    csvs=csvs_de(rel, rid, perfil) if aba in ("pedidos", "solicitacao") else [],
-                   correcao=(rid == "an_divergencias" and perfil == "admin" and acesso.pode_ver(u, rid)
+                   correcao=(rid == "an_divergencias" and perfil == "admin"
                              and bool(((ind.entrada(rid) or {}).get("anexos") or {}).get("correcao"))))
         topo = render.farol_para_tela(rel, (uf[:4] if aba == "resumo" else uf_ok) or None, rid)   # uma vez só
         if aba == "resumo":
@@ -560,7 +566,7 @@ def criar_app() -> FastAPI:
     def tabelas_para_exportar(request, u, rid, aba, todas):
         """[(tabela plana)] do que a pessoa vê (o que a tela mostra, todas as páginas). PermissionError fora do perfil."""
         perfil, rel, consulta = u["perfil"], rel_do(rid), consulta_de(request)
-        if not acesso.pode_ver(u, rid) or not rel:
+        if rid not in render.FAROIS or not acesso.pode_ver(u, rid) or not rel:
             raise PermissionError
         abas = []                                          # (titulo no pacote, bruta, consulta)
         if rid in tabelas.RIDS:
@@ -750,7 +756,7 @@ def criar_app() -> FastAPI:
     @app.get("/farol/{rid}/editar", response_class=HTMLResponse)
     async def editar_get(request: Request, rid: str, tab: str = "", chave: str = "", volta: str = "", novo: str = ""):
         u = usuario(request)
-        if not acesso.pode_ver(u, rid) or u["perfil"] not in edicoes.EDITA:
+        if rid not in render.FAROIS or not acesso.pode_ver(u, rid) or u["perfil"] not in edicoes.EDITA:
             raise PermissionError                       # só o admin edita (decisão de 25/11)
         volta = volta_ok(rid, volta)
         t, aba = tabela_editavel(rid, tab[:80])
@@ -771,7 +777,7 @@ def criar_app() -> FastAPI:
     @app.post("/farol/{rid}/editar")
     async def editar_post(request: Request, rid: str):
         u = usuario(request)
-        if not acesso.pode_ver(u, rid) or u["perfil"] not in edicoes.EDITA:
+        if rid not in render.FAROIS or not acesso.pode_ver(u, rid) or u["perfil"] not in edicoes.EDITA:
             raise PermissionError                       # 403 antes de ler o formulário
         f = await formulario(request)                   # CSRF errado = 403
         tab, chave = str(f.get("tab", ""))[:80], str(f.get("chave", ""))[:80]
@@ -824,7 +830,7 @@ def criar_app() -> FastAPI:
     async def farol(request: Request, rid: str, uf: str = "", aba: str = "resumo"):
         linhas = request.url.path.endswith("/linhas")   # T-0033: a mesma regra de perfil, só as linhas
         u = usuario(request)
-        exige(u, rid)                                   # perfil + exceções do admin conferidos no servidor (RN-GER-018)
+        exige_farol(u, rid)                             # perfil + exceções do admin conferidos no servidor (RN-GER-018)
         perfil = u["perfil"]
         if rid in tabelas.RIDS:
             return farol_abas(request, u, rid, aba, uf, linhas=linhas)
@@ -971,7 +977,7 @@ def criar_app() -> FastAPI:
             elif acao == "acesso":
                 reabrir = alvo
                 if f.get("lista") != "1":
-                    raise Erro(usuarios_mod.MSG_LISTA_MUDOU)
+                    raise Erro(MSG_LISTA_MUDOU)
                 msg = resumo_mudancas(alvo, usuarios.definir_acesso(alvo, marcados, eu["login"]))
                 reabrir = ""
             elif acao in ("desativar", "ativar"):
@@ -1142,6 +1148,8 @@ def criar_app() -> FastAPI:
     async def visitas_tela(request: Request):
         u = usuario(request)
         exige(u, "vc_visitas")
+        if not acesso.perfil_ve(u["perfil"], "vc_visitas"):
+            raise PermissionError                       # o liberado vê só o Resumo: a tela de atualizar é de quem tem o farol pelo perfil (P4 A)
         flash = request.session.pop("visitas_msg", None) or {}
         return pagina(request, "visitas.html", v=vis.tela(),
                       pode_pedir=u["perfil"] in PODEM_PEDIR, admin=u["perfil"] in SO_ADMIN,
