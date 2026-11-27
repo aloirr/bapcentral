@@ -1,20 +1,13 @@
 """T-0023 v2, ajuste do núcleo: o % do faturado líquido (RN-GER-002), com
 "—" quando o líquido fica <= 0, e o D.U. sem o hoje (RN-GER-007).
 
-Trazido do modulo-farois (7580eb1) e revisto pelo testes: pulado, com motivo,
-sem o núcleo novo. O valor x regra com o pacote real (setembro 12,0%; 06/10
+Trazido do modulo-farois (7580eb1) e revisto pelo testes. O valor x regra com o pacote real (setembro 12,0%; 06/10
 com líquido negativo; nenhum % negativo em todas as séries do "% devolvido do
 faturado") mora em tests/test_T0023_valor_regra.py (RD-0160).
 """
 from datetime import date
 
-import pytest
-
 import relatorios_nucleo as rn
-
-if not (hasattr(rn, "pct_do_liquido") and hasattr(rn, "_uteis_ate_ontem")):
-    pytest.skip("núcleo da T-0023 v2 com pct_do_liquido (modulo-farois/T-0023-nucleo 7580eb1) ainda não entrou",
-                allow_module_level=True)
 
 
 def test_RN_GER_002_pct_do_liquido_nunca_negativo():

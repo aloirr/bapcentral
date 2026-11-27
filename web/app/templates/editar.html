@@ -21,23 +21,24 @@
   <div class="ed-campos">
   {% for c in campos %}
   {% if c.multilinha and not ns.longo %}{% set ns.longo = true %}<p class="ed-aviso-pessoal">Textos livres: até {{ c.teto }} caracteres, sem CPF, CNPJ, telefone ou e-mail.</p>{% endif %}
+  {% set inv = ' aria-invalid="true"'|safe if c.invalido else "" %}
   <label class="ed-campo{{ ' ed-longo' if c.multilinha }}">{{ c.rotulo }}{% if c.obrigatorio %} <small class="ed-obrig">obrigatório</small>{% endif %}
   {% if novo and c.obrigatorio %}<input type="hidden" name="p_{{ c.campo }}" value="{{ c.mostrado }}">{% endif %}
     {% if c.tipo == "lista" %}
-    <select name="c_{{ c.campo }}">
+    <select name="c_{{ c.campo }}"{{ inv }}>
       <option value=""{{ ' selected' if not c.atual }}>(vazio)</option>
       {% for o in c.opcoes %}<option value="{{ o }}"{{ ' selected' if o == c.atual }}>{{ o }}</option>{% endfor %}
     </select>
     {% elif c.tipo == "data" %}
-    <input type="date" name="c_{{ c.campo }}" value="{{ c.atual_iso }}"{% if c.min %} min="{{ c.min }}" max="{{ c.max }}"{% endif %}>
-    {% if not novo %}<small>Apague a data para voltar à calculada pelo PC.</small>{% endif %}
+    <input type="date" name="c_{{ c.campo }}" value="{{ c.atual_iso }}"{{ inv }}{% if c.min %} min="{{ c.min }}" max="{{ c.max }}"{% endif %}>
+    {% if not novo and c.campo not in sem_calculo %}<small>Apague a data para voltar à calculada pelo PC.</small>{% endif %}
     {% elif c.tipo == "numero" %}
-    <input type="text" inputmode="decimal" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="20" placeholder="{{ c.sugestao or 'ex.: 278,40' }}"{% if c.sugestao %} list="dl-{{ c.campo }}"{% endif %}>
+    <input type="text" inputmode="decimal"{{ inv }} name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="20" placeholder="{{ c.sugestao or 'ex.: 278,40' }}"{% if c.sugestao %} list="dl-{{ c.campo }}"{% endif %}>
     {% if c.sugestao %}<datalist id="dl-{{ c.campo }}"><option value="{{ c.sugestao }}"></option></datalist><small>Sugestão: {{ c.sugestao }}</small>{% endif %}
     {% elif c.multilinha %}
-    <textarea name="c_{{ c.campo }}" rows="3" maxlength="{{ c.teto }}" autocomplete="off">{{ c.atual }}</textarea>
+    <textarea{{ inv }} name="c_{{ c.campo }}" rows="3" maxlength="{{ c.teto }}" autocomplete="off">{{ c.atual }}</textarea>
     {% else %}
-    <input type="text" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="{{ c.teto }}"{% if c.opcoes %} list="dl-{{ c.campo }}"{% endif %} autocomplete="off">
+    <input type="text"{{ inv }} name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="{{ c.teto }}"{% if c.opcoes %} list="dl-{{ c.campo }}"{% endif %} autocomplete="off">
     {% if c.opcoes %}<datalist id="dl-{{ c.campo }}">{% for o in c.opcoes[:300] %}<option value="{{ o }}"></option>{% endfor %}</datalist>{% endif %}
     {% endif %}
     {% if novo and c.obrigatorio and c.padrao and c.atual != c.padrao %}<small>Sugestão do PC: {{ c.padrao }}</small>{% endif %}
