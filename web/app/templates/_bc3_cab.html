@@ -33,6 +33,8 @@
   <div class="bc3-ks">
     {% for k in ks %}<div class="bc3-k t-{{ k.cor }}"><small>{{ k.rot }}</small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
   </div>
+  {% elif aviso_kpis is defined and aviso_kpis %}
+  <p class="bc3-aviso-k">{{ aviso_kpis }}</p>
   {% endif %}
 </header>
 <div class="bc3-sub">
