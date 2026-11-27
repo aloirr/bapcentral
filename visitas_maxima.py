@@ -76,6 +76,7 @@ URL_PWA = os.environ.get("BAP_MAXIMA_PWA",
                          "https://maxgestao-pwa.solucoesmaxima.com.br")
 URL_AUDITORIA = URL_PWA + "/painel-auditoria"
 ARQ_CONFIG = AQUI / "visitas_config.json"
+RX_PWE = re.compile(r"PWE=[^&#]*")          # a máscara do `PWE=` (o cron do T-0045 importa esta)
 MAX_DIAS = 93                # um trimestre por vez
 
 # o gancho que roda em toda pagina: guarda as abas que o site tenta abrir
@@ -795,7 +796,7 @@ class Robo:
 
     def url_limpa(self) -> str:
         try:
-            return re.sub(r"PWE=[^&#]*", "PWE=…", self.page.url)
+            return RX_PWE.sub("PWE=…", self.page.url)
         except Exception:                                # noqa: BLE001
             return ""
 
