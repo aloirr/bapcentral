@@ -868,13 +868,16 @@ def memoria(indice: Indice) -> dict:
         for linha in Path("/proc/self/status").read_text().splitlines():
             if linha.startswith("VmRSS:"):
                 rss = round(int(linha.split()[1]) / 1024, 1)
+            elif linha.startswith("VmHWM:"):           # pico do próprio processo (o ru_maxrss herda o do lançador)
+                pico = round(int(linha.split()[1]) / 1024, 1)
     except (OSError, ValueError, IndexError):
         pass
-    try:
-        import resource
-        pico = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
-    except (ImportError, OSError, ValueError):
-        pass
+    if pico is None:                                   # fora do Linux: reserva
+        try:
+            import resource
+            pico = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+        except (ImportError, OSError, ValueError):
+            pass
     try:
         txt = Path("/sys/fs/cgroup/memory.max").read_text().strip()
         limite = round(int(txt) / MB, 1) if txt.isdigit() else None

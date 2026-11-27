@@ -237,3 +237,15 @@ def test_por_sha_acha_so_o_farol_e_sha_antigo_nao_acha(cli, amb):
     assert pacotes.por_sha(amb, "pl_inadimplencia", sha_velho)["titulo"] != "Outro título"
     assert pacotes.por_sha(amb, "pl_inadimplencia", "f" * 64) is None
     assert pacotes.por_sha(amb, "pl_inadimplencia", "lixo") is None
+
+
+def test_pico_vem_do_vmhwm_do_proprio_processo(amb, monkeypatch):
+    """O ru_maxrss herda o pico do lançador (fork+exec); o pico do /saude é o VmHWM de /proc/self/status."""
+    from pathlib import Path
+    real = Path.read_text
+    falso = "Name:\tx\nVmHWM:\t   64512 kB\nVmRSS:\t   51200 kB\n"
+    monkeypatch.setattr(Path, "read_text", lambda self, *a, **k: falso if str(self) == "/proc/self/status" else real(self, *a, **k))
+    import resource
+    monkeypatch.setattr(resource, "getrusage", lambda *_: (_ for _ in ()).throw(AssertionError("não deve usar o ru_maxrss")))
+    m = pacotes.memoria(pacotes.Indice(amb))
+    assert m["pico_mb"] == 63.0 and m["rss_mb"] == 50.0
