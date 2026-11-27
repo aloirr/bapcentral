@@ -1,6 +1,10 @@
 # Quadro — BAP Tools
 
-Atualizado em 27/11/2026, 00h30 (Manaus). Dono: gerente-projetos.
+Atualizado em 27/11/2026, 04h15 (Manaus). Dono: gerente-projetos.
+
+**27/11, 04h15 — T-0033 e T-0034 no ar (web 0.5.0):** retomada às 03h31; #142, #143, #144, #145 e #146 no main; entrega R-20261127-041434. Sessões de tarefa refeitas (T-0036 v2 session_01QvB2SU9Wtp5KdywcGtq7PR, T-0037 v2 session_01QvB2STi3xq4ykrr1HFRGBM); as antigas ficaram ociosas, porque não aceitam mensagem desta sessão.
+
+**27/11, 02h16 — PAUSA até 03h30 (R-20261127-021558-alexandre):** sessões de tarefa e subagentes parados com o trabalho em branch; nada instalado. Da noite: "Rode até 6am", "Acelere tudo" e "Aprove as telas e siga" (o po aprova as simulações por delegação, R-20261127-013010). No main: T-0024 (#89, #91, #97), T-0045 desenho (#137), T-0033 em parte (#127, #138, #139, #140, #135) e as RNs da T-0023/T-0025 (#141). Abertos: #142, #143, #144 e #145.
 
 **26/11, 22h30 — retomada da pausa:** T-0035 entregue e no ar (v0.4.0, #131–#134); T-0033 nas 8 branches, com zero falha no teste combinado (aguarda a revisão final e o "1 A" da simulação, R-20261126-232717); T-0024 aguarda o "1 A" (R-20261126-225201); T-0045 aguarda as decisões (R-20261126-224331).
 
@@ -38,9 +42,9 @@ Atualizado em 27/11/2026, 00h30 (Manaus). Dono: gerente-projetos.
 | T-0020 | Visual C da BAP, tabelas de baixo lado a lado, repetições cortadas (web) | concluida (#79) | modulo-web | — | — | concluída em 25/11 (R-20261125-174000-alexandre) |
 | T-0021 | Edição do Farol de Pedidos e Entregas na web (só admin), CSVs do Protheus, edições chegam ao PC pelo robô | concluida (v4: #109–#112; v1 nunca entrou) | modulo-web + modulo-robo + engenheiro-software + testes | — | — | concluída em 26/11 |
 | T-0022 | Painel Executivo (12 abas) e Farol de Metas Equipe na web | concluida (#101, #104) | modulo-web + modulo-robo + testes | — | — | o Painel no BC3 vai na T-0034 |
-| T-0023 | Faróis de Garantias, Devoluções e NCC na web (edição só admin) | em_andamento (PRs #102, #103, #105, #106 empilhados na T-0021 v1: refazer sobre o main com as decisões de 26/11) | modulo-web + modulo-robo + modulo-farois + testes | — | — | simulação 27/11 06h |
-| T-0024 | Faróis do lote 2 na web (indicadores, Clientes, Roteirização, Giro, Estoque FRW) | aguardando_alexandre (#89 web 820330f; #91 robô 9753598; #97 testes 034ce39; simulação R-20261126-225201) | modulo-web + modulo-robo + testes | — | — | com o "1 A": merge #89 → #91 → #97 (a web antes do robô) |
-| T-0025 | Farol DDR, Campanhas e Expositores na web | em_andamento (PRs #93, #98, #100, #107 empilhados na T-0021 v1: refazer; diretor só Resumo, TOTAL A PAGAR só admin/gerente/diretor, champions_config.json pela web só admin) | modulo-web + modulo-robo + modulo-farois + testes | — | — | simulação 27/11 06h |
+| T-0023 | v2: Faróis de Garantias, Devoluções e NCC na web (edição só admin) | em_andamento (desenho #142 e RNs #141 no main; núcleo modulo-farois/T-0023-nucleo e robô modulo-robo/T-0023-robo em correção pelos achados do testes; testes testes/T-0023-testes db7e699; web a fazer; PRs antigos #102, #103, #105 e #106 a fechar) | modulo-web + modulo-robo + modulo-farois + testes | — | — | ordem web → núcleo → robô → PC só leitura → testes |
+| T-0024 | Faróis do lote 2 na web (indicadores, Clientes, Roteirização, Giro, Estoque FRW) | concluida (#89 a178af2, #91 8dab048, #97 0bb251b) | modulo-web + modulo-robo + testes | — | — | concluída em 27/11; o robô chega à produção pela rotina diária |
+| T-0025 | v2: Farol DDR, Campanhas e Expositores na web | aberta (desenho #142 no main; P1 a P4 = A; PRs antigos #93, #98, #100 e #107 a fechar) | modulo-web + modulo-robo + modulo-farois + testes | — | — | depois da T-0023 |
 | T-0026 | Paridade dos 4 faróis na web (parcial em imagem, Excel/PDF, 5 abas da Inadimplência) | concluida (#80, #81, #82 1ec5d1a) | modulo-web + modulo-robo + testes | — | — | concluída em 26/11 |
 | T-0027 | Parcial com a marca, Excel sem NaN, corte do pacote grande, RN-GER-012, robô do pós-venda | concluida (#90, #92, #94, #95, #96, #99) | modulo-robo + modulo-web + modulo-posvenda + testes | — | — | concluída em 25/11 |
 | T-0028 | Farol de Pedidos sem rolagem, popup do pedido, tabelas de baixo lado a lado | concluida (#114) | modulo-web | — | — | concluída em 26/11 |
@@ -48,17 +52,19 @@ Atualizado em 27/11/2026, 00h30 (Manaus). Dono: gerente-projetos.
 | T-0030 | Farol de Pedidos no visual BC3 (PC numa tela; celular M3) | concluida (#115) | modulo-web | — | — | concluída em 26/11 |
 | T-0031 | Todos os faróis no BC3 e no formato do Farol de Pedidos | concluida (#123, c8f6004) | modulo-web | — | — | concluída em 26/11 |
 | T-0032 | Botões das parciais como no PC, caixa fora da base com o nome antigo; correção do celular | concluida (#124 8cda492, entrou sem simulação; #126 4e1abd8 correção do celular, com o ok do Alexandre) | modulo-web | — | — | concluída em 26/11; o botão "Cobrar no WhatsApp" sai na T-0033 (7 A) |
-| T-0033 | Revisão geral de todos os faróis (marca, UX, redundância), grade × popup, contrato visual BC3, manual da marca, RN-VIS-001 | aguardando_alexandre (manual #129 no main; branches: contrato 9ff2851, web 3165af2, faróis 7de029b, rota f39e389, robô ff6e7f0, testes f91c265, #127 aa3fc77, #135 046a4db; combinado com zero falha; revisão final do código em curso; simulação R-20261126-232717) | engenheiro-software + modulo-web + modulo-farois + modulo-rota + modulo-robo + modulo-posvenda + design-de-marca + testes + gerente | — | — | com o "1 A": PRs e merge no mesmo dia |
-| T-0034 | Página inicial = Painel Executivo no BC3/M3; Login, Senha, Usuários e Parcial no BC3; pré-venda/pós-venda/vendas abrem no 1º farol da área; RD-0038, RD-0043, RD-0059 | em_andamento (modulo-web/T-0034-pagina-inicial, sobre a T-0033) | modulo-web + testes | — | — | depois da T-0033 |
+| T-0033 | Revisão geral de todos os faróis (marca, UX, redundância), contrato BC3, manual, RN-VIS-001 | concluida (#127, #138, #139, #140, #135, #143, #144, #145; entrega R-20261127-041434) | engenheiro-software + modulo-web + modulo-farois + modulo-rota + modulo-robo + modulo-posvenda + testes + gerente | — | — | concluída em 27/11 |
+| T-0034 | Página inicial = Painel Executivo; Login, Senha, Usuários e Parcial no BC3 | concluida (#146 3a453d1, web 0.5.0; simulação aprovada pelo po por delegação) | modulo-web + testes | — | — | concluída em 27/11 |
 | T-0035 | Pacote por farol (ADR 0003) | concluida (#131 eefb9fd, #132 479e83d v0.4.0, #133 bea0c0b, #134 767a389; pico de 64 MB de 512 no /saude) | engenheiro-software + modulo-web + modulo-robo + testes | — | — | concluída em 26/11; o robô chega à produção pela rotina diária |
-| T-0045 | Visitas da Máxima no site (opção C: navegador num cron job do Render; a senha só como segredo criado pelo Alexandre) — ADR 0004 | aguardando_alexandre (ADR 0004 em engenheiro-software/T-0045-visitas-render 070411c; decisões R-20261126-224331) | engenheiro-software + modulo-robo + modulo-web + testes + alexandre (governança: render.yaml) | — | — | design primeiro; o código depois das decisões |
-| T-0046 | Limpeza interna da web (RD-0046 a RD-0050, RD-0053 a RD-0055, RD-0061) | aberta | modulo-web + testes | — | — | depois da T-0034 |
-| — | Farol de Fretes com edição (passo 5) | aberta | — | — | — | próxima leva (decisão de 26/11) |
+| T-0045 | Visitas da Máxima no site (opção C) — ADR 0004 | em_andamento (desenho #137 no main; rota modulo-rota/T-0045-visitas-nucleo 274d23a; web modulo-web/T-0045-visitas 8d7368f (0.6.0) em revisão; o robô em nuvem/ espera o donos.json do Alexandre; render.yaml é governança) | engenheiro-software + modulo-robo + modulo-rota + modulo-web + testes | — | — | simulação da tela ao po por delegação |
+| T-0046 | Limpeza interna da web (RD-0046 a RD-0050, RD-0053 a RD-0055, RD-0061 e os 🟢 das revisões da T-0033/T-0034; texto do AVISO_CARTOES; faixa vazia nas abas Aderência e Cliente a cliente do Visita) | aberta | modulo-web + testes | — | — | depois da T-0034 |
+| T-0036 | Faróis do Analista (Saldo, Markup, Preço, Divergências) e perfis analista e trade | em_andamento (sessão de tarefa v2 session_01QvB2SU9Wtp5KdywcGtq7PR; branches *T-0036-*; status em docs/status/T-0036-sessao.md) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + testes | — | — | simulação ao po por delegação |
+| T-0037 | Farol de Fretes com edição | em_andamento (sessão de tarefa v2 session_01QvB2STi3xq4ykrr1HFRGBM; branches *T-0037-*; status em docs/status/T-0037-sessao.md) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + testes | — | — | simulação ao po por delegação |
+| T-0047 | Faixas de cor do PC, robô e site no manual (CHIP_SLA, FAIXA_PCT_META, _FAIXA_ATING_WEB, #E5F3DF com texto verde, #FFF1C7, #FBDDDA/#B3261E; selo neutro #E3E8E4/#5E6B63; sem nível grave, R-20261127-010314) | aberta | modulo-farois + modulo-robo + modulo-web + testes | — | — | depois da T-0033 (lista em recados/anexos/T-0033/marca-tons.md) |
 
 **Previsões:** a hora é a do último status do gerente ao po, e cada "Status HHhMM" do po leva a hora nova e o motivo quando ela muda (R-20261120-092924-alexandre).
 
 **Tarefas à parte (sem número ainda):** cobrança usar `relatorios_nucleo.sem_documento` (modulo-posvenda); tela do PC usar `solicitacao_bap.tipos_colunas` (modulo-farois); RD-0030 (filtro de linhas copiado da tela); RD-0031 (fuso de Manaus em 3 funções); RD-0014 (constante 000040).
 
-**Reservas:** T-0036 a T-0044 seguem reservadas pelo plano R-20261126-175814; a próxima tarefa livre é a T-0047. A próxima ADR livre é a 0005 (a 0004 é a da T-0045).
+**Reservas:** T-0036 a T-0044 seguem reservadas pelo plano R-20261126-175814; a próxima tarefa livre é a T-0048. A próxima ADR livre é a 0006 (0004 = T-0045, 0005 = config pela web). O próximo RD livre é o RD-0123.
 
 **Legenda de status:** aberta · em_andamento · em_teste · em_revisao · aguardando_alexandre · concluida · bloqueada.
