@@ -89,6 +89,8 @@ def criar_app() -> FastAPI:
     modelos.env.filters["manaus"] = fmt_manaus
     modelos.env.filters["hhmm"] = hhmm
     modelos.env.filters["manaus_curto"] = fmt_manaus_curto
+    modelos.env.globals["kpi_curto"] = tabelas.kpi_curto
+    modelos.env.globals["titulo_cel"] = tabelas.TITULO_CEL
     modelos.env.filters["fone"] = cobranca.fone_bonito
     modelos.env.globals["ocultas"] = tabelas.colunas_ocultas      # T-0020: coluna que só repete outra
     modelos.env.globals["no_popup"] = tabelas.colunas_no_popup    # T-0028: colunas que só aparecem no popup
@@ -385,6 +387,7 @@ def criar_app() -> FastAPI:
             tab["fora_base"] = {"qtd": len(fora_base), "mostrar": mostrar_fora} if fora_base else None
             # T-0024 (R3, R4): grade × popup e a dica da busca dos faróis do lote 2 (GRADE, contrato tela-bc3 §6.2)
             tab["grade"] = tabelas.GRADE.get((rid, t["titulo"]))
+            tabelas.aplicar_rotulos(tab, rid)                  # T-0036: sem unidade repetida no título da coluna
             tab["dica_busca"] = tabelas.dica_busca(rid, t["titulo"], len(t["linhas"]))
             sel = selecao(t, tab, consulta)              # um clique no pedido: as de baixo só com ele (PC)
             juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None)

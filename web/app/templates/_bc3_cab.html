@@ -12,7 +12,7 @@
 {% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
 <header class="bc3-faixa">
   <div class="bc3-tt">
-    <h1>{{ farol_nome }}</h1>
+    {% if titulo_cel.get(rid) %}<h1 title="{{ farol_nome }}"><span class="r-pc">{{ farol_nome }}</span><span class="r-cel">{{ titulo_cel[rid] }}</span></h1>{% else %}<h1>{{ farol_nome }}</h1>{% endif %}
     {% if gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}"><span class="q-pc">{{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}</span><span class="q-cel">{{ gerado_em|manaus_curto }}</span></span>{% endif %}
     {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
     {% if lista_uf %}
@@ -24,7 +24,7 @@
   </div>
   {% if ks %}
   <div class="bc3-ks">
-    {% for k in ks %}<div class="bc3-k t-{{ k.cor }}"><small>{{ k.rot }}</small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
+    {% for k in ks %}<div class="bc3-k t-{{ k.cor }}"><small title="{{ k.rot }}"><span class="r-pc">{{ k.rot }}</span><span class="r-cel">{{ kpi_curto(k.rot) }}</span></small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
   </div>
   {% elif aviso_kpis is defined and aviso_kpis %}<p class="bc3-aviso-k">{{ aviso_kpis }}</p>{% endif %}
 </header>

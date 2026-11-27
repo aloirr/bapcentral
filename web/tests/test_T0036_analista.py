@@ -323,7 +323,7 @@ def test_RN_GER_011_grade_nos_quatro_farois_sem_rolagem_lateral(com_analista):
     for (rid, titulo), cols in tabelas.COLUNAS_RID.items():
         g = tabelas.GRADE[(rid, titulo)]
         nomes = [n for n, _, o in cols if not o]
-        assert len(g["grade"]) <= 10 and len(g["cel"]) == 4 and g["chave"] in g["grade"], (rid, titulo)
+        assert len(g["grade"]) <= 10 and len(g["cel"]) in (3, 4) and g["chave"] in g["grade"], (rid, titulo)
         assert set(g["grade"]) <= set(nomes) and set(g["cel"]) <= set(nomes), (rid, titulo)
     for rid in RIDS_NOVOS:
         for chave, _ in tabelas.ABAS[rid]:
@@ -336,9 +336,13 @@ def test_T0036_abas_curtas_e_dica_da_busca_por_farol(com_analista):
     for curto in (">Pedido", ">Cidade<", ">Todos<", ">Produto<"):
         assert curto in h
     assert "Por pedido" not in h
-    for rid, dica in tabelas.DICA_FAROL.items():
-        assert f'placeholder="{dica}"' in com_analista.get(f"/farol/{rid}?aba={tabelas.ABAS[rid][0][0]}").text
-    assert len(tabelas.DICA_FAROL["vc_markup"]) <= 24                 # cabe a 1366 px sem corte
+    for rid in RIDS_NOVOS:
+        for chave, titulo in tabelas.ABAS[rid]:
+            dica = tabelas.DICA_BUSCA[(rid, titulo)]                 # uma dica por (farol, aba); sem DICA_FAROL
+            assert f'placeholder="{dica}"' in com_analista.get(f"/farol/{rid}?aba={chave}").text
+            assert len(dica) <= 26, dica                              # cabe a 1366 px sem corte
+    assert not hasattr(tabelas, "DICA_FAROL")
+    assert tabelas.DICA_BUSCA[("vc_saldo", "Pedido a pedido")] == "Buscar pedido ou vendedor"
 
 
 def test_T0036_faixa_com_no_maximo_seis_numeros(com_analista):
@@ -364,3 +368,19 @@ def test_T0036_casca_com_a_marca_bap(com_analista):
     h = com_analista.get("/farol/vc_saldo").text
     assert 'class="bc3-marca"' in h and "logo_bap.png" in h and "BAP AUTOPARTS" in h
     assert com_analista.get("/static/logo_bap.png").content[:4] == b"\x89PNG"
+
+
+def test_T0036_faixa_do_celular_com_rotulo_curto_e_titulo_inteiro_no_title(com_analista):
+    h = com_analista.get("/farol/an_divergencias?aba=divergentes").text
+    assert '<span class="r-cel">Na base</span>' in h and 'title="Clientes na base (Planner)"' in h
+    assert '<span class="r-cel">Divergências Planner × Protheus</span>' in h
+    assert tabelas.kpi_curto("Faturamento NOV") == "Fat. NOV" and tabelas.kpi_curto("Markup") == "Markup"
+    assert dict(tabelas.ABAS["an_divergencias"])["sem_coordenada"] and \
+        tabelas.rotulo_aba("an_divergencias", "Sem coordenada / endereço") == "Sem coord."
+    assert tabelas.GRADE[("an_divergencias", "Clientes divergentes")]["cel"] == ("COD", "CIDADE", "SITUAÇÃO")
+
+
+def test_T0036_titulo_da_coluna_sem_a_unidade_do_numero(com_analista):
+    h = com_analista.get("/farol/vc_markup?aba=pedido").text
+    assert ">VENDA<" in h and ">MARKUP<" in h and "R$ VENDA" not in h and "MARKUP %" not in h
+    assert "% DESC. COM." not in com_analista.get("/farol/vc_saldo?aba=pedido").text

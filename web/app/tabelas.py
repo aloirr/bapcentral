@@ -127,7 +127,7 @@ ROTULO_ABA = {
                                        ("Total BAP", "Total"), ("Reajustes por produto", "Reajustes"),
                                        ("Pesquisa de mercado", "Pesquisa"))},
     **{("an_divergencias", t): c for t, c in (("Por vendedor", "Vendedor"), ("Clientes divergentes", "Divergentes"),
-                                              ("Sem coordenada / endereço", "Sem coordenada"))},
+                                              ("Sem coordenada / endereço", "Sem coord."))},
 }
 
 
@@ -897,7 +897,7 @@ def _cabecalho(t, vista):
     cols = t["colunas"]
     # T-0022: com cabeçalho agrupado (Farol de Metas) vale o nome curto, como na tela do PC
     nome = lambda k: (cols[k].get("curto") if t.get("grupos") and cols[k].get("curto") else cols[k]["nome"])  # noqa: E731
-    return [{"i": k, "nome": nome(k), "rot": ROTULO_COLUNA.get(nome(k), nome(k)), "tipo": cols[k]["tipo"],
+    return [{"i": k, "nome": nome(k), "tipo": cols[k]["tipo"],
              "num": cols[k]["tipo"] in NUM_TIPOS,
              "inteira": bool(cols[k].get("inteira")), "livre": cols[k]["nome"] in LIVRES} for k in vista]
 
@@ -1103,8 +1103,8 @@ DICA_BUSCA = {
 
 def dica_busca(rid: str, titulo: str, n_linhas: int) -> str | None:
     """None = o texto padrão (faróis antigos); "" = sem caixa de busca; senão, a dica do que a 1ª coluna mostra."""
-    if rid in DICA_FAROL:                   # T-0036: faróis do Analista, sempre com busca
-        return DICA_FAROL[rid]
+    if rid in RIDS_ANALISTA:                # T-0036: faróis do Analista, sempre com busca (dica por aba)
+        return DICA_BUSCA.get((rid, titulo), "Buscar")
     if rid not in FAROIS_LIVRES:
         return None
     if n_linhas <= SEM_BUSCA_ATE:
@@ -1169,15 +1169,60 @@ GRADE.update({
                                             ("VENDEDOR", "SUPERVISOR", "CARTEIRA PLANNER", "BATE?")),
     ("an_divergencias", "Clientes divergentes"): _g("COD", ("COD", "LOJA", "CIDADE", "UF", "VENDEDOR PLANNER",
                                                             "VENDEDOR PROTHEUS (A1_VEND)", "SITUAÇÃO", "O QUE FAZER"),
-                                                    ("COD", "VENDEDOR PLANNER", "SITUAÇÃO", "O QUE FAZER")),
+                                                    ("COD", "CIDADE", "SITUAÇÃO")),
     ("an_divergencias", "Sem coordenada / endereço"): _g(
         "CÓD.", ("CÓD.", "LOJA", "O QUE FALTA", "NA ROTA DO MÊS", "UF", "CIDADE", "VENDEDOR PLANNER", "CURVA",
                  "SITUAÇÃO", "PONTO"), ("CÓD.", "VENDEDOR PLANNER", "SITUAÇÃO", "O QUE FALTA")),
 })
-# T-0036: a dica da busca é uma por farol e nomeia o que a pessoa acha (sem cliente por nome: RN-GER-011)
-DICA_FAROL = {"vc_saldo": "Buscar código ou produto", "vc_markup": "Buscar pedido ou código",
-              "vc_preco": "Buscar código ou produto", "an_divergencias": "Buscar código ou cidade"}
-# T-0036: rótulo da coluna na tela; o nome do contrato (e o Excel) continua o do PC
+# T-0036 (UX 2ª passada, D): as dicas dos faróis do Analista moram na DICA_BUSCA, por (farol, aba), como as do lote 2;
+# nunca cliente por nome (RN-GER-011)
+RIDS_ANALISTA = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
+DICA_BUSCA.update({
+    ("vc_saldo", "Pedido a pedido"): "Buscar pedido ou vendedor", ("vc_saldo", "Por vendedor"): "Buscar vendedor",
+    ("vc_saldo", "Por supervisor"): "Buscar supervisor", ("vc_saldo", "Por UF"): "Buscar UF",
+    ("vc_markup", "Por pedido"): "Buscar pedido ou código", ("vc_markup", "Por UF"): "Buscar UF",
+    ("vc_markup", "Por cidade"): "Buscar cidade", ("vc_markup", "Por supervisor"): "Buscar supervisor",
+    ("vc_markup", "Por vendedor"): "Buscar vendedor", ("vc_markup", "Por categoria"): "Buscar categoria",
+    ("vc_markup", "Por sistema"): "Buscar sistema", ("vc_markup", "Por família"): "Buscar família",
+    ("vc_markup", "Por linha"): "Buscar linha", ("vc_markup", "Por produto"): "Buscar produto",
+    ("vc_markup", "Todos os produtos"): "Buscar produto",
+    ("vc_preco", "Por categoria"): "Buscar categoria", ("vc_preco", "Por família"): "Buscar família",
+    ("vc_preco", "Total BAP"): "Buscar mês", ("vc_preco", "Reajustes por produto"): "Buscar produto ou família",
+    ("vc_preco", "Pesquisa de mercado"): "Buscar produto ou cidade",
+    ("an_divergencias", "Por vendedor"): "Buscar vendedor", ("an_divergencias", "Clientes divergentes"): "Buscar código ou cidade",
+    ("an_divergencias", "Sem coordenada / endereço"): "Buscar código ou cidade",
+})
+# T-0036 (UX, A): rótulo curto dos números da faixa, só no celular (o inteiro fica no title) e título curto do farol
+KPI_CURTO = {"desconto comercial": "Desc. com.", "saldo do frete": "Frete", "abaixo do mínimo": "Abaixo mín.", "queda após reajuste": "Queda pós-reaj.",
+             "clientes na base (planner)": "Na base", "vendedor diferente": "Vend. diferente",
+             "sem vendedor no planner": "Sem vendedor", "fora da base do planner": "Fora da base",
+             "código duplicado": "Duplicados"}
+TITULO_CEL = {"an_divergencias": "Divergências Planner × Protheus"}
+
+
+def kpi_curto(rot: str) -> str:
+    r = str(rot or "")
+    if r.lower() in KPI_CURTO:
+        return KPI_CURTO[r.lower()]
+    return "Fat. " + r[12:] if r.lower().startswith("faturamento ") else r
+
+
+# T-0036 (UX, C): o título da coluna não repete a unidade que o número já mostra ("R$ 100", "10,0%")
+ROTULO_COLUNA = {"VENDEDOR PROTHEUS (A1_VEND)": "VENDEDOR PROTHEUS"}
+_UNIDADE = re.compile(r"^(?:R\$ |% )|(?: %| R\$)$")
+
+
+def aplicar_rotulos(tab: dict, rid: str) -> None:
+    """Põe `rot` (o que a tela escreve) nas colunas: sem a unidade e sem o nome do campo do Protheus. O contrato e o
+    Excel seguem com o nome do PC."""
+    if rid not in RIDS_ANALISTA:
+        return
+    for c in tab.get("cols") or []:
+        n = c.get("nome", "")
+        r = ROTULO_COLUNA.get(n)
+        if r is None and c.get("tipo") in ("moeda", "moeda2", "pct", "pct1"):
+            r = _UNIDADE.sub("", n).strip() or n
+        c["rot"] = r or n
 ROTULO_COLUNA = {"VENDEDOR PROTHEUS (A1_VEND)": "VENDEDOR PROTHEUS"}
 
 
