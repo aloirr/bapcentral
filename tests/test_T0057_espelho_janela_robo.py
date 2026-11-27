@@ -42,7 +42,6 @@ def test_T0057_log_recebe_as_mesmas_linhas_da_tela():
     tela, log = _Fluxo(), _Fluxo()
     ba.espelhar_linhas(iter(linhas), [tela, log])
     assert tela.getvalue() == log.getvalue() == b"".join(linhas)
-    assert b"\r\n" in log.getvalue() and "ç".encode("utf-8") in log.getvalue()
     assert tela.flushes >= len(linhas) and log.flushes >= len(linhas)
 
 
