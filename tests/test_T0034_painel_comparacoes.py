@@ -7,13 +7,13 @@ líquido > 0) e RN-GER-007 (hoje fora do DU; projeção = real ÷ DU fechados ×
 
 Dado real: as bases congeladas do repositório, com hoje = 24/11/2026, pelo caminho do robô
 (`relatorios_nucleo.montar` → `bap_automation.montar_pacote_web`). O histórico do Diretor
-(RELATORIOS/painel_diretor_hist.json, base congelada) é lido de uma cópia temporária.
+(RELATORIOS/painel_diretor_hist.json, base congelada) vai para a cópia do `tests/conftest.py`.
 
 - Pacote × fechamento real: a comparação "out" de cada cartão é o número do mesmo cartão no
   Painel de outubro fechado (e "set" o de setembro, "jul (bench.)" o de julho).
 - Pacote × regra: a variação mostrada é a conta do PC (`painel_rrm.v_pct`, `v_pp`, `v_n`,
   `v_min`) sobre o número do cartão e o da comparação, dentro do arredondamento do texto.
-- Web × pacote × PC: a web da T-0034 (cópia descartável de `web/`, ou de BAP_TESTE_WEB) mostra
+- Web × pacote × PC: a web da T-0034 (no main desde o #146; cópia descartável de `web/`, ou de BAP_TESTE_WEB) mostra
   em cada cartão a comparação que o PC desenha (`painel_rrm`). Sem a web da T-0034 (sem
   `render.faixa_painel`) ou sem fastapi, esses testes são pulados com o motivo.
 
@@ -31,7 +31,7 @@ from pathlib import Path
 import pytest
 
 import bap_automation as ba
-import painel_diretor as pdr
+import painel_rrm as prm
 import relatorios_nucleo as rn
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -69,24 +69,23 @@ def _cartoes_pc(rel):
     return out
 
 
+def _painel_rrm_direto():
+    """{visao: [cartões]} pelo `painel_rrm.calcular` chamado direto (a conta que o Painel do PC desenha),
+    sem passar pelo `relatorios_nucleo.montar` nem pelo robô."""
+    ctx = rn.Contexto(RAIZ, HOJE, None, {"ANO": str(ANO), "MÊS": str(MES)})
+    dr = prm.calcular(ctx, ANO, MES)
+    return {v: dr[v] for _c, v, _t in ABAS}
+
+
 @pytest.fixture(scope="module")
-def mundo(tmp_path_factory):
-    """(cartões do PC, pacote do robô, {mês fechado: cartões do PC}), tudo das bases congeladas."""
-    mp = pytest.MonkeyPatch()
-    copia = tmp_path_factory.mktemp("hist_T0034") / pdr.ARQ_HIST
-    real = RAIZ / "RELATORIOS" / pdr.ARQ_HIST
-    if real.exists():
-        shutil.copy2(real, copia)
-    original = pdr._hist_path
-    mp.setattr(pdr, "_hist_path", lambda r: copia if Path(r).resolve() == RAIZ.resolve() else original(r))
-    try:
-        rel = _montar(MES)                                   # o mês corrente primeiro (o histórico dele)
-        pac = ba.montar_pacote_web({"vc_painel": rel}, ANO, MES, raiz=RAIZ)
-        fechados = {m: _cartoes_pc(_montar(m)) for m in MESES_COMP}
-    finally:
-        mp.undo()
+def mundo():
+    """(cartões do painel_rrm, cartões do vc_painel montado, pacote do robô, {mês fechado: cartões}), tudo das bases
+    congeladas. O histórico do Diretor vai para a cópia da fixture autouse do conftest."""
+    rel = _montar(MES)                                       # o mês corrente primeiro (o histórico dele)
+    pac = ba.montar_pacote_web({"vc_painel": rel}, ANO, MES, raiz=RAIZ)
+    fechados = {m: _cartoes_pc(_montar(m)) for m in MESES_COMP}
     pac["gerado_em"] = "2026-11-24T08:30:00-04:00"           # o pacote "de hoje" para a web não marcar desatualizado
-    return _cartoes_pc(rel), pac, fechados
+    return _painel_rrm_direto(), _cartoes_pc(rel), pac, fechados
 
 
 def _cartoes_pacote(pac):
@@ -152,17 +151,22 @@ def _comparacoes(c):
 
 # ---------------------------------------------------------------- pacote real (sem a web)
 def test_RN_PAINEL_006_pacote_leva_as_abas_e_o_pc_igual(mundo):
-    """O pacote do robô leva os cartões e as comparações do PC sem mudar nada (número do Diretor bate)."""
-    pc, pac, _f = mundo
+    """O pacote do robô leva os cartões e as comparações do `painel_rrm.calcular` (chamado direto) sem mudar nada,
+    e o vc_painel montado (a tela do PC) também (número do Diretor bate)."""
+    pc, rel, pac, _f = mundo
     web = _cartoes_pacote(pac)
+
+    def chave(cs):
+        return [(c["titulo"], c["valor"], c["legenda"], _comparacoes(c)) for c in cs]
     for _chave, v, _t in ABAS:
-        assert [(c["titulo"], c["valor"], _comparacoes(c)) for c in web[v]] == \
-               [(c["titulo"], c["valor"], _comparacoes(c)) for c in pc[v]], v
+        assert chave(pc[v]), v
+        assert chave(web[v]) == chave(pc[v]), v
+        assert chave(rel[v]) == chave(pc[v]), v
 
 
 def test_RN_PAINEL_007_cada_cartao_tem_a_comparacao_dele_e_nao_a_do_faturamento(mundo):
     """A condição do po: as 3 comparações mudam de cartão para cartão (a simulação repetia R$ 149/237/626 mil)."""
-    _pc, pac, _f = mundo
+    _pc, _rel, pac, _f = mundo
     for _chave, v, _t in ABAS:
         cs = _cartoes_pacote(pac)[v]
         assert all([f[0] for f in c["faixa"]] == ROTULOS for c in cs), v
@@ -176,7 +180,7 @@ def test_RN_PAINEL_007_cada_cartao_tem_a_comparacao_dele_e_nao_a_do_faturamento(
 def test_RN_PAINEL_008_unidade_da_comparacao_e_a_do_cartao(mundo):
     """Positivação em clientes, Pedidos em quantidade, Markup em %, Jornada em hora: a comparação na unidade do cartão,
     e a variação no jeito do indicador (% nos volumes, p.p. nas taxas, minutos nos horários)."""
-    _pc, pac, _f = mundo
+    _pc, _rel, pac, _f = mundo
     var_esperada = {"R$": {"%", "igual"}, "n": {"%", "igual"}, "%": {"p.p.", "igual"},
                     "h": {"min", "igual"}, "min": {"min", "igual"}}
     for _chave, v, _t in ABAS:
@@ -193,7 +197,7 @@ def test_RN_PAINEL_008_unidade_da_comparacao_e_a_do_cartao(mundo):
 def test_RN_PAINEL_009_comparacao_e_o_fechamento_do_mesmo_cartao(mundo):
     """Valor × regra: "out" = o número do mesmo cartão no Painel de outubro fechado ("set" = setembro, "jul" = julho).
     Exceções por regra do PC: TOP 30 (lista do mês corrente) e Inadimplência (foto do dia × fechamento gravado)."""
-    _pc, pac, fechados = mundo
+    _pc, _rel, pac, fechados = mundo
     conferidos = 0
     for _chave, v, _t in ABAS:
         for c in _cartoes_pacote(pac)[v]:
@@ -203,13 +207,13 @@ def test_RN_PAINEL_009_comparacao_e_o_fechamento_do_mesmo_cartao(mundo):
                 fechado = next(x for x in fechados[m][v] if x["chave"] == c["chave"])
                 assert fech == fechado["valor"], (v, c["titulo"], rot, fech, fechado["valor"])
                 conferidos += fech != "—"
-    assert conferidos >= 50, conferidos            # 57 nas bases de 20/11: quase todos os cartões têm os 3 meses
+    assert conferidos >= 50, conferidos            # 57 nas bases congeladas, com hoje = 24/11: quase todos os cartões têm os 3 meses
 
 
 def test_RN_PAINEL_010_variacao_e_a_conta_do_pc(mundo):
     """Valor × regra: a variação = (base ÷ fechamento − 1) nos volumes (base = projeção do mês, RN-GER-007, nos
     projetados), base − fechamento nas taxas (p.p.), em quantidade (TOP 30) e em minutos; o tom diz se melhorou."""
-    _pc, pac, _f = mundo
+    _pc, _rel, pac, _f = mundo
     conferidas = 0
     for _chave, v, _t in ABAS:
         for c in _cartoes_pacote(pac)[v]:
@@ -253,7 +257,7 @@ def web(mundo, tmp_path, monkeypatch):
         pytest.importorskip(m)
     origem = _web_origem()
     if not _web_da_T0034(origem):
-        pytest.skip("a web da T-0034 (render.faixa_painel, modulo-web/T-0034-pagina-inicial) ainda não está em "
+        pytest.skip("a web da T-0034 (render.faixa_painel, #146) não está em "
                     f"{origem}; rode com BAP_TESTE_WEB=<pasta web da branch>")
     copia = tmp_path / "web"
     shutil.copytree(origem / "app", copia / "app", ignore=shutil.ignore_patterns("__pycache__"))
@@ -277,7 +281,7 @@ def web(mundo, tmp_path, monkeypatch):
                     follow_redirects=False).status_code == 303
     assert cli.post("/senha", data={"atual": SENHA0, "nova": SENHA1, "confirma": SENHA1, "csrf": tok("/senha")},
                     follow_redirects=False).status_code == 303
-    r = cli.post("/api/pacote", json=mundo[1], headers={"Authorization": f"Bearer {TOKEN}"})
+    r = cli.post("/api/pacote", json=mundo[2], headers={"Authorization": f"Bearer {TOKEN}"})
     assert r.status_code == 200, r.text
     yield cli
     cli.__exit__(None, None, None)
@@ -303,7 +307,7 @@ def _cartoes_da_tela(h):
 def test_RN_PAINEL_011_web_T0034_mostra_em_cada_cartao_a_comparacao_do_pc(web, mundo):
     """Web × pacote × PC: o rótulo, o número e as 3 comparações de cada cartão são os do Painel do PC (painel_rrm);
     os 3 primeiros levam o número à faixa do topo (RD-0063)."""
-    pc, _pac, _f = mundo
+    pc, _rel, _pac, _f = mundo
     for chave, v, _t in ABAS:
         h = web.get(f"/painel?aba={chave}").text
         tela = _cartoes_da_tela(h)
