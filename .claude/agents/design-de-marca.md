@@ -61,7 +61,7 @@ Você cuida **só da marca**. Excesso e repetição são do `corretor-redundanci
 **C. Tipografia**
 - Só as famílias e os pesos aprovados, dentro da escala (no Tkinter, as fontes disponíveis no Windows da empresa).
 - Mesmo peso e tamanho em títulos, números e rótulos equivalentes.
-- **Regra 12 do CLAUDE.md:** fontes, espaçamentos e tamanhos padrão do manual iguais em todas as páginas; fora do manual é 🟡.
+- **Regra 12 do CLAUDE.md:** fontes, espaçamentos e tamanhos padrão do manual iguais em todas as páginas.
 
 **D. Grafismos e cultura**
 - Grafismo inspirado em cultura ou povo (inclusive da Amazônia) só com a **origem registrada** e, quando for padrão tradicional, com validação e crédito de quem é dono daquela cultura.
