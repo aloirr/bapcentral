@@ -67,6 +67,7 @@ from pathlib import Path
 AQUI = Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
 
+import relatorios_nucleo                                   # noqa: E402
 import visitas_nucleo as vn                               # noqa: E402
 
 URL_LOGIN = os.environ.get("BAP_MAXIMA_LOGIN",
@@ -306,28 +307,22 @@ class Cancelado(Exception):
 # o que baixar
 # =========================================================================
 def indice_do_pc(raiz, de: date, ate: date) -> dict:
-    """{AAAAMMDD: iso} do PC para os dias de `de` a `ate` que TEM arquivo:
-    a hora do _baixados.json ou, em arquivo posto a mao, a do arquivo (a
-    mesma leitura de vn.baixado_em). Alimenta vn.dias_a_baixar (RN-VIS-002)."""
+    """{AAAAMMDD: iso} dos dias fechados no PC entre `de` e `ate`. A leitura
+    "arquivo do dia -> hora da baixa" e a do nucleo (vn.dia_fechado e
+    vn.baixado_em); aqui so se monta o indice para vn.dias_a_baixar."""
     ind = {}
     for d in vn.dias_entre(de, ate):
-        arq = vn.arquivo_do_dia(raiz, d)
-        if not arq.exists():
-            continue
-        quando = vn.baixado_em(raiz, f"{d:%Y%m%d}", arq)
-        if quando:
-            ind[f"{d:%Y%m%d}"] = quando.isoformat()
+        if vn.dia_fechado(raiz, d):
+            chave = f"{d:%Y%m%d}"
+            ind[chave] = vn.baixado_em(
+                raiz, chave, vn.arquivo_do_dia(raiz, d)).isoformat()
     return ind
-
-
-def hoje_manaus() -> date:
-    return datetime.now(vn.FUSO_MANAUS).date()
 
 
 def plano(raiz, de: date, ate: date, refazer=False, hoje: date | None = None):
     """([dias], [(ano, mes)]) que precisam ser baixados. Os dias vêm da
     função única do núcleo (RN-VIS-002), a mesma da nuvem."""
-    hoje = hoje or hoje_manaus()
+    hoje = hoje or relatorios_nucleo.hoje_manaus()
     ate = min(ate, hoje)
     dias = vn.dias_a_baixar(indice_do_pc(raiz, de, ate), de, ate, hoje,
                             refazer)
