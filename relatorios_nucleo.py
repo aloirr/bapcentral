@@ -1761,7 +1761,7 @@ def _tabela_cond(it):
 # amarelo (parcial), abaixo de 50% vermelho.
 def CHIP_SLA():                                         # noqa: N802
     return [(bd.PRAZO_FATURAR - 1, "#E5F3DF", "#2F7D32"),
-            (bd.PRAZO_FATURAR, "#FFF1C7", "#8A5A00"),
+            (bd.PRAZO_FATURAR, "#FFF4D6", "#8A5A00"),
             (4, "#FDECEA", "#B42318"),
             (None, "#B42318", "#FFFFFF")]
 
@@ -14496,10 +14496,13 @@ def tom_aderencia(pct):
 
 
 def faixa_aderencia():
-    """A mesma regra no formato do chip em faixa (ate, fundo, texto)."""
-    # cores do manual da marca (docs/marca/manual.md, 4.2: alerta/atencao/ok)
-    return [(ADERENCIA_AMARELO - 0.0001, "#FDECEA", "#B42318"),
-            (ADERENCIA_VERDE - 0.0001, "#FFF4D6", "#8A5A00"),
+    """O mesmo corte do tom (< 50, < 80), no formato do chip em faixa
+    (ate, fundo, texto): o limite sai de tom_aderencia, nunca de um numero
+    solto. Cores do manual da marca (docs/marca/manual.md, 4.2)."""
+    import math                                         # noqa: PLC0415
+    # a faixa e "valor <= ate": o maior float abaixo do corte = "< corte"
+    return [(math.nextafter(ADERENCIA_AMARELO, 0), "#FDECEA", "#B42318"),
+            (math.nextafter(ADERENCIA_VERDE, 0), "#FFF4D6", "#8A5A00"),
             (None, "#F0F7EC", "#2F7D32")]
 
 
@@ -19356,13 +19359,13 @@ LINHA_PINTADA = ("pv_pedidos", "vc_markup", "vc_saldo")
 # (21/10) Farol de Visita: % META (>= 100 verde, >= 80 amarelo, abaixo
 # vermelho) e DU SEM VISITA (0 sem cor, 1 a 2 amarelo, 3 ou mais vermelho)
 FAIXA_PCT_META = [(79.9999, "#FDECEA", "#B42318"),
-                  (99.9999, "#FFF1C7", "#8A5A00"), (None, "#E5F3DF", "#2F7D32")]
-FAIXA_DU_SEM = [(0, None, None), (2, "#FFF1C7", "#8A5A00"),
+                  (99.9999, "#FFF4D6", "#8A5A00"), (None, "#E5F3DF", "#2F7D32")]
+FAIXA_DU_SEM = [(0, None, None), (2, "#FFF4D6", "#8A5A00"),
                 (None, "#FDECEA", "#B42318")]
 COLUNAS_SINAL = ("SITUAÇÃO", "STATUS", "PRAZO", "ETAPA", "FAIXA",
                  "SITUAÇÃO PRAZO", "LEITURA", "SLA NCC")
 _VERM = ("#FDECEA", "#B42318")
-_AMAR = ("#FFF1C7", "#8A5A00")
+_AMAR = ("#FFF4D6", "#8A5A00")
 _VERD = ("#E5F3DF", "#2F7D32")
 CORES_SINAL = {
     **{k: _VERM for k in ("ATRASADA", "ATRASADO", "VENCIDO", "INADIMPLENTE",

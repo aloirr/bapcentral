@@ -65,12 +65,12 @@ VERDE = "#59BA61"          # o verde da marca
 VERDE_ESCURO = "#2F7D32"   # texto verde (legivel no branco)
 VERDE_CLARO = "#E5F3DF"    # fundo de linha boa
 CINZA_CAB = "#E4E7E3"      # o cabecalho (no lugar do preto BAP)
-CINZA_LINHA = "#D5DAD4"
+CINZA_LINHA = "#E3E8E4"
 FUNDO = "#F3F4F2"          # o gelo do fundo
 CARTAO = "#FFFFFF"
 ZEBRA_CLARA = "#F6F7F6"     # (08/10) a linha cinza bem clara da zebra
 TEXTO = "#1E2722"
-SUAVE = "#69736D"
+SUAVE = "#5E6B63"
 VERMELHO = "#B42318"
 VERMELHO_CLARO = "#FDECEA"
 AMARELO = "#B7791F"
@@ -86,7 +86,7 @@ FAIXA_ABAS_HOVER = "#DAE6D6"
 CORES = {"ok": VERDE_ESCURO, "alerta": VERMELHO, "atencao": AMARELO,
          "info": TEXTO, "neutro": TEXTO}
 # fundo da LINHA da tabela: tons bem leves, so para o olho achar o estado
-FUNDOS = {"ok": "#F0F7EC", "alerta": "#FCEFEE", "atencao": "#FFF8E6",
+FUNDOS = {"ok": "#F0F7EC", "alerta": "#FDECEA", "atencao": "#FFF4D6",
           "info": "#FFFFFF", "azul": "#EAF1FB", "cinza": "#F1F2F0",
           "grave": "#F6C9C4"}
 FUNDO_GRAVE = "#F6C9C4"
@@ -457,7 +457,7 @@ PALETAS_RRM = {
               "alerta": "#B42318", "barra": "#8FA79A",
               "ok_b": "#2F7D32", "atencao_b": "#B7791F",
               "alerta_b": "#B42318", "filete": "#59BA61",
-              "branco": "#FFFFFF", "borda": "#D5DAD4"},
+              "branco": "#FFFFFF", "borda": "#E3E8E4"},
 }
 PALETA_RRM = os.environ.get("BAP_PALETA_RRM", "CLARO")   # (10/11) Alexandre: C
 _PAL = PALETAS_RRM.get(PALETA_RRM, PALETAS_RRM["VERDE"])
@@ -1306,10 +1306,10 @@ class Tabela(tk.Frame if tk else object):
                 t_ = linha[c["chip_tom"]] if c["chip_tom"] < len(linha) \
                     else ""
                 cores = {"ok": ("#E5F3DF", "#2F7D32"),
-                         "atencao": ("#FFF1C7", "#8A5A00"),
+                         "atencao": ("#FFF4D6", "#8A5A00"),
                          "alerta": ("#B42318", "#FFFFFF"),
                          # (06/11) o SLA que parou de contar (fechada)
-                         "cinza": ("#E4E7E4", "#69736D")}.get(t_)
+                         "cinza": ("#E4E7E4", "#5E6B63")}.get(t_)
                 if not cores:
                     cv.create_text(w - 8, h / 2, text=txt, anchor="e",
                                    fill=TEXTO, font=fonte(self._tam))
@@ -2009,7 +2009,7 @@ class GraficoBarras(tk.Canvas if tk else object):
 
 PIZZA_CORES = ("#1F5A28", "#2F7D3A", "#59BA61", "#8FD08F", "#C4E6C2",
                "#7A8F80", "#B9C4BC", "#DDE3DC")
-ATING_FUNDO = (("#FDE0DE", "#A3201A"), ("#FFF1C7", "#8A5A00"),
+ATING_FUNDO = (("#FDE0DE", "#A3201A"), ("#FFF4D6", "#8A5A00"),
                ("#DDF2DF", "#1E6B2A"))
 
 
@@ -3701,7 +3701,7 @@ CINZA_TEXTO = "#2E3330"
 VERDE_INICIO = "#F4FAF1"    # o comeco da linha
 VERDE_TEXTO = "#1F3B22"
 VERDE_NUMERO = "#2F9E44"
-ATING_CORES = (("#FDE0DE", "#A3201A"), ("#FFF1C7", "#8A5A00"),
+ATING_CORES = (("#FDE0DE", "#A3201A"), ("#FFF4D6", "#8A5A00"),
                ("#DDF2DF", "#1E6B2A"))
 RECURSOS = Path(__file__).resolve().parent / "SISTEMA BAP" / "recursos"
 # O CABECALHO DE TODOS OS PDFs EXPORTADOS (no lugar da area: Vendas e CRM,

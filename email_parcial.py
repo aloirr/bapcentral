@@ -118,7 +118,7 @@ def _cor_rv(txt) -> str:
         v = float(t)
     except ValueError:
         return ""
-    return "color:#B3261E;font-weight:700;" if v <= 0 else \
+    return "color:#B42318;font-weight:700;" if v <= 0 else \
         f"color:{VERDE};font-weight:700;"
 
 
