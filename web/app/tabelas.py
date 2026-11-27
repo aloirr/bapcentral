@@ -207,6 +207,12 @@ COLUNAS: dict[str, list] = {
                   _c("REGISTRADO EM")],
 }
 # T-0023 v2 (§10.10.2): colunas por (rid, título), nunca só pelo título ("Por vendedor" existe no Visita e na NCC)
+def _agrupa_ncc(nome):
+    """Os 3 agrupamentos da NCC (§10.10.2): só muda a coluna do agrupamento."""
+    return [_c(nome), _c("NCC", "int"), _c("CLIENTES", "int"), _c("0-30 DIAS", "moeda"), _c("31-90 DIAS", "moeda"),
+            _c("91-180 DIAS", "moeda"), _c("+180 DIAS", "moeda"), _c("SALDO", "moeda"), _c("COMPENSAR JÁ", "moeda")]
+
+
 COLUNAS_RID: dict[tuple[str, str], list] = {
     ("pl_garantias", "Garantias"): [
         _c("STATUS"), _c("RESULTADO ANÁLISE"), _c("TICKET"), _c("DT. SOLICITAÇÃO", "data"),
@@ -260,19 +266,7 @@ COLUNAS_RID: dict[tuple[str, str], list] = {
         _c("SUPERVISOR", "texto", True), _c("NCC", "int"), _c("SALDO", "moeda"), _c("NCC MAIS ANTIGA (DIAS)", "int"),
         _c("TÍTULOS EM ABERTO", "moeda"), _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")
     ],
-    ("pl_ncc", "Por filial"): [
-        _c("FILIAL"), _c("NCC", "int"), _c("CLIENTES", "int"), _c("0-30 DIAS", "moeda"), _c("31-90 DIAS", "moeda"),
-        _c("91-180 DIAS", "moeda"), _c("+180 DIAS", "moeda"), _c("SALDO", "moeda"), _c("COMPENSAR JÁ", "moeda")
-    ],
-    ("pl_ncc", "Por vendedor"): [
-        _c("VENDEDOR"), _c("NCC", "int"), _c("CLIENTES", "int"), _c("0-30 DIAS", "moeda"), _c("31-90 DIAS", "moeda"),
-        _c("91-180 DIAS", "moeda"), _c("+180 DIAS", "moeda"), _c("SALDO", "moeda"), _c("COMPENSAR JÁ", "moeda")
-    ],
-    ("pl_ncc", "Por supervisor"): [
-        _c("SUPERVISOR"), _c("NCC", "int"), _c("CLIENTES", "int"), _c("0-30 DIAS", "moeda"),
-        _c("31-90 DIAS", "moeda"), _c("91-180 DIAS", "moeda"), _c("+180 DIAS", "moeda"), _c("SALDO", "moeda"),
-        _c("COMPENSAR JÁ", "moeda")
-    ],
+    **{("pl_ncc", f"Por {k}"): _agrupa_ncc(k.upper()) for k in ("filial", "vendedor", "supervisor")},
 }
 # colunas que nunca vão, por tabela (§10.10.3, bloco `colunas-fora-por-tabela`): a web recusa o pacote que as traz
 FORA_POR_TABELA = {("pl_garantias", "Garantias"): frozenset({"CONTATO CLIENTE"})}
@@ -1159,9 +1153,9 @@ GRADE.update({
 GRADE.update({
     ("pl_garantias", "Garantias"): {
         "chave": "TICKET", "cel": ("TICKET", "CLIENTE", "STATUS", "SLA ATUAL"),
-        "grade": ("TICKET", "CLIENTE", "CIDADE", "STATUS", "RESULTADO ANÁLISE", "DT. SOLICITAÇÃO", "DT. FECHAMENTO",
+        "grade": ("TICKET", "CLIENTE", "STATUS", "RESULTADO ANÁLISE", "DT. SOLICITAÇÃO", "DT. FECHAMENTO",
                   "SLA ATUAL", "PRAZO"),
-        "blocos": (("Cliente", ("CÓD. CLIENTE",)), ("Produto", ("CÓD. PRODUTO", "QTD")))},
+        "blocos": (("Cliente", ("CÓD. CLIENTE", "CIDADE")), ("Produto", ("CÓD. PRODUTO", "QTD")))},
     ("pl_garantias", "Histórico de compra"): {
         "chave": "NF", "cel": ("NF", "FANTASIA", None, "VALOR"),
         "grade": ("NF", "DT. NF", "PEDIDO", "FANTASIA", "CIDADE", "CÓD. PRODUTO", "DESCRIÇÃO", "QTD", "VALOR",
@@ -1279,7 +1273,7 @@ _RE_COD_NOME = re.compile(r"^\s*(\d+)\s+-\s+(.+)$")
 def cliente_so_nome(tab: dict) -> None:
     """Entregas (UX §3.2): "900001 - NOME" vira só o nome na grade; o código vai ao popup (`cod` da célula)."""
     cols = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
-    if "CLIENTE" not in cols or "NF" not in cols:
+    if "CLIENTE" not in cols or not ({"NF", "NF DEV."} & set(cols)):
         return
     i = cols.index("CLIENTE")
     for ln in tab.get("linhas") or []:

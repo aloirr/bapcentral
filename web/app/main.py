@@ -644,12 +644,28 @@ def criar_app() -> FastAPI:
             return v
         return f"/farol/{rid}"
 
+    def resumo_da_linha(rid, titulo, cols, linha):
+        """Qual linha se edita. Faróis do Pós-venda: a chave e o nome da GRADE, mais a UF ("NCC 901 · CLIENTE ... · PA");
+        os outros: as 6 primeiras colunas, como na T-0021."""
+        g = tabelas.GRADE.get((rid, titulo)) if rid in SEM_ESTADO_AVISO else None
+        nomes = [str(c["nome"]).upper() for c in cols]
+        if not g:
+            return [render.fmt_celula(linha[i], c["tipo"]) for i, c in enumerate(cols)
+                    if not c.get("oculta") and linha[i] not in (None, "")][:6]
+        saida = []
+        for n, rot in ((g["chave"], True), (g["cel"][1], False), ("UF", False)):
+            if n in nomes and not (n == "UF" and g["cel"][1] == "UF"):
+                v = render.fmt_celula(linha[nomes.index(n)], cols[nomes.index(n)]["tipo"])
+                m = tabelas._RE_COD_NOME.match(v)
+                v = m.group(2) if m else v
+                if v:
+                    saida.append(f"{n} {v}" if rot else v)
+        return saida
+
     def form_ctx(rid, titulo, t, aba, k, sit_linha, volta):
         ed = t["edicao"]
         cols, linha = t["colunas"], t["linhas"][k]
         nomes = [c["nome"] for c in cols]
-        resumo = [render.fmt_celula(linha[i], c["tipo"]) for i, c in enumerate(cols)
-                  if not c.get("oculta") and linha[i] not in (None, "")][:6]
         pend = (sit_linha or {}).get("valores") or {} if (sit_linha or {}).get("status") == "pendente" else {}
         campos = []
         for c in edicoes.campos_da_linha(ed, k):
@@ -658,39 +674,30 @@ def criar_app() -> FastAPI:
             ops = list(c["opcoes_linha"])
             if atual and atual not in ops and c["tipo"] == "lista":
                 ops = [atual] + ops                       # como o PC: o valor de hoje entra na lista
-            isos = sorted(edicoes.iso_de_br(x) for x in ops) if c["tipo"] == "data" else []
-            campos.append({"campo": c["campo"], "rotulo": c["rotulo"], "tipo": c["tipo"], "atual": atual,
-                           "atual_iso": edicoes.iso_de_br(atual), "opcoes": ops, "sugestao": c.get("sugestao", ""),
-                           "min": isos[0] if isos else (edicoes.DATA_MIN.isoformat() if c["tipo"] == "data" else ""),
-                           "max": isos[-1] if isos else (edicoes._mais_um_ano(edicoes.hoje_manaus()).isoformat() if c["tipo"] == "data" else ""),
-                           "teto": c.get("max") or edicoes.MAX_TEXTO, "multilinha": bool(c.get("multilinha")),
-                           "pendente": pend.get(c["campo"])})
+            campos.append(edicoes.campo_tela(c, atual, ops, sugestao=c.get("sugestao", ""), pendente=pend.get(c["campo"])))
         liga = next((j for j in t.get("juntas") or [] if j.get("liga")), None)
         ver = f"/farol/{rid}?aba={aba}&sel={k}" if liga and aba else ""      # "Ver pedido", como no PC
         return dict(farol_nome=render.FAROIS[rid][0], rid=rid, tab=titulo, chave=ed["chaves"][k],
-                    acao=ed.get("acao") or "Editar", resumo=resumo, campos=campos, volta=volta,
-                    ver_pedido=ver, sit=sit_linha, noindex=True)
+                    acao=ed.get("acao") or "Editar", resumo=resumo_da_linha(rid, titulo, cols, linha), campos=campos,
+                    volta=volta, ver_pedido=ver, sit=sit_linha, noindex=True)
 
     def novo_ctx(rid, titulo, t, aba, volta, valores=None):
         """O formulário da linha nova (§10.9.2): os campos sem `linhas`, cada um com o `padrao` dele. Sem linha de origem,
-        não há resumo nem "Ver pedido". O ticket sugerido vem do pacote: a web não calcula número."""
+        não há resumo nem "Ver pedido". O ticket sugerido vem do pacote: a web não calcula número. Na volta de um erro,
+        o que a pessoa digitou (`c_`) e o padrão que o formulário mostrou (`p_`) voltam como estavam."""
         ed = t["edicao"]
         valores = valores or {}
-        campos = []
-        for c in edicoes.campos_novos(ed):
-            atual = str(valores.get("c_" + c["campo"], c["padrao_txt"]))
-            ops = list(c["opcoes_linha"])
-            isos = sorted(edicoes.iso_de_br(x) for x in ops) if c["tipo"] == "data" else []
-            campos.append({"campo": c["campo"], "rotulo": c["rotulo"], "tipo": c["tipo"], "atual": atual,
-                           "atual_iso": edicoes.iso_de_br(atual), "opcoes": ops, "sugestao": "",
-                           "min": isos[0] if isos else (edicoes.DATA_MIN.isoformat() if c["tipo"] == "data" else ""),
-                           "max": isos[-1] if isos else (edicoes._mais_um_ano(edicoes.hoje_manaus()).isoformat() if c["tipo"] == "data" else ""),
-                           "teto": c.get("max") or edicoes.MAX_TEXTO, "multilinha": bool(c.get("multilinha")),
-                           "pendente": None, "padrao": c["padrao_txt"], "mostrado": c["padrao_txt"],
-                           "obrigatorio": c["campo"] in edicoes.LUGARES_NOVO.get((rid, titulo), ())})
+        obrig = edicoes.LUGARES_NOVO.get((rid, titulo), ())
+        campos = [edicoes.campo_tela(c, str(valores.get("c_" + c["campo"], c["padrao_txt"])), list(c["opcoes_linha"]),
+                                     padrao=c["padrao_txt"], mostrado=edicoes.mostrado(valores, c),
+                                     obrigatorio=c["campo"] in obrig)
+                  for c in edicoes.campos_novos(ed)]
         return dict(farol_nome=render.FAROIS[rid][0], rid=rid, tab=titulo, chave="", novo=True,
                     acao=ed["novo"]["rotulo"], resumo=[], campos=campos, volta=volta, ver_pedido="", sit=None,
                     noindex=True)
+
+    def volta_ed(volta):
+        return RedirectResponse(volta + ("&" if "?" in volta else "?") + "ed=1", status_code=303)
 
     @app.get("/farol/{rid}/editar", response_class=HTMLResponse)
     async def editar_get(request: Request, rid: str, tab: str = "", chave: str = "", volta: str = "", novo: str = ""):
@@ -702,8 +709,7 @@ def criar_app() -> FastAPI:
         ed = (t or {}).get("edicao")
         if novo == "1":                                 # linha nova (§10.9.2): só onde o pacote traz `edicao.novo`
             if not (isinstance(ed, dict) and ed.get("novo")):
-                return pagina(request, "erro.html", status=404, titulo_erro="Não há linha nova aqui",
-                              msg="Esta tabela não aceita linha nova. Volte ao farol.")
+                return pagina(request, "erro.html", status=404, titulo_erro=edicoes.TITULO_SEM_NOVO, msg=edicoes.MSG_SEM_NOVO)
             return pagina(request, "editar.html", erro="", aviso="", **novo_ctx(rid, tab, t, aba, volta))
         k = edicoes.linha_da_chave(ed, chave[:80]) if isinstance(ed, dict) else None
         if k is None:
@@ -742,16 +748,15 @@ def criar_app() -> FastAPI:
                            valores=mudou, antes=antes)
         except OSError:
             log.error("edição: falha ao gravar a fila")
-            return pagina(request, "editar.html", status=503, erro="Não foi possível gravar agora. Tente de novo.",
+            return pagina(request, "editar.html", status=503, erro=edicoes.MSG_FALHA_FILA,
                           aviso="", **form_ctx(rid, tab, t, aba, k, sit, volta))
         cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba or "-", "editar")
-        return RedirectResponse(volta + ("&" if "?" in volta else "?") + "ed=1", status_code=303)
+        return volta_ed(volta)
 
     async def editar_novo(request, u, rid, tab, t, aba, ed, f, volta):
         """POST da linha nova (§10.9.2): vai só o que difere do `padrao`, mais o ticket; chave NOVO-xxxxxxxx; `antes.ticket`."""
         if not (isinstance(ed, dict) and ed.get("novo")):
-            return pagina(request, "erro.html", status=409, titulo_erro="Não há linha nova aqui",
-                          msg="Esta tabela não aceita linha nova. Volte ao farol.")
+            return pagina(request, "erro.html", status=409, titulo_erro=edicoes.TITULO_SEM_NOVO, msg=edicoes.MSG_SEM_NOVO)
         valores, antes, erro = edicoes.valores_do_novo(ed, f, edicoes.LUGARES_NOVO.get((rid, tab), ()))
         if erro:
             return pagina(request, "editar.html", status=400, erro=erro, aviso="",
@@ -761,10 +766,10 @@ def criar_app() -> FastAPI:
                            valores=valores, antes=antes, novo=True)
         except OSError:
             log.error("edição: falha ao gravar a fila")
-            return pagina(request, "editar.html", status=503, erro="Não foi possível gravar agora. Tente de novo.",
+            return pagina(request, "editar.html", status=503, erro=edicoes.MSG_FALHA_FILA,
                           aviso="", **novo_ctx(rid, tab, t, aba, volta, f))
         cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba or "-", "editar-novo")
-        return RedirectResponse(volta + ("&" if "?" in volta else "?") + "ed=1", status_code=303)
+        return volta_ed(volta)
 
     @app.get("/farol/{rid}/linhas", response_class=HTMLResponse)
     @app.get("/farol/{rid}", response_class=HTMLResponse)

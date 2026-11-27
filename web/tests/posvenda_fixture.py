@@ -11,9 +11,9 @@ from app import tabelas
 
 HOJE = date(2026, 11, 24)
 BAIXADO = "2026-11-24T08:10:00-04:00"
-TOM = {"ok": ["#F0F7EC", "#2F7D32"], "atencao": ["#FFF4D6", "#8A5A00"], "alerta": ["#FDECEA", "#B42318"]}
+TOM = {"cinza": ["#EEEEEA", "#5F6360"], "ok": ["#F0F7EC", "#2F7D32"], "atencao": ["#FFF4D6", "#8A5A00"], "alerta": ["#FDECEA", "#B42318"]}
 CHIP = {"ABERTO": TOM["atencao"], "EM TRATATIVA": TOM["atencao"], "FINALIZADA": TOM["ok"], "ATRASADA": TOM["alerta"],
-        "NO PRAZO": TOM["ok"], "SLA ATRASADO": TOM["alerta"], "NO SLA": TOM["ok"], "ATENÇÃO": TOM["atencao"],
+        "NO PRAZO": TOM["ok"], "FECHADA NO PRAZO": TOM["cinza"], "FECHADA COM ATRASO": TOM["cinza"], "SLA ATRASADO": TOM["alerta"], "NO SLA": TOM["ok"], "ATENÇÃO": TOM["atencao"],
         "PENDENTE": TOM["atencao"], "PROCEDENTE": TOM["ok"], "IMPROCEDENTE": TOM["alerta"]}
 CIDADES = [("MANAUS", "AM"), ("BELÉM", "PA"), ("SÃO LUÍS", "MA"), ("BOA VISTA", "RR"), ("CUIABÁ", "MT")]
 FILIAL_DE = {"AM": "FILIAL AM", "PA": "FILIAL PA", "MA": "FILIAL MA", "RR": "FILIAL RR", "MT": "FILIAL MT"}
@@ -80,12 +80,17 @@ def _kpi(rot, valor, cor="neutro", det=""):
     return {"rotulo": rot, "valor": valor, "cor": cor, "detalhe": det}
 
 
-def _painel(titulo, rotulos, valores, formato):
-    return {"blocos": [
-        {"tipo": "insights", "titulo": "O que o farol diz", "row": 0, "col": 0,
-         "linhas": [["info", f"{titulo}: números de exemplo, todos fictícios."]]},
-        {"tipo": "hbarras", "titulo": titulo, "row": 0, "col": 1, "colspan": 2, "formato": formato,
-         "rotulos": rotulos, "valores": valores, "cores": ["#62BB47"] * len(rotulos)}]}
+def _painel(titulo, rotulos, valores, formato, tempo=False, insights=None):
+    """Como o PC: o ranking (hbarras) ou o gráfico no tempo (barras), sem cor solta (a web usa a do tema)."""
+    graf = ({"tipo": "barras", "row": 0, "col": 1, "colspan": 2,
+             "grafico": {"titulo": titulo, "rotulos": rotulos, "formato": formato,
+                         "series": [{"nome": titulo, "valores": valores}]}} if tempo else
+            {"tipo": "hbarras", "titulo": titulo, "row": 0, "col": 1, "colspan": 2, "formato": formato,
+             "rotulos": rotulos, "valores": valores})
+    if insights == []:                                   # NCC: sem painel no PC, só os gráficos (§10.10.1)
+        return {"blocos": [{**graf, "col": 0, "colspan": 3}]}
+    return {"blocos": [{"tipo": "insights", "titulo": "O que o farol diz", "row": 0, "col": 0,
+                        "linhas": [["info", t] for t in (insights or ["Números de exemplo, todos fictícios."])]}, graf]}
 
 
 # ------------------------------------------------------------------ Garantias
@@ -109,11 +114,11 @@ def garantias_registros() -> list[dict]:
             "RESULTADO ANÁLISE": "PENDENTE" if aberta else ("PROCEDENTE" if i <= 10 else "IMPROCEDENTE"),
             "DT. SOLICITAÇÃO": _iso(sol), "DT. FECHAMENTO": _iso(fech),
             "SLA ATUAL": (HOJE - sol).days if aberta else 18 + i % 4,
-            "PRAZO": "ATRASADA" if atrasada else ("NO PRAZO" if aberta else "FINALIZADA"),
+            "PRAZO": "ATRASADA" if atrasada else ("NO PRAZO" if aberta else ("FECHADA NO PRAZO" if i <= 10 else "FECHADA COM ATRASO")),
             "CÓD. PRODUTO": f"PROD-{i % 5 + 1:03d}", "DESCRIÇÃO PRODUTO": f"PRODUTO FICTICIO {i % 5 + 1:02d}",
             "QTD": float(1 + i % 3), "PENDÊNCIAS": "AGUARDANDO FOTO" if i == 2 else "",
             "RETORNO DO CLIENTE": "", "VENDEDOR": _vend(i), "SUPERVISOR": _sup(i),
-            "SITUAÇÃO DO PRAZO": "ATRASADA" if atrasada else "NO PRAZO", "TOM SLA": "alerta" if atrasada else "ok",
+            "SITUAÇÃO DO PRAZO": "ATRASADA" if atrasada else "NO PRAZO", "TOM SLA": "alerta" if atrasada else ("ok" if aberta else "cinza"),
             "DT. FECHOU": None if aberta else _iso(fech), "RECLAMAÇÃO": "PEÇA CHEGOU COM DEFEITO" if i == 1 else "",
             "OBSERVAÇÃO": "", "DT. RETORNO": None})
     return out
@@ -309,8 +314,10 @@ def farol_devolucoes() -> dict:
             _tabela(rid, "Por cliente (12 meses)", list(cli.values()), filtros=[]),
             _tabela(rid, "Por produto (12 meses)", list(prod.values()), filtros=[])]
     return {"forma": "farol", "titulo": "Farol de Devolução e Reembolsos", "kpis": kpis,
-            "painel": _painel("Devolvido por vendedor (R$)", list(vend), [v["VALOR"] for v in vend.values()], "moeda"),
-            "insights_painel": [["alerta", f"Valor devolvido: {moeda(val)} em NOV até 24/11."]],
+            "painel": _painel("Valor devolvido (R$) · mês a mês", ["OUT", "NOV"],
+                              [sum(r["VALOR"] for r in reg if r["MÊS"] == m) for m in ("OUT/26", "NOV/26")], "moeda", tempo=True,
+                              insights=[f"Sem motivo informado: {sum(1 for r in nov if not r['MOTIVO'])} notas em NOV."]),
+            "insights_painel": [["alerta", f"Sem motivo informado: {sum(1 for r in nov if not r['MOTIVO'])} notas em NOV."]],
             "avisos": [], "recortes": rec, "tabelas": tabs, "baixado_em": BAIXADO}
 
 
@@ -395,7 +402,7 @@ def farol_ncc() -> dict:
         t["total"] = _soma(t["linhas"], t["colunas"], ("NCC", "CLIENTES") + tuple(IDADES) + ("SALDO", "COMPENSAR JÁ"))
         tabs.append(t)
     return {"forma": "farol", "titulo": "Farol de NCC", "kpis": kpis,
-            "painel": _painel("Saldo por faixa de idade (R$)", IDADES, [sum(r["SALDO"] for r in reg if r["IDADE"] == f) for f in IDADES], "moeda"),
+            "painel": _painel("Saldo por faixa de idade (R$)", IDADES, [sum(r["SALDO"] for r in reg if r["IDADE"] == f) for f in IDADES], "moeda", insights=[]),
             "insights_painel": [], "avisos": [], "recortes": rec, "tabelas": tabs, "baixado_em": BAIXADO}
 
 

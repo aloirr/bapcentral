@@ -462,3 +462,62 @@ def test_T0023_versao_da_web(admin):
 def test_T0023_formulario_aceita_ate_32kb():
     from app import main
     assert main.FORM_MAX == 32 * 1024
+
+
+# ------------------------------------------------------------------ correções da revisão (head 3cc4fe0)
+def test_RN_GER_012_texto_sem_caixa_com_minuscula_reenviado_sem_mudar_da_nada_mudou(admin, amb):
+    """Revisão 🟡 1: a comparação é nos 2 lados no mesmo formato. Valor digitado no PC com minúscula, campo sem `caixa`:
+    reenviar sem mexer dá "Nada mudou", e editar outro campo não carrega o `cod_cliente`."""
+    p = pacote_posvenda()
+    t = p["relatorios"]["pl_garantias"]["tabelas"][0]
+    t["linhas"][0][[c["nome"] for c in t["colunas"]].index("CÓD. CLIENTE")] = "ab123"
+    assert postar(admin, p).status_code == 200
+    campos, form = _form(admin, _link(admin.get(GAR).text))
+    assert "ab123" in form
+    r = admin.post("/farol/pl_garantias/editar", data=dict(campos, c_cod_cliente="ab123"))
+    assert r.status_code == 200 and "Nada mudou" in r.text
+    assert not (amb / "edicoes").exists() or _fila(amb) == []
+    r = admin.post("/farol/pl_garantias/editar", data=dict(campos, c_cod_cliente="ab123", c_pendencias="foto nova"),
+                   follow_redirects=False)
+    assert r.status_code == 303 and _fila(amb)[-1]["valores"] == {"pendencias": "foto nova"}
+
+
+def test_RN_GER_011_removido_em_maiuscula_tambem_recusado(pv, amb):
+    r = pv.post("/farol/pl_garantias/editar", data=dict(_form_gar(pv), c_cod_cliente="x [REMOVIDO] y"))
+    assert r.status_code == 400 and "escreva o texto de novo" in r.text
+    assert not (amb / "edicoes").exists() or _fila(amb) == []
+
+
+def test_RN_GER_012_linha_nova_volta_do_erro_com_datas_e_ticket_mostrado(pv, amb):
+    """Revisão 🟡 2: depois de um 400 a tela traz a data (ISO do navegador) e o `p_ticket` que foi enviado; o reenvio
+    corrigido não leva `dt_solicitacao` em `valores` e mantém o `antes.ticket` do formulário original (pacote atrasado)."""
+    campos, _ = _form(pv, _url_novo(pv))
+    hoje = edicoes.hoje_manaus().isoformat()
+    enviado = dict(campos, c_ticket="", c_cod_cliente="900123", p_ticket="G-0007", c_dt_solicitacao=hoje)
+    r = pv.post("/farol/pl_garantias/editar", data=enviado)
+    assert r.status_code == 400 and "obrigatório" in r.text
+    assert f'name="c_dt_solicitacao" value="{hoje}"' in r.text and 'name="p_ticket" value="G-0007"' in r.text
+    volta = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]*)"', r.text))
+    assert volta["p_ticket"] == "G-0007"
+    ok = pv.post("/farol/pl_garantias/editar", data=dict(volta, c_ticket="G-0013", c_cod_cliente="900123",
+                                                          c_dt_solicitacao=hoje, c_status="ABERTO", c_resultado="PENDENTE"),
+                 follow_redirects=False)
+    assert ok.status_code == 303
+    reg = _fila(amb)[-1]
+    assert "dt_solicitacao" not in reg["valores"] and reg["antes"] == {"ticket": "G-0007"}
+
+
+def test_T0023_edicao_diz_qual_linha_e_sugestao_so_quando_o_ticket_mudou(pv):
+    """UX A3 e RD-0144: a NCC mostra "NCC 901 · NOME · UF" (a GRADE), e a sugestão do ticket não repete o campo."""
+    _, form = _form(pv, _link(pv.get(NCC).text))
+    assert "NCC 901 · CLIENTE FICTICIO 01 · PA" in form
+    novo = pv.get(_url_novo(pv)).text
+    assert "Sugestão do PC" not in novo and "linha nova" not in novo and novo.count("sem CPF, CNPJ, telefone ou e-mail") == 1
+
+
+def test_T0023_devolucoes_grade_so_o_nome_do_cliente_e_codigo_no_popup(pv):
+    """UX A7: a coluna CLIENTE da grade não leva o código ("900001 - NOME"); o código vai ao popup."""
+    h = pv.get(DEV).text
+    corpo = h.split("<tbody>")[1].split("</tbody>")[0]
+    assert "CLIENTE FICTICIO 01" in corpo and "900001 - CLIENTE" not in corpo
+    assert "900001" in h

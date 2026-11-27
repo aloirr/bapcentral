@@ -272,6 +272,33 @@ def hoje_manaus() -> date:
     return agora().date()
 
 
+def data_max(hoje: date | None = None) -> date:
+    """Teto da data livre (§10.9.1): hoje + 1 ano."""
+    return _mais_um_ano(hoje or hoje_manaus())
+
+
+MSG_SEM_NOVO = "Esta tabela não aceita linha nova. Volte ao farol."
+TITULO_SEM_NOVO = "Não há linha nova aqui"
+MSG_FALHA_FILA = "Não foi possível gravar agora. Tente de novo."
+
+
+def campo_tela(c: dict, atual: str, ops: list, hoje: date | None = None, **extra) -> dict:
+    """O campo como o formulário o desenha (Editar e linha nova, uma conta só): valor, opções, min/max da data e teto."""
+    atual_br = br_data(atual) if c["tipo"] == "data" else atual     # volta de um erro: o navegador mandou ISO
+    isos = sorted(iso_de_br(x) for x in ops) if c["tipo"] == "data" else []
+    data = c["tipo"] == "data"
+    return {"campo": c["campo"], "rotulo": c["rotulo"], "tipo": c["tipo"],
+            "atual": atual_br, "atual_iso": iso_de_br(atual_br), "opcoes": ops, "sugestao": "", "pendente": None,
+            "min": isos[0] if isos else (DATA_MIN.isoformat() if data else ""),
+            "max": isos[-1] if isos else (data_max(hoje).isoformat() if data else ""),
+            "teto": c.get("max") or MAX_TEXTO, "multilinha": bool(c.get("multilinha")), **extra}
+
+
+def mostrado(form, c: dict) -> str:
+    """O padrão que o formulário mostrou (hidden `p_<campo>`); sem ele, o do pacote."""
+    return str(form.get("p_" + c["campo"], c["padrao_txt"]))[:80]
+
+
 def _checa(c: dict, bruto: str, atual: str, v_atual, hoje: date) -> tuple[str | None, str | None, str]:
     """Um campo. (valor novo no formato do PC | None se não mudou, o valor de hoje, erro)."""
     rot, tipo = c["rotulo"], c["tipo"]
@@ -279,7 +306,7 @@ def _checa(c: dict, bruto: str, atual: str, v_atual, hoje: date) -> tuple[str | 
     if len(bruto) > (mx if tipo in ("texto", "numero") else 80) + 100:
         return None, None, f"{rot}: valor inválido."
     if tipo == "texto" and c.get("multilinha"):
-        ctrl = _CTRL.search(bruto.replace("\r\n", "\n").replace("\r", "\n").replace("\n", ""))
+        ctrl = _CTRL.search(_norm_texto(bruto).replace("\n", ""))
     else:
         ctrl = _CTRL.search(bruto)
     if ctrl:
@@ -321,11 +348,12 @@ def _checa(c: dict, bruto: str, atual: str, v_atual, hoje: date) -> tuple[str | 
             return None, None, ""
         return fmt_numero(n), fmt_numero(a), ""
     else:                                                       # texto livre (a lista só sugere)
-        v = _norm_texto(bruto)
-        v = v if c.get("caixa") else v.upper()
-        if v == _norm_texto(atual):
+        v, ref = _norm_texto(bruto), _norm_texto(atual)
+        if not c.get("caixa"):                                  # os dois lados no mesmo formato (como o PC)
+            v, ref = v.upper(), ref.upper()
+        if v == ref:
             return None, None, ""                               # regra 1 do texto: sem mudança, o campo não vai
-        if REMOVIDO in v:                                       # regra 4: o original do PC nunca é trocado pelo texto limpo
+        if REMOVIDO.casefold() in v.casefold():                                       # regra 4: o original do PC nunca é trocado pelo texto limpo
             return None, None, f"{rot}: tire o \"{REMOVIDO}\" e escreva o texto de novo."
         if len(v) > mx:
             return None, None, f"{rot}: até {mx} caracteres."
@@ -386,8 +414,7 @@ def valores_do_novo(ed: dict, form: dict, obrigatorios: tuple[str, ...] = (),
         if chave not in form:
             continue
         padrao = c["padrao_txt"]
-        mostrado = str(form.get("p_" + c["campo"], padrao))[:80] if c["campo"] in obrigatorios else padrao
-        if _CTRL.search(mostrado):
+        if c["campo"] in obrigatorios and not RE_CHAVE.match(mostrado(form, c)):
             return {}, {}, f"{c['rotulo']}: valor inválido."
         v_atual = padrao if c["tipo"] != "numero" else (padrao or None)
         v, _a, erro = _checa(c, str(form.get(chave, "")), padrao, v_atual, hoje)
@@ -411,7 +438,7 @@ def valores_do_novo(ed: dict, form: dict, obrigatorios: tuple[str, ...] = (),
             if not v:
                 return {}, {}, f"{c['rotulo']}: obrigatório."
             valores[nome] = v
-        antes[nome] = str(form.get("p_" + nome, c["padrao_txt"]))[:80]
+        antes[nome] = mostrado(form, c)
     return valores, antes, ""
 
 

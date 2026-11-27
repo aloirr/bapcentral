@@ -5,8 +5,8 @@
 {% block faixa %}{{ faixa_simples(acao ~ " · " ~ farol_nome) }}{% endblock %}
 {% block cabeca %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block corpo %}
-<form method="post" action="/farol/{{ rid }}/editar" class="caixa ed-form">
-  <p class="sub">{{ tab }}{% if novo %} · linha nova{% endif %}</p>
+<form method="post" action="/farol/{{ rid }}/editar" class="caixa ed-form{{ ' ed-largo' if campos|length > 6 }}">
+  <p class="sub">{{ tab }}</p>
   {% if resumo %}<p class="ed-resumo">{{ resumo|join(" · ") }}</p>{% endif %}
   {% if sit and sit.status == "pendente" %}<p class="aviso atencao">Aguardando o PC: edição de {{ sit.quando[11:16] }} ({{ sit.quando[8:10] }}/{{ sit.quando[5:7] }}) por {{ sit.usuario }}.</p>
   {% elif sit and sit.status == "erro" %}<p class="aviso alerta">O PC recusou a última edição desta linha{% if sit.motivo %}: {{ sit.motivo }}{% endif %}.</p>{% endif %}
@@ -17,8 +17,11 @@
   <input type="hidden" name="chave" value="{{ chave }}">
   {% if novo %}<input type="hidden" name="novo" value="1">{% endif %}
   <input type="hidden" name="volta" value="{{ volta }}">
+  {% set ns = namespace(longo=false) %}
+  <div class="ed-campos">
   {% for c in campos %}
-  <label class="ed-campo">{{ c.rotulo }}{% if c.obrigatorio %} <small class="ed-obrig">obrigatório</small>{% endif %}
+  {% if c.multilinha and not ns.longo %}{% set ns.longo = true %}<p class="ed-aviso-pessoal">Textos livres: até {{ c.teto }} caracteres, sem CPF, CNPJ, telefone ou e-mail.</p>{% endif %}
+  <label class="ed-campo{{ ' ed-longo' if c.multilinha }}">{{ c.rotulo }}{% if c.obrigatorio %} <small class="ed-obrig">obrigatório</small>{% endif %}
   {% if novo and c.obrigatorio %}<input type="hidden" name="p_{{ c.campo }}" value="{{ c.mostrado }}">{% endif %}
     {% if c.tipo == "lista" %}
     <select name="c_{{ c.campo }}">
@@ -33,18 +36,18 @@
     {% if c.sugestao %}<datalist id="dl-{{ c.campo }}"><option value="{{ c.sugestao }}"></option></datalist><small>Sugestão: {{ c.sugestao }}</small>{% endif %}
     {% elif c.multilinha %}
     <textarea name="c_{{ c.campo }}" rows="3" maxlength="{{ c.teto }}" autocomplete="off">{{ c.atual }}</textarea>
-    <small>até {{ c.teto }} caracteres · sem CPF, CNPJ, telefone ou e-mail</small>
     {% else %}
     <input type="text" name="c_{{ c.campo }}" value="{{ c.atual }}" maxlength="{{ c.teto }}"{% if c.opcoes %} list="dl-{{ c.campo }}"{% endif %} autocomplete="off">
     {% if c.opcoes %}<datalist id="dl-{{ c.campo }}">{% for o in c.opcoes[:300] %}<option value="{{ o }}"></option>{% endfor %}</datalist>{% endif %}
     {% endif %}
-    {% if novo and c.obrigatorio and c.padrao %}<small>Sugestão do PC: {{ c.padrao }}</small>{% endif %}
+    {% if novo and c.obrigatorio and c.padrao and c.atual != c.padrao %}<small>Sugestão do PC: {{ c.padrao }}</small>{% endif %}
     {% if c.pendente is not none %}<small class="ed-pend-txt">Aguardando o PC: {{ c.pendente or "(vazio)" }}</small>{% endif %}
   </label>
   {% endfor %}
+  </div>
   <div class="ed-botoes">
     <button type="submit">Salvar</button>
-    <a href="{{ volta }}">Cancelar</a>
+    <a class="ed-cancelar" href="{{ volta }}">Cancelar</a>
     {% if ver_pedido %}<a class="ed-ver" href="{{ ver_pedido }}">Ver pedido</a>{% endif %}
   </div>
 </form>

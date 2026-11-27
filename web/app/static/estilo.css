@@ -641,7 +641,7 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
 }
 .pop-chave{cursor:default}
 @media(min-width:701px){.bc3-ks:has(>.bc3-k:nth-child(7)) .bc3-k em{display:none}.bc3-ks:has(>.bc3-k:nth-child(7)){gap:6px 26px}}
-@media(max-width:700px){.bc3 .filtros.recortes{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.bc3 .filtros.recortes::-webkit-scrollbar{display:none}.bc3 .filtros.recortes>*{flex:none;white-space:nowrap}}
+@media(max-width:700px){.bc3 .filtros.recortes{flex-wrap:wrap;overflow-x:visible}.bc3 .filtros.recortes>*{flex:none;white-space:nowrap}}
 /* T-0024 (reteste de UX, N1): os gráficos de colunas cabem no cartão, sem rolagem lateral e sem esconder os dias recentes */
 @media(min-width:701px){
   .bc3 .graf .gb,.bc3 .graf .gb-largo,.bc3 .graf .gb-denso{grid-auto-columns:minmax(0,1fr);gap:2px;overflow:hidden;padding-right:0}
@@ -658,3 +658,21 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
   .bc3 .graf .hb-l{grid-template-columns:minmax(60px,46%) 1fr auto}
 }
 .rolagem-dados.sem-rolagem .tab-dados tfoot td:first-child{position:sticky;bottom:0;left:auto}
+
+/* T-0023 v2 (UX R2): rótulo longo do cartão da faixa se divide em vez de vazar */
+@media(max-width:700px){.bc3-k small{hyphens:auto;overflow-wrap:anywhere}}
+/* T-0023 v2 (UX A1/A2/A4): formulário largo (Garantia) em 4 colunas no PC, sem rolar; alvos de 44 px no celular */
+.ed-aviso-pessoal{margin:.4rem 0 0;font-size:.75rem;color:var(--suave);grid-column:1/-1}
+.ed-cancelar{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1px solid var(--borda);border-radius:8px;color:var(--texto);text-decoration:none;font-weight:600}
+.ed-botoes{display:flex;gap:.6rem;align-items:center;margin-top:.8rem}
+@media(min-width:701px){
+  .ed-form.ed-largo{max-width:none}
+  .ed-largo .ed-campos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 1rem}
+  .ed-largo .ed-campo{margin:.3rem 0}
+  .ed-largo .ed-campo select,.ed-largo .ed-campo input,.ed-largo .ed-campo textarea{max-width:none}
+  .ed-largo .ed-longo{grid-column:span 2}
+  .ed-largo .ed-longo textarea{min-height:3.2rem}
+}
+@media(max-width:700px){
+  .ed-botoes button,.ed-botoes .ed-cancelar,.bc3-ed a.bt-ed,.ed-campo input,.ed-campo select{min-height:44px}
+}
