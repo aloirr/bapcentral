@@ -16486,6 +16486,7 @@ def divergencias_clientes(ctx):
         gravar_correcao(ctx, destino, chaves)
     r["exportar_correcao_json"] = lambda chaves=None: \
         correcao_json(ctx, chaves)
+    r["correcao_linhas"] = lambda chaves=None: correcao_linhas(ctx, chaves)
     return r
 
 
@@ -16494,43 +16495,74 @@ def _para_corrigir(ctx, chaves=None) -> list:
             if chaves is None or (d["cod"], d["loja"]) in chaves]
 
 
+def codigo_do_cliente(texto_cliente) -> str:
+    """RN-GER-011: de "001234-01 - NOME" devolve "001234-01" (codigo e
+    loja). Sem o codigo no comeco, "". Nunca devolve o nome."""
+    # formato do Protheus: A1_COD 6 digitos + loja opcional de 2; CPF/CNPJ
+    # so com digitos (11/14) nao casa e devolve ""
+    m = re.match(r"\s*(\d{6}(?:-\d{2})?)(?=\s|$|-)",
+                 "" if texto_cliente is None else str(texto_cliente))
+    return m.group(1) if m else ""
+
+
+# RD-0002: os cabecalhos do Excel de correcao, em um lugar so (o
+# gravar_correcao e o robo usam estes). Com a coluna CLIENTE; o
+# correcao_linhas (RN-GER-011) devolve as linhas sem ela.
+CAB_CORRIGIR = ("A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
+                "A1_VEND ATUAL", "A1_VEND CORRETO", "VENDEDOR CORRETO",
+                "SUPERVISOR", "STATUS PROTHEUS")
+CAB_ANALISAR = ("A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
+                "VENDEDOR NO PLANNER", "A1_VEND ATUAL", "SITUAÇÃO",
+                "O QUE FAZER")
+
+
+def correcao_linhas(ctx, chaves=None) -> dict:
+    """As linhas do Excel de correcao, sem a coluna CLIENTE (RN-GER-011):
+    corrigir = CORRIGIR NO PROTHEUS (10 colunas); analisar = ANALISAR (9).
+    Funcao pura; o gravar_correcao usa as mesmas linhas (com o nome)."""
+    return _correcao_linhas(ctx, chaves, com_nome=False)
+
+
+def _correcao_linhas(ctx, chaves, com_nome) -> dict:
+    pes = _vendedores_do_planner(ctx)
+    corrigir, analisar = [], []
+    for d in _para_corrigir(ctx, chaves):
+        nome = [d["nome"]] if com_nome else []
+        if d["situacao"] in SIT_CORRIGIR:
+            v = d["vend_planner"]
+            corrigir.append([d["filial"], d["cod"], d["loja"], *nome,
+                             d["cidade"], d["uf"], d["vend_protheus"], v,
+                             (pes.get(v) or {}).get("nome", ""),
+                             _sup_nome(ctx, v), d["status_protheus"]])
+        else:
+            analisar.append([d["filial"], d["cod"], d["loja"], *nome,
+                             d["cidade"], d["uf"], d["vend_planner"] or "",
+                             d["vend_protheus"], d["situacao"], d["acao"]])
+    return {"corrigir": corrigir, "analisar": analisar}
+
+
 def gravar_correcao(ctx, destino, chaves=None):
     """O Excel para corrigir o Protheus: CORRIGIR NO PROTHEUS (A1_VEND
     atual -> o do Planner) e ANALISAR (o que nao se resolve trocando o
     A1_VEND). chaves: {(cod, loja)} - so o que estava na tela."""
     from openpyxl import Workbook                       # noqa: PLC0415
     from openpyxl.styles import Font, PatternFill       # noqa: PLC0415
-    pes = _vendedores_do_planner(ctx)
-    divs = _para_corrigir(ctx, chaves)
     wb = Workbook()
     ws = wb.active
     ws.title = "CORRIGIR NO PROTHEUS"
     an = wb.create_sheet("ANALISAR")
-    cab1 = ["A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
-            "A1_VEND ATUAL", "A1_VEND CORRETO", "VENDEDOR CORRETO",
-            "SUPERVISOR", "STATUS PROTHEUS"]
-    cab2 = ["A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
-            "VENDEDOR NO PLANNER", "A1_VEND ATUAL", "SITUAÇÃO", "O QUE FAZER"]
-    for w, cab in ((ws, cab1), (an, cab2)):
+    for w, cab in ((ws, CAB_CORRIGIR), (an, CAB_ANALISAR)):
         for j, x in enumerate(cab, 1):
             c = w.cell(1, j, x)
             c.font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
             c.fill = PatternFill("solid", fgColor="2F7D32")
         w.freeze_panes = "A2"
-    n1 = n2 = 0
-    for d in divs:
-        if d["situacao"] in SIT_CORRIGIR:
-            n1 += 1
-            v = d["vend_planner"]
-            ws.append([d["filial"], d["cod"], d["loja"], d["nome"],
-                       d["cidade"], d["uf"], d["vend_protheus"], v,
-                       (pes.get(v) or {}).get("nome", ""), _sup_nome(ctx, v),
-                       d["status_protheus"]])
-        else:
-            n2 += 1
-            an.append([d["filial"], d["cod"], d["loja"], d["nome"],
-                       d["cidade"], d["uf"], d["vend_planner"] or "",
-                       d["vend_protheus"], d["situacao"], d["acao"]])
+    lin = _correcao_linhas(ctx, chaves, com_nome=True)
+    for linha in lin["corrigir"]:
+        ws.append(linha)
+    for linha in lin["analisar"]:
+        an.append(linha)
+    n1, n2 = len(lin["corrigir"]), len(lin["analisar"])
     for w, larg in ((ws, (11, 9, 7, 36, 22, 5, 14, 16, 34, 30, 15)),
                     (an, (11, 9, 7, 36, 22, 5, 18, 14, 26, 90))):
         for j, x in enumerate(larg, 1):
