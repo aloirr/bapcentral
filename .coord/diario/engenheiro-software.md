@@ -22,3 +22,11 @@
 - 2026-11-27 — T-0023 — 🟡 do revisor: a garantia nova leva antes.ticket (o padrão mostrado); padrão repetido em qualquer rodada vira o garantias.novo_ticket da hora; regra só no contrato §10.9.2, critério 5 com o pacote atrasado
 - 2026-11-27 — T-0023 — §10.10.3: onde o testes procura dado pessoal (padrões em toda string, código de produto só com dígitos fora, inteiro solto de 11 ou 14 dígitos reprova, FONE só no texto livre e nas colunas limpa), a pedido dos testes
 - 2026-11-27 — T-0023 — §10.9.1: MOTIVO_TEXTO_WEB trocado por bap_automation.motivo_texto_web(maximo=None), teto padrão 60, como o robô
+- 2026-11-27 — T-0045 — contrato visitas-nuvem (v1, acréscimos): empate de hora no indice vale a nuvem, com espelho mínimo do juntar_baixado na web e teste de paridade; conferência do lote no site só pelo texto e números das células (zip/XML), DESCOMPRIMIDO_MAX = 50 MB, 413 com SITE_DESCOMPRESSAO e 422 de dado pessoal
+- 2026-11-27 — T-0045 — visitas-nuvem §5: texto no site com a web como fonte única (CODIGOS, SITUACAO, TETO_DIA_TEXTO; código pequeno para o suporte); nomes alinhados à web (DESCOMPRESSAO_MAX, LOTE_BRUTO_MAX, ZIP_MEMBROS_MAX, 413 com DESCOMPRESSAO_TETO, 422 dado pessoal com detalhes); SITE_DESCOMPRESSAO sai (o cron fecha com SITE_RECUSOU)
+- 2026-11-27 — T-0045 — visitas-nuvem §5: DESCOMPRESSAO_TETO volta como código próprio (parcial, sem nova tentativa no dia; SITE_RECUSOU não cobre esse 413), decisão do gerente
+- 2026-11-27 — T-0045 — visitas-nuvem §3.4: 422 de dado pessoal com achados [{coluna, tipo, n}] (até 20, nunca o valor), como a web 134efc8; 413 com codigo DESCOMPRESSAO_TETO conferido
+- 2026-11-27 — T-0045 — visitas-nuvem §3.6: ORD * de 1 a 5 dígitos e ATEND hora com sinal, para acabar com o falso achado de formato (9% dos Espelhos reais), alinhado ao _RX_FORMATO da rota
+- 2026-11-27 — T-0045 — visitas-nuvem §3.6: formato por coluna copiado do _FORMATO_COLUNA e do _RX_FORMATO da rota (7531271): ORD de 1 a 6 dígitos, hora com sinal em INICIO, FIM, ATEND e PER
+- 2026-11-27 — T-0045 — RD-0148: §3.6 do visitas-nuvem diz o formato de cada coluna em palavras e aponta para visitas_nucleo._FORMATO_COLUNA e _RX_FORMATO como fonte, sem copiar regex
+- 2026-11-27 — T-0023 — RD-0156: §10.9.1 sem maximo cita o padrão do núcleo (relatorios_nucleo.MAX_TEXTO_PADRAO), não mais 60 de edicoes.MAX_TEXTO
