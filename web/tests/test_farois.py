@@ -112,11 +112,11 @@ def test_rotulo_nao_quebra_no_meio_do_numero():
 
 def test_menu_4_itens_e_indisponivel(admin):
     postar(admin, pacote_farol())
-    h = admin.get("/").text
-    for n in ("Farol de Pedidos", "Farol de Visita", "Farol de Entregas", "Farol de Inadimplência"):
+    h = admin.get("/painel").text                                       # T-0034: o menu é a barra lateral
+    for n in ("Pedidos", "Visita", "Entregas", "Inadimplência"):
         assert n in h
     assert 'href="/farol/pl_inadimplencia"' in h and 'href="/farol/pv_pedidos"' not in h
-    assert 'class="quadro indisp"' in h and "ainda não disponível" not in h.lower()      # RD-0040: o quadro cinza basta
+    assert 'class="indisp"' in h and "Sem dados hoje" in h and "ainda não disponível" not in h.lower()
     r = admin.get("/farol/pv_pedidos")
     assert r.status_code == 200 and "Este farol não veio no último pacote do PC." in r.text
 
