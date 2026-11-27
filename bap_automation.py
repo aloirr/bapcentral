@@ -6616,7 +6616,7 @@ _DESCARTAR = object()
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
 # o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
 FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas",
-              "vc_meta")
+              "vc_meta", "pl_fretes")
 # D1 do Alexandre ("2 A", 24/11): grafico e frase com nome de vendedor ou
 # supervisor VAO no pacote (True). Cliente e CNPJ nunca vao. Com False, o
 # grafico e as frases com nome de pessoa saem (1 linha).
@@ -6634,7 +6634,7 @@ _TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
 # `uf_linhas` das tabelas. Visita fica fora: nenhuma tabela traz a UF do
 # cliente, o farol vai sem recortes e com aviso.
 _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
-                       "pl_entregas": "Entregas"}
+                       "pl_entregas": "Entregas", "pl_fretes": "Notas com frete"}
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
 _TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
 # bloco tabela com coluna de pessoa/cliente nunca vai (regra 6)
@@ -6738,7 +6738,10 @@ _FONTE_BAIXADO_WEB = {
     "vc_visitas": (Path(SUBPASTA_RELATORIOS) / "Visitas",
                    "VISITAS_POR_CLIENTE.xlsx"),
     # Metas (T-0022): nasce dos mesmos Movimentos do Protheus (ftPedidos)
-    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")}
+    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    # Fretes (T-0037): notas VND dos mesmos Movimentos
+    "pl_fretes": (Path(BKP_BAPTOOLS),
+                  "Relatorio_Movimentos_BAP_Protheus_*.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
@@ -7515,7 +7518,7 @@ _CORTES_FAROL_WEB = {
 # sair inteira. [SUPOSICAO] colunas nao sao cortadas: o `tons`, os recortes e
 # a edicao apontam para o indice delas.
 _FRACOES_ENTREGAS_WEB = (0.75, 0.5, 0.25)
-RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas")
+RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas", "pl_fretes")
 # colunas que nunca vao (sem acento, maiusculas), em qualquer tabela/junta/sub-aba
 _COLUNAS_FORA_WEB = frozenset({
     "TELEFONE", "CELULAR", "WHATSAPP", "CNPJ", "CPF", "E-MAIL", "EMAIL",
@@ -7526,17 +7529,28 @@ _ABAS_TABELAS_WEB = {
     "pl_entregas": ("Entregas",),
     "vc_visitas": ("Por supervisor", "Por vendedor", "Dia a dia",
                    "Aderência dia a dia", "Cliente a cliente", "Prospecção",
-                   "Indicação")}
+                   "Indicação"),
+    "pl_fretes": ("Notas com frete", "Por UF", "Por cidade",
+                  "Por transportadora")}
 TITULO_SOLICITACAO_WEB = "Solicitação BAP"
 # tabelas que o PC carrega com 12 meses e a web recebe so do mes (D2 A)
-_TABELAS_SO_MES_WEB = ("Pedidos", "Entregas")
+# (titulo generico, como "Por UF", entra por par (rid, titulo): T-0037 P1 A)
+_TABELAS_SO_MES_WEB = ("Pedidos", "Entregas", ("pl_fretes", "Notas com frete"),
+                       ("pl_fretes", "Por UF"), ("pl_fretes", "Por cidade"),
+                       ("pl_fretes", "Por transportadora"))
+
+
+def _so_mes_web(rid, titulo) -> bool:
+    return titulo in _TABELAS_SO_MES_WEB or (rid, titulo) in _TABELAS_SO_MES_WEB
 # UF de cada linha (RN-GER-006): (coluna, "filial" = filial da nota |
 # "uf" = UF do cliente)
 _UF_LINHAS_WEB = {
     ("pl_inadimplencia", "Títulos"): ("FILIAL", "filial"),
     ("pv_pedidos", "Pedidos"): ("FILIAL", "filial"),
     ("pl_entregas", "Entregas"): ("UF", "uf"),
-    ("pl_entregas", "Pendências dos meses anteriores"): ("UF", "uf")}
+    ("pl_entregas", "Pendências dos meses anteriores"): ("UF", "uf"),
+    ("pl_fretes", "Notas com frete"): ("UF", "uf"),
+    ("pl_fretes", "Por UF"): ("UF", "uf")}
 
 
 def _c(nome, tipo, oculta=False, selo=None):
@@ -7650,7 +7664,27 @@ _COLUNAS_TABELAS_WEB = {
             _c("CLIENTE QUE INDICOU", "texto"), _c("INDICADO", "texto"),
             _c("CIDADE", "texto"), _c("BAIRRO", "texto"),
             _c("SEGMENTO", "texto"), _c("VISITADA EM", "data"),
-            _c("OBSERVAÇÃO", "texto"), _c("REGISTRADO EM", "texto"))}}
+            _c("OBSERVAÇÃO", "texto"), _c("REGISTRADO EM", "texto"))},
+    "pl_fretes": {
+        "Notas com frete": (
+            _c("MÊS", "texto", True), _c("DATA PED.", "dia"),
+            _c("DATA NF", "dia"), _c("NF", "texto"), _c("FILIAL", "texto"),
+            _c("CLIENTE", "texto"), _c("CIDADE", "texto"),
+            _c("UF", "texto"), _c("VLR NF", "moeda"),
+            _c("VLR FRETE", "moeda"), _c("ETAPA", "texto"),
+            _c("TRANSPORTADORA", "texto"), _c("ENTREGAR ATÉ", "dia"),
+            _c("ENTREGUE", "dia"), _c("SLA ENTREGA", "int"),
+            _c("RESPONSÁVEL", "texto")),
+        "Por UF": (_c("MÊS", "texto"), _c("UF", "texto"),
+                   _c("NOTAS", "int"), _c("VLR NF", "moeda"),
+                   _c("VLR FRETE", "moeda")),
+        "Por cidade": (_c("MÊS", "texto"), _c("CIDADE", "texto"),
+                       _c("NOTAS", "int"), _c("VLR NF", "moeda"),
+                       _c("VLR FRETE", "moeda")),
+        "Por transportadora": (_c("MÊS", "texto"),
+                               _c("TRANSPORTADORA", "texto"),
+                               _c("NOTAS", "int"), _c("VLR NF", "moeda"),
+                               _c("VLR FRETE", "moeda"))}}
 # "Aderência dia a dia": as colunas dos dias mudam com o mes (padrao de nome)
 _ADERENCIA_WEB = ("Aderência dia a dia",
                   r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$",
@@ -7676,6 +7710,7 @@ _COLUNAS_LIMPAS_WEB = {
     ("pv_pedidos", "Analítico produto"): {
         "CLIENTE": "cliente_sem_documento"},
     ("pl_entregas", "Entregas"): {"CLIENTE": "cliente_sem_documento"},
+    ("pl_fretes", "Notas com frete"): {"CLIENTE": "cliente_sem_documento"},
     ("pl_entregas", "Pendências dos meses anteriores"): {
         "CLIENTE": "cliente_sem_documento"},
     ("vc_visitas", "Cliente a cliente"): {
@@ -7866,6 +7901,9 @@ EDICOES_WEB = {
         "aba": "ENTREGAS", "acao": "Editar"},
     ("pl_entregas", "Pendências dos meses anteriores"): {
         "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
+        "aba": "ENTREGAS", "acao": "Editar"},
+    ("pl_fretes", "Notas com frete"): {
+        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
         "aba": "ENTREGAS", "acao": "Editar"}}
 # os campos de cada modulo e o tipo de conferencia no robo
 CAMPOS_EDICAO_WEB = {
@@ -8022,7 +8060,7 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     if len(tons_pc) != len(brutas):
         tons_pc = [""] * len(brutas)
     manter = list(range(len(brutas)))
-    if titulo in _TABELAS_SO_MES_WEB and "MÊS" in nomes_pc:
+    if _so_mes_web(rid, titulo) and "MÊS" in nomes_pc:
         ix_mes = nomes_pc.index("MÊS")
         mes_rot = mes_rot or _mes_padrao(t)
         if not mes_rot:
@@ -8056,7 +8094,7 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     for f in t.get("filtros") or []:
         if (f.get("coluna") if isinstance(f, dict) else f) not in nomes:
             continue
-        if (titulo in _TABELAS_SO_MES_WEB and isinstance(f, dict)
+        if (_so_mes_web(rid, titulo) and isinstance(f, dict)
                 and f.get("coluna") == "MÊS"):
             f = dict(f, oculto=True)      # o pacote so tem o mes: sem caixa
         saida["filtros"].append(f)
