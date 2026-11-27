@@ -9,6 +9,10 @@ Regra: RN-VIS-002. Para cada dia vale a maior hora de baixa entre a nuvem e o
 PC; no empate fica a nuvem (contrato §3.1). Hora sem fuso conta como Manaus.
 O dia fecha quando foi baixado num dia (Manaus) depois dele, e a rodada nunca
 passa de hoje.
+Também RN-VIS-007 (RD-0112, RD-0114): a rede de dado pessoal (`_REDE` /
+`RE_PESSOAL`), os `TIPOS_ACHADO` e as colunas do Espelho que nunca saem
+(`_FORA_DO_ESPELHO` / `COLUNAS_PROIBIDAS`), contra as permitidas
+(`ESPELHO_PERMITIDAS`). Um lado que muda sem o outro reprova.
 
 Pulado, com motivo, enquanto uma das duas branches não estiver no main. Datas
 fictícias, sem dado de cliente.
@@ -159,3 +163,64 @@ def test_RN_VIS_002_intervalo_grande_da_o_mesmo_indice_e_os_mesmos_dias(web_app)
     assert 0 < len(abertos) < len(todos)
     for d in todos:
         assert web_app.visitas.dia_fechado_no_indice(ind, d) == vn.dia_fechado_no_indice(ind, d), d
+
+
+# ------------------------------------------------------------------ a rede de dado pessoal (RN-VIS-007; RD-0112, RD-0114)
+# O cron (rota) e a web varrem o Espelho com a mesma rede (contrato §3.6). A
+# web guarda uma cópia: qualquer mudança de um lado só reprova aqui.
+_AMOSTRAS = (
+    "fulano@exemplo.test", "x.y+z@a-b.c.d", "sem arroba",
+    "12.345.678/0001-90", "12345678000190", "112345678000190", "CNPJ 12.345.678/0001-90 fim",
+    "123.456.789-09", "12345678909", "123456789090", "cpf:12345678909.",
+    "(92) 99123-4567", "92 99123-4567", "9299123-4567", "(92)991234567", "(92) 3233-4444",
+    "99123-4567", "R$ 1.234,56", "16/10/2026", "08:30:00", "000123 FULANO", "", "[removido]",
+)
+
+
+def _rede_rota():
+    rede = getattr(vn, "_REDE", None)
+    if rede is None:
+        pytest.skip("rota sem visitas_nucleo._REDE (modulo-rota/T-0045-visitas-nucleo)")
+    return tuple(rede)
+
+
+def test_RN_VIS_007_rede_de_dado_pessoal_igual_na_rota_e_na_web(web_app):
+    """Mesmos tipos, na mesma ordem, com o mesmo padrão e as mesmas flags, e a
+    mesma resposta numa amostra fictícia (o primeiro tipo que casa)."""
+    rede = _rede_rota()
+    web = web_app.visitas.RE_PESSOAL
+    assert [t for t, _ in rede] == list(web)
+    for tipo, rx in rede:
+        assert web[tipo].pattern == rx.pattern, tipo
+        assert web[tipo].flags == rx.flags, tipo
+    # os nomes do núcleo que a web cita no docstring são os da rede
+    assert [rx for _t, rx in rede] == [vn._RX_EMAIL, vn._RX_CNPJ, vn._RX_CPF, vn._RX_FONE]
+    for s in _AMOSTRAS:
+        r = next((t for t, rx in rede if rx.search(s)), None)
+        w = next((t for t, rx in web.items() if rx.search(s)), None)
+        assert r == w, s
+
+
+def test_RN_VIS_007_tipos_achado_iguais_e_na_mesma_ordem(web_app):
+    rede = _rede_rota()
+    assert tuple(web_app.visitas.TIPOS_ACHADO) == tuple(vn.TIPOS_ACHADO)
+    assert tuple(vn.TIPOS_ACHADO) == tuple(t for t, _ in rede) + ("formato",)
+
+
+def test_RN_VIS_007_colunas_fora_e_permitidas_do_espelho_batem(web_app):
+    """As colunas que nunca saem do Espelho são as mesmas nos dois lados
+    (`_FORA_DO_ESPELHO` na rota, `COLUNAS_PROIBIDAS` na web), e as permitidas
+    (`ESPELHO_PERMITIDAS["colunas"]`) são exatamente o resto das colunas do
+    `ler_espelho`, sem nenhuma proibida."""
+    fora = tuple(vn._FORA_DO_ESPELHO)
+    assert tuple(web_app.visitas.COLUNAS_PROIBIDAS) == fora
+    assert fora == ("KM DIST", "BONIF", "OBSERVACAO")
+    perm = tuple(vn.ESPELHO_PERMITIDAS["colunas"])
+    assert not set(perm) & set(web_app.visitas.COLUNAS_PROIBIDAS)
+    assert perm == tuple(c for c in vn._COLUNAS_ESPELHO if c not in web_app.visitas.COLUNAS_PROIBIDAS)
+    assert set(perm) | set(fora) == set(vn._COLUNAS_ESPELHO)
+    assert tuple(vn.ESPELHO_PERMITIDAS["cabecalho"]) == tuple(vn._ROTULOS_ESPELHO)
+    # se a web um dia tiver a lista das permitidas, ela é a mesma
+    if hasattr(web_app.visitas, "ESPELHO_PERMITIDAS"):
+        assert {k: tuple(v) for k, v in web_app.visitas.ESPELHO_PERMITIDAS.items()} == \
+            {k: tuple(v) for k, v in vn.ESPELHO_PERMITIDAS.items()}

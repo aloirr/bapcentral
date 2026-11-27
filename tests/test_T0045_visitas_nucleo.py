@@ -3,7 +3,9 @@
 Trazido do modulo-rota (branch modulo-rota/T-0045-visitas-nucleo) e revisto
 pelo testes. Regras: RN-VIS-002 (o dia fecha pela hora da baixa, em Manaus;
 vale a baixa mais nova entre a nuvem e o PC) e RN-VIS-007 (o Espelho vai sem
-dado pessoal: só as colunas permitidas; o achado leva o tipo, nunca o valor).
+dado pessoal: só as colunas permitidas; o achado leva o tipo, nunca o valor;
+linha de cliente = cliente ou código de 6 a 8 dígitos, o R9; rodapé e
+formatos válidos não geram achado).
 
 Pulado, com motivo, enquanto a branch da rota não estiver no main. Dados 100%
 fictícios; os arquivos vão para pastas temporárias.
@@ -110,7 +112,7 @@ def test_RN_VIS_007_achar_dado_pessoal_formato():
     assert f("12 / 80%", "numero") is None
     assert f("1.234,56", "numero") is None
     assert f("texto livre", "numero") == "formato"
-    assert f("1000", "ord") == "formato"
+    assert f("1234567", "ord") == "formato"
     assert f(12, "ord") is None
     assert f("qualquer coisa", "texto") is None
 
@@ -200,7 +202,7 @@ def test_RN_VIS_007_rodape_no_meio_da_lista_nao_gera_falso_achado(tmp_path):
     ws.append(["DATA", "CODIGO", "CLIENTE"])
     ws.append(["10/16/2026", "123456", "LOJA A"])
     ws.append(["Pagina 1 de 3", None, None])
-    ws.append([None, "Total: 12", None])
+    ws.append(["Total de visitas: 2", None, None])
     ws.append(["10/16/2026", "654321", "LOJA B"])
     org, dst = tmp_path / "o.xlsx", tmp_path / "d.xlsx"
     wb.save(org)
@@ -208,8 +210,7 @@ def test_RN_VIS_007_rodape_no_meio_da_lista_nao_gera_falso_achado(tmp_path):
     assert rel["achados"] == []
     # as duas lojas, na ordem, dos dois lados do rodapé (o "or True" do
     # original não conferia nada)
-    d = vn.ler_espelho(dst)
-    assert [c["codigo"] for c in d["clientes"]] == ["123456", "654321"]
+    assert [c["codigo"] for c in vn.ler_espelho(dst)["clientes"]] == ["123456", "654321"]
 
 
 def test_RN_VIS_007_cpf_e_telefone_como_numero_em_coluna_de_texto():
@@ -228,3 +229,74 @@ def test_RN_VIS_002_dia_fechado_usa_a_regra_unica(tmp_path):
     assert not vn.dia_fechado(tmp_path, date(2026, 11, 25))
     vn.anotar_baixado(tmp_path, "20261125", datetime(2026, 11, 26, 6, 0))
     assert vn.dia_fechado(tmp_path, date(2026, 11, 25))
+
+
+def test_RN_VIS_007_nomes_que_o_site_espelha():
+    assert vn.TIPOS_ACHADO == ("email", "cnpj", "cpf", "telefone", "formato")
+    assert vn._FORA_DO_ESPELHO == ("KM DIST", "BONIF", "OBSERVACAO")
+    assert not set(vn._FORA_DO_ESPELHO) & set(vn.ESPELHO_PERMITIDAS["colunas"])
+
+
+def test_RN_VIS_007_linhas_so_nome_codigo_curto_e_decimal_continuam(tmp_path):
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["RCA:", "000123 FULANO"])
+    ws.append(["DATA", "CODIGO", "CLIENTE"])
+    ws.append(["10/16/2026", "123456", "LOJA A"])
+    ws.append([None, None, "SO NOME"])
+    ws.append(["10/16/2026", "12345", "LOJA CURTO"])
+    ws.append(["10/16/2026", 123456.0, "LOJA DECIMAL"])
+    org, dst = tmp_path / "o.xlsx", tmp_path / "d.xlsx"
+    wb.save(org)
+    vn.filtrar_espelho(org, dst, limpar_cliente=str, limpar_texto=str)
+    assert len(vn.ler_espelho(org)["clientes"]) == 4
+    assert len(vn.ler_espelho(dst)["clientes"]) == 4
+
+
+def test_RN_VIS_007_linha_de_cliente_cliente_ou_codigo_de_6_a_8():
+    f = vn._linha_de_cliente
+    assert f({"cliente": "SO NOME"})
+    assert f({"codigo": "123456"}) and f({"codigo": "12345678"})
+    assert not f({"codigo": "Total: 12"}) and not f({"codigo": "12345"})
+    assert not f({})
+
+
+def test_RN_VIS_007_formato_aceita_ord_de_5_digitos_e_atend_negativo():
+    f = vn.achar_dado_pessoal
+    assert f("12345", "ord") is None
+    assert f("-0:05:30", "hora") is None
+    assert f("abc", "ord") == "formato"
+    assert f("1234567", "ord") == "formato"
+
+
+def test_RN_VIS_007_rodape_total_na_coluna_codigo_nao_gera_achado(tmp_path):
+    """O "Total: 12" na coluna CODIGO não é cliente nem achado de formato."""
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["RCA:", "000123 FULANO"])
+    ws.append(["DATA", "CODIGO", "CLIENTE"])
+    ws.append(["10/16/2026", "123456", "LOJA A"])
+    ws.append([None, "Total: 12", None])
+    org, dst = tmp_path / "o.xlsx", tmp_path / "d.xlsx"
+    wb.save(org)
+    rel = vn.filtrar_espelho(org, dst, limpar_cliente=str, limpar_texto=str)
+    assert rel["achados"] == []
+    assert [c["codigo"] for c in vn.ler_espelho(dst)["clientes"]] == ["123456"]
+
+
+def test_RN_VIS_007_ord_prev_de_5_digitos_e_atend_negativo_sem_achado_no_espelho(tmp_path):
+    """No Espelho inteiro (filtrar_espelho), ORD PREV com 5 dígitos e ATEND
+    negativo passam sem achado de `formato`."""
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["RCA:", "000123 FULANO"])
+    ws.append(["DATA", "ORD PREV", "INICIO", "ATEND", "CODIGO", "CLIENTE"])
+    ws.append(["10/16/2026", "12345", "08:00:00", "-0:05:30", "123456", "LOJA A"])
+    org, dst = tmp_path / "o.xlsx", tmp_path / "d.xlsx"
+    wb.save(org)
+    rel = vn.filtrar_espelho(org, dst, limpar_cliente=str, limpar_texto=str)
+    assert [a for a in rel["achados"] if a["tipo"] == "formato"] == []
+    assert len(vn.ler_espelho(dst)["clientes"]) == 1
