@@ -7878,17 +7878,13 @@ def devolucoes(ctx):
     return r
 
 
-# (T-0037, P3) Denominador do "% do faturado" do Fretes: False = VND bruto
-# (como sempre foi, pendente de resposta); True = liquido de devolucao.
-FRETES_FATURADO_LIQUIDO = False
-
-
 def kpis_fretes(ls, fat_por_mes_uf) -> list:
     """Os 6 cartoes do Fretes (RN-POS-009). ls = linhas de "Notas com frete"
     (MES=0, CIDADE=6, UF=7, VLR NF=8, VLR FRETE=9, ETAPA=10, TRANSP.=11,
     ENTREGAR ATE=12, ENTREGUE=13, CHAVE=16). fat_por_mes_uf = {(mes, uf): VND}
     de todas as notas do cliente. Denominador: meses visiveis; se as linhas
-    sao de uma UF so, so o faturado dessa UF."""
+    sao de uma UF so, so o faturado dessa UF. Denominador bruto (P3 A); se a
+    P3 for B, montar fat somando _liquido(it) por (mes da NF, UF)."""
     meses_vis = {l[0] for l in ls}
     ufs = {l[7] for l in ls}
     uf_unica = next(iter(ufs)) if len(ufs) == 1 else None
@@ -7921,7 +7917,7 @@ def fretes(ctx):
     cad = tr.carregar(ctx.raiz)
     meses = ultimos_meses(hoje, 12)
     ent = _entregas_por_nf(ctx)
-    por_mes = defaultdict(lambda: [0, 0.0, 0.0])
+    por_mes = defaultdict(int)          # notas com frete por mes
     fat = defaultdict(float)          # {(mes, UF do cliente): faturado}
     linhas, tons = [], []
     for (fil, nf, serie), itens in _pedidos(ctx, "VND").items():
@@ -7931,12 +7927,10 @@ def fretes(ctx):
             continue
         cli = ctx.cliente(i0["cliente"])
         valor = sum(i["valor"] for i in itens)
-        por_mes[rotulo_mes(m)][2] += valor
         fat[(rotulo_mes(m), cli.get("uf", ""))] += valor
         if not bd.e_frete(cli.get("cidade")):
             continue
-        por_mes[rotulo_mes(m)][0] += 1
-        por_mes[rotulo_mes(m)][1] += valor
+        por_mes[rotulo_mes(m)] += 1
         e = ent.get((fil, nf.lstrip("0")), {})
         prazo = ctx.mais_uteis(i0["dt_pedido"],
                                ctx.prazo_entrega(i0["cliente"])) \
@@ -7959,12 +7953,6 @@ def fretes(ctx):
                        texto(e.get("responsavel")), texto(e.get("chave"))])
         tons.append("alerta" if (not entregue and prazo and hoje > prazo
                                  and e) else ("ok" if entregue else ""))
-    if FRETES_FATURADO_LIQUIDO:       # P3 = B: abate as devolucoes
-        for itens in _pedidos(ctx, "DEV").values():
-            m = mes_de(itens[0]["dt_nf"])
-            if m in meses:
-                fat[(rotulo_mes(m), ctx.cliente(itens[0]["cliente"]).get(
-                    "uf", ""))] -= abs(sum(i["valor"] for i in itens))
     linhas.sort(key=lambda x: x[2] or date.min, reverse=True)
     for l in linhas:
         l[3] = l[3].lstrip("0")
@@ -7977,7 +7965,7 @@ def fretes(ctx):
         "titulo": "Mês a mês: notas com frete",
         "rotulos": [rotulo_mes(x) for x in meses],
         "series": [{"nome": "notas", "cor": AZUL,
-                    "valores": [por_mes[rotulo_mes(x)][0] for x in meses]}],
+                    "valores": [por_mes[rotulo_mes(x)] for x in meses]}],
         "formato": "num"})
     cols = [col("MÊS", "texto", 58, oculta=True), col("DATA PED.", "dia", 70),
             col("DATA NF", "dia", 66), col("NF", "texto", 78),
