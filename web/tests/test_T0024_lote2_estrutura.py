@@ -60,7 +60,7 @@ def test_web_mostra_as_abas_reais_para_admin(admin):
 def test_GRADE_do_lote2_tem_ate_10_colunas_e_so_colunas_do_robo():
     p = pacote_lote2()["relatorios"]
     for (rid, titulo), g in tabelas.GRADE.items():
-        if rid not in tabelas.FAROIS_LIVRES:      # a GRADE de Pedidos, Entregas, Inadimplência e Visita é da T-0033
+        if rid not in tabelas.FAROIS_LIVRES:      # Pedidos, Entregas, Inadimplência e Visita: T-0033; Analista: T-0036
             continue
         t = next(x for x in p[rid]["tabelas"] if x["titulo"] == titulo)
         nomes = [c["nome"] for c in t["colunas"] if not c.get("oculta")]

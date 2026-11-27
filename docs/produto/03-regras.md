@@ -46,6 +46,10 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 - SLA de entrega em dias corridos; DT. PREVISTA a partir da data do pedido.
 - RN-POS-005 · Garantia: DT. FECHAMENTO = solicitação + 15 dias úteis.
 - RN-POS-006 · NCC: SLA de 3 dias úteis.
+- RN-POS-007 · Nota com frete: nota VND dos últimos 12 meses, pela data da NF, de cliente fora de `CIDADES_SEM_FRETE`; a UF é a do cliente (RN-GER-006) (T-0037).
+- RN-POS-008 · VLR FRETE: o FRETE REAL informado na entrega; sem ele, VLR NF × % da transportadora (o % da cidade, se houver), com piso no FRETE MÍNIMO; sem transportadora, o % padrão (T-0037).
+- RN-POS-009 · Cartões do Fretes: o "% do faturado" usa o faturado líquido de devolução (RN-GER-002; P3 B, por delegação ao po) e, no recorte por UF, o dos clientes da UF; PC e site mudam juntos (T-0037).
+- RN-POS-010 · Edição do Fretes: só no site e só pelo admin (RN-GER-012); edita a mesma linha da aba ENTREGAS do Farol de Entregas (ETAPA, TRANSPORTADORA, DT. PREVISTA, DT. REAL e RESPONSÁVEL; o VLR FRETE (REAL) só no Farol de Entregas, P2 A); o robô grava com `pos_venda.gravar_edicoes`, só acrescentando no diário; o cadastro de transportadoras é só lido (RN-GER-016) (T-0037).
 - Frete: o mínimo vale quando o % da nota dá menos.
 - RN-POS-001 · Cobrança no WhatsApp (PC e site): a fila é o cliente INADIMPLENTE da aba "Por cliente" com títulos VENCIDOS, ordenada pelo valor em atraso; a mensagem e o número são montados pelo PC (celular: 55 + DDD + 9 dígitos; fixo sai com aviso; número repetido ou ausente fica vazio, com aviso); a pessoa envia pelo link (sem disparo automático).
 - RN-POS-002 · Situação da cobrança: ENVIADO HOJE, ENVIADO dd/mm (menos de 7 dias) ou PULADO HOJE, pelo último registro do cliente em qualquer diário.

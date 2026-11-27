@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import tabelas
+from . import render, tabelas
 from .render import coluna_fora       # RD-0037: a lista de colunas fora (RN-GER-011) é uma só, a do `render`
 from .arquivos import gravar_json
 
@@ -28,7 +28,7 @@ except ImportError:                     # pragma: no cover
 
 MANAUS = ZoneInfo("America/Manaus")
 RID = "pl_inadimplencia"
-VE_TABELAS = ("admin", "pos_venda", "gerente")     # RN-POS-004
+VE_TABELAS = render.LEITURA_GERAL + ("pos_venda",)     # RN-POS-004; T-0036 (RD-0003): o analista lê como o gerente (fora do COBRA)
 COBRA = ("admin", "pos_venda")
 ABAS = (("resumo", "Resumo"), ("titulos", "Títulos"), ("cliente", "Por cliente"),
         ("vendedor", "Por vendedor"), ("supervisor", "Por supervisor"), ("filial", "Por filial"),

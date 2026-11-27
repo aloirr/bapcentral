@@ -192,3 +192,47 @@ def test_UX_A1_grafico_do_resumo_ocupa_a_largura_toda(admin):
 def test_UX_A5_popup_da_nota_diz_NF_em_maiusculas(admin):
     _pacote_ok(admin)
     assert 'data-tit="NF 700101"' in admin.get(URL).text
+
+
+def test_RN_GER_017_analista_ve_o_fretes_como_o_gerente_e_nao_edita(admin):
+    """P1 = A: o analista lê como o gerente (as 4 abas e o Resumo) e não edita (só o admin edita)."""
+    assert "analista" in render.FAROIS["pl_fretes"][1] and "analista" in tabelas.VE_TABELAS["pl_fretes"]
+    assert "analista" not in edicoes.EDITA
+    _pacote_ok(admin)
+    _entrar_como(admin, _criar(admin, "analista"))
+    for aba in ("", "?aba=notas", "?aba=uf", "?aba=cidade", "?aba=transportadora"):
+        assert admin.get("/farol/pl_fretes" + aba).status_code == 200, aba
+    assert 'class="bt-ed"' not in admin.get(URL).text
+    assert admin.get("/farol/pl_fretes/editar?tab=Notas%20com%20frete&chave=x").status_code == 403
+    assert admin.post("/farol/pl_fretes/editar", data={}).status_code == 403
+
+
+def test_RN_POS_009_resumo_do_fretes_titulos_total_frases_e_rotulos_do_pc(admin):
+    """Y5: o Resumo (saída do robô) traz as 3 tabelas "(NOV/26)", o TOTAL igual ao cartão "Notas com frete",
+    as 2 frases e os rótulos do PC; o cartão "Sem transportadora" bate com a linha da tabela."""
+    import re
+    _pacote_ok(admin)
+    html = admin.get("/farol/pl_fretes").text
+    for t in ("Por UF (NOV/26)", "Por cidade (NOV/26)", "Por transportadora (NOV/26)"):
+        assert t in html
+    from fretes_fixture import blocos_resumo, farol_fretes
+    bl, frases = blocos_resumo()
+    kp = {k["rotulo"]: k for k in farol_fretes()["kpis"]}
+    notas = int(kp["Notas com frete"]["valor"])
+    tabs = [b for b in bl if b["tipo"] == "tabela"]
+    assert [b["titulo"] for b in tabs] == ["Por UF (NOV/26)", "Por cidade (NOV/26)", "Por transportadora (NOV/26)"]
+    for b in tabs:
+        assert b["total"][1] == notas == sum(x[1] for x in b["linhas"])                 # TOTAL = cartão
+    assert len({tuple(b["total"]) for b in tabs}) == 1                                  # as 3 fecham igual
+    assert [x[1] for x in frases] == ["PA concentra 56% do valor das notas com frete.",
+                                      "TRANSP. GAMA leva 34% do valor."]
+    for fr in [x[1] for x in frases]:
+        assert fr in html
+    rot = {b["titulo"]: [x[0] for x in b["linhas"]] for b in tabs}
+    assert "Sem UF" in rot["Por UF (NOV/26)"]
+    assert {"SERRA BONITA / Sem UF", "Sem cidade / MA"} <= set(rot["Por cidade (NOV/26)"])
+    por_transp = {x[0]: x[1] for x in next(b for b in tabs if b["titulo"].startswith("Por transp"))["linhas"]}
+    assert por_transp["Sem acompanhamento"] == 1
+    assert por_transp["Sem transportadora"] == int(kp["Sem transportadora"]["valor"]) == 1   # cartão = linha
+    for r in ("Sem UF", "SERRA BONITA / Sem UF", "Sem transportadora", "Sem acompanhamento"):
+        assert r in html and not re.search(r"\(sem\)", html, re.I)

@@ -31,8 +31,8 @@ CASOS = {
     9: ("ENTREGUE", "TRANSP. ALFA", 17, 18, "MOTORISTA FICTICIO 1"),   # entregue 1 dia depois do prazo
 }
 N = len(CASOS)
-SEM_CIDADE = {1}          # nota sem cidade (UF PA): vira "Sem cidade / PA" no Resumo
-SEM_UF = {8}              # nota sem UF: vira "Sem UF" no Resumo
+SEM_CIDADE = {1}          # nota sem cidade (UF MA): vira "Sem cidade / MA" no Resumo
+SEM_UF = {8}              # nota sem UF: vira "Sem UF" e "SERRA BONITA / Sem UF" no Resumo
 
 
 def _nov(d):

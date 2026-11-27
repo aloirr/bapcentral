@@ -10,3 +10,4 @@
 2026-11-27 — T-0045 — web 0.6.0: rotas do cron (concessão, progresso, lote, fim), fila de lotes (edicoes.Fila parametrizada), tetos RN-VIS-008, pausa RN-VIS-005/007, tela Atualizar visitas, /saude.visitas
 2026-11-27 — T-0045 — pareceres: empate=nuvem (espelho do núcleo), teto de descompressão 50 MB (413 DESCOMPRESSAO_TETO), diagnóstico na tela, 9 achados de UX, RD-0114 a 0122, simulação v2
 2026-11-27 — T-0037 — merge do main (web 0.7.0 T-0023 + 0.6.0 T-0045), VERSAO 0.9.0; fixture do Resumo espelha blocos_resumo_fretes_web do robô; simulação v2 por uvicorn
+2026-11-27 — T-0037 — merge do main (T-0036 0.8.0) mantendo VERSAO 0.9.0; UX R1/A1/A5; testes do Resumo e do analista no Fretes
