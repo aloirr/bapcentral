@@ -557,11 +557,12 @@ def _semanas_do_ano(r, ctx, ano, nome, eventos, formato, cor, agg):
 
 def _eventos_faturamento(ctx, liquido=False):
     """[(data da NF, valor)] das vendas; liquido = menos as devolucoes."""
-    ev = [(it["dt_nf"], it["valor"]) for it in ctx.tabela["itens"]
-          if it["tipo"] == "VND"]
-    if liquido:
-        ev += [(it["dt_nf"], -abs(it["valor"])) for it in ctx.tabela["itens"]
-               if it["tipo"] == "DEV"]
+    ev = []
+    for it in ctx.tabela["itens"]:
+        v = _liquido(it) if liquido else (
+            it["valor"] if it["tipo"] == "VND" else None)
+        if v is not None:                    # RN-GER-002: o _liquido
+            ev.append((it["dt_nf"], v))
     return ev
 
 
@@ -1800,6 +1801,32 @@ MAX_TEXTO_PADRAO = 60
 MAX_TEXTO_EDICAO = {("garantias", c): TETO_TEXTO_LONGO
                     for c in ("reclamacao", "pendencias", "retorno_cliente",
                               "observacao")}
+MAX_TEXTO_EDICAO[("garantias", "ticket")] = 40       # RD-0136
+
+# RN-POS-005 e a garantia nova: UMA regra, para a janela do PC, a edicao da
+# web e o robo (RD-0139).
+PADRAO_NOVA_GARANTIA = {"status": "ABERTO", "resultado": "PENDENTE"}
+ORIGEM_GARANTIA_FAROL = "FAROL DE GARANTIAS"
+
+
+def prazo_padrao_txt(dt_solicitacao_txt, fer=()) -> str:
+    """RN-POS-005: a DT. FECHAMENTO padrao (solicitacao + 15 dias uteis,
+    hoje fora) em dd/mm/aaaa; "" sem solicitacao valida."""
+    import garantias as gm                              # noqa: PLC0415
+    d = gm.prazo_padrao(gm.data(dt_solicitacao_txt), fer)
+    return f"{d:%d/%m/%Y}" if d else ""
+
+
+def campos_garantia_a_gravar(campos, fer=(), novo=False) -> dict:
+    """RN-POS-005: o prazo igual ao padrao fica em branco (acompanha a
+    solicitacao); a garantia nova leva a origem do farol. Funcao pura."""
+    saida = dict(campos)
+    if saida.get("dt_prazo") and saida["dt_prazo"] == prazo_padrao_txt(
+            saida.get("dt_solicitacao"), fer):
+        saida["dt_prazo"] = ""
+    if novo:
+        saida["origem"] = ORIGEM_GARANTIA_FAROL
+    return saida
 
 # (T-0023 v2, 10.9.3) os 14 campos da Garantia que a web edita, na ordem do
 # contrato: (campo, rotulo, tipo, coluna da tabela). O contato do cliente
@@ -1834,8 +1861,8 @@ def edicao_garantia(i_col, status, resultados, ticket_padrao="") -> dict:
     com ABERTO, PENDENTE e a data de hoje ("@hoje"). O contato do cliente
     fica fora (dado pessoal)."""
     listas = {"status": list(status), "resultado": list(resultados)}
-    padroes = {"ticket": ticket_padrao, "dt_solicitacao": "@hoje",
-               "status": "ABERTO", "resultado": "PENDENTE"}
+    padroes = {**PADRAO_NOVA_GARANTIA, "ticket": ticket_padrao,
+               "dt_solicitacao": "@hoje"}
     campos = []
     for campo, rotulo, tipo, coluna in CAMPOS_EDICAO_GARANTIA:
         c = {"campo": campo, "rotulo": rotulo, "opcoes": [],
@@ -1848,7 +1875,9 @@ def edicao_garantia(i_col, status, resultados, ticket_padrao="") -> dict:
             c["livre"] = True
             c["mantem_caixa"] = tipo == "longo" or campo == "descricao"
         if tipo == "longo":
-            c.update(multilinha=True, max=max_texto_edicao("garantias", campo))
+            c["multilinha"] = True
+        if max_texto_edicao("garantias", campo) != MAX_TEXTO_PADRAO:
+            c["max"] = max_texto_edicao("garantias", campo)   # RD-0136
         if padroes.get(campo):
             c["padrao"] = padroes[campo]
         campos.append(c)
@@ -7885,14 +7914,14 @@ def devolucoes(ctx):
         meses_vis = {l[0] for l in ls}
         fat = sum(fat_mes[x] for x in meses_vis)
         val = sum(l[8] for l in ls)
+        pd_ = pct_do_liquido(val, fat)                  # RN-GER-002
         com = [l for l in ls if l[18]]
         abertas = sum(1 for l in com if l[11].upper() not in
                       pvm.ENCERRADAS_DEV)
         sem_mot = sum(1 for l in com if l[12] in ("", "(SEM MOTIVO)"))
         return [
             kpi("Devoluções", br(len(ls)), "alerta" if ls else "ok", moeda(val)),
-            kpi("% do faturado", p(pct_do_liquido(val, fat)),
-                "alerta" if (pct_do_liquido(val, fat) or 0) > 3 else "ok",
+            kpi("% do faturado", p(pd_), "alerta" if (pd_ or 0) > 3 else "ok",
                 ""),
             kpi("Clientes", br(len({l[4] for l in ls})), "neutro"),
             kpi("Abertas no acompanhamento", br(abertas),
@@ -9573,12 +9602,12 @@ def _abas_do_painel(ctx, r, d):
     k_res = {k["rotulo"]: k for k in r["kpis"]}
     kpis_fat = [k for k in r["kpis"] if k["rotulo"] not in
                 ("Markup", "Desconto comercial")]
+    pd_ = pct_do_liquido(dev, atual["real"])            # RN-GER-002
     kpis_fat += [
         kpi("M3M", moeda(m3_real) if m3_real is not None else "—",
             tom_var(var_m3), f"projeção {sinal(var_m3)} x média 3 meses"),
         kpi("Devoluções", moeda(dev), "atencao" if dev else "ok",
-            f"{br(pct_do_liquido(dev, atual['real']) or 0, 1)}% do faturado"
-            if pct_do_liquido(dev, atual["real"]) is not None else "")]
+            f"{br(pd_, 1)}% do faturado" if pd_ is not None else "")]
     _ = k_res
     paineis.append({"titulo": "Faturamento", "kpis": kpis_fat,
                     "painel": _grade_painel([
