@@ -7487,13 +7487,35 @@ def _tabela_extra_cobranca_web(t: dict, titulo: str, lista):
 WEB_PACOTE_TETO_MB = 20            # trava do robo (o teto da web e 25: render.yaml)
 WEB_FAROL_TETO_MB = 8              # (T-0035, 10.8.7) formato 2: JSON do farol sem anexos
 _ANEXOS_FAROL_WEB = ("parciais", "csvs_protheus")
+# tetos dos anexos: os MESMOS da web (web/app/pacotes.py); acima deles a web
+# recusa o farol (422), entao o robo tira so o anexo, com aviso (10.8.7)
+MAX_PNG_B64 = 3_000_000            # por imagem de parcial (caracteres base64)
+MAX_CSVS_WEB = 60                  # quantidade de CSVs do Protheus
+MAX_CSV_BYTES_WEB = 200_000        # por CSV (UTF-8)
+MAX_CSVS_TOTAL = 1_500_000         # soma dos CSVs (UTF-8)
+AVISO_PARCIAIS_FORA = ("As parciais em imagem ficaram fora desta "
+                       "atualização (pacote grande). Veja no PC.")
+AVISO_CSVS_FORA = ("Os CSVs do Protheus ficaram fora desta atualização "
+                   "(pacote grande). Veja no PC.")
+AVISO_SOLICITACAO_ABERTO = ("A Solicitação BAP foi reduzida aos pedidos em "
+                            "aberto para caber no pacote.")
+AVISO_JUNTA_ENTREGAS = ("A junta de pendências dos meses anteriores ficou "
+                        "fora desta atualização (pacote grande). Veja no PC.")
+AVISO_ENTREGAS_RECENTES = ("A aba Entregas ficou só com as entregas mais "
+                           "recentes para caber no pacote. Veja o resto no "
+                           "PC.")
 # ordem dos cortes por farol (10.8.7); no fim, qualquer farol perde as `tabelas`
 _CORTES_FAROL_WEB = {
     "pv_pedidos": ("solicitacao_so_em_aberto", "cliente_a_cliente_fora",
                    "tabelas"),
-    "pl_entregas": ("cliente_a_cliente_fora", "tabelas"),
+    "pl_entregas": ("junta_pendencias_fora", "entregas_so_recentes",
+                    "tabelas"),
     "vc_visitas": ("cliente_a_cliente_fora", "tabelas"),
 }
+# Entregas: fatias de linhas (mais recentes primeiro) tentadas antes de a aba
+# sair inteira. [SUPOSICAO] colunas nao sao cortadas: o `tons`, os recortes e
+# a edicao apontam para o indice delas.
+_FRACOES_ENTREGAS_WEB = (0.75, 0.5, 0.25)
 RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas")
 # colunas que nunca vao (sem acento, maiusculas), em qualquer tabela/junta/sub-aba
 _COLUNAS_FORA_WEB = frozenset({
@@ -8241,6 +8263,149 @@ def tabelas_farol_web(rid: str, r: dict, raiz=None):
     return saida, avisos
 
 
+def _limitar_anexos_web(rid: str, farol: dict) -> tuple:
+    """Funcao pura (T-0035, 10.8.7): aplica no robo os tetos de anexo da web.
+    Parcial acima de MAX_PNG_B64 sai (so ela); csvs_protheus fora do teto
+    (quantidade, bytes de um, soma) sai inteiro. Devolve (farol, avisos); sem
+    nada a tirar devolve o proprio `farol` e []. O de entrada nao muda."""
+    avisos, novo = [], None
+    parc = farol.get("parciais")
+    if isinstance(parc, dict):
+        ok = {q: v for q, v in parc.items() if not (
+            isinstance(v, dict) and isinstance(v.get("png"), str)
+            and len(v["png"]) > MAX_PNG_B64)}
+        if len(ok) != len(parc):
+            novo = dict(farol)
+            if ok:
+                novo["parciais"] = ok
+            else:
+                novo.pop("parciais")
+            avisos.append(AVISO_PARCIAIS_FORA)
+    csvs = farol.get("csvs_protheus")
+    if isinstance(csvs, list):
+        tams = [len(str((c or {}).get("conteudo", "")).encode("utf-8"))
+                for c in csvs]
+        if (len(csvs) > MAX_CSVS_WEB
+                or any(n > MAX_CSV_BYTES_WEB for n in tams)
+                or sum(tams) > MAX_CSVS_TOTAL):
+            novo = novo if novo is not None else dict(farol)
+            novo.pop("csvs_protheus", None)
+            avisos.append(AVISO_CSVS_FORA)
+    if novo is None:
+        return farol, []
+    for _a in avisos:
+        log.warning("Pacote web: %s (farol %s).", _a, rid)
+    av = list(novo.get("avisos") or []) + avisos
+    novo["avisos"] = (_avisos_curtos_visita_web(av) if rid == "vc_visitas"
+                      else _ordenar_avisos_web(av))
+    return novo, avisos
+
+
+def _avisar_web(rid: str, rel: dict, texto: str) -> None:
+    """Acrescenta o aviso ao farol `rel` (muda `rel`), na ordem do 10.7.6."""
+    log.warning("Pacote web: %s (farol %s).", texto, rid)
+    av = rel.setdefault("avisos", [])
+    av.append(texto)
+    rel["avisos"] = (_avisos_curtos_visita_web(av) if rid == "vc_visitas"
+                     else _ordenar_avisos_web(av))
+
+
+def _abas_fora_web(rid: str, rel: dict, titulos) -> None:
+    """Junta os titulos no aviso unico de abas fora (contrato 10.7.6)."""
+    pre, pos = AVISO_ABAS_FORA.split("{lista}")
+    av = rel.setdefault("avisos", [])
+    antes = []
+    for a in list(av):
+        if str(a).startswith(pre):
+            antes = [x for x in str(a)[len(pre):-len(pos)].split(", ") if x]
+            av.remove(a)
+    ordem = _ABAS_TABELAS_WEB.get(rid, ())
+    todos = antes + [x for x in titulos if x not in antes]
+    todos.sort(key=lambda x: ordem.index(x) if x in ordem else 99)
+    _avisar_web(rid, rel, AVISO_ABAS_FORA.format(lista=", ".join(todos)))
+
+
+def _corte_solicitacao_web(rid: str, rel: dict) -> None:
+    """Muda `rel` (ja copia): a Solicitacao BAP so com pedidos EM ABERTO."""
+    if rid not in RIDS_TABELAS_WEB:
+        return
+    for t in rel.get("tabelas") or []:
+        if t.get("titulo") != TITULO_SOLICITACAO_WEB:
+            continue
+        for sa in t.get("subabas") or []:
+            nomes = [c["nome"] for c in sa["colunas"]]
+            if "SITUACAO_PEDIDO" not in nomes:
+                continue            # as listas de exclusao vao inteiras
+            i = nomes.index("SITUACAO_PEDIDO")
+            sa["linhas"] = [ln for ln in sa["linhas"]
+                            if str(ln[i]).strip().upper() == "EM ABERTO"]
+            sa["tons"] = [""] * len(sa["linhas"])
+        _avisar_web(rid, rel, AVISO_SOLICITACAO_ABERTO)
+
+
+def _corte_cliente_a_cliente_web(rid: str, rel: dict) -> None:
+    tabs = rel.get("tabelas")
+    if tabs and any(t.get("titulo") == "Cliente a cliente" for t in tabs):
+        rel["tabelas"] = [t for t in tabs
+                          if t.get("titulo") != "Cliente a cliente"]
+        _abas_fora_web(rid, rel, ["Cliente a cliente"])
+
+
+def _corte_tabelas_web(rid: str, rel: dict) -> None:
+    if rel.get("tabelas"):
+        _abas_fora_web(rid, rel, [t.get("titulo") for t in rel.pop("tabelas")])
+
+
+def _corte_junta_entregas_web(rid: str, rel: dict) -> None:
+    """Entregas: tira as juntas (as pendencias dos meses anteriores)."""
+    achou = False
+    for t in rel.get("tabelas") or []:
+        if t.get("titulo") == "Entregas" and t.get("juntas"):
+            t.pop("juntas")
+            achou = True
+    if achou:
+        _avisar_web(rid, rel, AVISO_JUNTA_ENTREGAS)
+
+
+def _data_linha_web(ln, ix_ped, ix_nf) -> str:
+    """Chave de recencia da entrega: DT. PED, senao DT. NF ('' = a mais antiga)."""
+    for ix in (ix_ped, ix_nf):
+        if ix is not None and ix < len(ln) and isinstance(ln[ix], str) \
+                and ln[ix]:
+            return ln[ix]
+    return ""
+
+
+def _corte_linhas_entregas_web(rid: str, rel: dict, cabe) -> None:
+    """Entregas: mantem so as linhas mais recentes (DT. PED), em fatias de
+    _FRACOES_ENTREGAS_WEB, ate `cabe(rel)`. Tira `tons` junto. Se nem a menor
+    fatia couber, devolve a aba na menor fatia (o corte seguinte tira a aba)."""
+    for t in rel.get("tabelas") or []:
+        if t.get("titulo") != "Entregas" or not t.get("linhas"):
+            continue
+        nomes = [c["nome"] for c in t["colunas"]]
+        ix_ped = nomes.index("DT. PED") if "DT. PED" in nomes else None
+        ix_nf = nomes.index("DT. NF") if "DT. NF" in nomes else None
+        base = list(zip(t["linhas"], t.get("tons")
+                        or [""] * len(t["linhas"])))
+        base.sort(key=lambda p: _data_linha_web(p[0], ix_ped, ix_nf),
+                  reverse=True)                     # estavel: mais novas antes
+        total, cortou = len(base), False
+        for fr in _FRACOES_ENTREGAS_WEB:
+            n = max(1, int(total * fr))
+            if n >= total:
+                continue
+            ficam = base[:n]
+            t["linhas"] = [p[0] for p in ficam]
+            t["tons"] = [p[1] for p in ficam]
+            cortou = True
+            if cabe(rel):
+                break
+        if cortou:
+            _avisar_web(rid, rel, AVISO_ENTREGAS_RECENTES)
+        return
+
+
 def _tamanho_pacote_web(pacote: dict) -> int:
     return len(json.dumps(pacote, ensure_ascii=False).encode("utf-8"))
 
@@ -8257,71 +8422,37 @@ def _cortar_pacote_web(pacote: dict, teto_mb=None) -> dict:
     import copy                                         # noqa: PLC0415
     limite = int((teto_mb if teto_mb is not None
                   else WEB_PACOTE_TETO_MB) * 1024 * 1024)
+    # (T-0035, 10.8.7) anexo acima do teto da web sai ja, mesmo com o pacote
+    # pequeno: senao a web recusa o pacote inteiro
+    rels0 = pacote.get("relatorios") or {}
+    limpos = {rid: _limitar_anexos_web(rid, f)[0] if isinstance(f, dict)
+              else f for rid, f in rels0.items()}
+    if any(limpos[r] is not rels0[r] for r in rels0):
+        pacote = dict(pacote, relatorios=limpos)
     if _tamanho_pacote_web(pacote) <= limite:
         return pacote
     novo = copy.deepcopy(pacote)
     rels = novo.get("relatorios") or {}
 
-    def avisar(rid, texto):
-        log.warning("Pacote web: %s (farol %s).", texto, rid)
-        av = rels[rid].setdefault("avisos", [])
-        av.append(texto)
-        rels[rid]["avisos"] = (_avisos_curtos_visita_web(av)
-                               if rid == "vc_visitas"
-                               else _ordenar_avisos_web(av))
-
-    def abas_fora(rid, titulos):
-        """Junta os titulos no aviso unico de abas fora (contrato 10.7.6)."""
-        pre, pos = AVISO_ABAS_FORA.split("{lista}")
-        av = rels[rid].setdefault("avisos", [])
-        antes = []
-        for a in list(av):
-            if str(a).startswith(pre):
-                antes = [x for x in str(a)[len(pre):-len(pos)].split(", ")
-                         if x]
-                av.remove(a)
-        ordem = _ABAS_TABELAS_WEB.get(rid, ())
-        todos = antes + [x for x in titulos if x not in antes]
-        todos.sort(key=lambda x: ordem.index(x) if x in ordem else 99)
-        avisar(rid, AVISO_ABAS_FORA.format(lista=", ".join(todos)))
-
     def passo0():               # T-0026: primeiro, as imagens das parciais
         for rid in rels:
             if rels[rid].pop("parciais", None):
-                avisar(rid, "As parciais em imagem ficaram fora desta "
-                       "atualização (pacote grande). Veja no PC.")
+                _avisar_web(rid, rels[rid], AVISO_PARCIAIS_FORA)
 
     def passo1():
         for rid in RIDS_TABELAS_WEB:
-            for t in (rels.get(rid) or {}).get("tabelas") or []:
-                if t.get("titulo") != TITULO_SOLICITACAO_WEB:
-                    continue
-                for sa in t.get("subabas") or []:
-                    nomes = [c["nome"] for c in sa["colunas"]]
-                    if "SITUACAO_PEDIDO" not in nomes:
-                        continue        # as listas de exclusao vao inteiras
-                    i = nomes.index("SITUACAO_PEDIDO")
-                    sa["linhas"] = [ln for ln in sa["linhas"]
-                                    if str(ln[i]).strip().upper()
-                                    == "EM ABERTO"]
-                    sa["tons"] = [""] * len(sa["linhas"])
-                avisar(rid, "A Solicitação BAP foi reduzida aos pedidos em "
-                       "aberto para caber no pacote.")
+            if rid in rels:
+                _corte_solicitacao_web(rid, rels[rid])
 
     def passo2():
         for rid in RIDS_TABELAS_WEB:
-            tabs = (rels.get(rid) or {}).get("tabelas")
-            if tabs and any(t.get("titulo") == "Cliente a cliente"
-                            for t in tabs):
-                rels[rid]["tabelas"] = [t for t in tabs if t.get(
-                    "titulo") != "Cliente a cliente"]
-                abas_fora(rid, ["Cliente a cliente"])
+            if rid in rels:
+                _corte_cliente_a_cliente_web(rid, rels[rid])
 
     def passo3():
         for rid in RIDS_TABELAS_WEB:
-            if (rels.get(rid) or {}).get("tabelas"):
-                titulos = [t.get("titulo") for t in rels[rid].pop("tabelas")]
-                abas_fora(rid, titulos)
+            if rid in rels:
+                _corte_tabelas_web(rid, rels[rid])
     for passo in (passo0, passo1, passo2, passo3):
         passo()
         if _tamanho_pacote_web(novo) <= limite:
@@ -8340,13 +8471,17 @@ def _json_farol_web(farol: dict) -> bytes:
 
 
 def _cortar_farol_web(rid: str, farol: dict, teto_mb=None) -> dict:
-    """Funcao pura (T-0035, contrato 10.8.7): se o JSON do farol SEM os anexos
-    (parciais e csvs_protheus) passar de `teto_mb` (WEB_FAROL_TETO_MB), corta
-    na ordem de _CORTES_FAROL_WEB[rid] e, por fim, tira todas as `tabelas`
-    (o farol cai no 10.1), com o AVISO_ABAS_FORA. Os anexos nao entram na
-    conta nem sao tocados. Devolve outro dicionario; o de entrada nao muda."""
+    """Funcao pura (T-0035, contrato 10.8.7): primeiro os anexos acima dos
+    tetos da web saem, so eles, com aviso (_limitar_anexos_web). Depois, se o
+    JSON do farol SEM os anexos (parciais e csvs_protheus) passar de `teto_mb`
+    (WEB_FAROL_TETO_MB), corta na ordem de _CORTES_FAROL_WEB[rid] ate caber;
+    o ultimo corte tira as `tabelas` (o farol cai no 10.1), com o
+    AVISO_ABAS_FORA. Os anexos que cabem nao entram na conta nem sao tocados.
+    Devolve outro dicionario; o de entrada nao muda."""
+    import copy                                         # noqa: PLC0415
     mb = teto_mb if teto_mb is not None else WEB_FAROL_TETO_MB
     limite = int(mb * 1024 * 1024)
+    farol, _ = _limitar_anexos_web(rid, farol)
 
     def tam(f):
         return len(_json_farol_web({k: v for k, v in f.items()
@@ -8354,25 +8489,22 @@ def _cortar_farol_web(rid: str, farol: dict, teto_mb=None) -> dict:
     if tam(farol) <= limite:
         return farol
     anexos = {k: farol[k] for k in _ANEXOS_FAROL_WEB if k in farol}
-    corpo = {k: v for k, v in farol.items() if k not in _ANEXOS_FAROL_WEB}
-    if rid in RIDS_TABELAS_WEB:        # passos 1 a 3 do formato 1, so deste farol
-        out = _cortar_pacote_web({"relatorios": {rid: corpo}},
-                                 mb)["relatorios"][rid]
+    out = copy.deepcopy({k: v for k, v in farol.items()
+                         if k not in _ANEXOS_FAROL_WEB})
+    cortes = {"solicitacao_so_em_aberto": _corte_solicitacao_web,
+              "cliente_a_cliente_fora": _corte_cliente_a_cliente_web,
+              "junta_pendencias_fora": _corte_junta_entregas_web,
+              "tabelas": _corte_tabelas_web}
+    for nome in _CORTES_FAROL_WEB.get(rid, ("tabelas",)):
+        if nome == "entregas_so_recentes":
+            _corte_linhas_entregas_web(rid, out, lambda f: tam(f) <= limite)
+        else:
+            cortes[nome](rid, out)
+        if tam(out) <= limite:
+            break
     else:
-        out = corpo
-        if out.get("tabelas"):
-            import copy                                 # noqa: PLC0415
-            out = copy.deepcopy(out)
-            titulos = [t.get("titulo") for t in out.pop("tabelas")]
-            av = out.setdefault("avisos", [])
-            av.append(AVISO_ABAS_FORA.format(
-                lista=", ".join(str(t) for t in titulos)))
-            out["avisos"] = _ordenar_avisos_web(av)
-            log.warning("Pacote web: abas fora do pacote no farol %s.", rid)
-    if tam(out) > limite:
         log.warning("Pacote web: o farol %s continua acima do teto de %s MB "
                     "depois dos cortes.", rid, mb)
-    out = dict(out)
     out.update(anexos)
     return out
 
