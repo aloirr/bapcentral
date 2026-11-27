@@ -8,14 +8,8 @@ Dados 100% ficticios. Nada de RELATORIOS/ real alterado (o montar so le)."""
 from datetime import date
 from pathlib import Path
 
-import pytest
-
 import garantias as gm
 import relatorios_nucleo as rn
-
-if not (hasattr(rn, "edicao_garantia") and hasattr(rn, "MAX_TEXTO_EDICAO")):
-    pytest.skip("núcleo da T-0023 v2 (modulo-farois/T-0023-nucleo) ainda não entrou",
-                allow_module_level=True)
 
 RAIZ = Path(__file__).resolve().parent.parent
 
