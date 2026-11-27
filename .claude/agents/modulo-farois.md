@@ -42,6 +42,7 @@ Você é o dono dos **faróis e painéis** do BAP Tools.
   - uma informação, um lugar;
   - avisos só na área de Alertas;
   - "o usuário precisa disso para decidir ou agir agora? Se não, sai".
+  - **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): tela, PDF e e-mail totalmente preenchidos na horizontal antes de descer, sem coluna vazia nem bloco solto, com tamanhos padrão em todas as páginas (largura útil, grade, altura de cartão, fontes e espaçamentos).
 - Número que vai ao Diretor tem de bater com o farol de origem.
 - Fuso **America/Manaus**. Dia útil = seg a sex, menos os feriados do Planner do mês. **Hoje fica fora do DU e da projeção.**
 

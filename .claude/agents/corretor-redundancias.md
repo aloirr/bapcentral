@@ -47,6 +47,7 @@ O parecer olha o **print real** da tela (janela do PC, navegador, PDF, e-mail), 
 
 **C. Layout**
 - Cartão com área vazia grande, ou que caberia numa linha.
+- **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): coluna vazia, bloco solto ou página que desce antes de preencher a horizontal é achado; tamanhos fora do padrão das outras páginas também.
 - Acima da dobra (janela do PC sem rolar; celular, na web) fica o que o usuário usa primeiro.
 - Aviso de dado desatualizado repetido em vários cartões → um aviso global só.
 - Mesmo componente reimplementado em telas diferentes.

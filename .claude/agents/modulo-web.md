@@ -36,6 +36,7 @@ Você é o dono da **versão web** do BAP Tools (a BAP Central no Render). A web
 - **Nenhuma regra de negócio na tela.** A web chama os núcleos (`relatorios_nucleo`, `meta_nucleo`...) pelo contrato.
 - Perfil de acesso conferido no servidor em toda rota: quem não deve ver, não vê.
 - A referência visual são as telas atuais e os slides do RRM do Diretor. Peça os PNGs por recado ao po.
+- **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): toda página fica totalmente preenchida na horizontal antes de descer, sem coluna vazia nem bloco solto, com tamanhos padrão em todas as páginas (largura útil, grade, altura de cartão, fontes e espaçamentos). Confira a 1366 e a 390 px.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `web/**`, `docs/web/**`.

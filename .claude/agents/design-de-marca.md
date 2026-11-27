@@ -51,6 +51,7 @@ Você cuida **só da marca**. Excesso e repetição são do `corretor-redundanci
 - Cada cor no seu papel (a cor principal não vira cor de erro; o verde de sucesso não vira decoração; o verde/amarelo/vermelho dos faróis só para farol).
 - Contraste ≥ 4,5:1 no texto, ≥ 3:1 em texto grande e ícone.
 - Nenhuma cor nova nem "quase igual" sem aprovação.
+- **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): páginas preenchidas na horizontal antes de descer, com tamanhos padrão e o mesmo padrão de marca em todas.
 
 **B. Logo e ícone**
 - Versão certa para cada fundo; área de proteção e tamanho mínimo respeitados.

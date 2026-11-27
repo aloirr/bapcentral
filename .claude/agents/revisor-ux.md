@@ -34,6 +34,7 @@ Você revisa a **tela** de todo PR que mexe em tela (web/**, templates, CSS, PDF
 - Estado vazio: cartão ou bloco sem dado não aparece (ou diz por quê, uma vez só).
 - Cor só com significado: vermelho = alerta, âmbar = atenção, verde = ok. Cor de série neutra em cinza-verde (`#8FA79A`), como no PC.
 - Acessibilidade: contraste AA, cor nunca é a única pista (tem texto ou ícone junto).
+- **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): toda tela da web ou do PC, todo PDF e todo e-mail fica totalmente preenchido na horizontal antes de descer, sem coluna vazia nem bloco solto. Tamanhos padrão em todas as páginas: largura útil, grade, altura de cartão, fontes e espaçamentos. Confira a 1366 e a 390 px. Quebrar a regra é 🟡, no mínimo.
 
 ## Checklist de redundância
 - O mesmo número não aparece duas vezes na mesma tela (cartão e resumo gerencial, por exemplo).
