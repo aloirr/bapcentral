@@ -17,8 +17,11 @@ nenhum número da aba aparece na faixa, e a contagem de linhas com estado é a
 das `uf_linhas` (RN-GER-006).
 
 Sem fastapi (o CI da raiz), o módulo é pulado; roda no venv com a web.
-Depende da web f188d73 (`modulo-web/T-0033-revisao-geral`): com a web do
-main a32b610, os casos do aviso, do Visita e da Solicitação com `uf` falham.
+Depende da web 034a9ca (`modulo-web/T-0033-revisao-geral`, com o A1 do
+revisor: o cartão inteiro na faixa só com `kpis_padrao`; sem ele, a faixa do
+Resumo): com a web do main, os casos do aviso, do Visita e da Solicitação
+com `uf` falham. O pacote leva também a Inadimplência (com a cobrança) e os
+5 faróis do lote 2 da T-0024, como o robô monta.
 
 Nenhum valor de célula é impresso: as mensagens só têm rótulos de cartão,
 contagens e nomes de aba.
@@ -47,6 +50,12 @@ HOJE = date(2026, 11, 24)
 PARAMS = {"ANO": "2026", "MÊS": "11"}
 MES_ROT = "NOV/26"
 RIDS = ("pv_pedidos", "pl_entregas", "vc_visitas")
+# T-0024 (no main desde 0bb251b): os 5 do lote 2 e a Inadimplência também vão ao site
+LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")
+TODOS = RIDS + ("pl_inadimplencia",) + LOTE2
+RE_ABA = re.compile(r'href="/farol/([a-z_]+)\?aba=([a-z0-9_-]+)"')
+# as abas da Inadimplência (web/app/cobranca.py ABAS), escritas à mão
+ABAS_INADIMPLENCIA = ("titulos", "cliente", "vendedor", "supervisor", "filial", "uf", "dia", "cobrar")
 TOKEN = "t" * 43
 ADMIN, SENHA0, SENHA1 = "admin.teste", "senha-inicial-123", "nova-senha-forte-1"
 BASE = "https://testserver"
@@ -81,9 +90,18 @@ class _Web(tuple):
 
 @pytest.fixture(scope="module")
 def pacote():
-    rels = {rid: rn.montar(rid, RAIZ, hoje=HOJE, params=dict(PARAMS))
-            for rid in RIDS}
-    return ba.montar_pacote_web(rels, 2026, 11, raiz=RAIZ)
+    """O pacote como o robô monta (coletar_relatorios_web): params e recortes por UF do farol."""
+    rels = {}
+    for rid in TODOS:
+        params = ba.params_farol_web(rid, 2026, 11) if rid in LOTE2 else dict(PARAMS)
+        rels[rid] = rn.montar(rid, RAIZ, hoje=HOJE, params=params)
+        if rid in LOTE2 and rid in ba.RIDS_KPIS_POR_UF_WEB:
+            rels[rid + "_uf"] = ba.montar_por_uf_web(rid, rels[rid], RAIZ, params, HOJE)
+    # a Inadimplência leva as abas e a fila da cobrança (sem sincronizar com a web)
+    cobranca = ba.preparar_cobranca_web({"pl_inadimplencia": rels["pl_inadimplencia"]}, RAIZ, HOJE, False,
+                                        log=lambda m: None)
+    assert cobranca, "a cobrança da Inadimplência não montou"
+    return ba.montar_pacote_web(rels, 2026, 11, raiz=RAIZ, cobranca=cobranca)
 
 
 @pytest.fixture(scope="module")
@@ -123,8 +141,8 @@ def web(pacote, tmp_path_factory):
         log = []
         assert ba.enviar_pacote(copy.deepcopy(pacote), url=BASE, token=TOKEN, log=log.append) is True
         ind = pacotes.Indice(dados)
-        guardado = {rid: ind.farol(rid) for rid in RIDS}
-        assert all(guardado.values()), "a web não guardou os três faróis"
+        guardado = {rid: ind.farol(rid) for rid in TODOS}
+        assert all(guardado.values()), [r for r, f in guardado.items() if not f]
         yield _Web(cli, render, guardado)
         cli.__exit__(None, None, None)
     finally:
@@ -318,19 +336,68 @@ def test_T0033_solicitacao_sem_estado_ignora_o_uf_da_url(web):
         assert not difere, f"Solicitação uf={uf}: cartões do estado em {difere}"
 
 
-def test_T0033_aba_sem_kpis_padrao_mostra_os_kpis_de_cima_mesmo_com_filtro(web):
-    """§10.7.2: sem `kpis_padrao` (Aderência dia a dia), a aba mostra os
-    `kpis` de cima, com ou sem filtro, e sem o aviso."""
+def _abas_da_pagina(h, rid):
+    return sorted({a for r, a in RE_ABA.findall(h) if r == rid and a != "resumo"})
+
+
+def test_T0033_A1_aba_sem_kpis_padrao_tem_a_faixa_do_resumo_mesmo_com_filtro(web):
+    """A1 do revisor (web 034a9ca), §10.7.2: sem `kpis_padrao` (Visita › Aderência
+    dia a dia e Cliente a cliente), a faixa da aba é a do Resumo, com ou sem
+    filtro, e sem o aviso. No Visita, o Resumo leva os 10 cartões no corpo
+    (todos têm `linhas`), então a faixa dessas duas abas fica sem número."""
     cli, render, guardado = web
-    t = _tab(guardado["vc_visitas"], "Aderência dia a dia")
-    assert t.get("kpis_padrao") is None
-    esperado = _esperados(render, guardado["vc_visitas"]["kpis"])
-    h0 = _pagina(cli, "vc_visitas", "aba=aderencia")
-    assert _cartoes(h0) == esperado and esperado, "Aderência sem os cartões de cima"
-    i, v = _outro_valor(t, "SUPERVISOR", "")
-    h1 = _pagina(cli, "vc_visitas", f"aba=aderencia&f{i}={quote(v)}")
-    assert _cartoes(h1) == esperado
-    assert AVISO_CARTOES not in h0 and AVISO_CARTOES not in h1
+    resumo = _cartoes(_pagina(cli, "vc_visitas", ""))
+    assert resumo == _topo_bap(render, guardado["vc_visitas"])
+    for aba, titulo in (("aderencia", "Aderência dia a dia"), ("cliente", "Cliente a cliente")):
+        t = _tab(guardado["vc_visitas"], titulo)
+        assert t.get("kpis_padrao") is None, titulo
+        h0 = _pagina(cli, "vc_visitas", f"aba={aba}")
+        i, v = _outro_valor(t, t["filtros"][0] if isinstance(t["filtros"][0], str)
+                            else t["filtros"][0]["coluna"], "")
+        h1 = _pagina(cli, "vc_visitas", f"aba={aba}&f{i}={quote(v)}")
+        assert _cartoes(h0) == _cartoes(h1) == resumo, titulo
+        assert AVISO_CARTOES not in h0 and AVISO_CARTOES not in h1, titulo
+
+
+def test_T0033_visita_mostra_os_numeros_na_faixa_nas_abas_com_kpis_padrao(web):
+    """Valor × regra: cada aba do Visita com `kpis_padrao` mostra na faixa os
+    seus cartões (rótulo e valor), os 10 com `linhas` inclusive."""
+    cli, render, guardado = web
+    for aba, titulo in (("supervisor", "Por supervisor"), ("vendedor", "Por vendedor"),
+                        ("dia", "Dia a dia"), ("prospeccao", "Prospecção"), ("indicacao", "Indicação")):
+        esperado = _esperados(render, _tab(guardado["vc_visitas"], titulo)["kpis_padrao"])
+        assert esperado, titulo
+        assert _cartoes(_pagina(cli, "vc_visitas", f"aba={aba}")) == esperado, titulo
+
+
+def test_T0033_A1_inadimplencia_todas_as_abas_com_os_numeros_do_resumo(web):
+    """A1: as abas da Inadimplência (e a fila "Cobrar no WhatsApp") levam na
+    faixa os mesmos números do Resumo, que são os `kpis` de cima do farol."""
+    cli, render, guardado = web
+    h = _pagina(cli, "pl_inadimplencia", "")
+    resumo = _cartoes(h)
+    assert resumo and resumo == _topo_bap(render, guardado["pl_inadimplencia"])
+    for aba in ABAS_INADIMPLENCIA:
+        assert _cartoes(_pagina(cli, "pl_inadimplencia", f"aba={aba}")) == resumo, aba
+
+
+def test_T0033_lote2_no_visual_bc3_resumo_e_abas(web):
+    """T-0024 × T-0033: os 5 faróis do lote 2, do robô real à web real, abrem
+    em 200 no visual BC3 (a faixa `bc3-faixa` e o corpo `bc3`), no Resumo e
+    em cada aba, e todo cartão da faixa está no farol guardado (o número não
+    nasce na web). O 200/403 por perfil é o `test_T0024_lote2_robo_web.py`."""
+    import json                                                         # noqa: PLC0415
+    cli, _, guardado = web
+    for rid in LOTE2:
+        h = _pagina(cli, rid, "")
+        txt = json.dumps(guardado[rid], ensure_ascii=False)
+        abas = _abas_da_pagina(h, rid)
+        assert abas, f"{rid}: sem abas"
+        for q in [""] + [f"aba={a}" for a in abas]:
+            hq = h if not q else _pagina(cli, rid, q)
+            assert '<body class="bc3">' in hq and 'class="bc3-faixa"' in hq, (rid, q)
+            fora = [r for r, v in _cartoes(hq) if json.dumps(v, ensure_ascii=False)[1:-1] not in txt]
+            assert not fora, (rid, q, fora)
 
 
 def test_T0033_aviso_cartoes_da_web_e_o_do_contrato(web):
