@@ -1,6 +1,6 @@
 """Trava do escopo de bap_automation.FAROIS_WEB (T-0013, T-0017, T-0022,
-T-0024, T-0023): a lista PERMITIDA dos faróis que o robô leva ao site, num
-lugar só.
+T-0024, T-0023, T-0036): a lista PERMITIDA dos faróis que o robô leva ao site,
+num lugar só.
 
 Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
 - os faróis OBRIGATÓRIOS (os da T-0017, o vc_meta da T-0022 e os 5 do lote 2,
@@ -9,6 +9,10 @@ Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
   UF escritas aqui, à mão;
 - depois do robô da T-0023 v2 (PR #171), os 3 faróis do pós-venda (contrato
   §10.10, FAROIS_T0023) também são OBRIGATÓRIOS, com as mesmas exigências;
+- depois do robô da T-0036 (PR #159), os 4 do Analista Comercial
+  (FAROIS_T0036) também são OBRIGATÓRIOS, com a regra de UF dos cartões e a
+  das linhas de cada aba (UF_LINHAS_T0036), escritas aqui à mão a partir do
+  contrato §10.11.1/§10.11.3;
 - a lista PERMITIDA é a dos obrigatórios: um farol fora dela reprova.
 
 Regra citada: RN-GER-006 (estado do faturamento e do estoque = filial da
@@ -23,6 +27,9 @@ Formas da regra de UF (o 1º item diz qual):
   (RIDS_KPIS_POR_UF_WEB, montar_por_uf_web);
 - ("meta",): os recortes do Farol de Metas (RID_META_WEB, T-0022);
 - ("sem_estado",): sem recorte; o farol leva o aviso "Sem filtro por estado".
+- ("tabela_conferida", título, coluna, modo): como "tabela", e o rid está em
+  RIDS_RECORTE_CONFERIDO_WEB (o recorte só vai se o kpis_de da tabela
+  reproduzir os cartões da BAP inteira, §10.11.1; T-0036).
 
 Para pôr um farol novo no site: acrescente-o aqui, com a regra, no mesmo PR.
 """
@@ -46,8 +53,17 @@ FAROIS_T0023 = {
     "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
     "pl_ncc": ("tabela", "NCC pendentes", "FILIAL", "filial"),
 }
-# os faróis do main: T-0017, o vc_meta da T-0022, o lote 2 da T-0024 e os 3
-# da T-0023
+# T-0036 (contrato §10.11.1): os 4 do Analista Comercial. Cartões por estado
+# só no Saldo e no Markup (filial da nota, com a conferência do kpis_de);
+# Preço e Divergências sem recortes (aviso "Sem filtro por estado")
+FAROIS_T0036 = {
+    "vc_saldo": ("tabela_conferida", "Pedido a pedido", "FILIAL", "filial"),
+    "vc_markup": ("tabela_conferida", "Por pedido", "FILIAL", "filial"),
+    "vc_preco": ("sem_estado",),
+    "an_divergencias": ("sem_estado",),
+}
+# os faróis do main: T-0017, o vc_meta da T-0022, o lote 2 da T-0024, os 3
+# da T-0023 e os 4 da T-0036
 REGRA_UF_OBRIGATORIOS = {
     "pl_inadimplencia": ("tabela", "Títulos", "FILIAL", "filial"),
     "pv_pedidos": ("tabela", "Pedidos", "FILIAL", "filial"),
@@ -56,11 +72,25 @@ REGRA_UF_OBRIGATORIOS = {
     "vc_meta": ("meta",),
     **FAROIS_LOTE2,
     **FAROIS_T0023,
+    **FAROIS_T0036,
+}
+# T-0036 (§10.11.3, RN-GER-006): o estado das linhas de cada aba. Faturamento
+# e preço praticado pela filial da nota; Pesquisa e Divergências pela UF do
+# cliente. Aba fora desta lista não tem filtro de estado nas linhas.
+UF_LINHAS_T0036 = {
+    ("vc_saldo", "Pedido a pedido"): ("FILIAL", "filial"),
+    ("vc_saldo", "Por UF"): ("UF", "uf"),
+    ("vc_markup", "Por pedido"): ("FILIAL", "filial"),
+    ("vc_preco", "Reajustes por produto"): ("FILIAL", "filial"),
+    ("vc_preco", "Pesquisa de mercado"): ("UF", "uf"),
+    ("an_divergencias", "Clientes divergentes"): ("UF", "uf"),
+    ("an_divergencias", "Sem coordenada / endereço"): ("UF", "uf"),
 }
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
 REGRA_UF_PERMITIDOS = dict(REGRA_UF_OBRIGATORIOS)
 FAROIS_PERMITIDOS = frozenset(REGRA_UF_PERMITIDOS)
-assert len(REGRA_UF_OBRIGATORIOS) == 5 + len(FAROIS_LOTE2) + len(FAROIS_T0023)   # sem repetição
+assert len(REGRA_UF_OBRIGATORIOS) == (5 + len(FAROIS_LOTE2) + len(FAROIS_T0023)
+                                      + len(FAROIS_T0036))   # sem repetição
 
 _KPI_FICTICIO = [{"rotulo": "Itens", "valor": "1", "cor": "ok"}]
 
@@ -77,6 +107,10 @@ def _problemas_regra(ba, rid, regra) -> list:
     uf_linhas = getattr(ba, "_UF_LINHAS_WEB", {})
     kpis_uf = tuple(getattr(ba, "RIDS_KPIS_POR_UF_WEB", ()))
     forma, saida = regra[0], []
+    if forma == "tabela_conferida":
+        if rid not in tuple(getattr(ba, "RIDS_RECORTE_CONFERIDO_WEB", ())):
+            saida.append(f"{rid}: fora de RIDS_RECORTE_CONFERIDO_WEB")
+        forma = "tabela"
     if forma == "tabela":
         _f, titulo, coluna, modo = regra
         if tab_rec.get(rid) != titulo:
@@ -133,7 +167,17 @@ def problemas_escopo(ba) -> list:
         saida.extend(_problemas_regra(ba, rid, REGRA_UF_PERMITIDOS[rid]))
     # nenhuma tabela de recorte sobra para farol que não a declarou
     esperadas = {rid: REGRA_UF_PERMITIDOS[rid][1] for rid in farois
-                 if REGRA_UF_PERMITIDOS.get(rid, ("",))[0] == "tabela"}
+                 if REGRA_UF_PERMITIDOS.get(rid, ("",))[0]
+                 in ("tabela", "tabela_conferida")}
     for rid in sorted(set(tab_rec) - set(esperadas)):
         saida.append(f"{rid}: tabela de recorte sem regra declarada")
+    # T-0036: a regra de UF das linhas de cada aba dos 4 do Analista, exata
+    uf_linhas = getattr(ba, "_UF_LINHAS_WEB", {})
+    no_robo = {k: v for k, v in uf_linhas.items()
+               if k[0] in FAROIS_T0036 and k[0] in farois}
+    no_doc = {k: v for k, v in UF_LINHAS_T0036.items() if k[0] in farois}
+    for k in sorted(set(no_robo) | set(no_doc)):
+        if no_robo.get(k) != no_doc.get(k):
+            saida.append(f"{k[0]}: regra de UF das linhas de {k[1]!r} "
+                         f"{no_robo.get(k)!r}, esperado {no_doc.get(k)!r}")
     return saida

@@ -329,6 +329,13 @@ def aplicar_tema(janela) -> None:
     s.configure("TEntry", padding=(6, 3), fieldbackground=CARTAO,
                 bordercolor=CINZA_LINHA, lightcolor=CARTAO, darkcolor=CARTAO)
     s.map("TEntry", bordercolor=[("focus", VERDE)])
+    # campo so de leitura (cinza, sem cara de editavel) e o editavel destacado
+    s.configure("Leitura.TEntry", padding=(6, 3), fieldbackground=FUNDO,
+                bordercolor=CINZA_LINHA, lightcolor=FUNDO, darkcolor=FUNDO)
+    s.map("Leitura.TEntry", fieldbackground=[("readonly", FUNDO)],
+          bordercolor=[("focus", CINZA_LINHA)])
+    s.configure("Contato.TEntry", padding=(6, 3), fieldbackground=CARTAO,
+                bordercolor=VERDE_ESCURO, lightcolor=CARTAO, darkcolor=CARTAO)
     s.configure("Vertical.TScrollbar", background=FUNDO, troughcolor=CARTAO,
                 bordercolor=CARTAO, arrowcolor=SUAVE, lightcolor=FUNDO,
                 darkcolor=FUNDO, gripcount=0)
