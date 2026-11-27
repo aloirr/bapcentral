@@ -119,3 +119,67 @@ def test_diretor_so_o_resumo_e_sem_faixa_de_abas_vazia(admin):
     h = d.get("/farol/pl_giro").text
     assert d.get("/farol/pl_giro?aba=por-filial").status_code == 403
     assert 'class="bc3-sub"' not in h
+
+
+# ---------------------------------------------------------------- reteste de UX (N1 a N3)
+def _tot(t):
+    return dict(zip([c["nome"] for c in t["colunas"]], t["total"]))
+
+
+def test_faixa_e_total_saem_da_mesma_conta_das_linhas():
+    p = pacote_lote2()["relatorios"]
+    tab = lambda rid, titulo: next(t for t in p[rid]["tabelas"] if t["titulo"] == titulo)
+    cartao = lambda rid, rot: next(k["valor"] for k in p[rid]["kpis"] if k["rotulo"] == rot)
+    for aba in ("Por UF", "Por segmento", "Por cidade", "Por vendedor", "Por supervisor"):
+        t = _tot(tab("vc_base", aba))
+        assert (t["CLIENTES"], t["ATIVOS"], t["COMPRARAM NO MÊS"]) == (2930, 2410, 1540), aba
+    assert cartao("vc_base", "Clientes") == "2.930" and cartao("vc_base", "Compraram no mês") == "1.540"
+    pf = tab("pl_giro", "Resumo por filial")
+    col = lambda t, n: [ln[[c["nome"] for c in t["colunas"]].index(n)] for ln in t["linhas"]]
+    assert sum(col(pf, "ITENS EM RUPTURA")) == len(tab("pl_giro", "Ruptura")["linhas"]) == 24
+    assert sum(col(pf, "ITENS A COMPRAR")) == len(tab("pl_giro", "Necessidade de compra")["linhas"]) == 32
+    assert cartao("pl_giro", "Em ruptura") == "24" and cartao("pl_giro", "Comprar") == "32"
+    assert len(set(col(pf, "FILIAL"))) == 6 == len(p["pl_giro"]["recortes"])            # uma filial por UF do filtro
+    assert "MT" in p["pl_giro"]["recortes"] and "MT" in p["pl_frw"]["recortes"]
+
+
+def test_cartao_do_estado_e_a_linha_do_estado_na_tabela():
+    r = pacote_lote2()["relatorios"]["vc_base"]
+    uf = next(t for t in r["tabelas"] if t["titulo"] == "Por UF")
+    nomes = [c["nome"] for c in uf["colunas"]]
+    for ln in uf["linhas"]:
+        v = r["recortes"][ln[0]]["kpis"]
+        assert next(k["valor"] for k in v if k["rotulo"] == "Clientes") == f"{ln[nomes.index('CLIENTES')]:,}".replace(",", ".")
+
+
+def test_numeros_coerentes_por_linha():
+    p = pacote_lote2()["relatorios"]
+    for t in p["pv_indicadores"]["tabelas"][:2]:
+        n = [c["nome"] for c in t["colunas"]]
+        for ln in t["linhas"]:
+            d = dict(zip(n, ln))
+            assert d["NO PRAZO"] + d["ATRASO"] + d["PARCIAL"] == d["PEDIDOS"] and d["ENTREGUES"] <= d["PEDIDOS"]
+    mes = p["pv_indicadores"]["tabelas"][1]
+    assert [ln[0] for ln in mes["linhas"]][-1] == "NOV/26" and "DEZ/26" not in [ln[0] for ln in mes["linhas"]]
+    cl = next(t for t in p["vc_base"]["tabelas"] if t["titulo"] == "Clientes")
+    n = [c["nome"] for c in cl["colunas"]]
+    for ln in cl["linhas"]:
+        d = dict(zip(n, ln))
+        assert d["EM ATRASO"] <= d["LIMITE DISP."] and d["LIMITE DISP."] != d["EM ATRASO"] or d["EM ATRASO"] == 0
+    pc = next(t for t in p["vc_planner"]["tabelas"] if t["titulo"] == "Por cliente")
+    n = [c["nome"] for c in pc["colunas"]]
+    from datetime import date
+    for ln in pc["linhas"]:
+        d = dict(zip(n, ln))
+        assert d["DIA"] == ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"][date.fromisoformat(d["DATA"]).weekday()]
+    pv = next(t for t in p["vc_planner"]["tabelas"] if t["titulo"] == "Por vendedor")
+    n = [c["nome"] for c in pv["colunas"]]
+    assert all(dict(zip(n, ln))["CLIENTES/DIA"] <= dict(zip(n, ln))["CAPACIDADE/DIA"] for ln in pv["linhas"])
+
+
+def test_resumo_sem_grafico_repetido_e_sem_rolagem_lateral_no_cartao(admin):
+    assert postar(admin, pacote_lote2()).status_code == 200
+    h = admin.get("/farol/pl_giro").text
+    corpo = h.split('class="graficos"')[1]
+    assert corpo.count('class="graf graf-per"') == 2                  # "Unidades vendidas" repete "Venda (unidades)"
+    assert corpo.count("Venda perdida prevista") == 1                  # só o de barras

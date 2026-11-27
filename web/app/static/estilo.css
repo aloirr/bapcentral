@@ -492,3 +492,19 @@ body.uma-tela .dica-rolagem{display:none}
 .pop-chave{cursor:default}
 @media(min-width:701px){.bc3-ks:has(>.bc3-k:nth-child(7)) .bc3-k em{display:none}.bc3-ks:has(>.bc3-k:nth-child(7)){gap:6px 26px}}
 @media(max-width:700px){.bc3 .filtros.recortes{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.bc3 .filtros.recortes::-webkit-scrollbar{display:none}.bc3 .filtros.recortes>*{flex:none;white-space:nowrap}}
+/* T-0024 (reteste de UX, N1): os gráficos de colunas cabem no cartão, sem rolagem lateral e sem esconder os dias recentes */
+@media(min-width:701px){
+  .bc3 .graf .gb,.bc3 .graf .gb-largo,.bc3 .graf .gb-denso{grid-auto-columns:minmax(0,1fr);gap:2px;overflow:hidden;padding-right:0}
+  .bc3 .graf .gb-col,.bc3 .graf .gb-b{min-width:0}
+  .bc3 .graf .gb-rot{overflow:hidden;font-size:.62rem}
+}
+/* a linha TOTAL fica por cima da 1ª coluna fixa (T-0024, reteste de UX) */
+.rolagem-dados .tab-dados tfoot td{z-index:4;background:#F5F6F4}
+.rolagem-dados .tab-dados tfoot td:first-child{z-index:5;background:#F5F6F4}
+.rolagem-dados .tab-dados tbody td:first-child{z-index:1}
+@media(min-width:701px){
+  .bc3 .graf .gb{padding-right:14px}
+  .bc3 .graf .gb-rot{overflow:visible;text-overflow:clip;text-align:left;position:relative;z-index:1}
+  .bc3 .graf .hb-l{grid-template-columns:minmax(60px,46%) 1fr auto}
+}
+.rolagem-dados.sem-rolagem .tab-dados tfoot td:first-child{position:sticky;bottom:0;left:auto}

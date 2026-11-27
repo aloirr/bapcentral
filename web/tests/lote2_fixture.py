@@ -6,6 +6,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, timedelta
 
+from lote2_coerencia import aplica
 from lote2_estrutura import ESTRUTURA
 
 RIDS = tuple(ESTRUTURA)
@@ -237,9 +238,14 @@ def _ajusta(rid, aba, ln, i, n):
     return ln
 
 
+# tamanho de tabela que a faixa exige (as contagens por filial somam o cartão): ver lote2_coerencia.py
+FORCA_N = {("pl_giro", "Resumo por filial"): 6, ("pl_giro", "Ruptura"): 24, ("pl_giro", "Necessidade de compra"): 32,
+           ("pl_giro", "Curva A parada"): 18}
+
+
 def _tabela(rid, ufs, tb):
     cols = deepcopy(tb["colunas"])
-    n = tb["n"]
+    n = FORCA_N.get((rid, tb["titulo"]), tb["n"])
     linhas, ufl, tons = [], [], []
     for i in range(1, n + 1):
         uf = ufs[i % len(ufs)] if ufs else "AM"
@@ -247,7 +253,9 @@ def _tabela(rid, ufs, tb):
             uf = UFS_TODAS[(i - 1) % len(UFS_TODAS)]
         fil = f"FILIAL FICTICIA {uf}"
         d = {c["nome"]: _celula(rid, tb["titulo"], c, i, uf, fil) for c in cols}
-        ln = [_ajusta(rid, tb["titulo"], d, i, n).get(c["nome"]) for c in cols]
+        d = _ajusta(rid, tb["titulo"], d, i, n)
+        ln = [int(round(d.get(c["nome"]))) if (c["tipo"] == "num" and isinstance(d.get(c["nome"]), float))
+              else d.get(c["nome"]) for c in cols]
         linhas.append(ln)
         ufl.append(uf)
         acao = next((v for c, v in zip(cols, ln) if c["nome"] == "AÇÃO"), "")
@@ -349,8 +357,9 @@ def farol_lote2(rid):
 
 
 def pacote_lote2():
-    return {"versao_contrato": 1, "gerado_em": "2026-11-24T08:30:00-04:00", "ano": 2026, "mes": 11,
-            "relatorios": {rid: farol_lote2(rid) for rid in RIDS}}
+    p = {"versao_contrato": 1, "gerado_em": "2026-11-24T08:30:00-04:00", "ano": 2026, "mes": 11,
+         "relatorios": {rid: farol_lote2(rid) for rid in RIDS}}
+    return aplica(p)                                       # faixa, TOTAL, recortes e gráficos saem das linhas
 
 
 def slug_abas(rid):

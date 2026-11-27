@@ -7,7 +7,8 @@
       {% for c in b.cols %}
       <div class="gb-col">
         <div class="gb-area">{% for x in c.barras %}<div class="gb-b" title="{{ x.titulo }}"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
-        <div class="gb-rot">{{ c.rot if (not b.denso or loop.index0 % 2 == 0) else '' }}</div>
+        {% set pr = 5 if (b.cols|length) > 14 else (2 if (b.cols|length) > 9 else 1) %}
+        <div class="gb-rot">{{ c.rot if ((not b.denso and pr == 1) or loop.index0 % pr == 0 or loop.last) else '' }}</div>
       </div>
       {% endfor %}
     </div>

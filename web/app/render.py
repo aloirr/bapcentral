@@ -538,6 +538,35 @@ def agrupar_periodos(blocos: list[dict]) -> list[dict]:
     return [g if g.get("tipo") != "periodos" or len(g["vistas"]) > 1 else g["vistas"][0]["b"] for g in out]
 
 
+def _dados_do_bloco(b: dict):
+    """Os números que o bloco desenha (para achar gráfico repetido); None se não souber."""
+    if b.get("tipo") == "periodos":
+        return tuple(_dados_do_bloco(v["b"]) for v in b["vistas"])
+    if b.get("tipo") == "barras":
+        return tuple(tuple(x.get("txt") for x in c.get("barras") or []) for c in b.get("cols") or [])
+    if b.get("tipo") == "hbarras":
+        return tuple(l.get("txt") for l in b.get("linhas") or [])
+    return None
+
+
+def sem_graficos_repetidos(blocos: list[dict]) -> list[dict]:
+    """T-0024 (reteste de UX, N2): o mesmo número não aparece em dois gráficos do Resumo. Sai o bloco que desenha
+    os mesmos números de outro, e o gráfico de colunas de uma só série que repete as barras de mesmo assunto
+    (ex.: "Venda perdida prevista por filial" × "Venda perdida prevista (R$) por filial")."""
+    vistos, saida = set(), []
+    for b in blocos:
+        d = _dados_do_bloco(b)
+        if d is not None and d in vistos:
+            continue
+        if d is not None:
+            vistos.add(d)
+        saida.append(b)
+    barras_h = [" ".join(b.get("titulo", "").split()[:3]) for b in saida if b.get("tipo") == "hbarras"]
+    return [b for b in saida
+            if not (b.get("tipo") == "barras" and len(b.get("legenda") or []) <= 1
+                    and " ".join(b.get("titulo", "").split()[:3]) in barras_h and len(b.get("cols") or []) <= 12)]
+
+
 def recortes_farol(rel: dict) -> list[str]:
     rec = rel.get("recortes")
     return sorted(rec) if isinstance(rec, dict) else []
@@ -568,7 +597,7 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
     fonte = r_uf if isinstance(r_uf.get("painel"), dict) else rel
     ins_blocos, blocos = _blocos(fonte.get("painel"))
     if rid in LOTE2:                                    # T-0024 (R2): um cartão por métrica, Dia · Semana · Mês dentro
-        blocos = agrupar_periodos(blocos)
+        blocos = sem_graficos_repetidos(agrupar_periodos(blocos))
     cartoes = [k for k in map(_kpi, _lista(kpis)) if k and not cartao_vazio(k)]
     return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
             "faixa": bool(rel.get("kpis_faixa")),   # cartões em faixa fina, como o PC
