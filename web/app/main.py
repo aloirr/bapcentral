@@ -325,7 +325,7 @@ def criar_app() -> FastAPI:
         aviso_tabs_uf = f"Sem as tabelas de {uf_ok} neste pacote: abaixo, a BAP inteira." if aba in sem_uf else ""
         com_aba = [(c, tit) for c, tit in tabelas.ABAS[rid] if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
         barra = [tabelas.RESUMO] + com_aba if com_aba else []
-        ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo",
+        ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo", ufs_off=ufs,
                    # T-0032 (Alexandre, 26/11: "assim como tem no bap central do python"): o botão aparece sempre
                    # para quem pode; sem imagem no pacote, a página da parcial diz que ainda não chegou
                    parcial=perfil in PERFIS_PARCIAL.get(rid, ()),
@@ -672,7 +672,8 @@ def criar_app() -> FastAPI:
                     if c == "resumo" or (c in cobranca.ABA_TABELA and perfil in cobranca.VE_TABELAS
                                          and cobranca.ABA_TABELA[c] in tem)
                     or (c == "cobrar" and perfil in cobranca.COBRA)]
-        ctx = dict(farol_nome=nome, rid=rid, abas=abas if len(abas) > 1 else [], aba=aba, noindex=aba != "resumo")
+        ctx = dict(farol_nome=nome, rid=rid, abas=abas if len(abas) > 1 else [], aba=aba, noindex=aba != "resumo",
+               ufs_off=render.recortes_farol(rel))
         if aba == "resumo":
             return pagina(request, "farol.html", tela=render.farol_para_tela(rel, uf[:4] or None, rid), **ctx)
         if "tabelas" not in rel:                        # robô antigo: sem as abas novas

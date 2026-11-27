@@ -727,7 +727,10 @@ def test_inadimplencia_igual_ao_golden_gerado_com_o_codigo_anterior():
                     assert [{"tom": ln["tom"], "cel": [{k: c[k] for k in ("t", "f", "c")} for c in ln["cel"]]}
                             for ln in novo[chave]] == velho[chave]
                 elif chave == "total":
-                    assert (None if novo[chave] is None else [{k: c[k] for k in ("t", "f", "c")} for c in novo[chave]]) == velho[chave]
+                    nt = None if novo[chave] is None else [{k: c[k] for k in ("t", "f", "c")} for c in novo[chave]]
+                    if nt is not None:                 # T-0033: o rótulo "Total" entra na 1ª célula que estava vazia
+                        nt = [{**n, "t": ""} if n["t"] == "Total" and v["t"] in ("", "—") else n for n, v in zip(nt, velho[chave])]
+                    assert nt == velho[chave]
                 elif chave == "filtros":
                     assert [{k: f_[k] for k in ("nome", "chave", "i", "multi", "opcoes", "sel")} for f_ in novo[chave]] == velho[chave]
                 else:

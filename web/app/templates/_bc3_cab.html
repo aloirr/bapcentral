@@ -17,13 +17,16 @@
   <div class="bc3-tt">
     <h1>{{ farol_nome }}</h1>
     {% if fila is defined and pc_ate %}<span class="bc3-quando" title="Situação do PC; o que você marcar chega ao PC às 08h e às 14h">Cobranças do PC até {{ pc_ate|hhmm }}</span>
-    {% elif gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}, horário de Manaus">Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}</span>{% endif %}
+    {% elif gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}, horário de Manaus">Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}{% if sem_uf %} · <span class="bc3-sem-uf">Sem filtro por estado</span>{% endif %}</span>{% endif %}
     {% if lista_uf %}
     <nav class="bc3-uf" aria-label="Filtro por estado">
       <a href="{{ base_uf }}{{ sub_q }}" class="{{ 'on' if not uf_at }}">BAP</a>
       {% for u in lista_uf %}<a href="{{ base_uf }}{{ sub_q }}&amp;uf={{ u }}" class="{{ 'on' if u == uf_at }}">{{ u }}</a>{% endfor %}
     </nav>
-    {% elif sem_uf %}<span class="bc3-uf bc3-uf-fixo" title="Esta página mostra a BAP inteira"><a class="on">Sem filtro por estado</a></span>{% endif %}
+    {% elif ufs_off %}
+    {# aba só da BAP: o seletor fica no mesmo lugar, desligado (a faixa não muda de altura entre as abas, contrato §4.2) #}
+    <nav class="bc3-uf bc3-uf-off" aria-label="Filtro por estado (esta aba é da BAP inteira)" title="Esta aba mostra a BAP inteira"><a class="on">BAP</a>{% for u in ufs_off %}<span>{{ u }}</span>{% endfor %}</nav>
+    {% endif %}
   </div>
   {% if ks %}
   <div class="bc3-ks">
@@ -33,7 +36,13 @@
 </header>
 <div class="bc3-sub">
   {% if abas %}
-  <nav class="bc3-abas" aria-label="Abas do farol">{% for c, n0 in abas %}{% set n = n0|aba_curta %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}" class="{{ 'on' if c == aba }}"{{ ' aria-current="page"'|safe if c == aba }}>{{ n }}{% if c == aba and e_tab and tabela.total_linhas %} <span>· {{ tabela.total_linhas }}</span>{% endif %}</a>{% endfor %}</nav>
+  {# celular: 3 abas (as duas primeiras e a aberta) + "Mais ▾" com as outras; no PC, todas na linha #}
+  {% set nomes_abas = abas|map('first')|list %}
+  {% set vis = [0, 1] if (aba in nomes_abas[:2] or aba not in nomes_abas) else [0, nomes_abas.index(aba)] %}
+  {% if aba in nomes_abas[:2] %}{% set vis = [0, 1, 2] %}{% endif %}
+  {% if aba in nomes_abas[2:] %}{% set vis = [0, 1, nomes_abas.index(aba)] %}{% endif %}
+  <nav class="bc3-abas" aria-label="Abas do farol">{% for c, n0 in abas %}{% set n = n0|aba_curta %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}" class="{{ 'on' if c == aba }}{{ ' so-pc' if loop.index0 not in vis }}"{{ ' aria-current="page"'|safe if c == aba }}>{{ n }}{% if c == aba and e_tab and tabela.total_linhas %} <span>· {{ tabela.total_linhas }}</span>{% endif %}</a>{% endfor %}
+    {% if abas|length > 3 %}<details class="bc3-mais-abas"><summary>Mais</summary><div>{% for c, n0 in abas %}{% if loop.index0 not in vis %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}">{{ n0|aba_curta }}</a>{% endif %}{% endfor %}</div></details>{% endif %}</nav>
   {% endif %}
   <div class="bc3-acoes">
     {% if e_tab and tabela.fora_base %}{% set fb = tabela.fora_base %}

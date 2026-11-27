@@ -32,9 +32,27 @@ def test_T0033_popup_do_pedidos_leva_cliente_credito_e_pedido(admin):
     assert {"ANÁLISE CRÉDITO", "SITUAÇÃO", "VENDEDOR", "VOL.", "R$ TABELA", "FILIAL", "PRAZO"} <= set(blocos["Pedido"])
 
 
-def test_T0033_faixa_do_celular_tem_altura_fixa_e_abas_sem_corte():
-    """Item 3 e abas da Visita: a faixa reserva linha do estado e 2 linhas de números; as abas quebram, não cortam."""
+def test_T0033_faixa_do_celular_altura_fixa_abas_mais_e_filtro_sem_corte():
+    """Parecer UX C2/C3/C11/C12: seletor de estado sempre no mesmo lugar (desligado nas abas da BAP), 3 abas + Mais."""
     from pathlib import Path
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
-    assert ".bc3-tt{min-height:100px}" in css and "grid-auto-rows:54px;min-height:118px" in css
-    assert ".bc3-abas{display:flex;gap:4px;align-self:stretch;min-width:0;overflow:visible;flex-wrap:wrap}" in css
+    assert "grid-auto-rows:auto;min-height:112px" in css and ".bc3-mais[hidden]{display:none!important}" in css
+    assert ".bc3-abas a.so-pc{display:none}" in css and ".bc3 .filtros-det>summary::after" in css
+
+
+def test_T0033_abas_mais_e_seletor_de_estado_desligado(admin):
+    assert postar(admin, pacote_tres_farois()).status_code == 200
+    h = admin.get("/farol/vc_visitas?aba=cliente").text
+    assert h.count("Sem filtro por estado") == 1 and 'class="bc3-uf' not in h.split("<main")[0].split("bc3-main")[1]
+    assert 'class="bc3-mais-abas"' in h and h.count(" so-pc") >= 3          # celular: 3 abas e as outras em "Mais"
+    h = admin.get("/farol/pv_pedidos?aba=solicitacao").text                  # aba só da BAP: o seletor fica, desligado
+    assert 'class="bc3-uf bc3-uf-off"' in h and "<span>AM</span>" in h
+
+
+def test_T0033_ordem_da_grade_e_total_com_rotulo(admin):
+    assert postar(admin, pacote_tres_farois()).status_code == 200
+    h = admin.get("/farol/pl_entregas?aba=entregas").text
+    cab = re.findall(r"<th class=\"[^\"]*\"><a [^>]*>([^<▲▼]+)", h.split("<thead>")[1].split("</thead>")[0])
+    assert cab[0].strip() == "NF"                                           # a chave abre a grade (contrato §6.2)
+    h = admin.get("/farol/vc_visitas?aba=vendedor").text
+    assert "<tfoot><tr><td class=\"\"><b>Total</b>" in h

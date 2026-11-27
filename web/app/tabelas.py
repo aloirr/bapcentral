@@ -330,6 +330,8 @@ def _colunas_erro(titulo, cols, rid="") -> tuple[str | None, list]:
         return "colunas diferentes da lista do contrato", []
     ocultas = {n for n, _, o in esperado if o}
     selos = ({n: "faixa" for n, _, _ in esperado} if rid == "vc_meta" else SELOS.get(titulo, {}))
+    if titulo == ADERENCIA:                    # T-0033: o quadrado de cada dia pode vir com a faixa de cor do PC (opcional)
+        selos = {n: "faixa" for n, tp, _ in esperado if tp == "pct"}
     for c, (n, tp, o) in zip(cols, esperado):
         if not (isinstance(c, dict) and not (set(c) - CHAVES_COLUNA) and c.get("nome") == n
                 and c.get("tipo") == tp and bool(c.get("oculta")) == o):
@@ -777,6 +779,13 @@ def tabela_para_tela(t: dict, consulta: dict, *, uf: str | None = None, pagina_t
     paginas = max(1, -(-total // pagina_tam))
     pag = min(pag, paginas)
     visiveis = idxs[(pag - 1) * pagina_tam: pag * pagina_tam]
+    g_ord = GRADE.get((rid or "", t.get("titulo") or ""))
+    if ordem_tela is None and g_ord and g_ord.get("grade"):
+        # contrato §6.2: as colunas da grade, NESTA ordem (a chave pode não ser a primeira do pacote); o resto segue depois
+        nm = [str(c["nome"]).upper() for c in cols]
+        pri = [nm.index(n) for n in g_ord["grade"] if n in nm]
+        if pri:
+            ordem_tela = pri + [k for k in range(len(cols)) if k not in pri]
     if ordem_tela is None and FIXA.get(t.get("titulo")) in [c["nome"] for c in cols]:
         f0 = [c["nome"] for c in cols].index(FIXA[t["titulo"]])        # a coluna da linha vai à frente
         ordem_tela = [f0] + [k for k in range(len(cols)) if k != f0]
@@ -893,7 +902,7 @@ def grade_de(tab: dict, rid: str = "") -> dict | None:
     if g is None and rid == "vc_visitas" and titulo == ADERENCIA and "VENDEDOR" in nomes and nomes[-1].startswith("% ADER"):
         # contrato §6.3: VENDEDOR · um quadrado por dia útil · % ACUM.; o SUPERVISOR vai ao popup (nº de dias varia no mês)
         g = {"chave": "VENDEDOR", "grade": tuple(n for n in nomes if n != "SUPERVISOR"),
-             "blocos": (("Supervisor", ("SUPERVISOR",)),), "cel": ("VENDEDOR", None, nomes[-1], nomes[-1])}
+             "blocos": (("Supervisor", ("SUPERVISOR",)),), "cel": ("VENDEDOR", None, None, nomes[-1])}
     return g if g and g["chave"] in nomes else None
 
 
@@ -936,6 +945,12 @@ def preparar_grade(tab: dict, rid: str = "") -> dict:
                     "cel": {"cli": ach(cel[1]) if cel[1] else None, "sla": ach(cel[2]) if cel[2] else None,
                             "val": ach(cel[3]) if cel[3] else None},
                     "blocos": g.get("blocos") or ()}
+    tot = tab.get("total")
+    if tot:                                       # a linha de total leva o rótulo na 1ª coluna que aparece na grade
+        fora = tab["grade"]["fora"]
+        k = next((i for i in range(len(tot)) if i not in fora), None)
+        if k is not None and str((tot[k] or {}).get("t", "")).strip() in ("", "—"):
+            tot[k] = {**tot[k], "t": "Total"}
     return tab
 
 
@@ -1040,6 +1055,11 @@ def juntas_para_tela(t: dict, idxs: list[int], uf: str | None = None, centavos: 
         nomes = [c["nome"] for c in jt["colunas"]]
         mostrar = j.get("mostrar")
         vista = [k for k, c in enumerate(jt["colunas"]) if not c.get("oculta") and (not mostrar or c["nome"] in mostrar)]
+        g_j = GRADE.get((rid, jt.get("titulo", "")))
+        if g_j and g_j.get("grade"):                    # a ordem da GRADE (§6.2): a chave abre a linha
+            pos = {str(jt["colunas"][k]["nome"]).upper(): k for k in vista}
+            pri = [pos[n] for n in g_j["grade"] if n in pos]
+            vista = pri + [k for k in vista if k not in pri]
         junta = {"titulo": j.get("titulo") or jt.get("titulo", ""), "tabela": jt.get("titulo", ""),
                  "total_linhas": len(ks),
                  "mais": len(ks) > JUNTA_MAX, "cols": _cabecalho(jt, vista), "grupos": _grupos_tela(jt, vista),
