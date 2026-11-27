@@ -12479,6 +12479,50 @@ def _executar_rodada(args, armazenamento, selecionados, inicio) -> int:
         return 0 if falhas == 0 else 1
 
 
+def espelhar_linhas(entrada, saidas) -> None:
+    """Copia `entrada` (linhas em bytes) para cada fluxo de `saidas`, sem
+    transformar nada, com flush a cada linha (T-0057).
+    A linha so aparece quando chega o "\n": barra de andamento feita com "\r"
+    so aparece inteira no fim."""
+    for linha in entrada:
+        for saida in saidas:
+            saida.write(linha)
+            saida.flush()
+
+
+def rodar_com_espelho(comando, caminho_log, tela=None,
+                      popen=subprocess.Popen) -> int:
+    """Roda `comando` mostrando na janela as mesmas linhas gravadas no log
+    (aberto so para acrescentar). Devolve o codigo de saida inalterado."""
+    tela = tela if tela is not None else sys.stdout.buffer
+    with open(caminho_log, "ab") as log_arq:
+        try:
+            ambiente = dict(os.environ, PYTHONUNBUFFERED="1",
+                            PYTHONIOENCODING="utf-8")
+            proc = popen(comando, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, env=ambiente)
+        except OSError as erro:
+            msg = f"FALHA ao iniciar o robo: {erro}\r\n".encode("utf-8", "replace")
+            espelhar_linhas([msg], [tela, log_arq])
+            return 1
+        espelhar_linhas(proc.stdout, [tela, log_arq])
+        proc.wait()
+        return proc.returncode
+
+
+def _sem_espelho(argv):
+    """argv sem o par `--espelho LOG` (ou `--espelho=LOG`)."""
+    saida, pular = [], False
+    for a in argv:
+        if pular:
+            pular = False
+        elif a == "--espelho":
+            pular = True
+        elif not a.startswith("--espelho="):
+            saida.append(a)
+    return saida
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="BAP Tools -> TABELA_BAP.xlsx (SharePoint via Graph ou OneDrive local).",
@@ -12515,7 +12559,15 @@ def main() -> int:
     parser.add_argument("--salvar-senha", action="store_true",
                         help="grava a senha do BAP Tools no cofre do Windows")
     parser.add_argument("--verboso", action="store_true", help="log detalhado")
+    parser.add_argument("--espelho", metavar="LOG",
+                        help="uso do executar_bap.bat: roda o robo e mostra "
+                             "na janela as mesmas linhas gravadas no LOG")
     args = parser.parse_args()
+
+    if args.espelho:
+        comando = ([sys.executable, os.path.abspath(__file__)]
+                   + _sem_espelho(sys.argv[1:]))
+        return rodar_com_espelho(comando, args.espelho)
 
     if args.salvar_senha:
         salvar_senha_interativo()
