@@ -51,6 +51,7 @@
 | `LOTE_GZ_MAX` | 8 MB | web | teto do corpo gzip do lote do dia |
 | `ARQUIVO_MAX` | 2 MB | web | teto de cada Excel decodificado |
 | `ARQUIVOS_MAX` | 60 | web | Excel por lote |
+| `DESCOMPRIMIDO_MAX` | 50 MB | web | teto total da descompressão dos Excel de um lote na conferência do site (§3.4) |
 | `LOTE_GUARDA_DIAS` | 7 depois de confirmado; 30 sem confirmação | web | retenção em `/var/data/visitas/lotes/` |
 
 Os tempos internos do `Robo` (login 45 s, `goto` 60 s, seletores de 40 s) continuam os do PC.
@@ -95,7 +96,7 @@ Regras comuns:
 | `diagnostico.estado` | `"pendente"`, `"ok"` ou `"falhou"` | começa `pendente`. O admin pode pedir de novo (volta a `pendente`) |
 | `pausado` | `null` ou `{"codigo": str, "desde": iso}` | RN-VIS-005 e RN-VIS-007. Com pausa, o cron só sai |
 | `pedido` | `null` ou objeto | no máximo **1** pendente (o botão). `perfil` é só o perfil, nunca o usuário |
-| `indice` | `{AAAAMMDD: {...}}` | **o índice único** dos dias baixados nos últimos `FECHADOS_PC_DIAS` dias, pela nuvem (lote importado) ou pelo PC (`fechados_pc`, §4.3). `baixado_em` = o maior dos dois (`visitas_nucleo.juntar_baixado`, RN-VIS-002); `origem` = de quem é esse maior. `erros_vendedor` e `refeito` só valem para `origem: "nuvem"` |
+| `indice` | `{AAAAMMDD: {...}}` | **o índice único** dos dias baixados nos últimos `FECHADOS_PC_DIAS` dias, pela nuvem (lote importado) ou pelo PC (`fechados_pc`, §4.3). `baixado_em` = o maior dos dois (`visitas_nucleo.juntar_baixado`, RN-VIS-002); `origem` = de quem é esse maior. **No empate de hora, vale a nuvem** (`origem: "nuvem"`). A web tem um espelho mínimo dessa função (`web/app/visitas.juntar_baixado`), porque o Render publica só `web/`; um teste de paridade na raiz (`tests/`) confere que as duas dão o mesmo resultado, com empate incluído. `erros_vendedor` e `refeito` só valem para `origem: "nuvem"` |
 | `tentativas_hoje` | objeto | as concessões dadas hoje (Manaus), por motivo: `n`, `ultima_em` e o `codigo` do `fim` (ou `RODADA_INTERROMPIDA`). O site zera quando o `dia` muda (RN-VIS-008) |
 | `falhas_seguidas` | objeto | as rodadas seguidas que terminaram em `TELA_MUDOU` na mesma fase |
 | `fechados_pc_em` | `null` ou iso | o último `fechados_pc` recebido do robô do PC |
@@ -169,7 +170,10 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 | `arquivos[].pasta` | `visitas_maxima.nome_limpo(nome)`; sem `/`, `\`, `..` nem caractere de controle |
 | `arquivos[].nome` | casa com `visitas_nucleo._RX_ARQ_ANALITICO`, começa com `VISITA-<pasta>-` e a data `DD-MM-AAAA` é o `<AAAAMMDD>` da URL |
 
-- **O site confere** (função pura `validar_lote(dia_url, corpo) -> list[str]`, modulo-web): as regras da tabela; `dia` igual ao da URL; dia válido e não futuro; até `ARQUIVOS_MAX` arquivos; cada Excel até `ARQUIVO_MAX` e com o `sha256` certo. O site **nunca abre** o Excel e **nunca** o serve ao navegador.
+- **O site confere** (função pura `validar_lote(dia_url, corpo) -> list[str]`, modulo-web): as regras da tabela; `dia` igual ao da URL; dia válido e não futuro; até `ARQUIVOS_MAX` arquivos; cada Excel até `ARQUIVO_MAX` e com o `sha256` certo. O site **nunca abre o Excel no Excel** (nem em biblioteca de planilha) e **nunca** o serve ao navegador.
+- **Conferência no site** (defesa extra contra dado pessoal, depois da do cron no §3.6): o site lê **só o texto e os números das células** de cada Excel, direto do zip/XML (`sharedStrings.xml` e as planilhas, biblioteca padrão), e aplica neles a mesma varredura do §3.6.
+  - A soma do que ele descomprime num lote vai até `DESCOMPRIMIDO_MAX`. Passou, ele para na hora e responde 413 `{"erro": "descompressao", "codigo": "SITE_DESCOMPRESSAO"}`.
+  - Achou dado pessoal: 422 `{"erro": "dado pessoal", "achados": [...]}` (a forma do §3.5, **nunca o valor**), e o lote do dia não é gravado.
 - **Idempotência:** o mesmo `<id>` + dia + `X-BAP-SHA256` devolve o mesmo `seq`, sem gravar de novo.
 
 | Resposta | Quando |
@@ -179,8 +183,9 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 | 404 | rodada desconhecida |
 | 409 | concessão vencida |
 | 413 `{"erro": "lote grande demais"}` | acima de `LOTE_GZ_MAX`, de `ARQUIVO_MAX` ou de `ARQUIVOS_MAX` |
+| 413 `{"erro": "descompressao", "codigo": "SITE_DESCOMPRESSAO"}` | a conferência passou de `DESCOMPRIMIDO_MAX` descomprimidos |
 | 415 | `Content-Type` ou `Content-Encoding` errado |
-| 422 `{"erro": "sha256"}` ou `{"erro": "esquema inválido", "detalhes": [...]}` | até 10 detalhes, **sem nome**: só a chave e o índice (`arquivos[3].nome`) |
+| 422 `{"erro": "sha256"}`, `{"erro": "esquema inválido", "detalhes": [...]}` ou `{"erro": "dado pessoal", "achados": [...]}` | até 10 detalhes, **sem nome**: só a chave e o índice (`arquivos[3].nome`) |
 
 ### 3.5 `POST /api/visitas/rodada/<id>/fim`
 
@@ -295,11 +300,12 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 | `MAXIMA_CONFIRMACAO` | erro | a Máxima pediu código por SMS ou e-mail, confirmação de novo dispositivo, aceite de termo ou troca de senha | **pausa** | "A Máxima pediu uma confirmação. Use o Atualizar visitas do PC; o admin retoma aqui depois." |
 | `MAXIMA_CAPTCHA` | erro | apareceu captcha (iframe ou elemento conhecido) | **pausa** | o mesmo texto do `MAXIMA_CONFIRMACAO` |
 | `MAXIMA_BLOQUEIO` | erro | conta bloqueada, acesso negado ou HTTP 403 na página de login | **pausa** | "A Máxima bloqueou o acesso do site. Use o Atualizar visitas do PC." |
-| `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato | **pausa** (RN-VIS-007); o lote do dia não sobe; "Retomar" no §4.5 | "O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: <coluna>). Use o Atualizar visitas do PC." |
+| `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato, ou o site recusou o lote com 422 de dado pessoal (§3.4) | **pausa** (RN-VIS-007); o lote do dia não sobe; "Retomar" no §4.5 | "O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: <coluna>). Use o Atualizar visitas do PC." |
 | `MAXIMA_FORA` | erro | tempo esgotado no `goto` do login, ou HTTP 5xx | agenda: nova tentativa (§3.1); botão: o pedido sai da fila | "A Máxima não respondeu. Tentamos de novo às HHhMM." / "Tente mais tarde." |
 | `TELA_MUDOU` | erro | `ErroRobo` numa fase (`fase` obrigatória) | nova tentativa (§3.1); 2 rodadas seguidas na mesma fase **pausam a agenda** | "A tela da Máxima mudou (etapa: <fase>). Use o Atualizar visitas do PC até a correção." |
 | `NAVEGADOR_FALHOU` | erro | o Chromium não abriu ou caiu (`Target closed`, falta de memória) | nova tentativa (§3.1); 2 seguidas aparecem no `/saude` | "O navegador do site parou. Tentamos de novo às HHhMM." |
-| `SITE_RECUSOU` | parcial | o site respondeu 413 ou 422 a um lote | nova tentativa (§3.1) do dia recusado | "Um dia não foi aceito pelo site (DD/MM)." |
+| `SITE_RECUSOU` | parcial | o site respondeu 413 ou 422 a um lote (fora o 413 do `SITE_DESCOMPRESSAO` e o 422 de dado pessoal) | nova tentativa (§3.1) do dia recusado | "Um dia não foi aceito pelo site (DD/MM)." |
+| `SITE_DESCOMPRESSAO` | parcial | o site respondeu 413 com esse código: os Excel do dia passam de `DESCOMPRIMIDO_MAX` descomprimidos | **sem** nova tentativa do dia (o mesmo Excel daria o mesmo); fica fora de `NOVA_TENTATIVA` | "Um dia não foi aceito pelo site (DD/MM): Excel grande demais. Use o Atualizar visitas do PC." |
 | `SITE_FORA` | — | o cron não fala com o site depois de `HTTP_TENTATIVAS` | só no log do Render; o site vê `RODADA_INTERROMPIDA` | — |
 | `RODADA_INTERROMPIDA` | erro | **gravado pelo site**: a concessão venceu sem `fim` | nova tentativa (§3.1) do que falta | "A rodada parou sem terminar. Tentamos de novo às HHhMM." |
 | `TETO_DIA` | — | **estado do site, não rodada**: `tentativas_hoje` chegou ao teto (RN-VIS-008) | nada até o dia seguinte | "O site já entrou o máximo de vezes hoje na Máxima. Use o Atualizar visitas do PC; amanhã volta sozinho." |
