@@ -1,0 +1,525 @@
+{
+  "versao_leitura": 1,
+  "versao_web": "0.13.0",
+  "pacote": {
+    "lote": "20261127-0612-fictício",
+    "gerado_em": "2026-11-20T08:30:00-04:00",
+    "dados_ate": null,
+    "du": "13 de 19 DU"
+  },
+  "visoes": [
+    {
+      "chave": "resultado",
+      "titulo": "Resultado",
+      "sub": "visão absoluta · novembro até 19/11 (13 de 19 dias úteis) · variação × mês fechado",
+      "cartoes": [
+        {
+          "titulo": "FATURAMENTO LÍQUIDO · PROJ.",
+          "valor": "R$ 165 mil",
+          "legenda": "",
+          "aneis": [
+            {
+              "rot": "MTD",
+              "pct": "11%",
+              "sub": "1,03 mi",
+              "tom": "alerta"
+            },
+            {
+              "rot": "MÊS",
+              "pct": "100%",
+              "sub": "1,50 mi",
+              "tom": "ok"
+            }
+          ],
+          "faixa": [
+            {
+              "rot": "out",
+              "var": "+11%",
+              "tom": "ok",
+              "real": "R$ 149 mil"
+            },
+            {
+              "rot": "set",
+              "var": "−31%",
+              "tom": "alerta",
+              "real": "R$ 237 mil"
+            },
+            {
+              "rot": "jul (bench.)",
+              "var": "−74%",
+              "tom": "alerta",
+              "real": "R$ 626 mil"
+            }
+          ],
+          "estados": {
+            "legenda": "atingimento da meta do mês (projeção ÷ meta)",
+            "barras": [
+              {
+                "uf": "PA",
+                "txt": "R$ 28,6 mil",
+                "rot": "9%",
+                "tom": "alerta"
+              },
+              {
+                "uf": "MA",
+                "txt": "R$ 87,0 mil",
+                "rot": "110%",
+                "tom": "ok"
+              },
+              {
+                "uf": "AM",
+                "txt": "R$ 49,1 mil",
+                "rot": "95%",
+                "tom": "atencao"
+              },
+              {
+                "uf": "RR",
+                "txt": "R$ 0",
+                "rot": "",
+                "tom": ""
+              }
+            ]
+          }
+        },
+        {
+          "titulo": "POSITIVAÇÃO",
+          "valor": "45",
+          "legenda": "projeção do mês 66",
+          "aneis": [
+            {
+              "rot": "MTD",
+              "pct": "40%",
+              "sub": "112",
+              "tom": "alerta"
+            },
+            {
+              "rot": "MÊS",
+              "pct": "93%",
+              "sub": "163",
+              "tom": "atencao"
+            }
+          ],
+          "faixa": [
+            {
+              "rot": "out",
+              "var": "−7%",
+              "tom": "alerta",
+              "real": "71"
+            },
+            {
+              "rot": "set",
+              "var": "−9%",
+              "tom": "alerta",
+              "real": "72"
+            },
+            {
+              "rot": "jul (bench.)",
+              "var": "−48%",
+              "tom": "alerta",
+              "real": "126"
+            }
+          ],
+          "estados": {
+            "legenda": "atingimento da meta do mês (projeção ÷ meta)",
+            "barras": [
+              {
+                "uf": "PA",
+                "txt": "R$ 28,6 mil",
+                "rot": "9%",
+                "tom": "alerta"
+              },
+              {
+                "uf": "MA",
+                "txt": "R$ 87,0 mil",
+                "rot": "110%",
+                "tom": "ok"
+              },
+              {
+                "uf": "AM",
+                "txt": "R$ 49,1 mil",
+                "rot": "95%",
+                "tom": "atencao"
+              },
+              {
+                "uf": "RR",
+                "txt": "R$ 0",
+                "rot": "",
+                "tom": ""
+              }
+            ]
+          }
+        },
+        {
+          "titulo": "PEDIDOS FATURADOS · PROJ.",
+          "valor": "85",
+          "legenda": "",
+          "aneis": [],
+          "faixa": [
+            {
+              "rot": "out",
+              "var": "+10%",
+              "tom": "ok",
+              "real": "77"
+            },
+            {
+              "rot": "set",
+              "var": "+1%",
+              "tom": "ok",
+              "real": "84"
+            },
+            {
+              "rot": "jul (bench.)",
+              "var": "−50%",
+              "tom": "alerta",
+              "real": "168"
+            }
+          ],
+          "estados": {
+            "legenda": "atingimento da meta do mês (projeção ÷ meta)",
+            "barras": [
+              {
+                "uf": "PA",
+                "txt": "R$ 28,6 mil",
+                "rot": "9%",
+                "tom": "alerta"
+              },
+              {
+                "uf": "MA",
+                "txt": "R$ 87,0 mil",
+                "rot": "110%",
+                "tom": "ok"
+              },
+              {
+                "uf": "AM",
+                "txt": "R$ 49,1 mil",
+                "rot": "95%",
+                "tom": "atencao"
+              },
+              {
+                "uf": "RR",
+                "txt": "R$ 0",
+                "rot": "",
+                "tom": ""
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "chave": "produtividade",
+      "titulo": "Produtividade",
+      "sub": "visão absoluta · novembro até 19/11 (13 de 19 dias úteis) · variação × mês fechado",
+      "cartoes": [
+        {
+          "titulo": "VISITAS",
+          "valor": "310",
+          "legenda": "",
+          "aneis": [
+            {
+              "rot": "MÊS",
+              "pct": "70%",
+              "sub": "440",
+              "tom": "alerta"
+            }
+          ],
+          "faixa": [
+            {
+              "rot": "out",
+              "var": "+11%",
+              "tom": "ok",
+              "real": "R$ 149 mil"
+            },
+            {
+              "rot": "set",
+              "var": "−31%",
+              "tom": "alerta",
+              "real": "R$ 237 mil"
+            },
+            {
+              "rot": "jul (bench.)",
+              "var": "−74%",
+              "tom": "alerta",
+              "real": "R$ 626 mil"
+            }
+          ],
+          "estados": {
+            "legenda": "atingimento da meta do mês (projeção ÷ meta)",
+            "barras": [
+              {
+                "uf": "PA",
+                "txt": "R$ 28,6 mil",
+                "rot": "9%",
+                "tom": "alerta"
+              },
+              {
+                "uf": "MA",
+                "txt": "R$ 87,0 mil",
+                "rot": "110%",
+                "tom": "ok"
+              },
+              {
+                "uf": "AM",
+                "txt": "R$ 49,1 mil",
+                "rot": "95%",
+                "tom": "atencao"
+              },
+              {
+                "uf": "RR",
+                "txt": "R$ 0",
+                "rot": "",
+                "tom": ""
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "chave": "por_dia_util",
+      "titulo": "Por DU",
+      "sub": "visão absoluta · novembro até 19/11 (13 de 19 dias úteis) · variação × mês fechado",
+      "cartoes": [
+        {
+          "titulo": "FATURAMENTO POR DU",
+          "valor": "R$ 8,7 mil",
+          "legenda": "",
+          "aneis": [],
+          "faixa": [
+            {
+              "rot": "out",
+              "var": "+11%",
+              "tom": "ok",
+              "real": "R$ 149 mil"
+            },
+            {
+              "rot": "set",
+              "var": "−31%",
+              "tom": "alerta",
+              "real": "R$ 237 mil"
+            },
+            {
+              "rot": "jul (bench.)",
+              "var": "−74%",
+              "tom": "alerta",
+              "real": "R$ 626 mil"
+            }
+          ],
+          "estados": {
+            "legenda": "atingimento da meta do mês (projeção ÷ meta)",
+            "barras": [
+              {
+                "uf": "PA",
+                "txt": "R$ 28,6 mil",
+                "rot": "9%",
+                "tom": "alerta"
+              },
+              {
+                "uf": "MA",
+                "txt": "R$ 87,0 mil",
+                "rot": "110%",
+                "tom": "ok"
+              },
+              {
+                "uf": "AM",
+                "txt": "R$ 49,1 mil",
+                "rot": "95%",
+                "tom": "atencao"
+              },
+              {
+                "uf": "RR",
+                "txt": "R$ 0",
+                "rot": "",
+                "tom": ""
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "chave": "resumo",
+      "titulo": "Resumo",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    },
+    {
+      "chave": "faturamento",
+      "titulo": "Faturamento",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    },
+    {
+      "chave": "volume",
+      "titulo": "Volume",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    },
+    {
+      "chave": "visitas",
+      "titulo": "Visitas",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    },
+    {
+      "chave": "positivacao",
+      "titulo": "Positivação",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    },
+    {
+      "chave": "itens",
+      "titulo": "Itens",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    },
+    {
+      "chave": "markup",
+      "titulo": "Markup",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    },
+    {
+      "chave": "preco",
+      "titulo": "Preço",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    },
+    {
+      "chave": "inadimplencia",
+      "titulo": "Inadimplência",
+      "cartoes": [
+        {
+          "rot": "Real",
+          "valor": "R$ 500 mil",
+          "cor": "alerta",
+          "estados": null
+        },
+        {
+          "rot": "Desafio comercial",
+          "valor": "R$ 1,5 mi",
+          "cor": "",
+          "estados": null
+        }
+      ]
+    }
+  ],
+  "farois": [
+    {
+      "rid": "pv_pedidos",
+      "nome": "Farol de Pedidos"
+    },
+    {
+      "rid": "pl_entregas",
+      "nome": "Farol de Entregas"
+    },
+    {
+      "rid": "vc_planner",
+      "nome": "Farol Roteirização"
+    },
+    {
+      "rid": "pl_garantias",
+      "nome": "Farol de Garantias"
+    },
+    {
+      "rid": "vc_meta",
+      "nome": "Farol de Metas Equipe"
+    }
+  ]
+}
