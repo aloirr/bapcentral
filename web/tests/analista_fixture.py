@@ -30,6 +30,8 @@ def _valor(nome, tipo, i):
         return round(100.5 * (i + 1), 2)
     if tipo in ("pct", "pct1"):
         return round(10.0 + i, 1)
+    if nome == "VENDEDOR PROTHEUS (A1_VEND)":          # diferente do Planner: é a divergência
+        return f"VENDEDOR FICTICIO {(i + 1) % 3 + 1:02d}"
     if "VENDEDOR" in nome:
         return f"VENDEDOR FICTICIO {i % 3 + 1:02d}"
     if "SUPERVISOR" in nome:
@@ -65,8 +67,7 @@ TITULOS = {"vc_saldo": "Farol de Saldo", "vc_markup": "Farol de Markup", "vc_pre
 
 def farol(rid, n=6):
     f = {"forma": "farol", "titulo": TITULOS[rid],
-         "kpis": [{"rotulo": r, "valor": f"{(i + 1) * 12},5", "cor": ("ok", "atencao", "neutro")[i % 3],
-                   "detalhe": "dado fictício"} for i, r in enumerate(KPIS[rid])],
+         "kpis": [{"rotulo": r, "valor": f"{(i + 1) * 12},5", "cor": "neutro", "detalhe": ""} for i, r in enumerate(KPIS[rid])],
          "painel": {"blocos": [{"tipo": "insights", "titulo": "O que o farol diz", "row": 0, "col": 0,
                                 "linhas": [["info", "Frase fictícia do farol."]]}]},
          "insights_painel": [["info", "Frase fictícia do farol."]], "avisos": [],

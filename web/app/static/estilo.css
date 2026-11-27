@@ -509,3 +509,40 @@ body.uma-tela .dica-rolagem{display:none}
   .bc3 .graf .hb-l{grid-template-columns:minmax(60px,46%) 1fr auto}
 }
 .rolagem-dados.sem-rolagem .tab-dados tfoot td:first-child{position:sticky;bottom:0;left:auto}
+
+/* ===================== T-0036 (revisão de UX): marca, abas curtas com "Mais", busca em ícone, faixa e início do trade ===================== */
+/* manual da marca §3.3: placa preto BAP no topo da barra, logo inteiro de 56 px (48 px no celular) e "BAP AUTOPARTS" ao lado */
+.bc3-marca{background:#231F20;border-radius:10px;padding:8px 12px;gap:10px;color:#fff;margin:0 0 14px;font-weight:700}
+.bc3-marca img{height:56px;width:auto;display:block;flex:none}
+.bc3-marca span{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.bc3-marca b{font-size:15px;font-weight:700;color:#fff}.bc3-marca small{white-space:nowrap;font-size:10.5px;font-weight:600;color:#fff;letter-spacing:.02em}
+/* faixa: só a data (o texto inteiro fica no title); no celular, a data curta */
+.q-cel{display:none}
+.bc3-faixa-simples{padding:16px 24px;min-height:0}
+.bc3-vazio{margin:22px 4px;font-size:14px;color:#5E6B63}
+/* abas numa linha só; o que não cabe vai para "Mais ▾" (bc3.js) */
+.bc3-abas-wrap{display:flex;align-items:stretch;gap:4px;flex:1 1 0;min-width:0}
+.bc3-abas-wrap .bc3-abas{flex:1 1 0;min-width:0;overflow:hidden}
+.bc3-abas a[hidden],.bc3-amais[hidden]{display:none}
+.bc3-amais{position:relative;flex:none;display:flex;align-items:stretch}
+.bc3-amais>summary{display:flex;align-items:center;padding:0 10px;color:#5E6B63;font-weight:500;cursor:pointer;list-style:none;min-height:44px;white-space:nowrap}
+.bc3-amais>summary::-webkit-details-marker{display:none}
+.bc3-amais[open]>div{position:absolute;right:0;top:100%;z-index:25;background:#fff;border:1px solid #E3E8E4;border-radius:8px;box-shadow:0 6px 18px #0000001f;padding:4px;min-width:180px;display:flex;flex-direction:column}
+.bc3-amais>div a{padding:11px 12px;color:#33403A;text-decoration:none;border-radius:6px;white-space:nowrap}.bc3-amais>div a:hover{background:#F1F5F1}
+/* busca em ícone abaixo de 1500 px (abre ao tocar) */
+@media(min-width:701px) and (max-width:1500px){
+  .bc3-busca:not(.tem){width:36px;padding:0 9px;justify-content:center;position:relative;z-index:6;box-sizing:border-box;flex:none}
+  .bc3-busca:not(.tem) input[type=search]{width:0;flex:0 0 0}
+  .bc3-busca:not(.tem) label{cursor:pointer;display:flex}
+  .bc3-busca:not(.tem):focus-within{width:260px;margin-left:-224px;justify-content:flex-start;box-shadow:0 6px 18px #0000001f}
+  .bc3-busca:not(.tem):focus-within input[type=search]{width:100%;flex:1 1 auto}
+}
+.bc3-busca label{display:flex;align-items:center;margin:0}
+@media(max-width:700px){
+  .bc3-marca{margin:0;padding:6px 10px}.bc3-marca img{height:48px}
+  .bc3-quando{width:auto;padding:0}.q-pc{display:none}.q-cel{display:inline}
+  .bc3-abas-wrap{flex:none;width:100%}
+  .bc3-abas-wrap .bc3-abas{overflow:hidden;flex:1 1 0;min-width:0}
+  .bc3-abas a{flex:1 1 0;min-height:44px;padding:0 6px;display:flex;align-items:center;justify-content:center;white-space:nowrap}
+  .bc3-amais>summary{min-height:44px;background:#EEF1EE;border-radius:10px;margin-left:4px}
+}

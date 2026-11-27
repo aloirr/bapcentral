@@ -6,12 +6,14 @@
 {% set ks_todos = (kpis if e_tab else (tela.kpis if tela else [])) or [] %}
 {# cartão com barras por estado ou linhas de detalhe fica no corpo (Resumo); a faixa leva só os números #}
 {% set ks = ks_todos|rejectattr('estados')|rejectattr('linhas')|list %}
+{# T-0036 (revisão de UX 4, tela-bc3 §4.1): a faixa leva até 6 números; o 7º fica no Resumo e na aba própria #}
+{% if rid in ('vc_saldo', 'vc_markup', 'vc_preco', 'an_divergencias') %}{% set ks = ks[:6] %}{% endif %}
 {% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
 {% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
 <header class="bc3-faixa">
   <div class="bc3-tt">
     <h1>{{ farol_nome }}</h1>
-    {% if gerado_em %}<span class="bc3-quando">Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}</span>{% endif %}
+    {% if gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}"><span class="q-pc">{{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}</span><span class="q-cel">{{ gerado_em|manaus_curto }}</span></span>{% endif %}
     {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
     {% if lista_uf %}
     <nav class="bc3-uf" aria-label="Filtro por estado">
@@ -37,14 +39,14 @@
        href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}{{ '' if fb.mostrar else '&fora=1' }}"><i>{{ '' if fb.mostrar else '✓' }}</i>Ignorar fora da base ({{ fb.qtd }})</a>
     {% endif %}
     {% if e_tab and not (tabela.dica_busca is defined and tabela.dica_busca == "") %}
-    <form method="get" action="/farol/{{ rid }}" class="bc3-busca" role="search">
+    <form method="get" action="/farol/{{ rid }}" class="bc3-busca{{ ' tem' if tabela.busca }}" role="search">
       <input type="hidden" name="aba" value="{{ aba }}">
       {% if sub is defined and sub is not none %}<input type="hidden" name="sub" value="{{ sub }}">{% endif %}
       {% if uf_at %}<input type="hidden" name="uf" value="{{ uf_at }}">{% endif %}
       {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
       {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ tabela.dica_busca if (tabela.dica_busca is defined and tabela.dica_busca) else 'Buscar pedido, cliente ou produto' }}" maxlength="60" autocomplete="off" aria-label="Buscar">
+      <label for="bc3-q" title="Buscar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></label>
+      <input id="bc3-q" type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ tabela.dica_busca if (tabela.dica_busca is defined and tabela.dica_busca) else 'Buscar pedido, cliente ou produto' }}" maxlength="60" autocomplete="off" aria-label="Buscar">
       {% if tabela.busca %}<a href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}" title="Limpar busca" aria-label="Limpar busca">×</a>{% endif %}
     </form>
     {% endif %}
@@ -58,7 +60,7 @@
         <a href="/farol/{{ rid }}/exportar?{{ qs }}&amp;formato=xlsx">Excel desta tabela</a>
         <a href="/farol/{{ rid }}/exportar?{{ qs }}&amp;formato=pdf">PDF desta tabela</a>
         <a href="/farol/{{ rid }}/exportar?todas=1&amp;formato=xlsx">Excel de todas as abas</a>
-        {% if correcao is defined and correcao %}<a href="/farol/an_divergencias/correcao.xlsx">Excel de correção (Protheus)</a>{% endif %}
+        {% if correcao is defined and correcao %}<a href="/farol/an_divergencias/correcao.xlsx">Excel para corrigir no Protheus</a>{% endif %}
         {% if csvs is defined and csvs %}<small>Arquivos para importar no Protheus</small>
         {% for c in csvs %}<a href="/farol/pv_pedidos/csv/{{ c.nome|urlencode }}" download="{{ c.nome }}">{{ c.nome }}</a>{% endfor %}{% endif %}
       </div>

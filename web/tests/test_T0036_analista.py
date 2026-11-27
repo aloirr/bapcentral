@@ -73,8 +73,8 @@ def test_RN_GER_014_menu_do_analista_tem_o_grupo_analista_comercial():
     nomes = [g["nome"] for g in grupos]
     assert nomes[0] == "Diretoria" and "Analista Comercial" in nomes and nomes[-1] == "Conta"
     ana = next(g for g in grupos if g["nome"] == "Analista Comercial")
-    assert [i["nome"] for i in ana["itens"]] == ["Farol de Saldo", "Farol de Markup", "Farol de Preço",
-                                                 "Divergências clientes Planner x Protheus"]
+    assert [i["nome"] for i in ana["itens"]] == ["Saldo", "Markup", "Preço", "Divergências"]    # lateral curta (UX 7)
+    assert render.FAROIS["an_divergencias"][0] == "Divergências de clientes Planner × Protheus"
     assert [i["href"] for i in ana["itens"]] == [f"/farol/{r}" for r in RIDS_NOVOS]
     # o grupo só aparece para quem tem farol dele
     for p in ("trade", "pre_venda", "vendas", "pos_venda"):
@@ -84,9 +84,16 @@ def test_RN_GER_014_menu_do_analista_tem_o_grupo_analista_comercial():
 
 def test_RN_GER_014_pagina_inicial_do_trade_sem_farol(admin, usu):
     r = usu("trade").get("/")
-    assert r.status_code == 200 and "Ainda não há farol do Trade Marketing no site." in r.text
+    assert r.status_code == 200 and "Nenhum farol do Trade Marketing no site ainda." in r.text
+    assert "bc3-lado" in r.text and "BAP AUTOPARTS" in r.text            # casca BC3 com a marca (UX 9, 5)
     assert "/farol/" not in r.text and "/painel" not in r.text and "/senha" in r.text
-    assert "Ainda não há farol" not in usu("analista").get("/").text
+    assert "Dados de" not in r.text and "v0.5" not in r.text and "aviso atencao" not in r.text
+
+
+def test_RN_GER_014_inicio_do_analista_abre_no_farol_de_saldo(admin, usu):
+    r = usu("analista").get("/", follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "/farol/vc_saldo"
+    assert usu("gerente").get("/", follow_redirects=False).status_code == 200
 
 
 def test_RN_GER_014_analista_abre_o_painel_como_o_gerente(usu):
@@ -308,3 +315,52 @@ def test_T0036_versao_nova_no_saude(cli):
 def test_T0036_tabela_fixture_confere_com_a_lista():
     t = tabela("vc_markup", "Por produto", 2)
     assert len(t["colunas"]) == 20 and tabelas._tabela_erro(t, "Por produto", "aba", "vc_markup") is None
+
+
+# ------------------------------------------------------------------ revisão de UX (T-0036)
+def test_RN_GER_011_grade_nos_quatro_farois_sem_rolagem_lateral(com_analista):
+    # UX 1: toda tabela de cima tem GRADE (até 10 colunas no PC, 4 no celular) e a dica de rolagem não aparece
+    for (rid, titulo), cols in tabelas.COLUNAS_RID.items():
+        g = tabelas.GRADE[(rid, titulo)]
+        nomes = [n for n, _, o in cols if not o]
+        assert len(g["grade"]) <= 10 and len(g["cel"]) == 4 and g["chave"] in g["grade"], (rid, titulo)
+        assert set(g["grade"]) <= set(nomes) and set(g["cel"]) <= set(nomes), (rid, titulo)
+    for rid in RIDS_NOVOS:
+        for chave, _ in tabelas.ABAS[rid]:
+            h = com_analista.get(f"/farol/{rid}?aba={chave}").text
+            assert "Role para o lado" not in h and "grade-lote" in h and "bc3-lista" in h, (rid, chave)
+
+
+def test_T0036_abas_curtas_e_dica_da_busca_por_farol(com_analista):
+    h = com_analista.get("/farol/vc_markup?aba=pedido").text
+    for curto in (">Pedido", ">Cidade<", ">Todos<", ">Produto<"):
+        assert curto in h
+    assert "Por pedido" not in h
+    for rid, dica in tabelas.DICA_FAROL.items():
+        assert f'placeholder="{dica}"' in com_analista.get(f"/farol/{rid}?aba={tabelas.ABAS[rid][0][0]}").text
+    assert len(tabelas.DICA_FAROL["vc_markup"]) <= 24                 # cabe a 1366 px sem corte
+
+
+def test_T0036_faixa_com_no_maximo_seis_numeros(com_analista):
+    for rid, n7 in (("an_divergencias", 7), ("vc_markup", 7)):
+        h = com_analista.get(f"/farol/{rid}?aba={tabelas.ABAS[rid][0][0]}").text
+        assert h.count('class="bc3-k ') == 6, rid
+
+
+def test_T0036_faixa_sem_dados_de_e_com_data_curta_no_celular(com_analista):
+    h = com_analista.get("/farol/vc_saldo").text
+    assert "Dados de" in h and 'class="bc3-quando" title="Dados de 24/11/2026 08:30"' in h   # só no title
+    assert '<span class="q-cel">24/11 08:30</span>' in h and ">Dados de" not in h
+
+
+def test_T0036_rotulo_da_coluna_sem_nome_do_campo_do_protheus(com_analista):
+    h = com_analista.get("/farol/an_divergencias?aba=divergentes").text
+    assert "VENDEDOR PROTHEUS" in h and "A1_VEND" not in h
+    z = zipfile.ZipFile(io.BytesIO(com_analista.get(CORRECAO).content))
+    assert "A1_VEND" in " ".join(z.read(n).decode() for n in z.namelist() if n.startswith("xl/worksheets/"))
+
+
+def test_T0036_casca_com_a_marca_bap(com_analista):
+    h = com_analista.get("/farol/vc_saldo").text
+    assert 'class="bc3-marca"' in h and "logo_bap.png" in h and "BAP AUTOPARTS" in h
+    assert com_analista.get("/static/logo_bap.png").content[:4] == b"\x89PNG"

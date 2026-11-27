@@ -109,3 +109,47 @@
     document.querySelectorAll(".bc3-junta").forEach(function (d) { d.open = true; });
   }
 })();
+
+// T-0036 (revisão de UX, R2 e R3): as abas ficam numa linha só; o que não cabe vai para "Mais ▾".
+// PC: pela largura. Celular: Resumo, a aba ativa e mais uma (3 à vista).
+(function () {
+  "use strict";
+  var nav = document.querySelector(".bc3-abas");
+  if (!nav) return;
+  var links = Array.prototype.slice.call(nav.querySelectorAll("a"));
+  if (links.length < 3) return;
+  var CEL = window.matchMedia("(max-width: 700px)");
+  var wrap = document.createElement("div");
+  wrap.className = "bc3-abas-wrap";
+  nav.parentNode.insertBefore(wrap, nav);
+  wrap.appendChild(nav);
+  var mais = document.createElement("details");
+  mais.className = "bc3-amais"; mais.hidden = true;
+  mais.innerHTML = "<summary>Mais ▾</summary><div></div>";
+  wrap.appendChild(mais);
+  var lista = mais.querySelector("div");
+  function ativo() { for (var i = 0; i < links.length; i++) if (links[i].classList.contains("on")) return i; return 0; }
+  function montar() {
+    links.forEach(function (l) { l.hidden = false; });
+    lista.textContent = ""; mais.hidden = true; mais.open = false;
+    var ia = ativo();
+    if (CEL.matches) {
+      var ficar = [0]; if (ia > 0) ficar.push(ia);
+      var k = ia + 1;
+      while (ficar.length < 3 && k < links.length) { if (ficar.indexOf(k) < 0) ficar.push(k); k++; }
+      k = ia - 1;
+      while (ficar.length < 3 && k > 0) { if (ficar.indexOf(k) < 0) ficar.push(k); k--; }
+      if (links.length > 3) links.forEach(function (l, i) { if (ficar.indexOf(i) < 0) l.hidden = true; });
+    } else if (nav.scrollWidth > nav.clientWidth + 1) {
+      mais.hidden = false;
+      for (var i = links.length - 1; i > 0 && nav.scrollWidth > nav.clientWidth + 1; i--) if (i !== ia) links[i].hidden = true;
+    }
+    links.forEach(function (l) {
+      if (!l.hidden) return;
+      var c = l.cloneNode(true); c.hidden = false; c.removeAttribute("aria-current"); lista.appendChild(c);
+    });
+    mais.hidden = !lista.children.length;
+  }
+  montar();
+  var t; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(montar, 150); });
+})();

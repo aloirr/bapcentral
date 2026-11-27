@@ -60,6 +60,8 @@ def test_web_mostra_as_abas_reais_para_admin(admin):
 def test_GRADE_do_lote2_tem_ate_10_colunas_e_so_colunas_do_robo():
     p = pacote_lote2()["relatorios"]
     for (rid, titulo), g in tabelas.GRADE.items():
+        if rid not in p:                      # T-0036: as GRADEs do Analista têm teste próprio
+            continue
         t = next(x for x in p[rid]["tabelas"] if x["titulo"] == titulo)
         nomes = [c["nome"] for c in t["colunas"] if not c.get("oculta")]
         assert len(g["grade"]) <= 10, (rid, titulo)

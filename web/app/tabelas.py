@@ -115,6 +115,19 @@ ROTULO_ABA = {
     ("vc_base", "Por vendedor"): "Vendedor", ("vc_base", "Por supervisor"): "Supervisor",
     ("vc_base", "Por família (6 meses)"): "Família", ("vc_base", "Por produto (top 400, 6 meses)"): "Produto",
     ("pl_giro", "Resumo por filial"): "Por filial",
+    # T-0036 (revisão de UX, R2): as abas do Analista numa linha só a 1366 px
+    **{("vc_saldo", t): c for t, c in (("Pedido a pedido", "Pedido"), ("Por vendedor", "Vendedor"),
+                                       ("Por supervisor", "Supervisor"), ("Por UF", "UF"))},
+    **{("vc_markup", t): c for t, c in (("Por pedido", "Pedido"), ("Por UF", "UF"), ("Por cidade", "Cidade"),
+                                        ("Por supervisor", "Supervisor"), ("Por vendedor", "Vendedor"),
+                                        ("Por categoria", "Categoria"), ("Por sistema", "Sistema"),
+                                        ("Por família", "Família"), ("Por linha", "Linha"),
+                                        ("Por produto", "Produto"), ("Todos os produtos", "Todos"))},
+    **{("vc_preco", t): c for t, c in (("Por categoria", "Categoria"), ("Por família", "Família"),
+                                       ("Total BAP", "Total"), ("Reajustes por produto", "Reajustes"),
+                                       ("Pesquisa de mercado", "Pesquisa"))},
+    **{("an_divergencias", t): c for t, c in (("Por vendedor", "Vendedor"), ("Clientes divergentes", "Divergentes"),
+                                              ("Sem coordenada / endereço", "Sem coordenada"))},
 }
 
 
@@ -884,7 +897,8 @@ def _cabecalho(t, vista):
     cols = t["colunas"]
     # T-0022: com cabeçalho agrupado (Farol de Metas) vale o nome curto, como na tela do PC
     nome = lambda k: (cols[k].get("curto") if t.get("grupos") and cols[k].get("curto") else cols[k]["nome"])  # noqa: E731
-    return [{"i": k, "nome": nome(k), "tipo": cols[k]["tipo"], "num": cols[k]["tipo"] in NUM_TIPOS,
+    return [{"i": k, "nome": nome(k), "rot": ROTULO_COLUNA.get(nome(k), nome(k)), "tipo": cols[k]["tipo"],
+             "num": cols[k]["tipo"] in NUM_TIPOS,
              "inteira": bool(cols[k].get("inteira")), "livre": cols[k]["nome"] in LIVRES} for k in vista]
 
 
@@ -1089,11 +1103,82 @@ DICA_BUSCA = {
 
 def dica_busca(rid: str, titulo: str, n_linhas: int) -> str | None:
     """None = o texto padrão (faróis antigos); "" = sem caixa de busca; senão, a dica do que a 1ª coluna mostra."""
+    if rid in DICA_FAROL:                   # T-0036: faróis do Analista, sempre com busca
+        return DICA_FAROL[rid]
     if rid not in FAROIS_LIVRES:
         return None
     if n_linhas <= SEM_BUSCA_ATE:
         return ""
     return DICA_BUSCA.get((rid, titulo), "Buscar produto" if rid == "pl_giro" else "Buscar")
+
+
+# T-0036 (revisão de UX, R1): os 4 faróis do Analista Comercial entram na GRADE (até 10 colunas no PC, 4 no celular,
+# sem rolagem para o lado). O que a grade não mostra vai ao popup da linha (chave sublinhada) e ao Excel.
+_SALDO_AGR = ("PEDIDOS", "VLR VENDA", "DESC. COMERCIAL", "% DESC. COM.", "SALDO", "META SALDO", "% ATING.")
+_MK_GRUPO = ("PEDIDOS", "R$ VENDA", "CUSTO", "MARGEM", "MARKUP %", "MKP TABELA %", "% DESC.", "PART. MARGEM")
+_MK_PROD = ("PRODUTOS", "R$ VENDA", "CUSTO", "MARGEM", "MKP REAL %", "% DESC.", "MKP TABELA %", "MKP VENDA %",
+            "PART. MARGEM")
+_PR_GRUPO = ("MÊS", "LEITURA", "FATURAMENTO", "VAR. FAT. %", "PREÇO MÉDIO", "VAR. PREÇO %", "EFEITO PREÇO",
+             "EFEITO VOLUME", "EFEITO MIX")
+GRADE.update({
+    ("vc_saldo", "Pedido a pedido"): _g("PEDIDO", ("PEDIDO", "DATA NF", "FILIAL", "VENDEDOR", "VLR VENDA",
+                                                   "% DESC. COM.", "SALDO DO PEDIDO", "SALDO FRETE", "NO SALDO",
+                                                   "DESC. COMERCIAL"),
+                                        ("PEDIDO", "VENDEDOR", "% DESC. COM.", "SALDO DO PEDIDO")),
+    ("vc_saldo", "Por vendedor"): _g("VENDEDOR", ("VENDEDOR", "SUPERVISOR") + _SALDO_AGR,
+                                     ("VENDEDOR", "SUPERVISOR", "% DESC. COM.", "SALDO")),
+    ("vc_saldo", "Por supervisor"): _g("SUPERVISOR", ("SUPERVISOR",) + _SALDO_AGR,
+                                       ("SUPERVISOR", "PEDIDOS", "% DESC. COM.", "SALDO")),
+    ("vc_saldo", "Por UF"): _g("UF", ("UF",) + _SALDO_AGR, ("UF", "PEDIDOS", "% DESC. COM.", "SALDO")),
+    ("vc_markup", "Por pedido"): _g("PEDIDO", ("PEDIDO", "DATA PED.", "FILIAL", "UF", "STATUS", "R$ VENDA", "CUSTO",
+                                               "MARGEM", "MARKUP %", "SITUAÇÃO"),
+                                    ("PEDIDO", "FILIAL", "SITUAÇÃO", "MARKUP %")),
+    ("vc_markup", "Por UF"): _g("UF", ("UF",) + _MK_GRUPO, ("UF", "PEDIDOS", "MARGEM", "MARKUP %")),
+    ("vc_markup", "Por cidade"): _g("CIDADE", ("CIDADE",) + _MK_GRUPO, ("CIDADE", "PEDIDOS", "MARGEM", "MARKUP %")),
+    ("vc_markup", "Por supervisor"): _g("SUPERVISOR", ("SUPERVISOR",) + _MK_GRUPO,
+                                        ("SUPERVISOR", "PEDIDOS", "MARGEM", "MARKUP %")),
+    ("vc_markup", "Por vendedor"): _g("VENDEDOR", ("VENDEDOR",) + _MK_GRUPO,
+                                      ("VENDEDOR", "PEDIDOS", "MARGEM", "MARKUP %")),
+    ("vc_markup", "Por categoria"): _g("CATEGORIA", ("CATEGORIA",) + _MK_PROD,
+                                       ("CATEGORIA", "PRODUTOS", "MARGEM", "MKP REAL %")),
+    ("vc_markup", "Por sistema"): _g("SISTEMA", ("SISTEMA",) + _MK_PROD, ("SISTEMA", "PRODUTOS", "MARGEM", "MKP REAL %")),
+    ("vc_markup", "Por família"): _g("FAMÍLIA", ("FAMÍLIA",) + _MK_PROD, ("FAMÍLIA", "PRODUTOS", "MARGEM", "MKP REAL %")),
+    ("vc_markup", "Por linha"): _g("LINHA", ("LINHA",) + _MK_PROD, ("LINHA", "PRODUTOS", "MARGEM", "MKP REAL %")),
+    ("vc_markup", "Por produto"): _g("PRODUTO", ("PRODUTO", "DESCRIÇÃO", "SITUAÇÃO", "ESTOQUE", "VOL. VENDIDO",
+                                                 "R$ VENDA", "MARGEM", "MKP REAL %", "MKP VENDA %", "% DESC."),
+                                     ("PRODUTO", "DESCRIÇÃO", "ESTOQUE", "MKP REAL %")),
+    ("vc_markup", "Todos os produtos"): _g("PRODUTO", ("PRODUTO", "DESCRIÇÃO", "CATEGORIA", "SITUAÇÃO", "EST.",
+                                                       "QTD VEND.", "R$ VENDA", "MKP REAL %", "MKP VENDA %",
+                                                       "ÚLT. VENDA"),
+                                           ("PRODUTO", "DESCRIÇÃO", "EST.", "MKP REAL %")),
+    ("vc_preco", "Por categoria"): _g("CATEGORIA", ("CATEGORIA",) + _PR_GRUPO,
+                                      ("CATEGORIA", "MÊS", "LEITURA", "FATURAMENTO")),
+    ("vc_preco", "Por família"): _g("FAMÍLIA", ("FAMÍLIA",) + _PR_GRUPO, ("FAMÍLIA", "MÊS", "LEITURA", "FATURAMENTO")),
+    ("vc_preco", "Total BAP"): _g("TOTAL", ("TOTAL",) + _PR_GRUPO, ("TOTAL", "MÊS", "LEITURA", "FATURAMENTO")),
+    ("vc_preco", "Reajustes por produto"): _g("PRODUTO", ("PRODUTO", "MÊS", "FILIAL", "FAMÍLIA", "LEITURA",
+                                                          "VAR. TABELA %", "PREÇO PRATICADO", "VAR. PREÇO %",
+                                                          "VAR. QTD %", "VAR. FAT. %"),
+                                              ("PRODUTO", "FILIAL", "LEITURA", "VAR. PREÇO %")),
+    ("vc_preco", "Pesquisa de mercado"): _g("PRODUTO", ("PRODUTO", "DATA", "VENDEDOR", "CIDADE", "UF", "CONCORRENTE",
+                                                        "LEITURA", "DIF. COMPRA %", "DIF. VENDA %",
+                                                        "SHARE VOLUME %"),
+                                            ("PRODUTO", "CONCORRENTE", "LEITURA", "DIF. VENDA %")),
+    ("an_divergencias", "Por vendedor"): _g("VENDEDOR", ("VENDEDOR", "SUPERVISOR", "CARTEIRA PLANNER", "BASE PROTHEUS",
+                                                         "IGUAIS", "SÓ NO PLANNER", "SÓ NO PROTHEUS",
+                                                         "· FORA DA BASE", "· PLANNER SEM VENDEDOR", "BATE?"),
+                                            ("VENDEDOR", "SUPERVISOR", "CARTEIRA PLANNER", "BATE?")),
+    ("an_divergencias", "Clientes divergentes"): _g("COD", ("COD", "LOJA", "CIDADE", "UF", "VENDEDOR PLANNER",
+                                                            "VENDEDOR PROTHEUS (A1_VEND)", "SITUAÇÃO", "O QUE FAZER"),
+                                                    ("COD", "VENDEDOR PLANNER", "SITUAÇÃO", "O QUE FAZER")),
+    ("an_divergencias", "Sem coordenada / endereço"): _g(
+        "CÓD.", ("CÓD.", "LOJA", "O QUE FALTA", "NA ROTA DO MÊS", "UF", "CIDADE", "VENDEDOR PLANNER", "CURVA",
+                 "SITUAÇÃO", "PONTO"), ("CÓD.", "VENDEDOR PLANNER", "SITUAÇÃO", "O QUE FALTA")),
+})
+# T-0036: a dica da busca é uma por farol e nomeia o que a pessoa acha (sem cliente por nome: RN-GER-011)
+DICA_FAROL = {"vc_saldo": "Buscar código ou produto", "vc_markup": "Buscar pedido ou código",
+              "vc_preco": "Buscar código ou produto", "an_divergencias": "Buscar código ou cidade"}
+# T-0036: rótulo da coluna na tela; o nome do contrato (e o Excel) continua o do PC
+ROTULO_COLUNA = {"VENDEDOR PROTHEUS (A1_VEND)": "VENDEDOR PROTHEUS"}
 
 
 def colunas_fora_da_grade(tab: dict) -> set[int]:
@@ -1230,4 +1315,5 @@ def subabas_para_tela(t: dict, sub: int, consulta: dict, pagina_tam: int = 100) 
     tela["sub"] = sub
     for c in tela["cols"]:                                 # só na exibição: rótulo legível (o contrato guarda o do arquivo)
         c["nome"] = " ".join(_TROCA_ROTULO.get(w, w) for w in c["nome"].replace("_", " ").split())
+        c["rot"] = c["nome"]
     return [ROTULO_SUB.get(x["titulo"], x["titulo"]) for x in subs], tela

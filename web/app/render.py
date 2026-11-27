@@ -166,13 +166,15 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_saldo": ("Farol de Saldo", LEITURA_GERAL + ("diretor",)),
     "vc_markup": ("Farol de Markup", LEITURA_GERAL + ("diretor",)),
     "vc_preco": ("Farol de Preço", LEITURA_GERAL + ("diretor",)),
-    "an_divergencias": ("Divergências clientes Planner x Protheus", LEITURA_GERAL + ("diretor",)),
+    "an_divergencias": ("Divergências de clientes Planner × Protheus", LEITURA_GERAL + ("diretor",)),
 }
 TONS = ("ok", "atencao", "alerta", "info")
 LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")    # T-0024: faróis de abas livres
 # T-0024 (R4 do parecer de UX): nome curto na barra lateral; o nome completo do PC fica no título da faixa
 NOME_MENU = {"pv_indicadores": "Indicadores", "vc_base": "Clientes", "vc_planner": "Roteirização",
-             "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW"}
+             "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW",
+             # T-0036 (revisão de UX, 7): na lateral o nome é curto; o completo fica na faixa
+             "vc_saldo": "Saldo", "vc_markup": "Markup", "vc_preco": "Preço", "an_divergencias": "Divergências"}
 AVISO_UF = "Resumo e gráficos: BAP inteira."
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
 SEM_RECORTE = "só na BAP inteira"

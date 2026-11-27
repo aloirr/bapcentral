@@ -60,6 +60,12 @@ def fmt_manaus(iso: str | None) -> str:
     return d.astimezone(MANAUS).strftime("%d/%m/%Y %H:%M")
 
 
+def fmt_manaus_curto(iso: str | None) -> str:
+    """"24/11 08:30" (celular, tela-bc3 §8)."""
+    f = fmt_manaus(iso)
+    return f[:5] + " " + f[-5:] if len(f) >= 16 else f
+
+
 def hhmm(iso: str | None) -> str:
     """"hh:mm" se for de hoje (Manaus); senão "dd/mm hh:mm"."""
     f = fmt_manaus(iso)
@@ -82,6 +88,7 @@ def criar_app() -> FastAPI:
     modelos.env.autoescape = True
     modelos.env.filters["manaus"] = fmt_manaus
     modelos.env.filters["hhmm"] = hhmm
+    modelos.env.filters["manaus_curto"] = fmt_manaus_curto
     modelos.env.filters["fone"] = cobranca.fone_bonito
     modelos.env.globals["ocultas"] = tabelas.colunas_ocultas      # T-0020: coluna que só repete outra
     modelos.env.globals["no_popup"] = tabelas.colunas_no_popup    # T-0028: colunas que só aparecem no popup
@@ -264,6 +271,11 @@ def criar_app() -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def home(request: Request):
         u = usuario(request)
+        if u["perfil"] == "analista":                   # T-0036 (UX 8): a grade de quadrados sai; abre no 1º farol do grupo
+            return RedirectResponse("/farol/vc_saldo", status_code=302)
+        if u["perfil"] == "trade" and not render.farois_do_perfil("trade"):
+            # T-0036 (2 A, UX 9): até a T-0025-v2 o Trade Marketing não tem farol; casca BC3, uma frase neutra
+            return pagina(request, "trade_inicio.html", bc3=True, farol_nome="BAP Central")
         menu = [{"href": "/painel", "nome": RELATORIO[1]}] if u["perfil"] in VERES else []
         no_pacote = (ind.indice() or {}).get("farois") or {}
         for rid, nome in render.farois_do_perfil(u["perfil"]):
@@ -271,10 +283,7 @@ def criar_app() -> FastAPI:
         if u["perfil"] == "admin":
             menu.append({"href": "/usuarios", "nome": "Usuários"})
         menu.append({"href": "/senha", "nome": "Trocar senha"})
-        # T-0036 (2 A): o Trade Marketing ainda não tem farol no site (o de Expositores vem na T-0025-v2)
-        vazio = ("Ainda não há farol do Trade Marketing no site."
-                 if u["perfil"] == "trade" and not render.farois_do_perfil("trade") else "")
-        return pagina(request, "home.html", menu=menu, vazio=vazio)
+        return pagina(request, "home.html", menu=menu)
 
     @app.get("/painel", response_class=HTMLResponse)
     async def painel(request: Request, aba: str = "resultado", uf: str = ""):
