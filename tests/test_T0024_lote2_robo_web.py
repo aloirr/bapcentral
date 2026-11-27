@@ -60,11 +60,7 @@ assert not any("trade" in p for p in VE_FAROL.values())
 
 # o harness da web real (TestClient + o `requests` de mentira) é o da T-0035
 from test_T0035_robo_web import BASE, TOKEN, _cartoes, _indice, _web, web_mod  # noqa: E402,F401
-
-
-def _tam_sem_anexos(f):
-    return len(ba._json_farol_web({k: v for k, v in f.items()
-                                   if k not in ba._ANEXOS_FAROL_WEB}))
+from pacote_web_util import tam_sem_anexos  # noqa: E402
 
 
 def _agora():
@@ -105,7 +101,7 @@ def _inflar(farol, mb):
     f = copy.deepcopy(farol)
     t = f["tabelas"][0]
     base_l, base_t = list(t["linhas"]), list(t.get("tons") or [""] * len(t["linhas"]))
-    while _tam_sem_anexos(f) <= mb * MB:
+    while tam_sem_anexos(f) <= mb * MB:
         t["linhas"] += [list(ln) for ln in base_l] * 50
         t["tons"] = (t.get("tons") or []) + base_t * 50
     return f
@@ -146,10 +142,10 @@ def test_ADR0003_10_8_7_lote2_acima_do_teto_perde_todas_as_abas_com_aviso(rid):
     p = _fixture_lote2()
     grande = _inflar(p["relatorios"][rid], ba.WEB_FAROL_TETO_MB)
     antes = json.dumps(grande, ensure_ascii=False, sort_keys=True)
-    assert _tam_sem_anexos(grande) > ba.WEB_FAROL_TETO_MB * MB
+    assert tam_sem_anexos(grande) > ba.WEB_FAROL_TETO_MB * MB
     out = ba._cortar_farol_web(rid, grande)
     assert "tabelas" not in out
-    assert _tam_sem_anexos(out) <= ba.WEB_FAROL_TETO_MB * MB
+    assert tam_sem_anexos(out) <= ba.WEB_FAROL_TETO_MB * MB
     fora = [a for a in out["avisos"] if a.startswith(AVISO_ABAS_FORA.split("{")[0])]
     assert fora == [AVISO_ABAS_FORA.format(lista=", ".join(t["titulo"] for t in grande["tabelas"]))]
     assert out["avisos"][0] == fora[0]                   # abas fora em 1º (§10.7.6)
@@ -163,7 +159,7 @@ def test_ADR0003_10_8_7_lote2_abaixo_do_teto_nao_muda():
     p = _fixture_lote2()
     for rid in LOTE2:
         f = p["relatorios"][rid]
-        assert _tam_sem_anexos(f) <= ba.WEB_FAROL_TETO_MB * MB, rid
+        assert tam_sem_anexos(f) <= ba.WEB_FAROL_TETO_MB * MB, rid
         assert ba._cortar_farol_web(rid, f) is f, rid
 
 

@@ -27,6 +27,7 @@ import pytest
 
 import bap_automation as ba
 import relatorios_nucleo as rn
+from pacote_web_util import tam_sem_anexos
 
 RAIZ = Path(__file__).resolve().parent.parent
 HOJE = date(2026, 11, 24)
@@ -43,15 +44,13 @@ if not (hasattr(ba, "params_farol_web") and set(LOTE2) <= set(ba.FAROIS_WEB)):
     pytest.skip("o robô não tem o lote 2 (PR #91)", allow_module_level=True)
 
 
-def _tam(p):
-    """Como o `_tamanho_pacote_web` do robô mede para o corte (com espaços)."""
-    return len(json.dumps(p, ensure_ascii=False).encode("utf-8"))
+# como o robô mede para o corte (com espaços)
+_tam = ba._tamanho_pacote_web
 
 
 def _tam_corpo(p):
     """Como o robô manda o corpo (`_json_farol_web`: JSON compacto)."""
-    return len(json.dumps(p, ensure_ascii=False, allow_nan=False,
-                          separators=(",", ":")).encode("utf-8"))
+    return len(ba._json_farol_web(p))
 
 
 @pytest.fixture(scope="module")
@@ -93,9 +92,7 @@ def test_T0024_formato2_maior_farol_abaixo_de_80_pct_do_teto_por_farol(real):
     de 80% dele (o alarme toca antes do corte por farol)."""
     _rels, p = real
     teto = ba.WEB_FAROL_TETO_MB * MB
-    tams = {rid: len(ba._json_farol_web({k: v for k, v in f.items()
-                                         if k not in ba._ANEXOS_FAROL_WEB}))
-            for rid, f in p["relatorios"].items()}
+    tams = {rid: tam_sem_anexos(f) for rid, f in p["relatorios"].items()}
     rid, maior = max(tams.items(), key=lambda x: x[1])
     assert maior < MARGEM * teto, f"{rid}: {maior / MB:.2f} MiB"
 

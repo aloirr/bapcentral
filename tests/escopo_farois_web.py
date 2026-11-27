@@ -87,9 +87,6 @@ UF_LINHAS_T0036 = {
     ("an_divergencias", "Clientes divergentes"): ("UF", "uf"),
     ("an_divergencias", "Sem coordenada / endereço"): ("UF", "uf"),
 }
-# Faróis cuja falta da fonte do "baixado em" é defeito já registrado.
-# Vazio: o defeito dos 4 do Analista (T-0036, modulo-robo) foi corrigido.
-FONTE_PENDENTE = frozenset()
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
 REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_T0036}
 FAROIS_PERMITIDOS = frozenset(REGRA_UF_PERMITIDOS)
@@ -152,11 +149,9 @@ def _problemas_regra(ba, rid, regra) -> list:
     return saida
 
 
-def problemas_escopo(ba, fonte_pendente=FONTE_PENDENTE) -> list:
+def problemas_escopo(ba) -> list:
     """Função pura sobre o módulo do robô: a lista do que fere a trava do
-    escopo (vazia = ok). Recebe o módulo (ou um objeto com os mesmos nomes).
-    `fonte_pendente`: faróis cuja falta de fonte do "baixado em" é defeito
-    já registrado (FONTE_PENDENTE); passe frozenset() para cobrar todos."""
+    escopo (vazia = ok). Recebe o módulo (ou um objeto com os mesmos nomes)."""
     farois = tuple(getattr(ba, "FAROIS_WEB", ()))
     fontes = getattr(ba, "_FONTE_BAIXADO_WEB", {})
     tab_rec = getattr(ba, "_TABELA_RECORTE_WEB", {})
@@ -173,7 +168,7 @@ def problemas_escopo(ba, fonte_pendente=FONTE_PENDENTE) -> list:
         saida.append("T-0036: os 4 do Analista vão juntos; faltam "
                      + ", ".join(sorted(set(FAROIS_T0036) - t0036)))
     for rid in sorted(set(farois) & FAROIS_PERMITIDOS):
-        if not _fonte_ok(fontes.get(rid)) and rid not in fonte_pendente:
+        if not _fonte_ok(fontes.get(rid)):
             saida.append(f"{rid}: sem a fonte do 'baixado em'")
         saida.extend(_problemas_regra(ba, rid, REGRA_UF_PERMITIDOS[rid]))
     # nenhuma tabela de recorte sobra para farol que não a declarou

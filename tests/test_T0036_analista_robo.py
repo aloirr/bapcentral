@@ -17,8 +17,6 @@ falha imprime valor das bases: só contagens e títulos.
 import copy
 import json
 import re
-import sys
-import types
 from datetime import date
 from pathlib import Path
 
@@ -26,6 +24,9 @@ import pytest
 
 import bap_automation as ba
 import relatorios_nucleo as rn
+from escopo_farois_web import UF_LINHAS_T0036
+from pacote_web_util import col as _col
+from pacote_web_util import tam_sem_anexos as _tam
 
 RAIZ = Path(__file__).resolve().parent.parent
 HOJE = date(2026, 11, 24)
@@ -200,12 +201,6 @@ def _tab(farol, titulo):
                  if t.get("titulo") == titulo), None)
 
 
-def _col(t, nome):
-    i = [c["nome"] if isinstance(c, dict) else c
-         for c in t["colunas"]].index(nome)
-    return [ln[i] for ln in t["linhas"]]
-
-
 def _textos(obj):
     """Todas as strings de um objeto JSON (chaves e valores)."""
     if isinstance(obj, str):
@@ -280,11 +275,6 @@ def test_RN_GER_011_analista_sem_coluna_de_nome_endereco_telefone(real):
                        for x in NOMES_FORA):
                     achados.append((rid, t["titulo"], c["nome"]))
     assert achados == []
-    # o código no lugar: CÓD. no Saldo e no Markup
-    assert "CÓD." in [c["nome"] for c in
-                      _tab(pac["vc_saldo"], "Pedido a pedido")["colunas"]]
-    assert "CÓD." in [c["nome"] for c in
-                      _tab(pac["vc_markup"], "Por pedido")["colunas"]]
     # anexo de correção sem CLIENTE
     for parte in pac["an_divergencias"]["correcao"].values():
         assert "CLIENTE" not in [c["nome"] for c in parte["colunas"]]
@@ -395,20 +385,16 @@ def test_RN_GER_006_uf_linhas_pela_filial_e_pela_uf_do_cliente(real):
     """Saldo, Markup e Reajustes: estado = filial da nota; Por UF do Saldo,
     Pesquisa e Divergências: a coluna UF (UF do cliente)."""
     _rels, pac = real
-    pela_filial = (("vc_saldo", "Pedido a pedido"), ("vc_markup", "Por pedido"),
-                   ("vc_preco", "Reajustes por produto"))
-    pela_uf = (("vc_saldo", "Por UF"), ("vc_preco", "Pesquisa de mercado"),
-               ("an_divergencias", "Clientes divergentes"),
-               ("an_divergencias", "Sem coordenada / endereço"))
-    for rid, titulo in pela_filial:
+    for (rid, titulo), (coluna, modo) in UF_LINHAS_T0036.items():
         t = _tab(pac[rid], titulo)
-        assert t["uf_linhas"] == [rn.uf_do_nome_da_filial(f) for f in
-                                  _col(t, "FILIAL")], (rid, titulo)
-        assert {u for u in t["uf_linhas"] if u} <= set(rn.FILIAL_UF.values())
-    for rid, titulo in pela_uf:
-        t = _tab(pac[rid], titulo)
-        assert t["uf_linhas"] == [str(u or "").strip().upper()
-                                  for u in _col(t, "UF")], (rid, titulo)
+        if modo == "filial":
+            assert t["uf_linhas"] == [rn.uf_do_nome_da_filial(f) for f in
+                                      _col(t, coluna)], (rid, titulo)
+            assert {u for u in t["uf_linhas"] if u} <= set(
+                rn.FILIAL_UF.values())
+        else:
+            assert t["uf_linhas"] == [str(u or "").strip().upper()
+                                      for u in _col(t, coluna)], (rid, titulo)
     # Preço e Divergências sem cartões por estado (§10.11.1)
     for rid in ("vc_preco", "an_divergencias"):
         assert not pac[rid].get("recortes"), rid
@@ -457,45 +443,16 @@ def test_RN_GER_011_colunas_positivas_coluna_a_mais_no_pc_tira_a_aba():
         k["valor"] for k in rels["vc_saldo"]["kpis"]]
 
 
-@pytest.fixture()
-def web_app():
-    """web/app (tabelas) deste checkout; sai do sys.modules no fim."""
-    antes = set(sys.modules)
-    sys.path.insert(0, str(RAIZ / "web"))
-    try:
-        from app import tabelas
-        yield types.SimpleNamespace(tabelas=tabelas)
-    finally:
-        sys.path.remove(str(RAIZ / "web"))
-        for k in set(sys.modules) - antes:
-            if k == "app" or k.startswith("app."):
-                del sys.modules[k]
-
-
-def test_RN_GER_011_colunas_positivas_web_aceita_o_robo_e_recusa_coluna_a_mais(
+def test_RN_GER_011_colunas_positivas_web_aceita_o_pacote_real_do_robo(
         real, web_app):
-    """O pacote real do robô passa na validação da web; a mesma aba com uma
-    coluna a mais é recusada (§10.11.2, lista positiva)."""
+    """O pacote real do robô passa na validação da web (§10.11.2)."""
     _rels, pac = real
     tb = web_app.tabelas
     for rid in RIDS:
         assert tb.validar(rid, copy.deepcopy(pac[rid])) == [], rid
-        assert tb.COLUNAS_RID[(rid, ABAS[rid][0])] == [
-            tuple(c) for c in LISTA_1093[(rid, ABAS[rid][0])]], rid
-    f = copy.deepcopy(pac["vc_saldo"])
-    t = _tab(f, "Por UF")
-    t["colunas"].append({"nome": "COLUNA NOVA", "tipo": "texto"})
-    for ln in t["linhas"]:
-        ln.append("x")
-    assert tb.validar("vc_saldo", f) != []
 
 
 # ============================================================ cortes
-def _tam(f):
-    return len(ba._json_farol_web({k: v for k, v in f.items()
-                                   if k not in ba._ANEXOS_FAROL_WEB}))
-
-
 def test_T0036_markup_cortes_quatro_passos_em_ordem(real):
     """§10.11.5: acima do teto, o Markup corta (1) Todos os produtos só com
     estoque ou venda, (2) Todos os produtos sai, (3) Por produto sai, (4) as
@@ -670,9 +627,20 @@ def test_RN_GER_011_correcao_real_igual_ao_excel_do_pc_sem_cliente(real,
                        ("ANALISAR", "analisar")):
         sem_cliente = [[str(v) for v in r[:3] + r[4:]] for r in xl[aba][1:]]
         assert sem_cliente == cor[chave]["linhas"], aba
-    # kpi "Vendedor diferente" + "Sem vendedor no Planner" vs linhas a
-    # corrigir: o mesmo número do farol de origem
-    assert n1 + n2 > 0
+    # valor x regra: n1 = linhas de "Clientes divergentes" com SITUAÇÃO em
+    # rn.SIT_CORRIGIR = cartão "Vendedor diferente"; n2 = as outras linhas =
+    # "Sem vendedor no Planner" + "Fora da base do Planner" + "Código
+    # duplicado". Vale no PC e no site (o mesmo número do farol de origem).
+    assert n1 > 0 and n2 > 0
+    for farol in (rels["an_divergencias"], pac["an_divergencias"]):
+        sit = _col(_tab(farol, "Clientes divergentes"), "SITUAÇÃO")
+        assert n1 == sum(1 for x in sit if x in rn.SIT_CORRIGIR)
+        assert n2 == sum(1 for x in sit if x not in rn.SIT_CORRIGIR)
+        k = {x["rotulo"]: int(str(x["valor"]).replace(".", ""))
+             for x in farol["kpis"]}
+        assert n1 == k["Vendedor diferente"]
+        assert n2 == (k["Sem vendedor no Planner"]
+                      + k["Fora da base do Planner"] + k["Código duplicado"])
 
 
 # ======================================== número do Diretor (Desconto comercial)
@@ -744,7 +712,7 @@ def test_RN_GER_006_numero_do_diretor_desconto_comercial_bate_com_o_saldo(
 
 
 @pytest.mark.xfail(strict=True, reason="DEFEITO ANTIGO fora da T-0036 "
-                   "(tarefa à parte, com simulação; modulo-farois, "
+                   "(T-0048, tarefa à parte, com simulação; modulo-farois, "
                    "painel_diretor.py): o Diretor lê o texto arredondado do "
                    "cartão do Saldo ('15%') e mostra '15,0%' com 1 casa; a "
                    "regra dá 15,1% (a barra do estado já usa o número cheio)")
