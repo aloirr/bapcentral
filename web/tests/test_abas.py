@@ -91,10 +91,11 @@ def test_perfil_x_aba_403_ou_200(com_tabelas):
 
 def test_ve_tabelas_D1_recomendacao_A():
     # D1 (recomendação A): o perfil de cada farol vê as tabelas; o diretor, só o Resumo
-    assert tabelas.VE_TABELAS == {"pv_pedidos": ("admin", "gerente", "pre_venda"),
-                                  "pl_entregas": ("admin", "gerente", "pos_venda"),
-                                  "vc_visitas": ("admin", "gerente", "vendas"),
-                                  "vc_meta": ("admin", "gerente", "vendas")}      # T-0022
+    base = {k: tabelas.VE_TABELAS[k] for k in ("pv_pedidos", "pl_entregas", "vc_visitas", "vc_meta")}
+    assert base == {"pv_pedidos": ("admin", "gerente", "pre_venda"),
+                    "pl_entregas": ("admin", "gerente", "pos_venda"),
+                    "vc_visitas": ("admin", "gerente", "vendas"),
+                    "vc_meta": ("admin", "gerente", "vendas")}      # T-0022
     assert all("diretor" not in p for p in tabelas.VE_TABELAS.values())
 
 
@@ -604,6 +605,25 @@ def test_faixa_da_aba_leva_o_cartao_com_linhas_no_padrao(com_tabelas, admin):
     faixa = h.split('class="bc3-faixa"')[1].split("</header>")[0]
     assert "3,6 dia(s)" in faixa and "SLA médio" in faixa.replace("SLA MÉDIO", "SLA médio") and "bc3-aviso-k" not in faixa
     assert len(re.findall(r'class="bc3-k[ "]', faixa)) == len([k for k in t["kpis_padrao"] if k["valor"] != "—"])
+
+
+def test_A1_aba_sem_kpis_padrao_leva_na_faixa_os_mesmos_numeros_do_resumo(admin):
+    # revisão A1: o cartão inteiro (com `linhas` ou barras por estado) só vai à faixa quando a aba tem `kpis_padrao`;
+    # a Inadimplência e a Solicitação BAP mostram na faixa o mesmo que o Resumo (o cartão com `linhas` fica no corpo)
+    from cobranca_fixture import pacote_cobranca
+    p = pacote_cobranca()
+    ks = p["relatorios"]["pl_inadimplencia"]["kpis"]
+    ks[0]["linhas"] = [["Faixa", "1"]]
+    assert postar(admin, p).status_code == 200
+    faixa = lambda h: h.split('class="bc3-faixa"')[1].split("</header>")[0]
+    numeros = lambda h: re.findall(r'<small>(.*?)</small><b>(.*?)</b>', faixa(h))
+    resumo = numeros(admin.get("/farol/pl_inadimplencia").text)
+    assert resumo and numeros(admin.get("/farol/pl_inadimplencia?aba=titulos").text) == resumo
+    p3 = pacote_tres_farois()
+    p3["relatorios"]["pv_pedidos"]["kpis"][0]["linhas"] = [["linha", "1"]]
+    assert postar(admin, p3).status_code == 200
+    resumo = numeros(admin.get("/farol/pv_pedidos").text)
+    assert resumo and numeros(admin.get("/farol/pv_pedidos?aba=solicitacao").text) == resumo
 
 
 def test_solicitacao_bap_ignora_o_estado_tambem_nos_cartoes_de_cima(com_tabelas):

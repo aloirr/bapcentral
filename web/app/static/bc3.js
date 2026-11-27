@@ -20,6 +20,10 @@
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") menu(false); });
   }
 
+  // celular: a aba ativa fica à vista na faixa de abas (T-0024, parecer de UX)
+  var ativa = document.querySelector(".bc3-abas a.on");
+  if (ativa && ativa.scrollIntoView && CEL.matches) ativa.scrollIntoView({ inline: "center", block: "nearest" });
+
   // PC: a tabela de cima ocupa a altura que sobra e rola por dentro; as de baixo têm 5 linhas (3 em tela baixa)
   var juntas = document.querySelector(".bc3-juntas");
   var cima = document.querySelector(".rolagem-dados.sem-rolagem") ||
