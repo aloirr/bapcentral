@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, acesso, cobranca, config, edicoes, exportar, marca, pacotes, render, tabelas, visitas
+from . import VERSAO, acesso, cobranca, config, edicoes, exportar, leitura, marca, pacotes, render, tabelas, visitas
 from .usuarios import PERFIS, Erro, ErroGravacao, Usuarios, MAX_ERROS, MSG_LISTA_MUDOU
 
 log = logging.getLogger("bap_web")
@@ -49,6 +49,13 @@ def fuso_motivo() -> str | None:
 class Redireciona(Exception):
     def __init__(self, para):
         self.para = para
+
+
+def carimbo(ind, rid, ent=None, info=None):
+    """Carimbo "gerado em" do farol: o da entrada no índice, com reserva no do lote. A página e a porta de leitura usam esta."""
+    info = info or ind.indice()
+    ent = ent or (ind.entrada(rid) if rid else None)
+    return (ent or {}).get("gerado_em") or (info["gerado_em"] if info else None)
 
 
 def fmt_manaus(iso: str | None) -> str:
@@ -184,7 +191,7 @@ def criar_app() -> FastAPI:
         no_painel = request.url.path == "/painel"
         rid_pg = ctx.get("rid") or (PAINEL_RID if no_painel else None)
         ent = ind.entrada(rid_pg) if rid_pg else None
-        gerado_farol = (ent or {}).get("gerado_em") or (info["gerado_em"] if info else None)
+        gerado_farol = carimbo(ind, rid_pg, ent, info)
         try:
             velho = bool(ent) and (cobranca.agora() - pacotes._como_manaus(gerado_farol)).total_seconds() > pacotes.HERDA_HORAS * 3600
         except (TypeError, ValueError):
@@ -1030,6 +1037,76 @@ def criar_app() -> FastAPI:
 
     def sem_token(request: Request):
         return bearer(request, cfg.token)
+
+    # ------------------------------------------------------------ porta de leitura (T-0055, RN-GER-020, contrato §10.12)
+    limite = leitura.Limite()
+    METODOS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+
+    def _ip(request: Request) -> str:
+        """O último item do X-Forwarded-For é o que o proxy do Render acrescenta; sem ele, o par da conexão."""
+        xff = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
+        return xff or (request.client.host if request.client else "-")
+
+    def _muitas():
+        return JSONResponse({"erro": "muitas chamadas"}, status_code=429, headers={"Retry-After": "60"})
+
+    def _porta(request: Request):
+        """A ordem do desenho: 404 desligada, 429 (IP), 405, 401, 429 (total, só com token válido). Devolve a recusa ou None.
+        O IP só vale em memória, para o limite. As falhas não gravam em `acessos/`: viram contadores e, a cada minuto,
+        uma linha agregada no log (sem token, query nem IP)."""
+        if not cfg.leitura_token:
+            return JSONResponse({"erro": "não encontrado"}, status_code=404)
+        linha = limite.agregada()
+        if linha:
+            log.warning("porta de leitura: %s", linha)
+        if not limite.ip_ok(_ip(request)):
+            limite.falha("limite")
+            return _muitas()
+        if request.method != "GET":
+            return JSONResponse({"erro": "só leitura"}, status_code=405, headers={"Allow": "GET"})
+        negado = bearer(request, cfg.leitura_token)
+        if negado:
+            limite.falha("negado")
+            return negado
+        if not limite.total_ok():
+            limite.falha("limite")
+            return _muitas()
+        return None
+
+    def dados_ate(rel):
+        """O `baixado_em` do farol como a tela mostra (`fmt_manaus`); None se o pacote não traz."""
+        return fmt_manaus(rel["baixado_em"]) if rel.get("baixado_em") else None
+
+    def _entrega(rid: str, saida: dict):
+        saida = leitura.limpar(saida)
+        saida["versao_web"] = VERSAO
+        rid_log = rid if rid in render.FAROIS or rid == PAINEL_RID else "-"
+        cobranca.registrar_acesso(cfg.dados, "porta-leitura", rid_log, "ok", "api")
+        return JSONResponse(saida)
+
+    @app.api_route("/api/leitura/painel", methods=METODOS)
+    async def api_leitura_painel(request: Request):
+        recusa = _porta(request)
+        if recusa:
+            return recusa
+        rel = ind.farol(PAINEL_RID)
+        saida = leitura.montar_painel(rel, ind.indice(), carimbo(ind, PAINEL_RID), dados_ate(rel)) \
+            if isinstance(rel, dict) and acesso.perfil_ve(leitura.PERFIL, PAINEL_RID) else None
+        if not saida or not saida["visoes"]:
+            return JSONResponse({"erro": "sem pacote"}, status_code=503)
+        return _entrega(PAINEL_RID, saida)
+
+    @app.api_route("/api/leitura/resumo/{rid}", methods=METODOS)
+    async def api_leitura_resumo(request: Request, rid: str):
+        recusa = _porta(request)
+        if recusa:
+            return recusa
+        if rid == PAINEL_RID or not acesso.perfil_ve(leitura.PERFIL, rid):       # o que o diretor não vê: 404
+            return JSONResponse({"erro": "não encontrado"}, status_code=404)
+        rel = rel_do(rid)
+        if rel is None:
+            return JSONResponse({"erro": "sem pacote"}, status_code=503)
+        return _entrega(rid, leitura.montar_resumo(rid, rel, ind.indice(), carimbo(ind, rid), dados_ate(rel)))
 
     @app.get("/api/cobranca")
     async def api_cobranca(request: Request):
