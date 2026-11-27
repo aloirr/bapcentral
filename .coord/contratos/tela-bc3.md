@@ -80,7 +80,11 @@
 ### 4.2 Regras
 
 - **Os números ficam em todas as abas.** Aba de tabela, Solicitação BAP e as abas da Inadimplência mostram os mesmos números da aba Resumo.
-- **O filtro não apaga a faixa.** Quando o filtro tira um número (o estado escolhido não tem recorte), o número continua e ganha o detalhe "sem o filtro". Sem recorte do estado, o cartão mostra "—" e nunca o número da BAP inteira (contrato do relatório §10.1).
+- **O filtro não apaga a faixa.** A faixa fica com a mesma altura e a linha 2 (G6); o que muda é o que os cartões mostram:
+  - **estado com recorte:** os cartões trocam pelos `recortes[UF].kpis` (contrato do relatório §10.1);
+  - **estado sem recorte:** o cartão mostra "—", nunca o número da BAP inteira (contrato do relatório §10.1; tabela do §9, "Estado sem recorte");
+  - **aba de tabela com `kpis_padrao`:** os cartões da aba valem só com os filtros no padrão, sem recorte e sem estado. Com outro filtro, recorte ou estado, os cartões da aba saem e fica o `AVISO_CARTOES` (contrato do relatório §10.7.2 e §10.7.6);
+  - **cartão com o número da BAP inteira** (aba só da BAP inteira, Visita): leva sempre a marca "BAP inteira", também quando o PC já pôs `detalhe` ("BAP inteira · {detalhe}"). O número da BAP inteira nunca aparece sem essa marca.
 - **Filtro de estado:** um controle segmentado só, com o rótulo "BAP" para o todo (MC-0014).
   - Em aba só da BAP inteira, o controle aparece cinza e desabilitado (`aria-disabled="true"`), com o `title` "Esta aba é só da BAP inteira". **Nenhum aviso no corpo**: saem o `render.AVISO_SO_BAP` e o `tabelas.AVISO_SEM_ESTADO` do corpo da tela.
   - Tela sem estado nenhum (Visita): o controle não aparece, e o corpo não leva aviso.
@@ -260,6 +264,8 @@ Um texto por situação, igual em todas as telas. O texto não explica o sistema
 | Aba cortada pelo tamanho do pacote | uma linha acima da tabela (§10) | o `AVISO_ABAS_FORA` do robô (contrato do relatório §10.7.6) |
 | Dados com mais de 26 h | faixa, ao lado da data | o selo âmbar "Desatualizado" |
 | Estado sem recorte | o cartão | "—" (nunca o número da BAP inteira) |
+| Cartão com o número da BAP inteira | o cartão | a marca "BAP inteira" (com `detalhe`: "BAP inteira · {detalhe}") |
+| Aba com `kpis_padrao` e filtro, recorte ou estado | no lugar dos cartões da aba | o `AVISO_CARTOES` (contrato do relatório §10.7.6) |
 | Bloco de gráfico que a web não desenha | no lugar do bloco | "ainda não disponível na web" (`render.INDISPONIVEL`, contrato §10.1) |
 | A parcial não chegou | página da Parcial | "A parcial ainda não chegou do PC." |
 | Erro do servidor | `erro.html`, dentro da casca | "Não deu para abrir agora. Tente de novo em 1 minuto." |
@@ -362,7 +368,7 @@ Um texto por situação, igual em todas as telas. O texto não explica o sistema
   - A aba diz qual visão é ("Resultado", "Produtividade"...).
   - A troca é só na exibição (`render`). O `titulo` do pacote não muda: é contrato (contrato do relatório §9).
 - **"BAP AUTOPARTS"**, sempre assim, em tela, PDF, Excel, mensagem ao cliente e e-mail (regra 8). Nunca "BAP Auto Parts" nem "BAP AUTO PARTS" (MC-0002, MC-0011).
-- **"BAP Central"** é o nome do produto: lateral, login, `<title>` ("<tela> · BAP Central").
+- **"BAP Central"** é o nome do produto: lateral e login. A aba do navegador (`<title>`) diz "<tela> · BAP AUTOPARTS" (manual da marca §7).
 - O filtro de estado diz **"BAP"**, nunca "BAP inteira".
 
 ### 13.2 Lateral (curto) × faixa (completo)
