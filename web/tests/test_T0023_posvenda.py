@@ -292,7 +292,8 @@ def test_T0023_linha_nova_so_onde_o_pacote_traz_novo(pv):
 def test_RN_GER_012_edicao_da_ncc_status_e_data_livre(pv, amb):
     html = pv.get(NCC).text
     campos, form = _form(pv, _link(html))
-    assert 'type="date"' in form and "min=" not in form                # data livre: sem lista de datas
+    hoje = edicoes.hoje_manaus()                                       # data livre: min/max = 2020 até hoje + 1 ano
+    assert 'type="date"' in form and 'min="2020-01-01"' in form and f'max="{edicoes._mais_um_ano(hoje).isoformat()}"' in form
     base = dict(campos)
     r = pv.post("/farol/pl_ncc/editar", data=dict(base, c_dt_mov="2019-12-31"))
     assert r.status_code == 400 and "fora das permitidas" in r.text
@@ -455,7 +456,7 @@ def test_T0023_ncc_estados_do_cartao_e_cartoes_por_estado(pv):
 
 
 def test_T0023_versao_da_web(admin):
-    assert admin.get("/saude").json()["versao"] == "0.6.0"
+    assert admin.get("/saude").json()["versao"] == "0.7.0"
 
 
 def test_T0023_formulario_aceita_ate_32kb():

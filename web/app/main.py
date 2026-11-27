@@ -661,7 +661,8 @@ def criar_app() -> FastAPI:
             isos = sorted(edicoes.iso_de_br(x) for x in ops) if c["tipo"] == "data" else []
             campos.append({"campo": c["campo"], "rotulo": c["rotulo"], "tipo": c["tipo"], "atual": atual,
                            "atual_iso": edicoes.iso_de_br(atual), "opcoes": ops, "sugestao": c.get("sugestao", ""),
-                           "min": isos[0] if isos else "", "max": isos[-1] if isos else "",
+                           "min": isos[0] if isos else (edicoes.DATA_MIN.isoformat() if c["tipo"] == "data" else ""),
+                           "max": isos[-1] if isos else (edicoes._mais_um_ano(edicoes.hoje_manaus()).isoformat() if c["tipo"] == "data" else ""),
                            "teto": c.get("max") or edicoes.MAX_TEXTO, "multilinha": bool(c.get("multilinha")),
                            "pendente": pend.get(c["campo"])})
         liga = next((j for j in t.get("juntas") or [] if j.get("liga")), None)
@@ -682,7 +683,8 @@ def criar_app() -> FastAPI:
             isos = sorted(edicoes.iso_de_br(x) for x in ops) if c["tipo"] == "data" else []
             campos.append({"campo": c["campo"], "rotulo": c["rotulo"], "tipo": c["tipo"], "atual": atual,
                            "atual_iso": edicoes.iso_de_br(atual), "opcoes": ops, "sugestao": "",
-                           "min": isos[0] if isos else "", "max": isos[-1] if isos else "",
+                           "min": isos[0] if isos else (edicoes.DATA_MIN.isoformat() if c["tipo"] == "data" else ""),
+                           "max": isos[-1] if isos else (edicoes._mais_um_ano(edicoes.hoje_manaus()).isoformat() if c["tipo"] == "data" else ""),
                            "teto": c.get("max") or edicoes.MAX_TEXTO, "multilinha": bool(c.get("multilinha")),
                            "pendente": None, "padrao": c["padrao_txt"], "mostrado": c["padrao_txt"],
                            "obrigatorio": c["campo"] in edicoes.LUGARES_NOVO.get((rid, titulo), ())})
