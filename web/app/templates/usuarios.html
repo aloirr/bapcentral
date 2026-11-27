@@ -7,7 +7,7 @@
   {"rot": "Desativados", "valor": lista|rejectattr("ativo")|list|length},
   {"rot": "Troca pendente", "valor": lista|selectattr("trocar_senha")|list|length}]) }}{% endblock %}
 {% block corpo %}
-{% set rot_perfil = {"admin": "Admin", "diretor": "Diretor", "gerente": "Gerente", "pre_venda": "Pré-venda", "pos_venda": "Pós-venda", "vendas": "Vendas"} %}
+{% set rot_perfil = {"admin": "Admin", "diretor": "Diretor", "gerente": "Gerente", "analista": "Analista", "trade": "Trade", "pre_venda": "Pré-venda", "pos_venda": "Pós-venda", "vendas": "Vendas"} %}
 {% if msg %}<p class="ok" role="status">{{ msg }}</p>{% endif %}
 {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
 <details class="u-novo"{{ ' open' if erro }}>

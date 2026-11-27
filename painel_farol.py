@@ -73,6 +73,12 @@ def ind(nome, eventos, agg="soma", formato="num", cor=VERDE, bom="alto",
             "projetar": projetar}
 
 
+def pct_do_liquido(parte, liquido):
+    """RN-GER-002: o percentual sobre o faturado LIQUIDO (VND - DEV). Faturado
+    liquido <= 0 nao da percentual (None, "—"): nunca negativo ou absurdo."""
+    return parte / liquido * 100.0 if liquido and liquido > 0 else None
+
+
 def _juntar(vals, agg):
     if not vals:
         return None
@@ -88,7 +94,7 @@ def _juntar(vals, agg):
     if agg == "pct":
         num = sum(v[0] or 0 for v in vals)
         den = sum(v[1] or 0 for v in vals)
-        return num / den * 100.0 if den else None
+        return pct_do_liquido(num, den)
     return sum(v[0] or 0 for v in vals)
 
 

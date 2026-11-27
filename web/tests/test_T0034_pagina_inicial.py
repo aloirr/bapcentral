@@ -161,8 +161,11 @@ def test_cartoes_alem_dos_3_da_faixa_mantem_numero_e_legenda(admin):
 
 
 def test_perfis_do_painel_numa_constante_so():
-    assert render.VEEM_PAINEL == ("admin", "diretor", "gerente")
-    assert all(render.pagina_inicial(p) == "/painel" for p in render.VEEM_PAINEL)
+    # T-0036 (P1 = A): o analista também vê o Painel, mas abre no 1º farol do grupo dele (UX 8)
+    assert render.VEEM_PAINEL == render.LEITURA_GERAL + ("diretor",)
+    assert set(render.VEEM_PAINEL) == {"admin", "diretor", "gerente", "analista"}
+    assert all(render.pagina_inicial(p) == "/painel" for p in render.VEEM_PAINEL if p != "analista")
+    assert render.pagina_inicial("analista") == "/farol/vc_saldo"
 
 
 def test_troca_obrigatoria_mostra_so_a_casca_sem_menu(cli):
