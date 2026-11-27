@@ -10,22 +10,24 @@
 {# Resumo: o cartão com barras por estado ou linhas fica no corpo e a faixa leva só os números. Aba de tabela: a faixa leva o cartão
    inteiro, com `linhas` ou não (o Visita manda os 10 com `linhas`; sem isso a faixa ficava vazia no padrão) #}
 {% set ks = ks_todos if (e_tab and kpis_da_aba is defined and kpis_da_aba) else kpis_da_faixa(ks_todos) %}
+{# T-0036 (tela-bc3 §4.1): a faixa leva até 6 números; o 7º fica no Resumo e na aba própria #}
+{% if rid in analista %}{% set ks = ks[:6] %}{% endif %}
 {% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
 {% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
 {# RD-0023/RD-0039: sem seletor de estado, o aviso é um só, na própria faixa (não em cada aba) #}
 {% set sem_uf = (not lista_uf) and (rid == 'vc_visitas' or (tela and tela.avisos_info and rid not in livres)) %}
-{% set dicas = {"pv_pedidos": "Buscar pedido ou cliente", "pl_entregas": "Buscar NF ou cliente", "pl_inadimplencia": "Buscar cliente ou NF", "vc_visitas": "Buscar vendedor ou cliente", "vc_meta": "Buscar nome"} %}
+{% set dicas = {"pv_pedidos": "Buscar pedido ou cliente", "pl_entregas": "Buscar NF ou cliente", "pl_inadimplencia": "Buscar cliente ou NF", "vc_visitas": "Buscar vendedor ou cliente", "vc_meta": "Buscar nome", "pl_garantias": "Buscar ticket ou cliente", "pl_devolucoes": "Buscar NF ou cliente", "pl_ncc": "Buscar NCC ou cliente"} %}
 {% from "_faixa.html" import quando, selo_velho, filtro_uf, filtro_uf_off, numeros %}
 <header class="bc3-faixa">
   <div class="bc3-tt">
-    <h1>{{ farol_nome }}</h1>
+    {% if titulo_cel.get(rid) %}<h1 title="{{ farol_nome }}"><span class="r-pc">{{ farol_nome }}</span><span class="r-cel">{{ titulo_cel[rid] }}</span></h1>{% else %}<h1>{{ farol_nome }}</h1>{% endif %}
     {% if fila is defined and pc_ate %}<span class="bc3-quando">Cobranças do PC até {{ pc_ate|hhmm }}</span>
     {% else %}{% call quando(gerado_em) %}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}{% if sem_uf %} · <span class="bc3-sem-uf">Sem filtro por estado</span>{% endif %}{% endcall %}{% endif %}
     {{ selo_velho(desatualizado) }}
     {% if lista_uf %}{{ filtro_uf(base_uf ~ sub_q, lista_uf, uf_at) }}
     {% elif ufs_off %}{{ filtro_uf_off(ufs_off) }}{% endif %}
   </div>
-  {{ numeros(ks) }}
+  {{ numeros(ks, curto=rid in analista) }}
   {% if not ks and aviso_kpis is defined and aviso_kpis %}<p class="bc3-aviso-k">{{ aviso_kpis }}</p>{% endif %}
 </header>
 {% if abas or e_tab or (parcial is defined and parcial) %}<div class="bc3-sub">
@@ -57,13 +59,22 @@
     {# T-0032: os botões do PC que as assistentes usam para mandar o farol no WhatsApp #}
     {% set rot_parcial = {"pv_pedidos": "Parcial Pedidos", "vc_visitas": "Parcial Visitas e Conversão", "pl_entregas": "Parcial Entregas"} %}
     {% if parcial is defined and parcial %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}/parcial" title="Parcial para o WhatsApp">{{ rot_parcial.get(rid, "Parcial").split(" e ")[0] }}{% if " e " in rot_parcial.get(rid, "") %}<span class="rot-long"> e {{ rot_parcial[rid].split(" e ")[1] }}</span>{% endif %}</a>{% endif %}
+    {# T-0045: o Atualizar visitas fica no Farol de Visita (contrato visitas-nuvem §4.5; o perfil é conferido na rota) #}
+    {% if rid == "vc_visitas" and pode_visitas %}<a class="bc3-bt" href="/visitas/atualizar" title="Baixar as visitas da Máxima">Atualizar visitas</a>{% endif %}
     {# 26/11 (decisão 7 A do Alexandre): sem o botão "Cobrar no WhatsApp" aqui; a aba de mesmo nome fica #}
+    {# T-0023 v2 (§10.9.2, tela-bc3 §11): o botão principal da aba, só para o admin (o corte é no servidor) #}
+    {% if e_tab and tabela.novo %}{% set nv = tabela.novo %}
+    {% if nv.marca %}<span class="ed-marca ed-pend" title="Linhas novas que o PC ainda não confirmou">{{ nv.marca }}</span>{% endif %}
+    {% if nv.erro %}<span class="ed-marca ed-erro" title="O PC não aceitou a linha nova">{{ nv.erro }}</span>{% endif %}
+    <a class="bc3-bt bc3-bt-verde" href="{{ nv.url }}">{{ nv.rotulo }}</a>
+    {% endif %}
     {% if e_tab %}
     <details class="bc3-exp"><summary class="bc3-bt">Exportar</summary>
       <div>{% set qs = request.url.query %}
         <a href="/farol/{{ rid }}/exportar?{{ qs }}&amp;formato=xlsx">Excel desta tabela</a>
         <a href="/farol/{{ rid }}/exportar?{{ qs }}&amp;formato=pdf">PDF desta tabela</a>
         <a href="/farol/{{ rid }}/exportar?todas=1&amp;formato=xlsx">Excel de todas as abas</a>
+        {% if correcao is defined and correcao %}<a href="/farol/an_divergencias/correcao.xlsx">Excel para corrigir no Protheus</a>{% endif %}
         {% if csvs is defined and csvs %}<small>Arquivos para importar no Protheus</small>
         {% for c in csvs %}<a href="/farol/pv_pedidos/csv/{{ c.nome|urlencode }}" download="{{ c.nome }}">{{ c.nome }}</a>{% endfor %}{% endif %}
       </div>

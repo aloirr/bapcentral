@@ -11,7 +11,7 @@ import math
 import re
 import unicodedata
 
-from . import marca
+from . import marca, visitas
 
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
@@ -199,26 +199,43 @@ def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
 # ---------------------------------------------------------------- faróis (T-0017)
 # Forma "farol" do pacote (contrato §10): o PC manda kpis, insights e blocos do painel
 # prontos. Aqui só se desenha (barras em HTML/CSS); nada é recalculado.
+# T-0036 (desenho §2, P1 = A): o analista vê como o gerente tudo o que não é meta RH nem edição.
+# Uma fonte só: com a P1 = B, troca esta linha (e o analista sai das tuplas dos outros faróis).
+LEITURA_GERAL = ("admin", "gerente", "analista")
+# T-0036 (RD-0004): os faróis do Analista Comercial, lista única (menu, busca e rótulos do `tabelas`)
+RIDS_ANALISTA = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 FAROIS = {  # rid -> (nome no PC, perfis que veem)
-    "pv_pedidos": ("Farol de Pedidos", ("admin", "diretor", "gerente", "pre_venda")),
-    "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
-    "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
-    "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+    "pv_pedidos": ("Farol de Pedidos", LEITURA_GERAL + ("diretor", "pre_venda")),
+    "vc_visitas": ("Farol de Visita", LEITURA_GERAL + ("diretor", "vendas")),
+    "pl_entregas": ("Farol de Entregas", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_inadimplencia": ("Farol de Inadimplência", LEITURA_GERAL + ("diretor", "pos_venda")),
     # T-0024 (lote 2): o perfil de cada quadrado do PC (bap_central.py)
-    "pv_indicadores": ("Painel de indicadores", ("admin", "diretor", "gerente", "pre_venda")),
-    "vc_base": ("Farol de Clientes", ("admin", "diretor", "gerente", "vendas")),
-    "vc_planner": ("Farol Roteirização", ("admin", "diretor", "gerente", "vendas")),
-    "pl_giro": ("Farol de Giro de Produtos", ("admin", "diretor", "gerente", "vendas")),
-    "pl_frw": ("Farol de Estoque FRW", ("admin", "diretor", "gerente", "pre_venda", "pos_venda")),
+    "pv_indicadores": ("Painel de indicadores", LEITURA_GERAL + ("diretor", "pre_venda")),
+    "vc_base": ("Farol de Clientes", LEITURA_GERAL + ("diretor", "vendas")),
+    "vc_planner": ("Farol Roteirização", LEITURA_GERAL + ("diretor", "vendas")),
+    "pl_giro": ("Farol de Giro de Produtos", LEITURA_GERAL + ("diretor", "vendas")),
+    "pl_frw": ("Farol de Estoque FRW", LEITURA_GERAL + ("diretor", "pre_venda", "pos_venda")),
+    # T-0023 v2 (contrato §10.10.1): Pós-venda. O diretor vê só o Resumo (RN-GER-014: ver `tabelas.VE_TABELAS`)
+    "pl_garantias": ("Farol de Garantias", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_devolucoes": ("Farol de Devolução e Reembolsos", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_ncc": ("Farol de NCC", LEITURA_GERAL + ("diretor", "pos_venda")),
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
-    "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
+    "vc_meta": ("Farol de Metas Equipe", LEITURA_GERAL + ("diretor", "vendas")),
+    # T-0036 (contrato §10.11.6): Analista Comercial; o diretor vê só o Resumo
+    "vc_saldo": ("Farol de Saldo", LEITURA_GERAL + ("diretor",)),
+    "vc_markup": ("Farol de Markup", LEITURA_GERAL + ("diretor",)),
+    "vc_preco": ("Farol de Preço", LEITURA_GERAL + ("diretor",)),
+    "an_divergencias": ("Divergências de clientes Planner × Protheus", LEITURA_GERAL + ("diretor",)),
 }
-VEEM_PAINEL = ("admin", "diretor", "gerente")      # quem vê o Painel Executivo: a `/`, a lateral e a rota usam esta tupla só
+VEEM_PAINEL = LEITURA_GERAL + ("diretor",)      # T-0036 (P1 = A, RD-0003): o analista vê como o gerente. Quem vê o Painel Executivo: a `/`, a lateral e a rota usam esta tupla só
 TONS = ("ok", "atencao", "alerta", "info")
 LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")    # T-0024: faróis de abas livres
 # T-0024 (R4 do parecer de UX): nome curto na barra lateral; o nome completo do PC fica no título da faixa
 NOME_MENU = {"pv_indicadores": "Indicadores", "vc_base": "Clientes", "vc_planner": "Roteirização",
-             "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW"}
+             "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW",
+             # T-0036 (revisão de UX, 7): na lateral o nome é curto; o completo fica na faixa
+             "vc_saldo": "Saldo", "vc_markup": "Markup", "vc_preco": "Preço", "an_divergencias": "Divergências",
+             "pl_garantias": "Garantias", "pl_devolucoes": "Devoluções", "pl_ncc": "NCC"}
 AVISO_UF = "Os outros cartões, o resumo e os gráficos: só na BAP inteira."   # T-0033 (RD-0034): um aviso só
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
 INDISPONIVEL = "ainda não disponível na web"
@@ -226,8 +243,18 @@ _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
-               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_frw")),
-               ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")))   # T-0024: lote 2 no menu
+               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_garantias", "pl_devolucoes", "pl_ncc", "pl_frw")),
+               ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")),   # T-0024: lote 2 no menu
+               ("Analista Comercial", RIDS_ANALISTA),
+               # T-0036 (contrato §10.10.1): o grupo do trade; aparece quando o Farol de Expositores entrar (T-0025 v2)
+               ("Trade", ("tm_expositores",)))
+# T-0036 (revisão UX): o grupo do próprio perfil abre a barra; os outros perfis seguem a ordem de GRUPOS_MENU
+GRUPO_DO_PERFIL = {"analista": "Analista Comercial", "trade": "Trade"}
+
+
+def grupos_na_ordem(perfil: str) -> tuple:
+    meu = GRUPO_DO_PERFIL.get(perfil)
+    return tuple(sorted(GRUPOS_MENU, key=lambda g: g[0] != meu))
 
 
 def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
@@ -238,10 +265,14 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
     if painel:
         grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
                                                        "ativo": ativo == "painel"}]})
-    for nome, rids in GRUPOS_MENU:
+    for nome, rids in grupos_na_ordem(perfil):
         itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r].removeprefix("Farol de ")),
                   "ativo": r == ativo}
                  for r in rids if r in meus]
+        if "vc_visitas" in rids and perfil in visitas.PODEM_PEDIR:     # T-0045: ☰ → Atualizar visitas → botão (3 toques)
+            i = next((k for k, x in enumerate(itens) if x["nome"] == NOME_MENU.get("vc_visitas", "Visita")), None)
+            itens.insert(len(itens) if i is None else i + 1,
+                         {"href": "/visitas/atualizar", "nome": "Atualizar visitas", "ativo": ativo == "visitas_atualizar"})
         if itens:
             grupos.append({"nome": nome, "itens": itens})
     conta = [{"href": "/senha", "nome": "Trocar senha", "ativo": ativo == "senha"}]
@@ -253,10 +284,16 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
 
 def pagina_inicial(perfil: str) -> str:
     """T-0034 (Alexandre, 26/11, decisão 2 A): admin, diretor e gerente abrem no Painel Executivo; os outros, no primeiro
-    farol da área, pela ordem do menu lateral (GRUPOS_MENU)."""
+    farol da área, pela ordem do menu lateral (GRUPOS_MENU). T-0036 (UX 8): o perfil com grupo próprio (analista) abre
+    no 1º farol do grupo, antes do Painel."""
+    meus = dict(farois_do_perfil(perfil))
+    for nome, rids in GRUPOS_MENU:
+        if nome == GRUPO_DO_PERFIL.get(perfil):
+            for r in rids:
+                if r in meus:
+                    return f"/farol/{r}"
     if perfil in VEEM_PAINEL:
         return "/painel"
-    meus = dict(farois_do_perfil(perfil))
     for _, rids in GRUPOS_MENU:
         for r in rids:
             if r in meus:

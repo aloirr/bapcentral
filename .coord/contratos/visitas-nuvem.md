@@ -51,6 +51,9 @@
 | `LOTE_GZ_MAX` | 8 MB | web | teto do corpo gzip do lote do dia |
 | `ARQUIVO_MAX` | 2 MB | web | teto de cada Excel decodificado |
 | `ARQUIVOS_MAX` | 60 | web | Excel por lote |
+| `LOTE_BRUTO_MAX` | 24 MB | web | teto do JSON do lote já descomprimido (trava da "bomba" de gzip) |
+| `DESCOMPRESSAO_MAX` | 50 MB | web | teto total do que a conferência do site lê dos Excel (§3.4), por lote e por arquivo |
+| `ZIP_MEMBROS_MAX` | 64 | web | membros do zip de cada Excel na conferência |
 | `LOTE_GUARDA_DIAS` | 7 depois de confirmado; 30 sem confirmação | web | retenção em `/var/data/visitas/lotes/` |
 
 Os tempos internos do `Robo` (login 45 s, `goto` 60 s, seletores de 40 s) continuam os do PC.
@@ -95,7 +98,7 @@ Regras comuns:
 | `diagnostico.estado` | `"pendente"`, `"ok"` ou `"falhou"` | começa `pendente`. O admin pode pedir de novo (volta a `pendente`) |
 | `pausado` | `null` ou `{"codigo": str, "desde": iso}` | RN-VIS-005 e RN-VIS-007. Com pausa, o cron só sai |
 | `pedido` | `null` ou objeto | no máximo **1** pendente (o botão). `perfil` é só o perfil, nunca o usuário |
-| `indice` | `{AAAAMMDD: {...}}` | **o índice único** dos dias baixados nos últimos `FECHADOS_PC_DIAS` dias, pela nuvem (lote importado) ou pelo PC (`fechados_pc`, §4.3). `baixado_em` = o maior dos dois (`visitas_nucleo.juntar_baixado`, RN-VIS-002); `origem` = de quem é esse maior. `erros_vendedor` e `refeito` só valem para `origem: "nuvem"` |
+| `indice` | `{AAAAMMDD: {...}}` | **o índice único** dos dias baixados nos últimos `FECHADOS_PC_DIAS` dias, pela nuvem (lote importado) ou pelo PC (`fechados_pc`, §4.3). `baixado_em` = o maior dos dois (`visitas_nucleo.juntar_baixado`, RN-VIS-002); `origem` = de quem é esse maior. **No empate de hora, vale a nuvem** (`origem: "nuvem"`). A web tem um espelho mínimo dessa função (`web/app/visitas.juntar_baixado`), porque o Render publica só `web/`; um teste de paridade na raiz (`tests/`) confere que as duas dão o mesmo resultado, com empate incluído. `erros_vendedor` e `refeito` só valem para `origem: "nuvem"` |
 | `tentativas_hoje` | objeto | as concessões dadas hoje (Manaus), por motivo: `n`, `ultima_em` e o `codigo` do `fim` (ou `RODADA_INTERROMPIDA`). O site zera quando o `dia` muda (RN-VIS-008) |
 | `falhas_seguidas` | objeto | as rodadas seguidas que terminaram em `TELA_MUDOU` na mesma fase |
 | `fechados_pc_em` | `null` ou iso | o último `fechados_pc` recebido do robô do PC |
@@ -169,7 +172,10 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 | `arquivos[].pasta` | `visitas_maxima.nome_limpo(nome)`; sem `/`, `\`, `..` nem caractere de controle |
 | `arquivos[].nome` | casa com `visitas_nucleo._RX_ARQ_ANALITICO`, começa com `VISITA-<pasta>-` e a data `DD-MM-AAAA` é o `<AAAAMMDD>` da URL |
 
-- **O site confere** (função pura `validar_lote(dia_url, corpo) -> list[str]`, modulo-web): as regras da tabela; `dia` igual ao da URL; dia válido e não futuro; até `ARQUIVOS_MAX` arquivos; cada Excel até `ARQUIVO_MAX` e com o `sha256` certo. O site **nunca abre** o Excel e **nunca** o serve ao navegador.
+- **O site confere** (função pura `validar_lote(dia_url, corpo) -> list[str]`, modulo-web): as regras da tabela; `dia` igual ao da URL; dia válido e não futuro; até `ARQUIVOS_MAX` arquivos; cada Excel até `ARQUIVO_MAX` e com o `sha256` certo. O site **nunca abre o Excel no Excel** (nem em biblioteca de planilha) e **nunca** o serve ao navegador.
+- **Conferência no site** (defesa extra contra dado pessoal, depois da do cron no §3.6): o site lê **só o texto e os números das células** de cada Excel, direto do zip/XML (`sharedStrings.xml` e as planilhas, biblioteca padrão), e aplica neles a mesma varredura do §3.6.
+  - O que ele lê vai até `DESCOMPRESSAO_MAX` no lote e em cada arquivo, com até `ZIP_MEMBROS_MAX` membros por Excel. Passou, ele para na hora e responde 413 `{"erro": "lote grande demais", "codigo": "DESCOMPRESSAO_TETO"}`.
+  - Achou dado pessoal ou coluna fora da lista: 422 `{"erro": "dado pessoal", "achados": [{"coluna": "<rótulo>", "tipo": "cnpj|cpf|telefone|email|formato", "n": int}]}` (a forma do §3.5, até 20 itens, **nunca o valor**). Coluna fora da lista = `{"coluna": "<rótulo>", "tipo": "formato"}`; dado numa célula = `{"coluna": "CELULA", "tipo": "<tipo>"}`. O lote do dia não é gravado, e o site grava a pausa `DADO_PESSOAL` (RN-VIS-007).
 - **Idempotência:** o mesmo `<id>` + dia + `X-BAP-SHA256` devolve o mesmo `seq`, sem gravar de novo.
 
 | Resposta | Quando |
@@ -178,9 +184,11 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 | 400 | dia mal formado, corpo que não é JSON |
 | 404 | rodada desconhecida |
 | 409 | concessão vencida |
-| 413 `{"erro": "lote grande demais"}` | acima de `LOTE_GZ_MAX`, de `ARQUIVO_MAX` ou de `ARQUIVOS_MAX` |
+| 413 `{"erro": "lote grande demais"}` | acima de `LOTE_GZ_MAX`, de `LOTE_BRUTO_MAX`, de `ARQUIVO_MAX` ou de `ARQUIVOS_MAX` |
+| 413 `{"erro": "lote grande demais", "codigo": "DESCOMPRESSAO_TETO"}` | a conferência passou de `DESCOMPRESSAO_MAX` ou de `ZIP_MEMBROS_MAX` |
 | 415 | `Content-Type` ou `Content-Encoding` errado |
 | 422 `{"erro": "sha256"}` ou `{"erro": "esquema inválido", "detalhes": [...]}` | até 10 detalhes, **sem nome**: só a chave e o índice (`arquivos[3].nome`) |
+| 422 `{"erro": "dado pessoal", "achados": [{"coluna", "tipo", "n"}]}` | a conferência achou dado pessoal ou coluna fora da lista; **nunca o valor** |
 
 ### 3.5 `POST /api/visitas/rodada/<id>/fim`
 
@@ -205,7 +213,7 @@ O Excel que a Máxima entrega **nunca sai do contêiner**. Para cada Excel, o cr
 | Parte do Espelho | Permitido | Formato conferido |
 |---|---|---|
 | Cabeçalho (rótulo + valores) | `PERIODO`, `FILIAL`, `SUPERVISOR`, `RCA`, `PRIMEIRO CLIENTE`, `ULTIMO CLIENTE`, `ULTIMA POSICAO`, `TEMPO DESLOCAMENTO`, `TEMPO MEDIO ATENDIMENTO`, `VALOR VENDIDO`, `EM ANDAMENTO`, `KM TRABALHADO`, `KM TOTAL`, `CLIENTES AGENDADOS`, `QTDE VISITADOS AGENDA`, `QTDE VISITADOS FORA AGENDA`, `QTDE POSITIVADOS AGENDA`, `QTDE POSITIVADOS FORA AGENDA`, `% VISITAS REALIZADAS NA SEQUENCIA PREVISTA` | texto (código + nome do vendedor, do supervisor e da filial, que o `vc_visitas` já leva), hora, número ou "n / p%" |
-| Lista de clientes (colunas) | `DATA`, `ORD PREV`, `ORD REA`, `INICIO`, `FIM`, `ATEND`, `PER`, `CODIGO`, `CLIENTE`, `ENDERECO`, `N PEDIDO`, `PEDIDO`, `JUSTIFICATIVA`, `AGEN`, `PDV` | `DATA` data; `ORD *` até 3 dígitos; `INICIO`, `FIM`, `ATEND`, `PER` hora; `CODIGO` 6 a 8 dígitos; `N PEDIDO` até 10 dígitos; `PEDIDO` número; `AGEN` S ou N; `CLIENTE`, `ENDERECO`, `JUSTIFICATIVA`, `PDV` texto |
+| Lista de clientes (colunas) | `DATA`, `ORD PREV`, `ORD REA`, `INICIO`, `FIM`, `ATEND`, `PER`, `CODIGO`, `CLIENTE`, `ENDERECO`, `N PEDIDO`, `PEDIDO`, `JUSTIFICATIVA`, `AGEN`, `PDV` | Formato por coluna; a fonte é o código, `visitas_nucleo._FORMATO_COLUNA` e `visitas_nucleo._RX_FORMATO` (modulo-rota). Em palavras: `DATA` data dd/mm/aaaa, com hora ou sem; `ORD PREV` e `ORD REA` de 1 a 6 dígitos; `INICIO`, `FIM`, `ATEND` e `PER` hora (h:mm ou h:mm:ss), que pode ser negativa; `CODIGO` de 6 a 8 dígitos; `N PEDIDO` até 10 dígitos; `PEDIDO` número, que pode ser negativo, com % ou na forma "n / p%"; `AGEN` S ou N; `CLIENTE`, `ENDERECO`, `JUSTIFICATIVA`, `PDV` texto |
 
 - **Tudo o que não está na lista sai**: as colunas `KM DIST`, `BONIF` e `OBSERVACAO`, qualquer coluna ou rótulo novo da Máxima, títulos de página, rodapés e linhas sem rótulo conhecido. A célula fica vazia no `destino`, com a mesma posição, para o `ler_espelho` ler igual.
 - **Limpeza do que fica (RN-GER-011), antes da varredura**, com as funções que o pacote do site já usa (`relatorios_nucleo`, sem copiar o regex):
@@ -285,27 +293,43 @@ O Excel que a Máxima entrega **nunca sai do contêiner**. Para cada Excel, o cr
 
 A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investigação com imagem é feita no PC, com "Mostrar o navegador". A mensagem crua da Máxima **nunca** é copiada para o código, o log ou o site.
 
-| Código | `status` | Quando | Depois (quem decide: o site, no `fim`) | Texto no site |
-|---|---|---|---|---|
-| `OK` | ok | todos os dias e vendedores vieram | — | "Atualizado às HHhMM." |
-| `NADA_A_FAZER` | ok | a concessão veio, mas os dias ficaram fechados no meio-tempo | — | (não aparece) |
-| `PARCIAL_VENDEDOR` | parcial | algum vendedor falhou; os outros vieram | `retentativa` uma vez (RN-VIS-006) | "N Excel com erro (DD/MM)." Nome do vendedor só na tela, para admin e gerente, a partir do lote |
-| `PARCIAL_TEMPO` | parcial | passou de `RODADA_MAX_MIN` no fim de um dia | nova tentativa (§3.1); o pedido continua até `PEDIDO_MAX_RODADAS` | "Parte dos dias veio; o resto vem na próxima volta." |
-| `MAXIMA_SENHA` | erro | a Máxima recusou usuário ou senha | **pausa** (RN-VIS-005), sem segunda tentativa | "A Máxima recusou o usuário ou a senha. Só o Alexandre troca no painel do Render; depois, o admin clica em Retomar." |
-| `MAXIMA_CONFIRMACAO` | erro | a Máxima pediu código por SMS ou e-mail, confirmação de novo dispositivo, aceite de termo ou troca de senha | **pausa** | "A Máxima pediu uma confirmação. Use o Atualizar visitas do PC; o admin retoma aqui depois." |
-| `MAXIMA_CAPTCHA` | erro | apareceu captcha (iframe ou elemento conhecido) | **pausa** | o mesmo texto do `MAXIMA_CONFIRMACAO` |
-| `MAXIMA_BLOQUEIO` | erro | conta bloqueada, acesso negado ou HTTP 403 na página de login | **pausa** | "A Máxima bloqueou o acesso do site. Use o Atualizar visitas do PC." |
-| `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato | **pausa** (RN-VIS-007); o lote do dia não sobe; "Retomar" no §4.5 | "O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: <coluna>). Use o Atualizar visitas do PC." |
-| `MAXIMA_FORA` | erro | tempo esgotado no `goto` do login, ou HTTP 5xx | agenda: nova tentativa (§3.1); botão: o pedido sai da fila | "A Máxima não respondeu. Tentamos de novo às HHhMM." / "Tente mais tarde." |
-| `TELA_MUDOU` | erro | `ErroRobo` numa fase (`fase` obrigatória) | nova tentativa (§3.1); 2 rodadas seguidas na mesma fase **pausam a agenda** | "A tela da Máxima mudou (etapa: <fase>). Use o Atualizar visitas do PC até a correção." |
-| `NAVEGADOR_FALHOU` | erro | o Chromium não abriu ou caiu (`Target closed`, falta de memória) | nova tentativa (§3.1); 2 seguidas aparecem no `/saude` | "O navegador do site parou. Tentamos de novo às HHhMM." |
-| `SITE_RECUSOU` | parcial | o site respondeu 413 ou 422 a um lote | nova tentativa (§3.1) do dia recusado | "Um dia não foi aceito pelo site (DD/MM)." |
-| `SITE_FORA` | — | o cron não fala com o site depois de `HTTP_TENTATIVAS` | só no log do Render; o site vê `RODADA_INTERROMPIDA` | — |
-| `RODADA_INTERROMPIDA` | erro | **gravado pelo site**: a concessão venceu sem `fim` | nova tentativa (§3.1) do que falta | "A rodada parou sem terminar. Tentamos de novo às HHhMM." |
-| `TETO_DIA` | — | **estado do site, não rodada**: `tentativas_hoje` chegou ao teto (RN-VIS-008) | nada até o dia seguinte | "O site já entrou o máximo de vezes hoje na Máxima. Use o Atualizar visitas do PC; amanhã volta sozinho." |
-| `CONFIG_FALTANDO` | erro | falta `BAP_MAXIMA_USUARIO`, `BAP_MAXIMA_SENHA`, `BAP_VISITAS_TOKEN` ou `BAP_WEB_HOSTPORT` | sai sem abrir o navegador; cada volta repete (custa segundos) | "Faltam as variáveis do serviço de visitas no Render." (o nome da variável só no log do Render) |
-| `CONFIG_INSEGURA` | erro | `DEBUG` com `pw`, `PWDEBUG` ou trace ligado | sai sem abrir o navegador | "O serviço de visitas está com depuração ligada e não roda assim." |
-| `ERRO_INTERNO` | erro | exceção não prevista (`fase` obrigatória) | nova tentativa (§3.1) | "Erro inesperado (etapa: <fase>)." No log, só o nome da classe da exceção, nunca a mensagem |
+| Código | `status` | Quando | Depois (quem decide: o site, no `fim`) |
+|---|---|---|---|
+| `OK` | ok | todos os dias e vendedores vieram | — |
+| `NADA_A_FAZER` | ok | a concessão veio, mas os dias ficaram fechados no meio-tempo | — |
+| `PARCIAL_VENDEDOR` | parcial | algum vendedor falhou; os outros vieram | `retentativa` uma vez (RN-VIS-006). O nome do vendedor só aparece na tela, para admin e gerente, a partir do lote |
+| `PARCIAL_TEMPO` | parcial | passou de `RODADA_MAX_MIN` no fim de um dia | nova tentativa (§3.1); o pedido continua até `PEDIDO_MAX_RODADAS` |
+| `MAXIMA_SENHA` | erro | a Máxima recusou usuário ou senha | **pausa** (RN-VIS-005), sem segunda tentativa |
+| `MAXIMA_CONFIRMACAO` | erro | a Máxima pediu código por SMS ou e-mail, confirmação de novo dispositivo, aceite de termo ou troca de senha | **pausa** |
+| `MAXIMA_CAPTCHA` | erro | apareceu captcha (iframe ou elemento conhecido) | **pausa** |
+| `MAXIMA_BLOQUEIO` | erro | conta bloqueada, acesso negado ou HTTP 403 na página de login | **pausa** |
+| `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato; ou o site recusou o lote com 422 de dado pessoal ou coluna fora da lista (§3.4) | **pausa** (RN-VIS-007); o lote do dia não sobe; "Retomar" no §4.5 |
+| `MAXIMA_FORA` | erro | tempo esgotado no `goto` do login, ou HTTP 5xx | agenda: nova tentativa (§3.1); botão: o pedido sai da fila |
+| `TELA_MUDOU` | erro | `ErroRobo` numa fase (`fase` obrigatória) | nova tentativa (§3.1); 2 rodadas seguidas na mesma fase **pausam a agenda** |
+| `NAVEGADOR_FALHOU` | erro | o Chromium não abriu ou caiu (`Target closed`, falta de memória) | nova tentativa (§3.1); 2 seguidas aparecem no `/saude` |
+| `SITE_RECUSOU` | parcial | o site respondeu 413 ou 422 a um lote, fora o 413 com `codigo` `DESCOMPRESSAO_TETO` (que é `DESCOMPRESSAO_TETO`) e o 422 de dado pessoal (que é `DADO_PESSOAL`) | nova tentativa (§3.1) do dia recusado |
+| `DESCOMPRESSAO_TETO` | parcial | o site respondeu 413 com esse `codigo`: a conferência passou de `DESCOMPRESSAO_MAX` ou de `ZIP_MEMBROS_MAX` (§3.4) | **sem** nova tentativa no dia: o mesmo Excel daria o mesmo erro e gastaria logins da Máxima. Fica fora de `NOVA_TENTATIVA`. O cron fecha o dia com este código |
+| `SITE_FORA` | erro | o cron não fala com o site depois de `HTTP_TENTATIVAS` | só no log do Render; o site vê `RODADA_INTERROMPIDA` |
+| `RODADA_INTERROMPIDA` | erro | **gravado pelo site**: a concessão venceu sem `fim` | nova tentativa (§3.1) do que falta |
+| `TETO_DIA` | — | **estado do site, não rodada**: `tentativas_hoje` chegou ao teto (RN-VIS-008) | nada até o dia seguinte |
+| `CONFIG_FALTANDO` | erro | falta `BAP_MAXIMA_USUARIO`, `BAP_MAXIMA_SENHA`, `BAP_VISITAS_TOKEN` ou `BAP_WEB_HOSTPORT` | sai sem abrir o navegador; cada volta repete (custa segundos). O nome da variável só no log do Render |
+| `CONFIG_INSEGURA` | erro | `DEBUG` com `pw`, `PWDEBUG` ou trace ligado | sai sem abrir o navegador |
+| `ERRO_INTERNO` | erro | exceção não prevista (`fase` obrigatória) | nova tentativa (§3.1). No log, só o nome da classe da exceção, nunca a mensagem |
+
+**`DESCOMPRESSAO_TETO`** (`web/app/visitas.CODIGO_TETO`) é, ao mesmo tempo, o `codigo` da resposta 413 do site (§3.4) e o código com que o cron fecha o dia. Ele entra no `CODIGOS` da web, fora da lista de códigos com nova tentativa.
+
+**Texto no site: a fonte única é a web** (`web/app/visitas.py`, T-0045). Este contrato só aponta para as constantes, e o `testes` compara os códigos daqui com os de lá:
+- **`CODIGOS[código]`** = `(status, texto)`. O texto diz o que aconteceu e o que fazer, sem jargão. Os marcadores são:
+  - `{h}`: a hora do fim;
+  - `{d}`: o dia;
+  - `{n}`: os vendedores sem visita;
+  - `{c}`: a coluna;
+  - `{t}`: "Tentamos de novo às HHhMM." ou "Tente mais tarde.".
+- **`STATUS_DO_CODIGO`** sai do `CODIGOS`. O `status` de cada código tem de ser o da tabela acima (teste).
+- **"Situação"**, a palavra que a tela mostra no lugar do código: `SITUACAO` (`ok` → "Em dia", `parcial` → "Parcial", `erro` → "Erro"), com a cor de `SITUACAO_COR`. Com `pausado`, a situação é "Pausado"; durante a rodada, "Baixando".
+- **O código** (e a `fase`, quando houver) aparece pequeno, "para o suporte". É a decisão 6 B: o código no lugar do print.
+- **`TETO_DIA`:** `TETO_DIA_TEXTO`.
+- O `NADA_A_FAZER` não aparece na lista de rodadas.
 
 - **Pausa** = `pausado` gravado; o cron sai sem tocar na Máxima até o "Retomar" do admin. O botão do PC continua funcionando.
 - **Nova tentativa (§3.1)** = o próximo horário do motivo, dentro do teto do dia: na agenda, os `RETENTATIVAS_AGENDA`; no pedido, a volta seguinte, até `PEDIDO_MAX_RODADAS`; na retentativa e no diagnóstico, nenhuma.
