@@ -1665,10 +1665,12 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
 |---|---|---|---|
 | `admin` | sim | as 4 | sim |
 | `gerente` | sim | as 4 | não |
+| `analista` | sim | as 4 (lê como o gerente, RN-GER-017) | não |
 | `pos_venda` | sim | as 4 [P4 A] | não |
 | `diretor` | sim | nenhuma | não |
 
-- `render.FAROIS["pl_fretes"] = ("Farol de Fretes", ("admin", "diretor", "gerente", "pos_venda"))`, no grupo "Pós-venda" do menu.
+- `render.FAROIS["pl_fretes"] = ("Farol de Fretes", LEITURA_GERAL + ("diretor", "pos_venda"))`, no grupo "Pós-venda" do menu. `LEITURA_GERAL` = admin, gerente e analista (T-0036, RN-GER-017), a mesma forma do `pl_entregas`.
+- Edição só do `admin` (RN-GER-012): o analista e o gerente leem e não editam.
 - O diretor vê só o Resumo (RN-GER-014).
 - Aba fora do perfil = 403.
 - Página com tabela: `no-store` e `noindex` (§10.7.5).
