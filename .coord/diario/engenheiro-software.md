@@ -24,3 +24,4 @@
 - 2026-11-27 — T-0045 — visitas-nuvem §5: texto no site com a web como fonte única (CODIGOS, SITUACAO, TETO_DIA_TEXTO; código pequeno para o suporte); nomes alinhados à web (DESCOMPRESSAO_MAX, LOTE_BRUTO_MAX, ZIP_MEMBROS_MAX, 413 com DESCOMPRESSAO_TETO, 422 dado pessoal com detalhes); SITE_DESCOMPRESSAO sai (o cron fecha com SITE_RECUSOU)
 - 2026-11-27 — T-0045 — visitas-nuvem §5: DESCOMPRESSAO_TETO volta como código próprio (parcial, sem nova tentativa no dia; SITE_RECUSOU não cobre esse 413), decisão do gerente
 - 2026-11-27 — T-0045 — visitas-nuvem §3.4: 422 de dado pessoal com achados [{coluna, tipo, n}] (até 20, nunca o valor), como a web 134efc8; 413 com codigo DESCOMPRESSAO_TETO conferido
+- 2026-11-27 — T-0045 — visitas-nuvem §3.6: ORD * de 1 a 5 dígitos e ATEND hora com sinal, para acabar com o falso achado de formato (9% dos Espelhos reais), alinhado ao _RX_FORMATO da rota
