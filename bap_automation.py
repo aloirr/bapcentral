@@ -6943,7 +6943,8 @@ def blocos_resumo_fretes_web(r: dict):
     PC nao tem painel proprio (so `graficos` e `tabelas`). Devolve
     (blocos, frases): o grafico dos 12 meses como `barras`; as tabelas Por UF,
     Por cidade e Por transportadora, do mes padrao do filtro MES, como `tabela`
-    (sem a coluna MES, com a linha TOTAL); e o resumo gerencial como `insights`.
+    (sem a coluna MES, com a linha TOTAL); e as frases do resumo gerencial, que
+    vao so em `insights_painel` (a web le dali; sem bloco `insights`).
     Os numeros saem das proprias tabelas e dos cartoes do PC (sem recalcular
     regra): a soma de cada tabela e o cartao Notas com frete. Sem nome de
     cliente, CNPJ ou pessoa: so UF, cidade e transportadora (empresa)."""
@@ -7009,9 +7010,6 @@ def blocos_resumo_fretes_web(r: dict):
         t0 = max(tr, key=lambda x: x[2])
         frases.append(("info", f"{t0[0]} leva "
                        f"{_rn.p(_rn.pct_de(t0[2], v_))} do valor."))
-    if frases:
-        blocos.append({"tipo": "insights", "titulo": "Resumo gerencial",
-                       "linhas": frases, "row": linha, "col": 0})
     return blocos, frases
 
 
