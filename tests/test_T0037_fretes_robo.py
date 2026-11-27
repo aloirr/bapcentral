@@ -223,8 +223,7 @@ def test_RN_POS_010_edicao_web_cinco_campos_sem_frete_real(tmp_path):
     assert (ed["modulo"], ed["acao"]) == ("pos_venda", "Editar")
     assert [c["campo"] for c in ed["campos"]] == [
         "etapa", "transportadora", "prevista_manual", "entregue_em",
-        "responsavel"]
-    assert "frete_real" not in {c["campo"] for c in ed["campos"]}
+        "responsavel"]                                 # sem o frete_real
     # a chave das 4 linhas do mês; a sem acompanhamento vai vazia
     assert ed["chaves"] == ["FILIAL FICTICIA|900001|1",
                             "FILIAL FICTICIA|900002|1",
