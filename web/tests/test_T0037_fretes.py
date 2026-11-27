@@ -24,7 +24,7 @@ def _como(admin, perfil):
 
 def test_RN_POS_010_lugar_e_entradas_do_fretes():
     assert edicoes.LUGARES[("pl_fretes", TIT)] == "pos_venda"
-    assert "pl_fretes" in render.FAROIS and "pl_fretes" in render.BC3
+    assert "pl_fretes" in render.FAROIS                            # o BC3 vale para todos os faróis (#146)
     assert "pl_fretes" in dict(render.GRUPOS_MENU)["Pós-venda"]
     assert [t for _, t in tabelas.ABAS["pl_fretes"]] == [TIT, "Por UF", "Por cidade", "Por transportadora"]
 
