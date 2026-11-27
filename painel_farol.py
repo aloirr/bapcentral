@@ -28,7 +28,7 @@ import calendar
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-VERDE, CINZA, VERMELHO, AZUL, AMARELO = ("#62BB47", "#A7B0AA", "#B3261E",
+VERDE, CINZA, VERMELHO, AZUL, AMARELO = ("#59BA61", "#A7B0AA", "#B42318",
                                          "#2F6FB0", "#B7791F")
 MESES = ["", "JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET",
          "OUT", "NOV", "DEZ"]

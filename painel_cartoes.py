@@ -579,7 +579,7 @@ def subtitulo(dados, visao="abs") -> str:
 
 
 # --------------------------------------------------------------- a tela
-COR = {"bom": "#2E7D32", "ruim": "#C62828", "": "#69736D"}
+COR = {"bom": "#2E7D32", "ruim": "#C62828", "": "#5E6B63"}
 BARRA_ATUAL = "#1E2722"
 BARRA_VELHA = "#C9D1DC"
 
@@ -706,7 +706,7 @@ def _como_ler(cv, dados, w, h):
     import bap_visual as bv                             # noqa: PLC0415
     cv.delete("all")
     x0, y = 14, 10
-    cv.create_text(x0, y, anchor="nw", text="COMO LER", fill="#62BB47",
+    cv.create_text(x0, y, anchor="nw", text="COMO LER", fill="#59BA61",
                    font=bv.fonte(9, "bold"))
     ate = dados["dados_ate"]
     linhas = [
