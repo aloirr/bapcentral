@@ -39,12 +39,9 @@
    - O formato, a fila e os passos estão no contrato §10.9.5.
    - A cópia antes e o `antes` no diário de aplicadas estão no §10.9.3.
 4. **No PC:** a tela da config fica só leitura (RN-GER-012), com `MSG_EDICAO_SO_WEB` (§10.9.3).
-5. **A edição no lugar é uma exceção declarada ao "só acrescentar" da regra 7 e da RN-GER-012.** A config (e, pela mesma regra, o DDR e os Expositores, §10.9.3) não tem diário: a função do PC já trocava o arquivo, ou a célula, antes do site. A exceção vale só com as duas garantias do §10.9.3:
-   - o valor anterior gravado no `APLICADAS_WEB`;
-   - a cópia antes do dia.
-   O texto da RN-GER-012 é ajustado pelo gerente-projetos.
+5. **A edição no lugar é a exceção da RN-GER-012** (a config, o DDR e os Expositores não têm diário). As garantias estão no contrato §10.9.3.
 6. **Governança:**
-   - cada arquivo novo nesta forma pede um "autorizo" do Alexandre, citado no PR que o liga (decisão 6 A do R-20261126-180314-alexandre). O primeiro é o `champions_config.json` (R-20261126-171559-alexandre);
+   - cada arquivo novo nesta forma segue a RN-GER-016 (o "autorizo" do Alexandre por arquivo), citado no PR que o liga;
    - os `.json` da raiz do repositório continuam governança;
    - a rotina diária (ADR 0002) não leva config ao PC, então o robô nunca sobrescreve a config da produção com a do repositório.
 
@@ -55,4 +52,4 @@
 - **Dado pessoal:** contrato §10.9.5 (tetos e texto livre) e §10.10.3.
 - **Concorrência:** pelo hash da seção (contrato §10.9.5, passo 2). A pessoa abre de novo e refaz.
 - **Volta atrás:** o `antes` de cada troca no diário de aplicadas, mais a cópia do dia (contrato §10.9.3). Restaurar é manual, no PC, com o "ok" do Alexandre.
-- **Teste:** um teste por passo do contrato §10.9.5, com config fictícia em pasta temporária, nunca na base real.
+- **Teste:** com config fictícia em pasta temporária, nunca na base real.

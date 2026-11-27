@@ -1029,7 +1029,7 @@ A matriz robô × web está na ADR 0003, §4.7: as quatro combinações funciona
 Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.**
 
 Fontes:
-- RN-GER-012;
+- RN-GER-012, RN-GER-014, RN-GER-015 e RN-GER-016 (`docs/produto/03-regras.md`, a fonte das regras);
 - R-20261126-171559-alexandre e a decisão 6 A do R-20261126-180314-alexandre. O que elas dizem está no §10.9.4, no §10.9.5 e no §10.10.1;
 - as P1 a P3 (A), em R-20261127-013010-alexandre;
 - ADR 0001, adendo 6, e ADR 0005.
@@ -1109,7 +1109,9 @@ Donos:
 
 - **Quem:** só o admin (`edicoes.EDITA`, RN-GER-012). O botão (o `rotulo` do `novo`) fica na barra das ações da aba (tela-bc3 §5 e §11). Ele é o botão principal da aba e só é desenhado para o admin: o corte é no servidor.
 - **Formulário:** `GET /farol/<rid>/editar?tab=<título>&novo=1`. Mostra os campos sem `linhas`, cada um com o `padrao` dele. Sem linha de origem, não há resumo nem "Ver pedido".
-  - **Ticket da garantia:** o `padrao` do `ticket` é o próximo número do PC. A web soma a ele as garantias novas ainda pendentes na fila (ex.: o padrão G-0013 com 1 pendente vira G-0014). Assim, duas garantias novas na mesma rodada não recebem o mesmo número.
+  - **Ticket da garantia:** o `padrao` do `ticket` é o `garantias.novo_ticket` do pacote. **A web não calcula número.**
+    - Se o ticket que chega é o padrão e ele já foi usado nesta rodada, o robô grava com o `garantias.novo_ticket` da hora, como o `EXPnnnn` dos Expositores. Assim, duas garantias novas na mesma rodada não ficam com o mesmo número.
+    - O ticket digitado diferente do padrão segue a regra de hoje: repetido = `erro`.
 - **Envio:** `POST /farol/<rid>/editar` com `novo=1`. Vai só o que mudou em relação ao `padrao`, mais os campos obrigatórios do lugar (§10.9.3). Sem nenhum campo diferente do padrão, a resposta é 400 com "Preencha pelo menos um campo além dos padrões.".
 - **Na fila** (`<dados>/edicoes/EDICOES_WEB_<AAAA-MM>.jsonl`, só acréscimo): uma linha `edicao` como as outras, com 2 diferenças:
   - `chave` = `"NOVO-"` + 8 dígitos hexadecimais maiúsculos, gerados pela web (`uuid4`). Ex.: `NOVO-3F9A01C2`;
@@ -1142,14 +1144,14 @@ A web aceita `edicao` só nestes pares (`edicoes.LUGARES`), e o robô só grava 
 
 **Regra 7 e RN-GER-012:**
 - `_NCC`, `_GARANTIAS`, `_AUTORIZACOES` e `_EDICOES_POS_VENDA` só recebem linha nova, sempre pela função do PC. O robô nunca reescreve nem apaga linha de diário.
-- **Exceção declarada, a edição no lugar:** DDR, Expositores e a config gravam com a **mesma função da tela do PC**, que já trocava a célula (ou o arquivo) antes do site. A exceção ao "só acrescentar" fica escrita na RN-GER-012 (gerente-projetos) e na ADR 0005. Ela vem com 2 garantias:
+- **Exceção da RN-GER-012, a edição no lugar:** DDR, Expositores e a config gravam com a mesma função da tela do PC. As 2 garantias:
   1. **o valor anterior fica gravado.** Na linha do `APLICADAS_WEB_<máquina>.jsonl` (só acrescenta), o robô grava também o `antes` da fila, que a web já manda (o valor de hoje de cada campo; na config, a seção anterior inteira). Cada troca no lugar pode ser desfeita, mesmo várias no mesmo dia;
   2. **cópia antes.** Antes da **primeira** gravação do dia em cada um desses arquivos, o robô copia o arquivo, byte a byte, para `RELATORIOS/_EDICOES_WEB/ANTES/<AAAA-MM-DD>_<nome do arquivo>`.
      - Se a cópia do dia já existe, ela não é refeita.
      - Se a cópia falha, nada é gravado: a edição fica `pendente`, com "falha de disco".
      - O robô nunca apaga a cópia. [SUPOSIÇÃO] Medido nas bases: 150 KB (DDR), 10 KB (Expositores) e menos de 10 KB (champions) por dia com edição. São menos de 60 MB por ano.
 - A planilha de acompanhamento ganha linha só pela linha nova. A edição muda só as colunas da assistente, como a tela do PC fazia.
-- A tela do PC fica só leitura em cada lugar desta tabela: `bap_relatorios.EDICAO_SO_WEB`, com a frase `bap_relatorios.MSG_EDICAO_SO_WEB`.
+- A tela do PC fica só leitura em cada lugar desta tabela (menos o contato da garantia, RN-GER-012): `bap_relatorios.EDICAO_SO_WEB`, com a frase `bap_relatorios.MSG_EDICAO_SO_WEB`.
 
 #### 10.9.4 Corte por coluna e por perfil (`tabelas.RESTRITAS`)
 
@@ -1186,12 +1188,7 @@ Esconder com CSS não basta. O teste pede a página, o Excel e o PDF como `venda
 - nenhuma coluna em R$ das Campanhas entra na conta. FAT. BRUTO, DEVOLUÇÕES, FAT. LÍQUIDO e DESAFIO são a base da trava (RN-GER-001 e RN-GER-002), e PEDIDOS NO DIA, BAP NO DIA e META BAP são a base da relâmpago;
 - **por isso, `vendas` refaz o TOTAL A PAGAR somando as duas colunas que vê** (e a aba "Campanha relâmpago" mostra os PTS por pessoa). O corte tira a coluna e o cartão, não o número.
 
-**O que `vendas` vê (P4, decisão provisória do gerente-projetos, levada ao Alexandre como informe):**
-- os pontos continuam visíveis: PTS, PTS VÁLIDOS, PTS RELÂMPAGO, a SITUAÇÃO e as abas Confrontos, Pts por semana e Campanha relâmpago. Eles motivam a campanha;
-- saem o TOTAL A PAGAR e o cartão "Total a pagar";
-- as colunas em R$ do jogo (faturamento e desafio) seguem como estão, porque não são pagamento.
-
-Se o Alexandre quiser que o número não seja refeito, a opção é cortar também PTS VÁLIDOS e PTS RELÂMPAGO para `vendas` (`docs/desenho/T-0025.md`, §7, P4).
+**O que `vendas` vê:** a RN-GER-015 (P4 A): os pontos ficam, e saem a coluna e o cartão. A alternativa, se o Alexandre pedir: `docs/desenho/T-0025.md`, §7, P4.
 
 **O diretor:** vê o TOTAL A PAGAR no Resumo (P1 A): o cartão "Total a pagar (pontos)" nos `kpis` do topo das Campanhas, com `coluna` = "TOTAL A PAGAR". O número = a soma da coluna nas abas Vendedores e Supervisores, calculada pelo núcleo. Pelo `RESTRITAS`, `vendas` não o vê.
 
@@ -1240,7 +1237,7 @@ O aviso do PC "Parâmetros alterados em ... por ..." sai dos `avisos` do farol (
 - uma seção enviada pela web vai até 32 KB;
 - lista com até 300 itens (jogos, relâmpago, pessoas da equipe do mês);
 - texto com até 80 caracteres, com as regras do texto livre (§10.9.1);
-- o `parametros_edicao` inteiro vai até 256 KB. **Acima disso, o robô tira só o bloco**, antes do teto do farol, como os anexos do §10.8.7, e põe `AVISO_PARAMETROS_FORA` (§10.7.6) nos `avisos`. A web mostra esse aviso só ao admin. As Campanhas seguem atualizando para todos;
+- o `parametros_edicao` inteiro vai até 256 KB. **Acima disso, o robô tira só o bloco**, antes do teto do farol, como os anexos do §10.8.7, e põe `AVISO_PARAMETROS_FORA` (§10.7.6) nos `avisos`. As Campanhas seguem atualizando para todos;
 - **corpo do `POST /farol/vc_champions/parametros`:** até 128 KB (o JSON da seção cresce no formulário); é um teto próprio da rota, fora do `FORM_MAX`.
 
 [SUPOSIÇÃO] A `meta` da `equipe_mes` é o desafio comercial, a mesma que a trava compara (RN-GER-001).

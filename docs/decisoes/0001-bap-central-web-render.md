@@ -451,12 +451,8 @@ As regras e os formatos ficam **só** no contrato, §10.9 e §10.10 (`.coord/con
 
 ### A decisão
 1. **O item 2 do adendo 5 se estende** a `pl_garantias`, `pl_devolucoes`, `pl_ncc` e `tm_expositores`. O código e o nome do cliente vão ao Render só em `tabelas`, limpos de CPF/CNPJ (contrato §10.10.3), inclusive no "Histórico de compra" das Garantias. Telefone, e-mail, contato (`CONTATO CLIENTE`), foto e CNPJ continuam fora.
-2. **O item 4 do adendo 5 é substituído:** o site deixa de ser só leitura onde o contrato §10.9.3 lista um lugar de edição. Isso inclui os de Pedidos e Entregas, já no `main` desde a T-0021 v4.
-   - Só o admin edita.
-   - A edição chega ao PC pelo robô, gravada pela função da tela do PC.
-   - A tela do PC fica só leitura nesse lugar (RN-GER-012).
-   - Troca de loja de coleta, "Atualizar visitas", parciais e "Exportar campanha" continuam no PC.
-3. **Config editada pela web:** só com um "autorizo" do Alexandre por arquivo (6 A), na forma da ADR 0005. O primeiro é o `champions_config.json`.
+2. **O item 4 do adendo 5 é substituído:** o site edita onde o contrato §10.9.3 lista um lugar, pela RN-GER-012 (inclusive Pedidos e Entregas, no `main` desde a T-0021 v4). Troca de loja de coleta, "Atualizar visitas", parciais e "Exportar campanha" continuam no PC.
+3. **Config editada pela web:** ADR 0005 e RN-GER-016.
 4. **Contrato v1, acréscimo compatível.** A ordem de publicação é a do contrato §10.9.6.
 
 ### Consequências
