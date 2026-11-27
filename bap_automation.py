@@ -8856,7 +8856,11 @@ def enviar_pacote_web(pacote: dict, url=None, token=None, log=print) -> bool:
 
 def _lote_web(gerado_em: str) -> str:
     """AAAAMMDDTHHMMSS do gerado_em (Manaus), como pacotes.nome_arquivo."""
-    return datetime.fromisoformat(str(gerado_em)).strftime("%Y%m%dT%H%M%S")
+    from datetime import timedelta, timezone            # noqa: PLC0415
+    d = datetime.fromisoformat(str(gerado_em))
+    if d.tzinfo is not None:            # outro fuso -> Manaus (-04:00, sem DST)
+        d = d.astimezone(timezone(timedelta(hours=-4)))
+    return d.strftime("%Y%m%dT%H%M%S")
 
 
 def _formatos_web(base: str, requests) -> list:
