@@ -32,3 +32,5 @@
 - 2026-11-27 — T-0045 — RD-0148: §3.6 do visitas-nuvem diz o formato de cada coluna em palavras e aponta para visitas_nucleo._FORMATO_COLUNA e _RX_FORMATO como fonte, sem copiar regex
 - 2026-11-27 — T-0037 — 🟡 do revisor: §10.12.3 com a grade de 9 colunas da web (VLR NF no popup, blocos Nota/Entrega, cel sem a ETAPA); §6 e §7.1 do desenho com os 5 campos do CAMPOS_LUGAR_WEB (sem o frete_real)
 - 2026-11-27 — T-0037 — seção do contrato renumerada para §10.12 (a anterior fica com a T-0036, que entra antes), com as citações no §10.7, no desenho e no diário
+- 2026-11-27 — T-0036 — desenho dos faróis do Analista (Saldo, Markup, Preço, Divergências) no contrato §10.11 (cliente só pelo código, lista positiva de colunas, Excel de correção só admin como anexo, cortes do Markup) e docs/desenho/T-0036.md (perfis analista e trade, matriz, divisão por dono, testes por RN)
+- 2026-11-27 — T-0036 — tela-bc3 §4.1: a data da faixa fica como está no site (só a data à vista, "Dados de … horário de Manaus" no title), decisão R-20261127-054626-po
