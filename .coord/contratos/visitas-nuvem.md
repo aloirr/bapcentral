@@ -33,10 +33,10 @@
 | `AGENDA_HORA` | `06:00` (Manaus) | `nuvem/visitas/agenda.py` | D2: a rodada automática baixa **ontem** |
 | `RETENTATIVAS_AGENDA` | 06h30, 07h00, 07h30 | idem | a 2ª, a 3ª e a 4ª tentativa da agenda, só depois de um código de `NOVA_TENTATIVA` |
 | `NOVA_TENTATIVA` | `MAXIMA_FORA`, `TELA_MUDOU`, `NAVEGADOR_FALHOU`, `SITE_RECUSOU`, `RODADA_INTERROMPIDA`, `PARCIAL_TEMPO`, `ERRO_INTERNO` | idem | os códigos que deixam tentar de novo, dentro do teto do dia |
-| `TENTATIVAS_DIA` | `agenda` 4, `pedido` 3, `retentativa` 1, `diagnostico` 2 | `web/app/visitas.py` e `agenda.py` | teto por motivo no dia de Manaus (RN-VIS-007) |
-| `LOGINS_DIA_MAX` | 8 | idem | teto da soma dos motivos no dia: o que vier primeiro trava (RN-VIS-007) |
+| `TENTATIVAS_DIA` | `agenda` 4, `pedido` 3, `retentativa` 1, `diagnostico` 2 | `web/app/visitas.py` e `agenda.py` | teto por motivo no dia de Manaus (RN-VIS-008) |
+| `LOGINS_DIA_MAX` | 8 | idem | teto da soma dos motivos no dia: o que vier primeiro trava (RN-VIS-008) |
 | `JANELA` | 06h00 a 21h59 (Manaus) | `agenda.py` | fora dela o cron sai sem falar com a Máxima. O pedido do botão feito fora da janela espera as 06h00 |
-| `CONCESSAO_MIN` | 10 | `web/app/visitas.py` | a concessão vence sem `progresso` em 10 min (RN-VIS-003) |
+| `CONCESSAO_MIN` | 10 | `web/app/visitas.py` | a concessão vence sem `progresso` em 10 min (RN-VIS-004) |
 | `RODADA_MAX_MIN` | 45 | `nuvem/visitas/rodar.py` | conferido **no fim de cada dia**: passou, a rodada fecha com `PARCIAL_TEMPO` |
 | `RODADA_TETO_MIN` | 55 | idem | vigia (thread): liga o `parar` do `Robo` |
 | `RODADA_MATA_MIN` | 58 | idem | vigia: `os._exit(1)` (saída de erro, §5). O site marca `RODADA_INTERROMPIDA` quando a concessão vence |
@@ -86,10 +86,10 @@ Regras comuns:
 |---|---|---|
 | `agenda` | `"desligada"` ou `"ligada"` | começa `desligada`. Só o admin liga, e só com diagnóstico `ok` (§6) **e** `fechados_pc_em` nas últimas 24 h (o robô do PC novo no ar, §4.3) |
 | `diagnostico.estado` | `"pendente"`, `"ok"` ou `"falhou"` | começa `pendente`. O admin pode pedir de novo (volta a `pendente`) |
-| `pausado` | `null` ou `{"codigo": str, "desde": iso}` | RN-VIS-004 e RN-VIS-006. Com pausa, o cron só sai |
+| `pausado` | `null` ou `{"codigo": str, "desde": iso}` | RN-VIS-005 e RN-VIS-007. Com pausa, o cron só sai |
 | `pedido` | `null` ou objeto | no máximo **1** pendente (o botão). `perfil` é só o perfil, nunca o usuário |
-| `indice` | `{AAAAMMDD: {...}}` | **o índice único** dos dias baixados nos últimos `FECHADOS_PC_DIAS` dias, pela nuvem (lote importado) ou pelo PC (`fechados_pc`, §4.3). `baixado_em` = o maior dos dois (`visitas_nucleo.juntar_baixado`, RN-VIS-001); `origem` = de quem é esse maior. `erros_vendedor` e `refeito` só valem para `origem: "nuvem"` |
-| `tentativas_hoje` | objeto | as concessões dadas hoje (Manaus), por motivo: `n`, `ultima_em` e o `codigo` do `fim` (ou `RODADA_INTERROMPIDA`). O site zera quando o `dia` muda (RN-VIS-007) |
+| `indice` | `{AAAAMMDD: {...}}` | **o índice único** dos dias baixados nos últimos `FECHADOS_PC_DIAS` dias, pela nuvem (lote importado) ou pelo PC (`fechados_pc`, §4.3). `baixado_em` = o maior dos dois (`visitas_nucleo.juntar_baixado`, RN-VIS-002); `origem` = de quem é esse maior. `erros_vendedor` e `refeito` só valem para `origem: "nuvem"` |
+| `tentativas_hoje` | objeto | as concessões dadas hoje (Manaus), por motivo: `n`, `ultima_em` e o `codigo` do `fim` (ou `RODADA_INTERROMPIDA`). O site zera quando o `dia` muda (RN-VIS-008) |
 | `falhas_seguidas` | objeto | as rodadas seguidas que terminaram em `TELA_MUDOU` na mesma fase |
 | `fechados_pc_em` | `null` ou iso | o último `fechados_pc` recebido do robô do PC |
 | `rodada_ativa` | `null` ou `{"id", "vence_em"}` | a concessão em vigor |
@@ -104,10 +104,10 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 7. ontem não fechado no `indice` e `agenda` abaixo do teto:
    - `n == 0` e `agora >= AGENDA_HORA` → `"agenda"`;
    - `n` de 1 a 3, `codigo` em `NOVA_TENTATIVA` e `agora >= RETENTATIVAS_AGENDA[n - 1]` → `"agenda"`;
-8. dia com `erros_vendedor > 0` e `refeito == false` nos últimos 7 dias, e `retentativa` abaixo do teto → `"retentativa"` (RN-VIS-005);
+8. dia com `erros_vendedor > 0` e `refeito == false` nos últimos 7 dias, e `retentativa` abaixo do teto → `"retentativa"` (RN-VIS-006);
 9. senão → `None`.
 
-"Abaixo do teto" = `tentativas_hoje.por_motivo[motivo].n < TENTATIVAS_DIA[motivo]`. Os dias da rodada saem de `visitas_nucleo.dias_a_baixar(indice, de, ate, hoje, refazer)` (função pura, modulo-rota). **Hoje** entra só pelo botão, e o dia fica aberto (RN-VIS-001).
+"Abaixo do teto" = `tentativas_hoje.por_motivo[motivo].n < TENTATIVAS_DIA[motivo]`. Os dias da rodada saem de `visitas_nucleo.dias_a_baixar(indice, de, ate, hoje, refazer)` (função pura, modulo-rota). **Hoje** entra só pelo botão, e o dia fica aberto (RN-VIS-002).
 
 ### 3.2 `POST /api/visitas/rodada`
 
@@ -116,14 +116,14 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 ```
 
 - O cron só pede concessão com `dias` não vazio.
-- **Na concessão (201), o site conta a tentativa** em `tentativas_hoje` (cada concessão é um login na Máxima, mesmo que a rodada caia depois). Com `motivo: "retentativa"`, o site marca `refeito: true` nos dias da rodada **já na concessão**: a retentativa é uma só, com sucesso ou falha (RN-VIS-005).
+- **Na concessão (201), o site conta a tentativa** em `tentativas_hoje` (cada concessão é um login na Máxima, mesmo que a rodada caia depois). Com `motivo: "retentativa"`, o site marca `refeito: true` nos dias da rodada **já na concessão**: a retentativa é uma só, com sucesso ou falha (RN-VIS-006).
 
 | Resposta | Quando |
 |---|---|
-| 201 `{"id": "R20261127T060012", "vence_em": iso}` | concessão dada (RN-VIS-003) |
+| 201 `{"id": "R20261127T060012", "vence_em": iso}` | concessão dada (RN-VIS-004) |
 | 409 `{"erro": "rodada ativa", "id": str}` | já há concessão em vigor. O cron sai sem erro |
 | 423 `{"erro": "pausado", "codigo": str}` | pausa gravada depois do `trabalho` |
-| 429 `{"erro": "teto do dia", "motivo": str}` | o motivo ou a soma chegou ao teto (RN-VIS-007). O cron sai sem erro |
+| 429 `{"erro": "teto do dia", "motivo": str}` | o motivo ou a soma chegou ao teto (RN-VIS-008). O cron sai sem erro |
 | 400 | corpo fora do formato, `motivo` fora da lista, `dias` vazio, mais de `PEDIDO_MAX_DIAS` dias (o diagnóstico leva 1) |
 
 ### 3.3 `POST /api/visitas/rodada/<id>/progresso`
@@ -154,7 +154,7 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 
 | Chave | Regra |
 |---|---|
-| `baixado_em` | a hora em que o **último Excel do dia** foi salvo na nuvem. É ela que fecha o dia (RN-VIS-001), não a hora da importação |
+| `baixado_em` | a hora em que o **último Excel do dia** foi salvo na nuvem. É ela que fecha o dia (RN-VIS-002), não a hora da importação |
 | `vendedores`, `erros_vendedor` | quantos a grade mostrou e quantos falharam. Só números |
 | `equipe` | os 3 dicionários que o `Robo._ler_equipe` lê nos filtros, no formato dos argumentos de `visitas_nucleo.gravar_equipe_maxima` |
 | `extras` | o que `Robo` devolve em `extras` (chave = `visitas_nucleo.nome_chave`), para `visitas_nucleo.montar_dia` |
@@ -189,7 +189,7 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 - `medidas`: só no diagnóstico (§6); `null` nas outras.
 - 200 `{"ok": true, "pausado": bool}`. O site grava em `rodadas.jsonl` (só acréscimo), solta a concessão, grava o `codigo` em `tentativas_hoje` e aplica a pausa do §5. O `fim` repetido responde igual.
 
-### 3.6 O Espelho que sai do contêiner: lista de permitidas e varredura (RN-VIS-006)
+### 3.6 O Espelho que sai do contêiner: lista de permitidas e varredura (RN-VIS-007)
 
 O Excel que a Máxima entrega **nunca sai do contêiner**. Para cada Excel, o cron chama a função `visitas_nucleo.filtrar_espelho(origem, destino) -> dict` (modulo-rota; usa as mesmas tabelas `_ROTULOS_ESPELHO` e `_COLUNAS_ESPELHO` do `ler_espelho`, sem cópia) e manda **só o `destino`**.
 
@@ -250,8 +250,8 @@ O Excel que a Máxima entrega **nunca sai do contêiner**. Para cada Excel, o cr
 - **O laço `desde`/`epoca`/confirmar é o do `sincronizar_edicoes_web`** (o das edições, porque confirma item a item, como aqui; o da cobrança confirma só o `ate_seq`). Ele sai para uma função só em `bap_automation`, `puxar_fila_web(raiz, rota, arq_estado, aplicar, ja_feitos, registrar, base, token, sessao, log, extra_confirmar=None)`, usada pelas edições e pelas visitas. O `sincronizar_visitas_web` só traz a parte própria (o `aplicar` e o `extra_confirmar` com o `fechados_pc`). Os testes do laço são os das edições, rodados nos dois.
 - **Passos do `aplicar` (um lote):**
   1. `GET /api/visitas/lote/<seq>`; confere o sha256 do corpo e de cada arquivo (não confere = `erro: sha256`);
-  2. grava cada Excel no `ANALITICO` (RN-VIS-002): `.tmp` + `os.replace`; nome que casa com `visitas_nucleo._RX_ARQ_ANALITICO`, sem `/`, `\` nem `..`; pasta = `nome_limpo`; mesmo sha256 = pula; outro conteúdo = sufixo `-2`, `-3`… (`visitas_maxima.arquivo_analitico`). **Nunca sobrescreve nem apaga;**
-  3. `gravar_equipe_maxima`; `anotar_baixado` com o `baixado_em` da nuvem (RN-VIS-001); `montar_dia` e `montar_mes`.
+  2. grava cada Excel no `ANALITICO` (RN-VIS-003): `.tmp` + `os.replace`; nome que casa com `visitas_nucleo._RX_ARQ_ANALITICO`, sem `/`, `\` nem `..`; pasta = `nome_limpo`; mesmo sha256 = pula; outro conteúdo = sufixo `-2`, `-3`… (`visitas_maxima.arquivo_analitico`). **Nunca sobrescreve nem apaga;**
+  3. `gravar_equipe_maxima`; `anotar_baixado` com o `baixado_em` da nuvem (RN-VIS-002); `montar_dia` e `montar_mes`.
 - **Fim comum:** `visitas_maxima.depois_de_baixar(raiz, log)`, uma vez por importação, a mesma função do botão do PC.
 - **Registro:** `RELATORIOS/_VISITAS_WEB/IMPORTADOS_VISITAS_WEB.jsonl`, só acréscimo, uma linha por lote: `{"seq", "epoca", "dia", "arquivos", "status", "em"}`. Sem nome. É o `ja_feitos` do laço.
 - Devolve `{"lotes": int, "arquivos": int, "dias": [AAAAMMDD], "erro": str | None}`.
@@ -263,7 +263,7 @@ O Excel que a Máxima entrega **nunca sai do contêiner**. Para cada Excel, o cr
 | `GET /visitas/atualizar` | todos os que veem o Farol de Visita | estado (agenda, pausa, rodada em andamento, `TETO_DIA`), lotes à espera do PC ("Baixado às HHhMM · esperando o PC importar") e as 10 últimas rodadas (código e texto do §5; a mais recente em destaque, no topo) |
 | `POST /visitas/atualizar` `{de, ate}` | `admin`, `gerente` (D3) | grava o pedido. Padrão: os dias abertos no `indice` até hoje; no máximo 7 |
 | `POST /visitas/refazer` `{de, ate}` | `admin` | o mesmo, com `refazer: true` (baixa de novo dia fechado) |
-| `POST /visitas/retomar` `{recado?}` | `admin` | tira a pausa (RN-VIS-004). Com `pausado.codigo == "DADO_PESSOAL"`, só com `recado` = o id da decisão do Alexandre (`^R-\d{8}-\d{6}-alexandre$`), gravado no `pedidos.jsonl`; sem ele, 400 (RN-VIS-006) |
+| `POST /visitas/retomar` `{recado?}` | `admin` | tira a pausa (RN-VIS-005). Com `pausado.codigo == "DADO_PESSOAL"`, só com `recado` = o id da decisão do Alexandre (`^R-\d{8}-\d{6}-alexandre$`), gravado no `pedidos.jsonl`; sem ele, 400 (RN-VIS-007) |
 | `POST /visitas/diagnostico` | `admin` | volta o diagnóstico a `pendente` |
 | `POST /visitas/agenda` `{ligar}` | `admin` | liga ou desliga a agenda. Ligar só nas condições do §3.1 |
 
@@ -279,20 +279,20 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 |---|---|---|---|---|
 | `OK` | ok | todos os dias e vendedores vieram | — | "Atualizado às HHhMM." |
 | `NADA_A_FAZER` | ok | a concessão veio, mas os dias ficaram fechados no meio-tempo | — | (não aparece) |
-| `PARCIAL_VENDEDOR` | parcial | algum vendedor falhou; os outros vieram | `retentativa` uma vez (RN-VIS-005) | "N Excel com erro (DD/MM)." Nome do vendedor só na tela, para admin e gerente, a partir do lote |
+| `PARCIAL_VENDEDOR` | parcial | algum vendedor falhou; os outros vieram | `retentativa` uma vez (RN-VIS-006) | "N Excel com erro (DD/MM)." Nome do vendedor só na tela, para admin e gerente, a partir do lote |
 | `PARCIAL_TEMPO` | parcial | passou de `RODADA_MAX_MIN` no fim de um dia | nova tentativa (§3.1); o pedido continua até `PEDIDO_MAX_RODADAS` | "Parte dos dias veio; o resto vem na próxima volta." |
-| `MAXIMA_SENHA` | erro | a Máxima recusou usuário ou senha | **pausa** (RN-VIS-004), sem segunda tentativa | "A Máxima recusou o usuário ou a senha. Só o Alexandre troca no painel do Render; depois, o admin clica em Retomar." |
+| `MAXIMA_SENHA` | erro | a Máxima recusou usuário ou senha | **pausa** (RN-VIS-005), sem segunda tentativa | "A Máxima recusou o usuário ou a senha. Só o Alexandre troca no painel do Render; depois, o admin clica em Retomar." |
 | `MAXIMA_CONFIRMACAO` | erro | a Máxima pediu código por SMS ou e-mail, confirmação de novo dispositivo, aceite de termo ou troca de senha | **pausa** | "A Máxima pediu uma confirmação. Use o Atualizar visitas do PC; o admin retoma aqui depois." |
 | `MAXIMA_CAPTCHA` | erro | apareceu captcha (iframe ou elemento conhecido) | **pausa** | o mesmo texto do `MAXIMA_CONFIRMACAO` |
 | `MAXIMA_BLOQUEIO` | erro | conta bloqueada, acesso negado ou HTTP 403 na página de login | **pausa** | "A Máxima bloqueou o acesso do site. Use o Atualizar visitas do PC." |
-| `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato | **pausa** (RN-VIS-006); o lote do dia não sobe; o "Retomar" pede o id da decisão do Alexandre | "O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: <coluna>). Use o Atualizar visitas do PC." |
+| `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato | **pausa** (RN-VIS-007); o lote do dia não sobe; o "Retomar" pede o id da decisão do Alexandre | "O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: <coluna>). Use o Atualizar visitas do PC." |
 | `MAXIMA_FORA` | erro | tempo esgotado no `goto` do login, ou HTTP 5xx | agenda: nova tentativa (§3.1); botão: o pedido sai da fila | "A Máxima não respondeu. Tentamos de novo às HHhMM." / "Tente mais tarde." |
 | `TELA_MUDOU` | erro | `ErroRobo` numa fase (`fase` obrigatória) | nova tentativa (§3.1); 2 rodadas seguidas na mesma fase **pausam a agenda** | "A tela da Máxima mudou (etapa: <fase>). Use o Atualizar visitas do PC até a correção." |
 | `NAVEGADOR_FALHOU` | erro | o Chromium não abriu ou caiu (`Target closed`, falta de memória) | nova tentativa (§3.1); 2 seguidas aparecem no `/saude` | "O navegador do site parou. Tentamos de novo às HHhMM." |
 | `SITE_RECUSOU` | parcial | o site respondeu 413 ou 422 a um lote | nova tentativa (§3.1) do dia recusado | "Um dia não foi aceito pelo site (DD/MM)." |
 | `SITE_FORA` | — | o cron não fala com o site depois de `HTTP_TENTATIVAS` | só no log do Render; o site vê `RODADA_INTERROMPIDA` | — |
 | `RODADA_INTERROMPIDA` | erro | **gravado pelo site**: a concessão venceu sem `fim` | nova tentativa (§3.1) do que falta | "A rodada parou sem terminar. Tentamos de novo às HHhMM." |
-| `TETO_DIA` | — | **estado do site, não rodada**: `tentativas_hoje` chegou ao teto (RN-VIS-007) | nada até o dia seguinte | "O site já entrou o máximo de vezes hoje na Máxima. Use o Atualizar visitas do PC; amanhã volta sozinho." |
+| `TETO_DIA` | — | **estado do site, não rodada**: `tentativas_hoje` chegou ao teto (RN-VIS-008) | nada até o dia seguinte | "O site já entrou o máximo de vezes hoje na Máxima. Use o Atualizar visitas do PC; amanhã volta sozinho." |
 | `CONFIG_FALTANDO` | erro | falta `BAP_MAXIMA_USUARIO`, `BAP_MAXIMA_SENHA`, `BAP_VISITAS_TOKEN` ou `BAP_WEB_HOSTPORT` | sai sem abrir o navegador; cada volta repete (custa segundos) | "Faltam as variáveis do serviço de visitas no Render." (o nome da variável só no log do Render) |
 | `CONFIG_INSEGURA` | erro | `DEBUG` com `pw`, `PWDEBUG` ou trace ligado | sai sem abrir o navegador | "O serviço de visitas está com depuração ligada e não roda assim." |
 | `ERRO_INTERNO` | erro | exceção não prevista (`fase` obrigatória) | nova tentativa (§3.1) | "Erro inesperado (etapa: <fase>)." No log, só o nome da classe da exceção, nunca a mensagem |

@@ -39,8 +39,8 @@ Texto literal (R-20261127-005437-alexandre, com a numeração do po, 2 a 6 = D1 
 - **antes de ligar:** um **diagnóstico real no Render** (confirmação, captcha, bloqueio, dado pessoal, memória e tempo). A agenda nasce desligada e só o admin a liga, depois do "ok" do Alexandre (§3.1);
 - **"Baixar de novo", "Retomar", "Rodar diagnóstico" e "Ligar a agenda" só para o admin.** A D3 fala só do "Atualizar visitas"; esta divisão vai explícita na simulação do designer-ux (§9, item 4), para o Alexandre ver;
 - **entrega ao site:** rotas próprias com token próprio (`BAP_VISITAS_TOKEN`) e um **lote por dia**, não o pacote por farol do §10.8 (§5.3);
-- **o lote leva só as colunas permitidas do Espelho**, e um achado de CNPJ, CPF, telefone ou e-mail trava tudo até a decisão do Alexandre (§7, RN-VIS-006);
-- **teto diário de logins na Máxima** (§3.1, RN-VIS-007);
+- **o lote leva só as colunas permitidas do Espelho**, e um achado de CNPJ, CPF, telefone ou e-mail trava tudo até a decisão do Alexandre (§7, RN-VIS-007);
+- **teto diário de logins na Máxima** (§3.1, RN-VIS-008);
 - **um índice só de "dia baixado"**, que o PC e a nuvem alimentam (§5.1);
 - **botão fora de hora:** uma **fila no disco do site**, que o cron lê a cada 10 min, não a API do Render (§3.3);
 - **o token do cron** é sorteado pelo Render (`generateValue`) e copiado para o cron pelo Blueprint: o Alexandre só cria os 2 segredos da Máxima (§2.4).
@@ -120,11 +120,11 @@ O texto exato está em `docs/desenho/T-0045-render-yaml.diff`, explicado no `doc
 - **Um cron só,** de 10 em 10 min das 06h00 às 21h50 de Manaus. A cada volta, ele pergunta ao site se há trabalho e decide com uma função pura (contrato, §3.1). A volta sem trabalho sai em segundos.
 - **Às 06h00, todo dia** (sábado e domingo também, como o PC), baixa **ontem**, que fecha o dia. Falha que permite nova tentativa tenta de novo às 06h30, 07h00 e 07h30.
 - **A agenda nasce desligada.** O primeiro trabalho do cron, com as variáveis presentes, é o diagnóstico. Só o admin liga a agenda, com diagnóstico `ok` e o robô do PC novo no ar (é ele que conta ao site os dias que o PC já fechou, §5.1).
-- **Teto diário de logins (RN-VIS-007): 8 por dia, somando todos os motivos,** e um teto por motivo (agenda 4 = 1 + 3 retentativas; pedido 3; retentativa 1; diagnóstico 2). O site conta **na concessão**, porque cada concessão é um login, mesmo que a rodada caia depois. Por que 8:
-  - **risco de bloqueio:** sem teto, uma falha que deixa tentar de novo dispararia a cada 10 min até 21h50, cerca de 96 logins por dia. 8 é cerca de 3 vezes o uso normal (1 agenda e 1 ou 2 botões), em horários espaçados, e a senha recusada nunca tenta de novo (RN-VIS-004);
+- **Teto diário de logins (RN-VIS-008): 8 por dia, somando todos os motivos,** e um teto por motivo (agenda 4 = 1 + 3 retentativas; pedido 3; retentativa 1; diagnóstico 2). O site conta **na concessão**, porque cada concessão é um login, mesmo que a rodada caia depois. Por que 8:
+  - **risco de bloqueio:** sem teto, uma falha que deixa tentar de novo dispararia a cada 10 min até 21h50, cerca de 96 logins por dia. 8 é cerca de 3 vezes o uso normal (1 agenda e 1 ou 2 botões), em horários espaçados, e a senha recusada nunca tenta de novo (RN-VIS-005);
   - **custo:** no pior caso, todos os dias no teto (4 agendas e 1 retentativa de 8 min, 3 rodadas de pedido de 45 min), são cerca de 175 min por dia, ou cerca de US$ 3 por mês a mais [SUPOSIÇÃO de preço]. Sem teto, 96 × 8 min chegariam a cerca de US$ 13 por mês;
   - **o dia normal não chega perto:** 1 agenda e 1 botão são 2 logins.
-- **Retentativa (RN-VIS-005):** marcada como feita já na concessão, para ficar uma só mesmo que falhe.
+- **Retentativa (RN-VIS-006):** marcada como feita já na concessão, para ficar uma só mesmo que falhe.
 
 ### 3.2 Botão "Atualizar visitas" no site
 
@@ -144,7 +144,7 @@ O texto exato está em `docs/desenho/T-0045-render-yaml.diff`, explicado no `doc
 
 ### 3.4 Duas rodadas que se cruzam
 
-O site guarda uma **concessão** (lease): só uma rodada ativa por vez, gravada em disco para sobreviver ao deploy, renovada a cada vendedor (RN-VIS-003).
+O site guarda uma **concessão** (lease): só uma rodada ativa por vez, gravada em disco para sobreviver ao deploy, renovada a cada vendedor (RN-VIS-004).
 
 | Caso | O que acontece |
 |---|---|
@@ -192,13 +192,13 @@ robô do PC --pacote por farol (§10.8, com o vc_visitas novo)--> site --> Farol
 ### 5.2 Regras novas
 
 O po registra no `docs/produto/03-regras.md`; os testes citam. Quando estiverem lá, a fonte passa a ser o `03-regras.md`.
-- **RN-VIS-001:** o dia está fechado quando foi baixado num dia depois dele, **pela hora da baixa** (nuvem ou PC), em Manaus. A importação não fecha o dia. Entre a hora do PC e a da nuvem, vale a maior (`juntar_baixado`, função pura), e o PC e o site usam o mesmo resultado (§5.1, item 4).
-- **RN-VIS-002:** a importação só acrescenta. Ela nunca sobrescreve nem apaga Excel do `ANALITICO`, e o acompanhamento só ganha linha de dia fechado (regra 7).
-- **RN-VIS-003:** uma rodada da nuvem por vez (concessão de 10 min). O pedido do botão espera na fila.
-- **RN-VIS-004:** senha recusada, confirmação, captcha ou bloqueio pedidos pela Máxima **pausam** as rodadas da nuvem até o "Retomar" do admin. Não há segunda tentativa de login.
-- **RN-VIS-005:** dia com vendedor que falhou é baixado de novo **uma vez**, com sucesso ou falha. Depois disso, ele fica como está ("Baixar de novo" pelo admin ou pelo PC).
-- **RN-VIS-006:** do Espelho, só as colunas da lista de permitidas saem do contêiner. CNPJ, CPF, telefone, e-mail ou valor fora do formato nessas colunas **não sobem**, pausam a agenda e o botão, e o "Retomar" só vale com a decisão do Alexandre.
-- **RN-VIS-007:** no máximo 8 logins da nuvem na Máxima por dia de Manaus, com teto por motivo; chegou ao teto, a nuvem para até o dia seguinte, e o botão do PC continua.
+- **RN-VIS-002:** o dia está fechado quando foi baixado num dia depois dele, **pela hora da baixa** (nuvem ou PC), em Manaus. A importação não fecha o dia. Entre a hora do PC e a da nuvem, vale a maior (`juntar_baixado`, função pura), e o PC e o site usam o mesmo resultado (§5.1, item 4).
+- **RN-VIS-003:** a importação só acrescenta. Ela nunca sobrescreve nem apaga Excel do `ANALITICO`, e o acompanhamento só ganha linha de dia fechado (regra 7).
+- **RN-VIS-004:** uma rodada da nuvem por vez (concessão de 10 min). O pedido do botão espera na fila.
+- **RN-VIS-005:** senha recusada, confirmação, captcha ou bloqueio pedidos pela Máxima **pausam** as rodadas da nuvem até o "Retomar" do admin. Não há segunda tentativa de login.
+- **RN-VIS-006:** dia com vendedor que falhou é baixado de novo **uma vez**, com sucesso ou falha. Depois disso, ele fica como está ("Baixar de novo" pelo admin ou pelo PC).
+- **RN-VIS-007:** do Espelho, só as colunas da lista de permitidas saem do contêiner. CNPJ, CPF, telefone, e-mail ou valor fora do formato nessas colunas **não sobem**, pausam a agenda e o botão, e o "Retomar" só vale com a decisão do Alexandre.
+- **RN-VIS-008:** no máximo 8 logins da nuvem na Máxima por dia de Manaus, com teto por motivo; chegou ao teto, a nuvem para até o dia seguinte, e o botão do PC continua.
 
 ### 5.3 Por que um lote próprio, e não o pacote por farol do §10.8
 
@@ -231,7 +231,7 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 - **Sem chave da API do Render no site** (§3.3).
 - **Dado de cliente no disco do Render (regra 6):** o Espelho traz código, nome e endereço de cliente, e pode trazer outras colunas (observação, por exemplo) com telefone ou e-mail digitados. O adendo 5 da ADR 0001 já leva código e nome de cliente do `vc_visitas` ao Render; o endereço é novo. Por isso:
   - **lista de permitidas, não de proibidas:** o lote leva só as colunas que o `ler_espelho` usa (contrato, §3.6). Coluna nova da Máxima nunca sai do contêiner por engano;
-  - **varredura do que fica:** CNPJ, CPF, telefone, e-mail ou valor fora do formato nas colunas permitidas travam o dia e pausam tudo (RN-VIS-006). Melhor parar a nuvem e usar o PC por uns dias do que guardar dado pessoal no Render;
+  - **varredura do que fica:** CNPJ, CPF, telefone, e-mail ou valor fora do formato nas colunas permitidas travam o dia e pausam tudo (RN-VIS-007). Melhor parar a nuvem e usar o PC por uns dias do que guardar dado pessoal no Render;
   - o diagnóstico faz o mesmo antes de ligar a agenda, e mostra as colunas que ficaram de fora;
   - o lote é **só trânsito**: nenhuma rota o mostra, e ele sai pela retenção (`LOTE_GUARDA_DIAS`).
 - **Conta da Máxima (D4):** um usuário próprio do robô, com o mínimo de leitura do Painel Auditoria. Um vazamento do painel do Render expõe só esse usuário, que o Alexandre desativa na Máxima.
@@ -239,13 +239,13 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 
 ## 8. Testes (agente testes; nomes com a RN)
 
-- `test_RN_VIS_001_dia_fecha_pela_hora_da_baixa_nao_da_importacao`, `test_RN_VIS_001_juntar_baixado_vale_a_maior`, `test_RN_VIS_001_fechados_pc_entra_no_indice_e_a_nuvem_nao_baixa_de_novo`, `test_RN_VIS_001_erro_no_confirmar_tira_so_a_parte_da_nuvem`;
-- `test_RN_VIS_002_importacao_nunca_sobrescreve_grava_com_sufixo`, `test_RN_VIS_002_mesmo_sha_pula`, `test_RN_VIS_002_nome_com_barra_ou_ponto_ponto_recusado`, `test_RN_VIS_002_acompanhamento_so_acrescenta`;
-- `test_RN_VIS_003_segunda_concessao_409`, `test_RN_VIS_003_concessao_vencida_libera`, `test_RN_VIS_003_concessao_sobrevive_ao_reinicio`;
-- `test_RN_VIS_004_senha_recusada_pausa_sem_segunda_tentativa`, `test_RN_VIS_004_classificar_login_captcha_confirmacao_bloqueio`, `test_RN_VIS_004_retomar_so_admin`;
-- `test_RN_VIS_005_vendedor_que_falhou_tenta_uma_vez`, `test_RN_VIS_005_refeito_marcado_na_concessao_mesmo_com_falha`;
-- `test_RN_VIS_006_filtro_deixa_so_as_permitidas`, `test_RN_VIS_006_ler_espelho_igual_antes_e_depois_do_filtro`, `test_RN_VIS_006_permitidas_igual_ao_contrato`, `test_RN_VIS_006_cnpj_cpf_telefone_email_e_formato_achados`, `test_RN_VIS_006_achado_nao_sobe_e_pausa`, `test_RN_VIS_006_retomar_exige_recado_do_alexandre`, `test_RN_VIS_006_diagnostico_com_achado_nao_liga_agenda`, `test_RN_VIS_006_saida_sem_valor_de_celula`;
-- `test_RN_VIS_007_teto_por_motivo`, `test_RN_VIS_007_teto_da_soma_trava_tudo`, `test_RN_VIS_007_conta_na_concessao`, `test_RN_VIS_007_zera_na_virada_do_dia_de_manaus`, `test_RN_VIS_007_429_no_teto`;
+- `test_RN_VIS_002_dia_fecha_pela_hora_da_baixa_nao_da_importacao`, `test_RN_VIS_002_juntar_baixado_vale_a_maior`, `test_RN_VIS_002_fechados_pc_entra_no_indice_e_a_nuvem_nao_baixa_de_novo`, `test_RN_VIS_002_erro_no_confirmar_tira_so_a_parte_da_nuvem`;
+- `test_RN_VIS_003_importacao_nunca_sobrescreve_grava_com_sufixo`, `test_RN_VIS_003_mesmo_sha_pula`, `test_RN_VIS_003_nome_com_barra_ou_ponto_ponto_recusado`, `test_RN_VIS_003_acompanhamento_so_acrescenta`;
+- `test_RN_VIS_004_segunda_concessao_409`, `test_RN_VIS_004_concessao_vencida_libera`, `test_RN_VIS_004_concessao_sobrevive_ao_reinicio`;
+- `test_RN_VIS_005_senha_recusada_pausa_sem_segunda_tentativa`, `test_RN_VIS_005_classificar_login_captcha_confirmacao_bloqueio`, `test_RN_VIS_005_retomar_so_admin`;
+- `test_RN_VIS_006_vendedor_que_falhou_tenta_uma_vez`, `test_RN_VIS_006_refeito_marcado_na_concessao_mesmo_com_falha`;
+- `test_RN_VIS_007_filtro_deixa_so_as_permitidas`, `test_RN_VIS_007_ler_espelho_igual_antes_e_depois_do_filtro`, `test_RN_VIS_007_permitidas_igual_ao_contrato`, `test_RN_VIS_007_cnpj_cpf_telefone_email_e_formato_achados`, `test_RN_VIS_007_achado_nao_sobe_e_pausa`, `test_RN_VIS_007_retomar_exige_recado_do_alexandre`, `test_RN_VIS_007_diagnostico_com_achado_nao_liga_agenda`, `test_RN_VIS_007_saida_sem_valor_de_celula`;
+- `test_RN_VIS_008_teto_por_motivo`, `test_RN_VIS_008_teto_da_soma_trava_tudo`, `test_RN_VIS_008_conta_na_concessao`, `test_RN_VIS_008_zera_na_virada_do_dia_de_manaus`, `test_RN_VIS_008_429_no_teto`;
 - `deve_rodar`: diagnóstico pendente; agenda desligada; 06h00 com ontem aberto; ontem fechado pelo PC; pausado; pedido; fora da janela; retentativas às 06h30, 07h00 e 07h30 só com código de `NOVA_TENTATIVA`; nenhuma 5ª tentativa da agenda;
 - laço do PC: os testes de `sincronizar_edicoes_web` rodam também no `puxar_fila_web` com o `aplicar` das visitas;
 - perfis: 403 no botão para `diretor`, `pos_venda`, `pre_venda` e `vendas`; 403 no refazer, retomar, diagnóstico e agenda para o `gerente`;
