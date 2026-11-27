@@ -397,9 +397,12 @@ FECHADOS_PC_DIAS = 40
 AVISO_SITE_BAIXANDO = ("O site está baixando agora; baixar aqui também pode "
                        "derrubar a sessão da Máxima. Continuar?")
 
+# SEGMENTOS inteiros do caminho, lista fechada (nada de pedaco de palavra:
+# /hotpage, /devices/home, /autenticacao/callback nao sao verificacao)
 _RX_URL_VERIFICACAO = re.compile(
-    r"verific|confirm|mfa|2fa|otp|autentic|dispositivo|device|termo|"
-    r"redefin|trocar-?senha|alterar-?senha", re.I)
+    r"(?:^|/)(?:verificacao|verificar|verificar-codigo|mfa|2fa|otp|"
+    r"trocar-senha|nova-senha|redefinir-senha|alterar-senha|"
+    r"confirmar-dispositivo|termos|aceite-termos)(?:/|$)", re.I)
 _RX_BLOQUEIO = re.compile(
     r"conta bloquead|usuario bloquead|acesso (foi )?(negado|bloquead)|"
     r"bloquead[ao] (por|temporari)|403 forbidden|forbidden", re.I)
@@ -407,7 +410,7 @@ _RX_CONFIRMACAO = re.compile(
     r"codigo (de )?(verificacao|seguranca|confirmacao|acesso|enviado)|"
     r"(enviamos|enviado|informe|digite).{0,40}codigo|\bsms\b|"
     r"novo dispositivo|dispositivo (nao )?(reconhecid|confiavel)|"
-    r"confirm(e|ar|acao) (o |seu |sua )?(dispositivo|acesso|identidade|"
+    r"confirm(e|ar|acao) (o |seu |sua |o seu |a sua )?(dispositivo|acesso|identidade|"
     r"e-?mail)|autenticacao (em|de) (dois|2)|aceit(e|ar) (o |os )?termo|"
     r"termos? (de uso|e condicoes)|trocar? (a |sua )?senha|"
     r"(altere|redefina|crie|defina|troque|cadastre) (a |sua |uma |o seu )?"
@@ -435,6 +438,12 @@ def _no_login(url) -> tuple:
 
 def _sem_acento_min(txt) -> str:
     return vn._sem_acento(str(txt or "")).lower()
+
+
+def _texto_claro(texto) -> bool:
+    """O texto diz claramente confirmacao, troca de senha ou bloqueio."""
+    t = _sem_acento_min(texto)
+    return bool(_RX_CONFIRMACAO.search(t) or _RX_BLOQUEIO.search(t))
 
 
 def classificar_login(url, texto, tem_captcha, http_status) -> str | None:
@@ -806,6 +815,8 @@ class Robo:
         pg.click("button[type=submit]:has-text('Entrar')")
         self.log("Entrando…")
 
+        vistos = {}
+
         def pronto():
             url = pg.url
             no_login, verif = _no_login(url)
@@ -822,6 +833,15 @@ class Robo:
                 texto = pg.evaluate(
                     "() => (document.body.innerText || '').slice(0, 3000)")
             cod = classificar_login(url, texto, captcha, None)
+            if (cod == "MAXIMA_CONFIRMACAO" and not _texto_claro(texto)):
+                # decidido so pelo caminho da URL (sem texto claro): so vale
+                # na 2a leitura do mesmo caminho, 1 s ou mais depois
+                agora, caminho = _time.time(), _caminho(url)
+                if (vistos.get("caminho") != caminho
+                        or agora - vistos["em"] < 1.0):
+                    if vistos.get("caminho") != caminho:
+                        vistos.update(caminho=caminho, em=agora)
+                    return None
             if cod:
                 return f"cod:{cod}:{msg}"
             return f"erro:{msg}" if msg else None
