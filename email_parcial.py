@@ -118,7 +118,7 @@ def _cor_rv(txt) -> str:
         v = float(t)
     except ValueError:
         return ""
-    return "color:#B3261E;font-weight:700;" if v <= 0 else \
+    return "color:#B42318;font-weight:700;" if v <= 0 else \
         f"color:{VERDE};font-weight:700;"
 
 
@@ -211,7 +211,7 @@ def corpo_html(rel: dict, pessoa: dict) -> str:
         f"font-size:13px;margin-top:16px;line-height:1.6'>"
         f"O PDF em anexo traz {html.escape(equipe)}. Valores parciais: mudam "
         f"até o fechamento do mês.<br>"
-        f"BAP Auto Parts · Farol de Metas (Gerado automaticamente)<br>"
+        f"BAP AUTOPARTS · Farol de Metas (Gerado automaticamente)<br>"
         f"Resultado até "
         f"{html.escape(rel.get('resultado_ate') or rel.get('posicao', ''))}"
         f"</p></div>")
@@ -321,7 +321,7 @@ def corpo_texto(rel: dict, pessoa: dict) -> str:
         pessoa["cargo"], "o seu resultado")
     linhas += ["", f"O PDF em anexo traz {equipe}. Valores parciais: mudam "
                f"até o fechamento do mês.",
-               "BAP Auto Parts · Farol de Metas (Gerado automaticamente)",
+               "BAP AUTOPARTS · Farol de Metas (Gerado automaticamente)",
                f"Resultado até {rel.get('resultado_ate') or rel.get('posicao', '')}"]
     return "\n".join(linhas)
 
