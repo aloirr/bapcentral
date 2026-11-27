@@ -309,6 +309,13 @@ def estados_do_cartao(rel, k) -> dict:
                             "taxa": eh_pct}}
 
 
+# Pares (fundo, texto) do farol, UM lugar so (manual da marca, 4.2):
+# alerta, atencao e ok (--ok-claro #F0F7EC: o verde escuro passa de 4,5:1).
+_VERM = ("#FDECEA", "#B42318")
+_AMAR = ("#FFF4D6", "#8A5A00")
+_VERD = ("#F0F7EC", "#2F7D32")
+
+
 def tabela(titulo, colunas, linhas, tons=None, filtros=(), total=None,
            kpis_de=None, recortes=None, edicao=None):
     """
@@ -1760,9 +1767,9 @@ def _tabela_cond(it):
 # dias"). O % ATENDIDO vira barra: 100% verde (pode faturar), de 50% a 99%
 # amarelo (parcial), abaixo de 50% vermelho.
 def CHIP_SLA():                                         # noqa: N802
-    return [(bd.PRAZO_FATURAR - 1, "#E5F3DF", "#2F7D32"),
-            (bd.PRAZO_FATURAR, "#FFF4D6", "#8A5A00"),
-            (4, "#FDECEA", "#B42318"),
+    return [(bd.PRAZO_FATURAR - 1, *_VERD),
+            (bd.PRAZO_FATURAR, *_AMAR),
+            (4, *_VERM),
             (None, "#B42318", "#FFFFFF")]
 
 
@@ -7514,8 +7521,8 @@ def _historico_de_compra(ctx):
 # (06/11, Alexandre) o PRAZO da garantia: FECHADA verde quando fechou ate a
 # DT. FECHAMENTO, "laranja esverdeado" (verde-oliva) quando fechou depois
 CORES_PRAZO_GARANTIA = {
-    "ATRASADA": ("#FDECEA", "#B42318"),
-    "NO PRAZO": ("#E5F3DF", "#2F7D32"),
+    "ATRASADA": _VERM,
+    "NO PRAZO": _VERD,
     "FECHADA NO PRAZO": ("#2F7D32", "#FFFFFF"),
     "FECHADA COM ATRASO": ("#9E9D24", "#FFFFFF")}
 
@@ -12419,7 +12426,7 @@ def giro_produtos(ctx):
         for j_ in somar:
             tot[j_] = sum(l[j_] or 0 for l in ls)
         return tot
-    _verm = ("#FDECEA", "#B42318")
+    _verm = _VERM
     chip_est = [(0, *_verm), (None, None, None)]
     chip_cob = [(GIRO_COB_VERMELHA - 0.001, *_verm), (None, None, None)]
     for titulo, filtro, ordem in (
@@ -14487,8 +14494,12 @@ ADERENCIA_VERDE = 80
 ADERENCIA_AMARELO = 50
 
 
+_TOM_COR = {"alerta": _VERM, "atencao": _AMAR, "ok": _VERD}
+
+
 def tom_aderencia(pct):
-    """Tom ("ok" / "atencao" / "alerta") da % de aderencia; "" sem dado."""
+    """Tom ("ok" / "atencao" / "alerta") da % de aderencia; "" sem dado.
+    Unica fonte do corte: o chip (faixa_aderencia) sai daqui."""
     if pct is None:
         return ""
     return ("ok" if pct >= ADERENCIA_VERDE
@@ -14496,14 +14507,12 @@ def tom_aderencia(pct):
 
 
 def faixa_aderencia():
-    """O mesmo corte do tom (< 50, < 80), no formato do chip em faixa
-    (ate, fundo, texto): o limite sai de tom_aderencia, nunca de um numero
-    solto. Cores do manual da marca (docs/marca/manual.md, 4.2)."""
+    """O chip em faixa (ate, fundo, texto) com o mesmo corte do tom: o maior
+    float abaixo do corte vira o teto de cada faixa (valor <= ate)."""
     import math                                         # noqa: PLC0415
-    # a faixa e "valor <= ate": o maior float abaixo do corte = "< corte"
-    return [(math.nextafter(ADERENCIA_AMARELO, 0), "#FDECEA", "#B42318"),
-            (math.nextafter(ADERENCIA_VERDE, 0), "#FFF4D6", "#8A5A00"),
-            (None, "#F0F7EC", "#2F7D32")]
+    return [(math.nextafter(ADERENCIA_AMARELO, 0), *_TOM_COR["alerta"]),
+            (math.nextafter(ADERENCIA_VERDE, 0), *_TOM_COR["atencao"]),
+            (None, *_TOM_COR["ok"])]
 
 
 def _tabelas_aderencia(ctx, regs, ad, hoje):
@@ -17891,8 +17900,8 @@ def _tabela_relampago(ctx, cfg, ano, mes, jog_v, jog_s, equipes, nomes):
             col("BAP NO DIA", "moeda", 110), col("META BAP", "moeda", 100),
             col("DESAFIO", "texto", 110), col("PTS DESAFIO", "int", 86),
             col("PTS", "int", 72)]
-    cols[11]["chip"] = {"BATEU": ("#E5F3DF", "#2F7D32"),
-                        "NÃO BATEU": ("#FDECEA", "#B42318")}
+    cols[11]["chip"] = {"BATEU": _VERD,
+                        "NÃO BATEU": _VERM}
 
     def cartoes(ls):
         if not ls:
@@ -18108,8 +18117,8 @@ def _ch_resumo_geral(ctx, r, cfg, comp, resumo, t_rel):
             col("E-MAIL", "texto", 230, oculta=True),
             col("CPF", "texto", 110, oculta=True),
             col("EQUIPE", "texto", 170, oculta=True)]
-    cols[3]["chip"] = {CH_LIBERADO: ("#E5F3DF", "#2F7D32"),
-                       CH_BLOQUEADO: ("#FDECEA", "#B42318")}
+    cols[3]["chip"] = {CH_LIBERADO: _VERD,
+                       CH_BLOQUEADO: _VERM}
 
     def cartoes(ls):
         if not ls:
@@ -18506,8 +18515,8 @@ def bap_champions(ctx):
 
     def tons(ls, i_sit):
         return ["ok" if x[i_sit] == CH_LIBERADO else "" for x in ls]
-    chip_sit = {CH_LIBERADO: ("#E5F3DF", "#2F7D32"),
-                CH_BLOQUEADO: ("#FDECEA", "#B42318")}
+    chip_sit = {CH_LIBERADO: _VERD,
+                CH_BLOQUEADO: _VERM}
     cols_pessoa = [col("POS.", "int", 46)]
     cols_ating = [col("FAT. BRUTO", "moeda", 105),
                   col("DEVOLUÇÕES", "moeda", 100),
@@ -19358,15 +19367,12 @@ PAINEIS_PADRAO = {
 LINHA_PINTADA = ("pv_pedidos", "vc_markup", "vc_saldo")
 # (21/10) Farol de Visita: % META (>= 100 verde, >= 80 amarelo, abaixo
 # vermelho) e DU SEM VISITA (0 sem cor, 1 a 2 amarelo, 3 ou mais vermelho)
-FAIXA_PCT_META = [(79.9999, "#FDECEA", "#B42318"),
-                  (99.9999, "#FFF4D6", "#8A5A00"), (None, "#E5F3DF", "#2F7D32")]
-FAIXA_DU_SEM = [(0, None, None), (2, "#FFF4D6", "#8A5A00"),
-                (None, "#FDECEA", "#B42318")]
+FAIXA_PCT_META = [(79.9999, *_VERM),
+                  (99.9999, *_AMAR), (None, *_VERD)]
+FAIXA_DU_SEM = [(0, None, None), (2, *_AMAR),
+                (None, *_VERM)]
 COLUNAS_SINAL = ("SITUAÇÃO", "STATUS", "PRAZO", "ETAPA", "FAIXA",
                  "SITUAÇÃO PRAZO", "LEITURA", "SLA NCC")
-_VERM = ("#FDECEA", "#B42318")
-_AMAR = ("#FFF4D6", "#8A5A00")
-_VERD = ("#E5F3DF", "#2F7D32")
 CORES_SINAL = {
     **{k: _VERM for k in ("ATRASADA", "ATRASADO", "VENCIDO", "INADIMPLENTE",
                           "RUPTURA", "ENTREGUE COM ATRASO", "FORA DO PRAZO",

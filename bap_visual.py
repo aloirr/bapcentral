@@ -65,6 +65,7 @@ VERDE = "#59BA61"          # o verde da marca
 VERDE_ESCURO = "#2F7D32"   # texto verde (legivel no branco)
 VERDE_CLARO = "#E5F3DF"    # fundo de linha boa
 CINZA_CAB = "#E4E7E3"      # o cabecalho (no lugar do preto BAP)
+NOME_MARCA = "BAP AUTOPARTS"     # o nome nos materiais (uma grafia so)
 CINZA_LINHA = "#E3E8E4"
 FUNDO = "#F3F4F2"          # o gelo do fundo
 CARTAO = "#FFFFFF"
@@ -356,7 +357,7 @@ class Cabecalho(tk.Frame if tk else object):
         self.acoes.pack(side="right", padx=16)
         esq = tk.Frame(self, background=CINZA_CAB)
         esq.pack(side="left", fill="x", expand=True, padx=22, pady=(11, 10))
-        tk.Label(esq, text=f"BAP AUTOPARTS  ·  {area.upper()}",
+        tk.Label(esq, text=f"{NOME_MARCA}  ·  {area.upper()}",
                  background=CINZA_CAB, foreground=VERDE_ESCURO,
                  font=fonte(8, "bold")).pack(anchor="w")
         linha = tk.Frame(esq, background=CINZA_CAB)
@@ -2848,7 +2849,7 @@ def exportar_excel(rel: dict, caminho) -> Path:
     ws.title = "RESUMO"
     cab = PatternFill("solid", fgColor=CINZA_CAB[1:])
     verde = Font(color=VERDE_ESCURO[1:], bold=True, size=9)
-    ws["A1"] = f"BAP AUTOPARTS · {rel.get('area', '').upper()}"
+    ws["A1"] = f"{NOME_MARCA} · {rel.get('area', '').upper()}"
     ws["A1"].font = verde
     ws["A2"] = rel.get("titulo", "")
     ws["A2"].font = Font(bold=True, size=16)
@@ -3034,7 +3035,7 @@ def exportar_pdf(rel: dict, caminho, max_linhas: int = 1500) -> Path:
                             leftMargin=14 * mm, rightMargin=14 * mm,
                             topMargin=17 * mm, bottomMargin=13 * mm,
                             title=rel.get("titulo", "Relatório BAP"),
-                            author="BAP AUTOPARTS")
+                            author=NOME_MARCA)
     largura = pag[0] - 28 * mm
 
     def cartoes(kpis, compacto=False):
@@ -3374,7 +3375,7 @@ def exportar_pdf(rel: dict, caminho, max_linhas: int = 1500) -> Path:
         canvas.rect(0, pag[1] - 2 * mm, pag[0], 2 * mm, stroke=0, fill=1)
         canvas.setFont("Helvetica-Bold", 7)
         canvas.setFillColor(cor(VERDE_ESCURO))
-        canvas.drawString(14 * mm, pag[1] - 9 * mm, f"BAP AUTOPARTS  ·  {area}")
+        canvas.drawString(14 * mm, pag[1] - 9 * mm, f"{NOME_MARCA}  ·  {area}")
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(cor(SUAVE))
         canvas.drawRightString(pag[0] - 14 * mm, pag[1] - 9 * mm, gerado)
@@ -3659,7 +3660,7 @@ def _exportar_html(rel, caminho, max_linhas):
          f"th{{background:{CINZA_CAB};text-align:left}}th,td{{padding:3px 6px;"
          f"border-bottom:1px solid {CINZA_LINHA}}}</style></head><body>",
          f"<div style='color:{VERDE_ESCURO};font-weight:bold;font-size:11px'>"
-         f"BAP AUTOPARTS · {e(CABECALHO_PDF)}</div>",
+         f"{NOME_MARCA} · {e(CABECALHO_PDF)}</div>",
          f"<h1>{e(rel.get('titulo', ''))}</h1><p>{e(rel.get('subtitulo', ''))}</p>"]
     for k in rel.get("kpis", []):
         p.append(f"<div class='k'>{e(k['rotulo'].upper())}<b>{e(k['valor'])}"
@@ -3791,7 +3792,7 @@ def _exportar_pdf_bap(rel: dict, caminho, max_linhas: int = 1500) -> Path:
                             rightMargin=ML - 6, topMargin=50,
                             bottomMargin=34,
                             title=rel.get("titulo", "Relatório BAP"),
-                            author="BAP AUTOPARTS")
+                            author=NOME_MARCA)
     logo = RECURSOS / "logo_bap.png"
     faixa = rel.get("faixa") or rel.get("titulo", "").upper()
     area = CABECALHO_PDF        # o mesmo em todos os PDFs exportados
