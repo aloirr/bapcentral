@@ -296,8 +296,12 @@ def test_RN_GER_012_pc_so_leitura_na_autorizacao_e_nas_entregas(monkeypatch):
                                 t={"titulo": titulo, "edicao": {"chave": 0, "campos": []}})
         br.VistaTabela.editar(vista, ["CHAVE"])
     assert avisos == [br.MSG_EDICAO_SO_WEB] * 2 and abertas == []
-    # outro farol (ex.: NCC) segue editando no PC até a web dele ficar pronta
-    vista = SimpleNamespace(janela=SimpleNamespace(rel={"id": "pl_ncc"}),
-                            t={"titulo": "NCC", "edicao": {"chave": 0, "campos": []}})
+    # o bloqueio vale por lugar (rid, título da aba): uma aba fora do EDICAO_SO_WEB segue abrindo a
+    # Edicao. A NCC, as Devoluções e as Garantias também ficam só leitura (T-0023): o teste delas é o
+    # tests/test_T0023_pc_so_leitura.py.
+    fora = ("rid_ficticio", "Aba fictícia")
+    assert fora not in br.EDICAO_SO_WEB
+    vista = SimpleNamespace(janela=SimpleNamespace(rel={"id": fora[0]}),
+                            t={"titulo": fora[1], "edicao": {"chave": 0, "campos": []}})
     br.VistaTabela.editar(vista, ["CHAVE"])
-    assert len(abertas) == 1
+    assert len(abertas) == 1 and avisos == [br.MSG_EDICAO_SO_WEB] * 2
