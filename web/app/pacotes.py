@@ -455,7 +455,7 @@ def lotes(dados: Path) -> list[str]:
     p = _pasta(dados)
     if not p.is_dir():
         return []
-    return sorted(d.name for d in p.iterdir() if RE_LOTE.match(d.name) and (d / "indice.json").is_file())
+    return sorted(d.name for d in p.iterdir() if RE_LOTE.fullmatch(d.name) and (d / "indice.json").is_file())
 
 
 def listar(dados: Path) -> list[Path]:
@@ -650,7 +650,7 @@ def fechar(dados: Path, lote: str, topo, farois, manter, recebido_em: str,
            origem: str = "por_farol", agora: datetime | None = None) -> dict:
     """§10.8.4: confere o topo e os faróis, aplica o `manter`, grava o índice e move a pasta do lote.
     Levanta ErroPacote (400, 409, 422). `farois` = {rid: sha256}; `manter` = [rid] ou None."""
-    if not RE_LOTE.match(lote or ""):
+    if not RE_LOTE.fullmatch(lote or ""):
         raise ErroPacote(400, {"erro": "lote inválido"})
     erros = validar_topo(topo)
     if not erros and nome_arquivo(topo["gerado_em"]) != lote:
@@ -664,7 +664,7 @@ def fechar(dados: Path, lote: str, topo, farois, manter, recebido_em: str,
                 "vigente": (lotes(dados) or [""])[-1] == lote}
     if (not isinstance(farois, dict) or not (1 <= len(farois) <= LOTE_FAROIS_MAX)
             or not (manter is None or (isinstance(manter, list) and all(isinstance(m, str) for m in manter)))
-            or not all(isinstance(v, str) and RE_SHA.match(v) for v in farois.values())
+            or not all(isinstance(v, str) and RE_SHA.fullmatch(v) for v in farois.values())
             or any(r not in ACEITOS for r in list(farois) + list(manter or []))):
         raise ErroPacote(400, {"erro": "corpo fora do formato"})
     pasta = _recebendo(dados) / lote
@@ -848,7 +848,7 @@ class Indice:
 
 def por_sha(dados: Path, rid: str, sha: str) -> dict | None:
     """O farol `rid` com esse sha256 entre os lotes guardados (só ele é aberto); None se já saiu (§10.6.4)."""
-    if not RE_SHA.match(sha or ""):
+    if not RE_SHA.fullmatch(sha or ""):
         return None
     for lote in reversed(lotes(dados)):
         e = ((_ler_indice(dados, lote) or {}).get("farois") or {}).get(rid)

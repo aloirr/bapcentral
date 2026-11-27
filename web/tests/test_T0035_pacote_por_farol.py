@@ -249,3 +249,21 @@ def test_pico_vem_do_vmhwm_do_proprio_processo(amb, monkeypatch):
     monkeypatch.setattr(resource, "getrusage", lambda *_: (_ for _ in ()).throw(AssertionError("não deve usar o ru_maxrss")))
     m = pacotes.memoria(pacotes.Indice(amb))
     assert m["pico_mb"] == 63.0 and m["rss_mb"] == 50.0
+
+
+def test_lote_e_sha_com_quebra_de_linha_no_fim_sao_recusados(cli):
+    corpo = pacotes.json_compacto(farol_inadimplencia())
+    assert _post_farol(cli, "pl_inadimplencia", corpo, lote="20261126T083000%0A").status_code == 400
+    assert not pacotes.RE_LOTE.fullmatch("20261126T083000\n") and not pacotes.RE_SHA.fullmatch("a" * 64 + "\n")
+    assert pacotes.por_sha(pacotes.Path("/nao/existe"), "pl_inadimplencia", "a" * 64 + "\n") is None
+
+
+def test_pacote_antigo_estragado_nao_derruba_a_web(amb):
+    from fastapi.testclient import TestClient
+    from app.main import criar_app
+    (amb / "pacotes").mkdir()
+    (amb / "pacotes" / "20261124T083000.json").write_text("{lixo", encoding="utf-8")
+    with TestClient(criar_app(), base_url="https://testserver") as c:
+        s = c.get("/saude")
+        assert s.status_code == 200 and "converter" in s.json()["aviso_pacote"]
+        assert s.json()["pacote"]["lote"] is None

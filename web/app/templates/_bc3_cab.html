@@ -12,7 +12,7 @@
   <div class="bc3-tt">
     <h1>{{ farol_nome }}</h1>
     {% if gerado_em %}<span class="bc3-quando">Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}</span>{% endif %}
-    {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
+    {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
     {% if lista_uf %}
     <nav class="bc3-uf" aria-label="Filtro por estado">
       <a href="{{ base_uf }}{{ sub_q }}" class="{{ 'on' if not uf_at }}">BAP</a>

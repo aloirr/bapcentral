@@ -70,8 +70,13 @@ def criar_app() -> FastAPI:
     cfg = config.carregar()
     cfg.dados.mkdir(parents=True, exist_ok=True)
     usuarios = Usuarios(cfg)
-    pacotes.converter_legado(cfg.dados)        # T-0035: disco do formato 1 vira um lote, uma vez só
-    pacotes.retencao(cfg.dados)
+    aviso_disco: list[str] = []
+    try:
+        pacotes.converter_legado(cfg.dados)    # T-0035: disco do formato 1 vira um lote, uma vez só
+        pacotes.retencao(cfg.dados)
+    except Exception as e:                     # arquivo antigo estragado não derruba a web
+        log.error("pacote antigo não convertido: %s", type(e).__name__)
+        aviso_disco.append("pacote antigo do disco não pôde ser convertido; aguardando a próxima rodada do PC")
     ind = pacotes.Indice(cfg.dados, cfg.cache_mb)
     modelos = Jinja2Templates(directory=str(AQUI / "templates"))
     modelos.env.autoescape = True
@@ -186,6 +191,7 @@ def criar_app() -> FastAPI:
                            "farois": len(info["farois"]) if info else 0,
                            "origem": info["origem"] if info else None},
                 "memoria": mem,
+                **({"aviso_pacote": aviso_disco[0]} if aviso_disco else {}),
                 "hora_manaus": datetime.now(MANAUS).strftime("%Y-%m-%d %H:%M:%S"),
                 "tz": tz, "tz_ok": motivo is None, "telas_bloqueadas": motivo is not None,
                 "motivo": motivo,
@@ -882,7 +888,7 @@ def criar_app() -> FastAPI:
         negado = sem_token(request)
         if negado:
             return negado
-        if not pacotes.RE_LOTE.match(lote):
+        if not pacotes.RE_LOTE.fullmatch(lote):
             return JSONResponse({"erro": "lote inválido"}, status_code=400)
         if rid not in pacotes.ACEITOS:
             return JSONResponse({"erro": "relatório não aceito"}, status_code=404)
@@ -893,7 +899,7 @@ def criar_app() -> FastAPI:
         if cod not in ("", "gzip"):
             return JSONResponse({"erro": "Content-Encoding só gzip"}, status_code=415)
         sha = h.get("x-bap-sha256", "").strip().lower()
-        if not pacotes.RE_SHA.match(sha):
+        if not pacotes.RE_SHA.fullmatch(sha):
             return JSONResponse({"erro": "X-BAP-SHA256 mal formado"}, status_code=400)
         cl = h.get("content-length")
         if cl is not None and (not cl.isdigit() or int(cl) > pacotes.FAROL_GZ_MAX):
@@ -924,7 +930,7 @@ def criar_app() -> FastAPI:
         negado = sem_token(request)
         if negado:
             return negado
-        if not pacotes.RE_LOTE.match(lote):
+        if not pacotes.RE_LOTE.fullmatch(lote):
             return JSONResponse({"erro": "lote inválido"}, status_code=400)
         if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
             return JSONResponse({"erro": "só application/json"}, status_code=415)
