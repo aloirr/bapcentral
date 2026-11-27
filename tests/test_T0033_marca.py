@@ -154,9 +154,19 @@ SAEM_DO_SITE = ["#0B3A6B", "#E8590C", "#D0EBFF", "#A5D8FF", "#E7EDF5",
 # As CHAVES são a entrada do PC (o hex que chega no pacote) e nunca vão à
 # tela. A exceção vale só para elas, com 3 conferências: (1) só as chaves
 # (nenhum outro lugar do marca.py nem da web traz o hex); (2) todo valor do
-# COR_PC está em `marca.TOKENS`; (3) nenhum desses hex sai no HTML, no PDF
-# ou no Excel do site (farol renderizado com as cores do PC nas barras).
+# COR_PC está em `marca.TOKENS`; (3) nenhum hex literal dessas chaves sai no
+# HTML, no PDF ou no Excel do site (farol renderizado com as cores do PC nas
+# barras).
+# Chave que também é token: exceção nominal e fechada (decisão (C) do
+# design-de-marca). Só `--atencao`, traduzida para `--grafico-2`, escrita
+# como expressão `TOKENS["--atencao"]` (o hex fica só dentro de TOKENS).
+# Manual (docs/marca/manual.md): l. 91, verde/amarelo/vermelho só para
+# estado, nunca para decorar; l. 96, `--atencao` só no ponto, no ícone e na
+# barra amarelos; l. 101, as barras dos gráficos usam `--grafico-1..3`;
+# l. 148, cor de farol como enfeite é proibida. A barra de gráfico que o PC
+# pinta de âmbar é gráfico, não estado: vira `--grafico-2`.
 MARCA_WEB = RAIZ / "web" / "app" / "marca.py"
+CHAVE_TOKEN_PERMITIDA = ("--atencao", "--grafico-2")    # (chave, valor)
 
 
 def _no_cor_pc(src):
@@ -169,21 +179,42 @@ def _no_cor_pc(src):
     return None
 
 
+def _token_da_expressao(no):
+    """O nome do token se a chave é uma expressão sobre `TOKENS["--x"]` (por
+    exemplo `TOKENS["--atencao"].lower()`); None se não é."""
+    subs = [s for s in ast.walk(no) if isinstance(s, ast.Subscript)
+            and isinstance(s.value, ast.Name) and s.value.id == "TOKENS"
+            and isinstance(s.slice, ast.Constant)]
+    return subs[0].slice.value if len(subs) == 1 else None
+
+
+def _chaves_do_cor_pc(src, cor):
+    """[(nó da chave, chave resolvida pelo valor)] na ordem do código. A
+    chave literal é um hex escrito; a chave-expressão vem de TOKENS."""
+    d = _no_cor_pc(src)
+    if d is None:
+        return []
+    assert None not in d.keys, "COR_PC com **desempacotamento"
+    assert len(d.keys) == len(cor), "COR_PC com chave repetida"
+    return list(zip(d.keys, cor))
+
+
 def _col_char(linha, col_bytes):
     """col_offset do ast é em bytes UTF-8; o índice do texto, em caracteres."""
     return len(linha.encode("utf-8")[:col_bytes].decode("utf-8"))
 
 
 def _sem_as_chaves_do_cor_pc(src):
-    """O texto do marca.py com as CHAVES do COR_PC apagadas (só elas; o
-    resto do arquivo segue na varredura)."""
+    """O texto do marca.py com as chaves LITERAIS do COR_PC apagadas (só
+    elas; o resto do arquivo segue na varredura). A chave-expressão não traz
+    hex: não há o que apagar."""
     d = _no_cor_pc(src)
     if d is None:
         return src
     linhas = src.splitlines()
     for k in d.keys:
-        assert isinstance(k, ast.Constant) and isinstance(k.value, str), \
-            "chave do COR_PC que não é um hex literal"
+        if not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
+            continue
         assert k.lineno == k.end_lineno
         ln = linhas[k.lineno - 1]
         a, b = _col_char(ln, k.col_offset), _col_char(ln, k.end_col_offset)
@@ -208,6 +239,10 @@ def _cor_pc():
     return cor
 
 
+def _hex_dos_tokens(mod):
+    return {v.upper(): n for n, v in mod.TOKENS.items() if isinstance(v, str)}
+
+
 def _varrer_web(padrao, exts):
     """[arquivo:linha: achado] do padrão em web/app, com a exceção (as
     chaves do COR_PC) e só ela."""
@@ -230,11 +265,32 @@ def test_RN_GER_009_site_sem_as_cores_que_o_manual_tira():
 
 
 def test_RN_GER_009_excecao_so_nas_chaves_do_cor_pc():
-    """(1) Os hex das chaves do COR_PC não aparecem em nenhum outro lugar do
-    marca.py nem da web/app (nem sem o "#", nem em outra caixa)."""
-    cor = _cor_pc()
+    """(1) As chaves do COR_PC, resolvidas pelo valor (literal ou expressão
+    `TOKENS[...]`): a chave literal é um hex que não é token e não aparece
+    em nenhum outro lugar do marca.py nem da web/app (nem sem o "#", nem em
+    outra caixa); a chave que é token vem de `TOKENS["--x"]`, nunca do hex
+    escrito à mão (o hex do token fica só dentro de TOKENS e do CSS)."""
+    mod, cor = _marca_web(), _cor_pc()
     assert all(re.fullmatch(r"#[0-9a-fA-F]{6}", k) for k in cor), cor
-    padrao = re.compile("|".join(k[1:] for k in cor), re.I)
+    hex_tok = _hex_dos_tokens(mod)
+    chaves = _chaves_do_cor_pc(MARCA_WEB.read_text(encoding="utf-8"), cor)
+    erros, literais = [], []
+    for no, k in chaves:
+        literal = isinstance(no, ast.Constant)
+        if k.upper() in hex_tok:
+            if literal:
+                erros.append(f"{k}: token escrito à mão (use TOKENS[...])")
+            elif _token_da_expressao(no) != hex_tok[k.upper()]:
+                erros.append(f"{k}: a expressão não é TOKENS"
+                             f'["{hex_tok[k.upper()]}"]')
+        elif not literal:
+            erros.append(f"{k}: chave-expressão que não é token")
+        else:
+            literais.append(k)
+    assert not erros, "\n".join(erros)
+    if not literais:
+        return
+    padrao = re.compile("|".join(k[1:] for k in literais), re.I)
     achados = _varrer_web(padrao, ("*.py", "*.html", "*.js", "*.css",
                                    "*.j2", "*.txt"))
     assert not achados, "hex do COR_PC fora das chaves:\n" + "\n".join(
@@ -243,12 +299,21 @@ def test_RN_GER_009_excecao_so_nas_chaves_do_cor_pc():
 
 def test_RN_GER_009_todo_valor_do_cor_pc_e_token():
     """(2) Todo valor do COR_PC é um valor de marca.TOKENS (o PC entra com a
-    cor antiga e sai com o token do mesmo papel); nenhuma chave é token."""
+    cor antiga e sai com o token do mesmo papel). Chave que também é token:
+    só `--atencao` -> `--grafico-2` (exceção nominal e fechada, manual
+    l. 91/96/101/148); qualquer outra chave-token reprova."""
     mod, cor = _marca_web(), _cor_pc()
-    tokens = {v.upper() for v in mod.TOKENS.values() if isinstance(v, str)}
-    fora = {k: v for k, v in cor.items() if str(v).upper() not in tokens}
+    hex_tok = _hex_dos_tokens(mod)
+    fora = {k: v for k, v in cor.items() if str(v).upper() not in hex_tok}
     assert not fora, f"valor do COR_PC fora do marca.TOKENS: {fora}"
-    assert not {k.upper() for k in cor} & tokens
+    chave_ok, valor_ok = CHAVE_TOKEN_PERMITIDA
+    for k, v in cor.items():
+        nome = hex_tok.get(k.upper())
+        if nome is None:
+            continue
+        assert nome == chave_ok, f"chave {k} é o token {nome}: só {chave_ok}"
+        assert str(v).upper() == mod.TOKENS[valor_ok].upper(), \
+            f"{chave_ok} tem de ir para {valor_ok}, não para {v}"
 
 
 # (3) o farol renderizado: o pacote real do Fretes (bases congeladas, robô
@@ -357,8 +422,11 @@ def test_RN_GER_009_hex_do_cor_pc_nao_sai_no_html_pdf_nem_excel(web_fretes):
                 saidas[f"xlsx:{aba}"] = "".join(
                     z.read(n).decode("utf-8", "replace")
                     for n in z.namelist())
+    # a chave que é token (só a `--atencao`, conferida no (2)) fica fora da
+    # busca: o ponto e o ícone amarelos do site usam esse hex (manual l. 96)
+    hex_tok = _hex_dos_tokens(mod)
     achados = []
-    for k in cor:
+    for k in [k for k in cor if k.upper() not in hex_tok]:
         texto, argb, rg = (re.compile(k[1:], re.I), mod.argb_xlsx(k),
                            mod.rgb_pdf(k))
         achados += [f"{k} em {nome}" for nome, s in saidas.items()
