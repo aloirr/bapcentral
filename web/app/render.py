@@ -210,6 +210,10 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_planner": ("Farol Roteirização", ("admin", "diretor", "gerente", "vendas")),
     "pl_giro": ("Farol de Giro de Produtos", ("admin", "diretor", "gerente", "vendas")),
     "pl_frw": ("Farol de Estoque FRW", ("admin", "diretor", "gerente", "pre_venda", "pos_venda")),
+    # T-0023 v2 (contrato §10.10.1): Pós-venda. O diretor vê só o Resumo (RN-GER-014: ver `tabelas.VE_TABELAS`)
+    "pl_garantias": ("Farol de Garantias", ("admin", "diretor", "gerente", "pos_venda")),
+    "pl_devolucoes": ("Farol de Devolução e Reembolsos", ("admin", "diretor", "gerente", "pos_venda")),
+    "pl_ncc": ("Farol de NCC", ("admin", "diretor", "gerente", "pos_venda")),
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
     "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
 }
@@ -218,7 +222,8 @@ TONS = ("ok", "atencao", "alerta", "info")
 LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")    # T-0024: faróis de abas livres
 # T-0024 (R4 do parecer de UX): nome curto na barra lateral; o nome completo do PC fica no título da faixa
 NOME_MENU = {"pv_indicadores": "Indicadores", "vc_base": "Clientes", "vc_planner": "Roteirização",
-             "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW"}
+             "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW",
+             "pl_garantias": "Garantias", "pl_devolucoes": "Devoluções", "pl_ncc": "NCC"}
 AVISO_UF = "Os outros cartões, o resumo e os gráficos: só na BAP inteira."   # T-0033 (RD-0034): um aviso só
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
 INDISPONIVEL = "ainda não disponível na web"
@@ -226,7 +231,7 @@ _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
-               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_frw")),
+               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_garantias", "pl_devolucoes", "pl_ncc", "pl_frw")),
                ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")))   # T-0024: lote 2 no menu
 
 
