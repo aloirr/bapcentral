@@ -20,14 +20,22 @@ from escopo_farois_web import (FAROIS_LOTE2, FAROIS_OBRIGATORIOS,  # noqa: E402
                                FONTE_PENDENTE, problemas_escopo)
 
 _NOMES = ("FAROIS_WEB", "_FONTE_BAIXADO_WEB", "_TABELA_RECORTE_WEB",
-          "_UF_LINHAS_WEB", "RID_META_WEB", "selecionar_farol_web",
-          "RIDS_RECORTE_CONFERIDO_WEB")
+          "_UF_LINHAS_WEB", "RID_META_WEB", "selecionar_farol_web")
+# Ordem dos PRs da T-0036: testes antes do robô (#159). Os 4 do Analista são
+# permitidos e não obrigatórios: sem eles em ba.FAROIS_WEB (o main sem o robô),
+# os testes só da T-0036 pulam; com o robô, tudo compara.
+ROBO_T0036 = bool(set(FAROIS_T0036) & set(ba.FAROIS_WEB))
+_precisa_robo = pytest.mark.skipif(
+    not ROBO_T0036, reason="o robô da T-0036 (modulo-robo/T-0036-pacotes) não "
+    "está nesta árvore: os 4 do Analista fora de ba.FAROIS_WEB")
 
 
 def _robo(**troca):
     """Cópia rasa dos nomes que a trava lê, com a troca pedida."""
     d = {n: getattr(ba, n) for n in _NOMES}
     d["RIDS_KPIS_POR_UF_WEB"] = tuple(getattr(ba, "RIDS_KPIS_POR_UF_WEB", ()))
+    d["RIDS_RECORTE_CONFERIDO_WEB"] = tuple(
+        getattr(ba, "RIDS_RECORTE_CONFERIDO_WEB", ()))           # T-0036
     d.update(troca)
     return SimpleNamespace(**d)
 
@@ -112,6 +120,7 @@ def test_RN_GER_006_trava_reprova_tabela_de_recorte_sem_regra():
 
 
 # ------------------------------------------------------------------ T-0036
+@_precisa_robo
 def test_RN_GER_006_trava_reprova_saldo_sem_conferencia_do_kpis_de():
     """Saldo com cartão por estado sem a conferência do kpis_de (§10.11.1):
     o número do estado pode sair errado; a trava reprova."""
@@ -119,6 +128,7 @@ def test_RN_GER_006_trava_reprova_saldo_sem_conferencia_do_kpis_de():
     assert p == ["vc_saldo: fora de RIDS_RECORTE_CONFERIDO_WEB"]
 
 
+@_precisa_robo
 def test_RN_GER_006_trava_reprova_pesquisa_pela_filial():
     """Pesquisa de mercado é da UF do cliente (§10.11.3), não da filial."""
     uf = dict(ba._UF_LINHAS_WEB)
@@ -128,6 +138,7 @@ def test_RN_GER_006_trava_reprova_pesquisa_pela_filial():
         "('FILIAL', 'filial'), esperado ('UF', 'uf')"]
 
 
+@_precisa_robo
 def test_RN_GER_006_trava_reprova_recorte_no_preco():
     """Preço sem cartões por estado (§10.11.1): tabela de recorte reprova."""
     tab = dict(ba._TABELA_RECORTE_WEB, vc_preco="Reajustes por produto")
@@ -143,7 +154,19 @@ def test_RN_GER_006_trava_cobra_fonte_fora_da_folga():
         _robo(_FONTE_BAIXADO_WEB=fontes))
 
 
+@_precisa_robo
 def test_T0036_farois_do_analista_tem_fonte_do_baixado_em():
     """RN-GER-006 + §10.11.1: os 4 do Analista com a fonte do "baixado em"
     (o defeito do modulo-robo foi corrigido em 9d886fa)."""
     assert problemas_escopo(ba, fonte_pendente=frozenset()) == []
+
+
+def test_T0036_trava_reprova_parte_dos_quatro_do_analista():
+    """Os 4 do Analista entram juntos (§10.11.1): com só parte deles em
+    FAROIS_WEB, a trava reprova (vale com ou sem o robô da T-0036)."""
+    base = tuple(r for r in ba.FAROIS_WEB if r not in FAROIS_T0036)
+    p = problemas_escopo(_robo(FAROIS_WEB=base + ("vc_saldo",)))
+    assert ("T-0036: os 4 do Analista vão juntos; faltam an_divergencias, "
+            "vc_markup, vc_preco") in p
+    assert not [x for x in problemas_escopo(_robo(FAROIS_WEB=base))
+                if x.startswith("T-0036:")]

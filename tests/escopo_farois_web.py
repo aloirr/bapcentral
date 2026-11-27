@@ -9,6 +9,8 @@ Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
 - um farol a mais da T-0036 (FAROIS_T0036, os 4 do Analista Comercial) só
   passa com a regra de UF dos cartões e a das linhas de cada aba
   (UF_LINHAS_T0036), escritas aqui à mão a partir do contrato §10.11.1/§10.11.3;
+  os 4 são permitidos e não obrigatórios (o PR dos testes entra antes do robô),
+  mas vão juntos: só parte deles reprova;
 - um farol fora da lista PERMITIDA reprova.
 
 Regra citada: RN-GER-006 (estado do faturamento e do estoque = filial da
@@ -151,6 +153,11 @@ def problemas_escopo(ba, fonte_pendente=FONTE_PENDENTE) -> list:
         saida.append(f"{rid}: obrigatório e fora de FAROIS_WEB")
     for rid in sorted(set(farois) - FAROIS_PERMITIDOS):
         saida.append(f"{rid}: fora da lista PERMITIDA")
+    # T-0036: os 4 do Analista são permitidos e não obrigatórios, mas vão juntos
+    t0036 = set(FAROIS_T0036) & set(farois)
+    if t0036 and t0036 != set(FAROIS_T0036):
+        saida.append("T-0036: os 4 do Analista vão juntos; faltam "
+                     + ", ".join(sorted(set(FAROIS_T0036) - t0036)))
     for rid in sorted(set(farois) & FAROIS_PERMITIDOS):
         if not _fonte_ok(fontes.get(rid)) and rid not in fonte_pendente:
             saida.append(f"{rid}: sem a fonte do 'baixado em'")
