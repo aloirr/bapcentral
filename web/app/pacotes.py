@@ -2,8 +2,15 @@
 from __future__ import annotations
 
 import base64
+import gzip
+import os
+import shutil
+import time
+import zlib
+from collections import OrderedDict
 import hashlib
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -300,7 +307,8 @@ def validar_farol(rid: str, r) -> list[str]:
     return []
 
 
-def validar(c) -> list[str]:
+def validar_topo(c) -> list[str]:
+    """T-0035: o topo do pacote (versao_contrato, gerado_em, ano, mes); vale nos formatos 1 e 2."""
     erros: list[str] = []
     if not isinstance(c, dict):
         return ["o corpo precisa ser um objeto JSON"]
@@ -319,48 +327,59 @@ def validar(c) -> list[str]:
         erros.append("ano inválido")
     if not _int(c.get("mes"), 1, 12):
         erros.append("mes inválido")
+    return erros
+
+
+def validar_relatorio(k, r) -> list[str]:
+    """T-0035: a regra de um relatório do pacote (o corpo do laço do formato 1), farol a farol."""
+    if k not in ACEITOS:
+        return [f"relatório não aceito: {str(k)[:40]}"]
+    if k in FAROIS:
+        return validar_farol(k, r)
+    erros: list[str] = []
+    if not isinstance(r, dict) or not isinstance(r.get("titulo"), str):
+        return [f"{k}: titulo ausente"]
+    abas = r.get("abas")
+    if not isinstance(abas, dict):
+        return [f"{k}: abas ausente"]
+    for chave, visao in ABAS:
+        a = abas.get(chave)
+        if a is None and chave in render.ABAS_OPCIONAIS:
+            continue                       # T-0022: robô antigo, sem a aba por dia útil
+        if not isinstance(a, dict) or not isinstance(a.get("titulo"), str):
+            erros.append(f"{k}.abas.{chave}: ausente")
+            continue
+        bl = (a.get("painel") or {}).get("blocos") if isinstance(a.get("painel"), dict) else None
+        b = bl[0] if isinstance(bl, list) and bl and isinstance(bl[0], dict) else {}
+        d = b.get("dados")
+        if b.get("tipo") != "rrm" or b.get("visao") != visao or not isinstance(d, dict):
+            erros.append(f"{k}.abas.{chave}: painel.blocos[0] precisa ser rrm/{visao} com dados")
+            continue
+        if d.get("sub") is not None and not isinstance(d.get("sub"), dict):
+            erros.append(f"{k}.abas.{chave}: sub precisa ser objeto")
+            continue
+        cs = d.get(visao)
+        if not isinstance(cs, list) or not cs or not all(_cartao_ok(c) for c in cs):
+            erros.append(f"{k}.abas.{chave}: cartões inválidos")
+            continue
+        er = _recortes_erros(a.get("recortes"))
+        if er:
+            erros.append(f"{k}.abas.{chave}: {er}")
+    if r.get("paineis") is not None:
+        erros += _paineis_erros(k, r["paineis"])
+    return erros
+
+
+def validar(c) -> list[str]:
+    """Formato 1: o pacote inteiro = o topo mais cada relatório (mesmo corte de 10 erros)."""
+    if not isinstance(c, dict):
+        return ["o corpo precisa ser um objeto JSON"]
+    erros = validar_topo(c)
     rels = c.get("relatorios")
     if not isinstance(rels, dict) or not rels:
         return erros + ["relatorios ausente"]
     for k, r in rels.items():
-        if k not in ACEITOS:
-            erros.append(f"relatório não aceito: {str(k)[:40]}")
-            continue
-        if k in FAROIS:
-            erros += validar_farol(k, r)
-            continue
-        if not isinstance(r, dict) or not isinstance(r.get("titulo"), str):
-            erros.append(f"{k}: titulo ausente")
-            continue
-        abas = r.get("abas")
-        if not isinstance(abas, dict):
-            erros.append(f"{k}: abas ausente")
-            continue
-        for chave, visao in ABAS:
-            a = abas.get(chave)
-            if a is None and chave in render.ABAS_OPCIONAIS:
-                continue                       # T-0022: robô antigo, sem a aba por dia útil
-            if not isinstance(a, dict) or not isinstance(a.get("titulo"), str):
-                erros.append(f"{k}.abas.{chave}: ausente")
-                continue
-            bl = (a.get("painel") or {}).get("blocos") if isinstance(a.get("painel"), dict) else None
-            b = bl[0] if isinstance(bl, list) and bl and isinstance(bl[0], dict) else {}
-            d = b.get("dados")
-            if b.get("tipo") != "rrm" or b.get("visao") != visao or not isinstance(d, dict):
-                erros.append(f"{k}.abas.{chave}: painel.blocos[0] precisa ser rrm/{visao} com dados")
-                continue
-            if d.get("sub") is not None and not isinstance(d.get("sub"), dict):
-                erros.append(f"{k}.abas.{chave}: sub precisa ser objeto")
-                continue
-            cs = d.get(visao)
-            if not isinstance(cs, list) or not cs or not all(_cartao_ok(c) for c in cs):
-                erros.append(f"{k}.abas.{chave}: cartões inválidos")
-                continue
-            er = _recortes_erros(a.get("recortes"))
-            if er:
-                erros.append(f"{k}.abas.{chave}: {er}")
-        if r.get("paineis") is not None:
-            erros += _paineis_erros(k, r["paineis"])
+        erros += validar_relatorio(k, r)
     return erros[:10]
 
 
@@ -392,64 +411,477 @@ def _enxuto(corpo: dict) -> dict:
     return corpo
 
 
-def gravar(dados: Path, corpo: dict, recebido_em: str) -> Path:
-    pasta = dados / "pacotes"
-    corpo = _enxuto(_sem_internas(corpo))
-    corpo["recebido_em"] = recebido_em
-    destino = pasta / (nome_arquivo(corpo["gerado_em"]) + ".json")
-    gravar_json(destino, corpo)
-    for velho in listar(dados)[:-GUARDAR]:
-        velho.unlink(missing_ok=True)
-    return destino
+# ---------------------------------------------------------------------------------------------
+# T-0035 (ADR 0003, contrato §10.8): um arquivo por farol e um índice; a web lê do disco sob demanda
+# ---------------------------------------------------------------------------------------------
+RE_LOTE = re.compile(r"^\d{8}T\d{6}$")
+RE_SHA = re.compile(r"^[0-9a-f]{64}$")
+MB = 1024 * 1024
+FAROL_GZ_MAX = 24 * MB            # corpo comprimido
+FAROL_CORPO_MAX = 24 * MB         # corpo descomprimido (farol + anexos)
+FAROL_JSON_MAX = 10 * MB          # o JSON do farol sem os anexos (config: BAP_WEB_FAROL_MAX_MB)
+LOTE_FAROIS_MAX = 60
+CACHE_FAROIS_MB = 96              # orçamento estimado do LRU (config: BAP_WEB_CACHE_MB)
+CUSTO_POR_BYTE = 6                # custo estimado do farol na memória = bytes do JSON × 6 (ADR 0003, §4.5)
+RECEBENDO_MAX = 3                 # lotes ao mesmo tempo em _recebendo
+RECEBENDO_HORAS = 2
+HERDA_HORAS = 26                  # §4.4: o farol herdado só vale até 26 h
+FORMATOS = [1, 2]
+log = logging.getLogger("bap_web")
+
+
+class ErroPacote(Exception):
+    """Recusa com o status e o corpo da resposta (sem dado pessoal)."""
+
+    def __init__(self, status: int, corpo: dict):
+        super().__init__(corpo.get("erro", ""))
+        self.status, self.corpo = status, corpo
+
+
+def json_compacto(o) -> bytes:
+    return json.dumps(o, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+
+
+def _pasta(dados: Path) -> Path:
+    return dados / "pacotes"
+
+
+def _recebendo(dados: Path) -> Path:
+    return _pasta(dados) / "_recebendo"
+
+
+def lotes(dados: Path) -> list[str]:
+    """Nomes dos lotes fechados (pasta com indice.json), do mais velho ao mais novo."""
+    p = _pasta(dados)
+    if not p.is_dir():
+        return []
+    return sorted(d.name for d in p.iterdir() if RE_LOTE.fullmatch(d.name) and (d / "indice.json").is_file())
 
 
 def listar(dados: Path) -> list[Path]:
-    pasta = dados / "pacotes"
-    return sorted(pasta.glob("*.json")) if pasta.is_dir() else []
+    """Pacotes do formato 1 ainda no disco (herança da web antiga); só saem pela retenção."""
+    p = _pasta(dados)
+    return sorted(p.glob("*.json")) if p.is_dir() else []
 
 
-class Ultimo:
-    """Lê o pacote mais recente, com cache por (nome, mtime)."""
-
-    def __init__(self, dados: Path):
-        self.dados = dados
-        self._chave = None
-        self._val = None
-        self._sha = ""
-
-    def sha(self) -> str:
-        """sha256 (hex) do pacote ativo, para o diário da cobrança."""
-        self.get()
-        return self._sha
-
-    def get(self) -> dict | None:
-        arqs = listar(self.dados)
-        if not arqs:
-            return None
-        a = arqs[-1]
-        chave = (a.name, a.stat().st_mtime_ns)
-        if chave != self._chave:
-            bruto = a.read_bytes()
-            self._sha = hashlib.sha256(bruto).hexdigest()
-            self._val = json.loads(bruto.decode("utf-8"))
-            self._chave = chave
-        return self._val
+def _sem_internas(o):
+    """Chaves com _ são internas do contrato (§10, item 2): nunca guardadas."""
+    if isinstance(o, dict):
+        return {k: _sem_internas(v) for k, v in o.items()
+                if not (isinstance(k, str) and k.startswith("_"))}
+    if isinstance(o, list):
+        return [_sem_internas(v) for v in o]
+    return o
 
 
-_MEMO_SHA: dict = {}
+def _enxuto(corpo: dict) -> dict:
+    """Guarda só o que a tela lê: por aba, os cartões da visão, `sub`, `como_ler`, avisos."""
+    for rel in corpo["relatorios"].values():
+        if rel.get("forma") == "farol":
+            continue                                   # farol já vem enxuto do PC
+        for chave, visao in ABAS:
+            a = rel["abas"].get(chave)
+            if a is None:
+                continue
+            d = a["painel"]["blocos"][0]["dados"]
+            a["painel"]["blocos"][0]["dados"] = {
+                visao: d[visao], "sub": {visao: (d.get("sub") or {}).get(visao, "")},
+                "como_ler": d.get("como_ler", ""), "avisos": d.get("avisos", []),
+                "ano": d.get("ano"), "mes": d.get("mes")}
+            a.pop("diretor", None)
+    return corpo
 
 
-def por_sha(dados: Path, sha: str) -> dict | None:
-    """O pacote guardado (entre os 7 últimos) cujo sha256 é `sha`; None se já saiu (§10.6.4)."""
-    if not re.fullmatch(r"[0-9a-f]{64}", sha or ""):
+def _gravar_bytes(caminho: Path, dados: bytes) -> None:
+    """Gravação atômica de bytes (tmp + fsync + os.replace)."""
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    tmp = caminho.with_name(f".tmp-{os.getpid()}-{caminho.name}")
+    try:
+        with open(tmp, "wb") as f:
+            f.write(dados)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, caminho)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+
+
+def descomprimir(bruto: bytes, maximo: int) -> bytes:
+    """gzip com teto de saída (defesa contra bomba): passou do `maximo` = 413; gzip quebrado = 422."""
+    d = zlib.decompressobj(16 + zlib.MAX_WBITS)
+    saida, resto, total = [], bruto, 0
+    try:
+        while resto:
+            parte = d.decompress(resto, maximo + 1 - total)
+            total += len(parte)
+            if total > maximo:
+                raise ErroPacote(413, {"erro": "farol grande demais"})
+            saida.append(parte)
+            resto = d.unconsumed_tail
+        parte = d.flush()
+    except zlib.error as e:
+        raise ErroPacote(422, {"erro": "gzip inválido"}) from e
+    if total + len(parte) > maximo:
+        raise ErroPacote(413, {"erro": "farol grande demais"})
+    if not d.eof:
+        raise ErroPacote(422, {"erro": "gzip inválido"})
+    saida.append(parte)
+    return b"".join(saida)
+
+
+def guardar_farol(dados: Path, lote: str, rid: str, farol: dict, sha: str,
+                  json_max: int = FAROL_JSON_MAX) -> dict:
+    """Guarda um farol já validado em `_recebendo/<lote>/`: o farol sem anexos em `<rid>.json.gz`,
+    as parciais em PNG e os CSVs em arquivos próprios. Devolve a entrada do índice (§10.8.2).
+    Sobrescreve o mesmo `rid` do mesmo lote (nova tentativa do robô)."""
+    pasta = _recebendo(dados) / lote
+    pars = farol.pop("parciais", None)
+    csvs = farol.pop("csvs_protheus", None)
+    corpo = json_compacto(farol)
+    if len(corpo) > json_max:
+        raise ErroPacote(413, {"erro": "farol grande demais"})
+    gz = gzip.compress(corpo, 6, mtime=0)
+    _gravar_bytes(pasta / f"{rid}.json.gz", gz)
+    anexos: dict = {}
+    for q, v in (pars or {}).items():
+        nome = f"{rid}.parcial-{q}.png"
+        _gravar_bytes(pasta / nome, base64.b64decode(v["png"], validate=True))
+        anexos.setdefault("parciais", {})[q] = nome
+        anexos.setdefault("rotulos", {})[q] = v["rotulo"]
+    if csvs is not None:
+        nome = f"{rid}.csvs.json.gz"
+        _gravar_bytes(pasta / nome, gzip.compress(json_compacto(csvs), 6, mtime=0))
+        anexos["csvs"] = nome
+    ent = {"arquivo": f"{rid}.json.gz", "sha256": sha, "bytes_gz": len(gz), "bytes_json": len(corpo),
+           "titulo": farol.get("titulo"), "baixado_em": farol.get("baixado_em"), "herdado_de": None}
+    if anexos:
+        ent["anexos"] = anexos
+    _gravar_bytes(pasta / f"{rid}.meta.json", json_compacto(ent))
+    _limpar_recebendo(dados)
+    return ent
+
+
+def preparar_farol(rid: str, farol) -> dict:
+    """Passos comuns ao formato 1 e ao 2 depois da validação: tira a aba com documento e as chaves
+    internas, e deixa o Painel enxuto. Devolve o farol pronto para `guardar_farol`."""
+    corpo = {"relatorios": {rid: farol}}
+    fora = tabelas.tirar_abas_com_documento(corpo)
+    if fora:
+        log.warning("abas fora do pacote por CPF/CNPJ em célula: %d", len(fora))
+    return _enxuto(_sem_internas(corpo))["relatorios"][rid]
+
+
+def receber_farol(dados: Path, lote: str, rid: str, bruto: bytes, sha: str,
+                  json_max: int = FAROL_JSON_MAX) -> dict:
+    """§10.8.3: corpo já descomprimido (`bruto`) e o sha informado. Levanta ErroPacote com o status certo."""
+    if hashlib.sha256(bruto).hexdigest() != sha:
+        raise ErroPacote(422, {"erro": "sha256"})
+    try:
+        farol = json.loads(bruto.decode("utf-8"))
+    except (ValueError, RecursionError) as e:
+        raise ErroPacote(422, {"erro": "JSON inválido"}) from e
+    erros = validar_relatorio(rid, farol)
+    if erros:
+        raise ErroPacote(422, {"erro": "esquema inválido", "detalhes": erros[:10]})
+    return guardar_farol(dados, lote, rid, preparar_farol(rid, farol), sha, json_max)
+
+
+def _limpar_recebendo(dados: Path) -> None:
+    """Lote em recebimento com mais de 2 h sai; no máximo 3 ao mesmo tempo (o mais velho sai)."""
+    p = _recebendo(dados)
+    if not p.is_dir():
+        return
+    pastas = sorted((d for d in p.iterdir() if d.is_dir()), key=lambda d: d.stat().st_mtime)
+    agora = time.time()
+    vivas = []
+    for d in pastas:
+        if agora - d.stat().st_mtime > RECEBENDO_HORAS * 3600:
+            shutil.rmtree(d, ignore_errors=True)
+        else:
+            vivas.append(d)
+    for d in vivas[:-RECEBENDO_MAX]:
+        shutil.rmtree(d, ignore_errors=True)
+    try:
+        p.rmdir()                                  # vazia: some (nada além de lotes em pacotes/)
+    except OSError:
+        pass
+
+
+def retencao(dados: Path) -> None:
+    """Os `GUARDAR` lotes mais novos (RN-POS-003), contando junto os pacotes do formato 1, pelo nome."""
+    p = _pasta(dados)
+    nomes = set(lotes(dados)) | {a.stem for a in listar(dados)}
+    for velho in sorted(nomes)[:-GUARDAR]:
+        shutil.rmtree(p / velho, ignore_errors=True)
+        (p / f"{velho}.json").unlink(missing_ok=True)
+
+
+def _ler_indice(dados: Path, lote: str) -> dict | None:
+    try:
+        return json.loads((_pasta(dados) / lote / "indice.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
         return None
-    guardados = listar(dados)
-    for velho in [k for k in _MEMO_SHA if k[0] not in {str(a) for a in guardados}]:
-        del _MEMO_SHA[velho]                               # só os pacotes ainda guardados
-    for a in reversed(guardados):
-        chave = (str(a), a.stat().st_mtime_ns)
-        if chave not in _MEMO_SHA:
-            _MEMO_SHA[chave] = hashlib.sha256(a.read_bytes()).hexdigest()
-        if _MEMO_SHA[chave] == sha:
-            return json.loads(a.read_text(encoding="utf-8"))
+
+
+def _como_manaus(iso: str) -> datetime:
+    d = datetime.fromisoformat(iso)
+    return d.replace(tzinfo=MANAUS) if d.tzinfo is None else d.astimezone(MANAUS)
+
+
+def _herdar(dados: Path, de: str, ent: dict, destino: Path) -> dict:
+    """Copia o farol (e os anexos) do lote vigente para a pasta nova: hard link, com cópia de reserva."""
+    origem = _pasta(dados) / de
+    an = ent.get("anexos") or {}
+    arqs = [ent["arquivo"]] + list((an.get("parciais") or {}).values()) + ([an["csvs"]] if an.get("csvs") else [])
+    destino.mkdir(parents=True, exist_ok=True)
+    for a in arqs:
+        try:
+            os.link(origem / a, destino / a)
+        except OSError:
+            shutil.copy2(origem / a, destino / a)
+    novo = dict(ent)
+    novo["herdado_de"] = ent.get("herdado_de") or de
+    return novo
+
+
+def fechar(dados: Path, lote: str, topo, farois, manter, recebido_em: str,
+           origem: str = "por_farol", agora: datetime | None = None) -> dict:
+    """§10.8.4: confere o topo e os faróis, aplica o `manter`, grava o índice e move a pasta do lote.
+    Levanta ErroPacote (400, 409, 422). `farois` = {rid: sha256}; `manter` = [rid] ou None."""
+    if not RE_LOTE.fullmatch(lote or ""):
+        raise ErroPacote(400, {"erro": "lote inválido"})
+    erros = validar_topo(topo)
+    if not erros and nome_arquivo(topo["gerado_em"]) != lote:
+        erros = ["gerado_em não bate com o lote"]
+    if erros:
+        raise ErroPacote(422, {"erro": "esquema inválido", "detalhes": erros[:10]})
+    if (_pasta(dados) / lote / "indice.json").is_file():          # fechar repetido = mesma resposta
+        fs = (_ler_indice(dados, lote) or {}).get("farois") or {}
+        return {"ok": True, "lote": lote, "farois": len(fs),
+                "herdados": sorted(r for r, e in fs.items() if e.get("herdado_de")),
+                "vigente": (lotes(dados) or [""])[-1] == lote}
+    if (not isinstance(farois, dict) or not (1 <= len(farois) <= LOTE_FAROIS_MAX)
+            or not (manter is None or (isinstance(manter, list) and all(isinstance(m, str) for m in manter)))
+            or not all(isinstance(v, str) and RE_SHA.fullmatch(v) for v in farois.values())
+            or any(r not in ACEITOS for r in list(farois) + list(manter or []))):
+        raise ErroPacote(400, {"erro": "corpo fora do formato"})
+    pasta = _recebendo(dados) / lote
+    metas, faltam = {}, []
+    for rid, sha in farois.items():
+        try:
+            m = json.loads((pasta / f"{rid}.meta.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            m = None
+        if not m or m.get("sha256") != sha:
+            faltam.append(rid)
+        else:
+            metas[rid] = m
+    if faltam:
+        raise ErroPacote(409, {"erro": "faltam", "farois": sorted(faltam)})
+    agora = agora or datetime.now(MANAUS)
+    herdados: list[str] = []
+    vig = (lotes(dados) or [None])[-1]
+    ind_vig = _ler_indice(dados, vig) if vig else None
+    for rid in manter or []:
+        e = ((ind_vig or {}).get("farois") or {}).get(rid)
+        if rid in metas or not e:
+            continue
+        try:
+            idade = agora - _como_manaus(e["gerado_em"])
+        except (KeyError, ValueError):
+            continue
+        if idade.total_seconds() > HERDA_HORAS * 3600:
+            continue                                              # velho demais: o farol fica fora
+        metas[rid] = _herdar(dados, vig, e, pasta)
+        herdados.append(rid)
+    pasta.mkdir(parents=True, exist_ok=True)
+    for f in list(pasta.iterdir()):                               # só o que o índice lista fica
+        if f.name.endswith(".meta.json") or f.name.split(".")[0] not in metas:
+            f.unlink(missing_ok=True)
+    out = {}
+    for rid, m in metas.items():
+        out[rid] = m if m.get("herdado_de") else {**m, "gerado_em": topo["gerado_em"], "recebido_em": recebido_em}
+    gravar_json(pasta / "indice.json", {
+        "formato": 2, "lote": lote, "origem": origem, "versao_contrato": topo["versao_contrato"],
+        "gerado_em": topo["gerado_em"], "ano": topo["ano"], "mes": topo["mes"],
+        "recebido_em": recebido_em, "farois": out})
+    try:
+        os.replace(pasta, _pasta(dados) / lote)
+    except OSError:                                                # destino já existe (corrida): vale o primeiro
+        shutil.rmtree(pasta, ignore_errors=True)
+    retencao(dados)
+    _limpar_recebendo(dados)
+    return {"ok": True, "lote": lote, "farois": len(out), "herdados": sorted(herdados),
+            "vigente": (lotes(dados) or [""])[-1] == lote}
+
+
+def gravar(dados: Path, corpo: dict, recebido_em: str, origem: str = "inteiro") -> Path:
+    """Formato 1 (ou conversão do disco antigo): divide o pacote inteiro num lote, com as mesmas funções do
+    envio por farol. O `corpo` já foi validado. Devolve a pasta do lote."""
+    lote = nome_arquivo(corpo["gerado_em"])
+    topo = {k: corpo[k] for k in ("versao_contrato", "gerado_em", "ano", "mes")}
+    shutil.rmtree(_recebendo(dados) / lote, ignore_errors=True)
+    shutil.rmtree(_pasta(dados) / lote, ignore_errors=True)       # o formato 1 repetido substitui o lote
+    farois = {}
+    for rid, farol in corpo["relatorios"].items():
+        farol = preparar_farol(rid, farol)
+        sha = hashlib.sha256(json_compacto(farol)).hexdigest()
+        guardar_farol(dados, lote, rid, farol, sha, json_max=1 << 60)
+        farois[rid] = sha
+    fechar(dados, lote, topo, farois, None, recebido_em, origem=origem)
+    return _pasta(dados) / lote
+
+
+def converter_legado(dados: Path) -> bool:
+    """Partida sobre um disco do formato 1: sem lote e com `pacotes/*.json`, converte só o mais novo."""
+    arqs = listar(dados)
+    if lotes(dados) or not arqs:
+        return False
+    corpo = json.loads(arqs[-1].read_text(encoding="utf-8"))
+    gravar(dados, corpo, corpo.get("recebido_em") or datetime.now(MANAUS).isoformat(timespec="seconds"),
+           origem="convertido")
+    return True
+
+
+class Indice:
+    """O índice do lote vigente na memória (alguns KB) e o farol lido do disco sob demanda, com cache LRU
+    de orçamento estimado (`bytes_json × 6`). A chave do cache é (lote, rid, sha256)."""
+
+    def __init__(self, dados: Path, cache_mb: float = CACHE_FAROIS_MB):
+        self.dados = dados
+        self.orcamento = int(cache_mb * MB)
+        self._chave = None
+        self._ind: dict | None = None
+        self._cache: OrderedDict = OrderedDict()      # (lote, rid, sha) -> (farol, custo)
+        self._custo = 0
+
+    # --- índice
+    def indice(self) -> dict | None:
+        ls = lotes(self.dados)
+        if not ls:
+            self._chave, self._ind = None, None
+            return None
+        arq = _pasta(self.dados) / ls[-1] / "indice.json"
+        chave = (ls[-1], arq.stat().st_mtime_ns)
+        if chave != self._chave:
+            self._ind = _ler_indice(self.dados, ls[-1])
+            self._chave = chave
+        return self._ind
+
+    def entrada(self, rid: str) -> dict | None:
+        return ((self.indice() or {}).get("farois") or {}).get(rid)
+
+    def sha(self, rid: str) -> str:
+        return (self.entrada(rid) or {}).get("sha256", "")
+
+    def recebido_em(self, rid: str) -> str | None:
+        return (self.entrada(rid) or {}).get("recebido_em")
+
+    def gerado_em(self, rid: str) -> str | None:
+        return (self.entrada(rid) or {}).get("gerado_em")
+
+    # --- farol sob demanda
+    def farol(self, rid: str) -> dict | None:
+        ind, e = self.indice(), self.entrada(rid)
+        if not ind or not e:
+            return None
+        chave = (ind["lote"], rid, e["sha256"])
+        if chave in self._cache:
+            self._cache.move_to_end(chave)
+            return self._cache[chave][0]
+        try:
+            with gzip.open(_pasta(self.dados) / ind["lote"] / e["arquivo"], "rb") as f:
+                farol = json.loads(f.read().decode("utf-8"))
+        except (OSError, ValueError):
+            return None
+        custo = int(e.get("bytes_json") or 0) * CUSTO_POR_BYTE
+        if custo <= self.orcamento:                   # maior que o orçamento sozinho: lido e não guardado
+            for k in [k for k in self._cache if k[1] == rid]:       # a versão velha do mesmo farol sai
+                self._custo -= self._cache.pop(k)[1]
+            self._cache[chave] = (farol, custo)
+            self._custo += custo
+            while self._custo > self.orcamento and len(self._cache) > 1:
+                self._custo -= self._cache.popitem(last=False)[1][1]
+        return farol
+
+    def esvaziar(self) -> None:
+        """Antes do formato 1 (corpo grande): baixa o pico de memória."""
+        self._cache.clear()
+        self._custo = 0
+
+    def cache(self) -> tuple[float, int]:
+        return self._custo / MB, len(self._cache)
+
+    # --- anexos (servidos do disco)
+    def anexo(self, rid: str, nome: str) -> Path | None:
+        ind, e = self.indice(), self.entrada(rid)
+        if not ind or not e or not nome:
+            return None
+        an = e.get("anexos") or {}
+        ok = nome in (an.get("parciais") or {}).values() or nome == an.get("csvs")
+        p = _pasta(self.dados) / ind["lote"] / nome
+        return p if ok and p.is_file() else None
+
+    def parciais(self, rid: str) -> dict:
+        """{quando: {"rotulo", "arquivo"(Path)}} das parciais do farol."""
+        an = (self.entrada(rid) or {}).get("anexos") or {}
+        out = {}
+        for q, nome in (an.get("parciais") or {}).items():
+            p = self.anexo(rid, nome)
+            if p:
+                out[q] = {"rotulo": (an.get("rotulos") or {}).get(q, ""), "arquivo": p}
+        return out
+
+    def csvs(self, rid: str) -> list[dict]:
+        """[{nome, conteudo}] dos CSVs do Protheus do farol (lidos do disco; até 1,5 MB)."""
+        p = self.anexo(rid, ((self.entrada(rid) or {}).get("anexos") or {}).get("csvs") or "")
+        if not p:
+            return []
+        try:
+            with gzip.open(p, "rb") as f:
+                return json.loads(f.read().decode("utf-8"))
+        except (OSError, ValueError):
+            return []
+
+
+def por_sha(dados: Path, rid: str, sha: str) -> dict | None:
+    """O farol `rid` com esse sha256 entre os lotes guardados (só ele é aberto); None se já saiu (§10.6.4)."""
+    if not RE_SHA.fullmatch(sha or ""):
+        return None
+    for lote in reversed(lotes(dados)):
+        e = ((_ler_indice(dados, lote) or {}).get("farois") or {}).get(rid)
+        if e and e.get("sha256") == sha:
+            try:
+                with gzip.open(_pasta(dados) / lote / e["arquivo"], "rb") as f:
+                    return json.loads(f.read().decode("utf-8"))
+            except (OSError, ValueError):
+                return None
     return None
+
+
+def memoria(indice: Indice) -> dict:
+    """§4.6: o que o processo usa, da biblioteca padrão; None onde o sistema não informa."""
+    rss = pico = limite = None
+    try:
+        for linha in Path("/proc/self/status").read_text().splitlines():
+            if linha.startswith("VmRSS:"):
+                rss = round(int(linha.split()[1]) / 1024, 1)
+            elif linha.startswith("VmHWM:"):           # pico do próprio processo (o ru_maxrss herda o do lançador)
+                pico = round(int(linha.split()[1]) / 1024, 1)
+    except (OSError, ValueError, IndexError):
+        pass
+    if pico is None:                                   # fora do Linux: reserva
+        try:
+            import resource
+            pico = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+        except (ImportError, OSError, ValueError):
+            pass
+    try:
+        txt = Path("/sys/fs/cgroup/memory.max").read_text().strip()
+        limite = round(int(txt) / MB, 1) if txt.isdigit() else None
+    except (OSError, ValueError):
+        pass
+    cmb, cn = indice.cache()
+    return {"rss_mb": rss, "pico_mb": pico, "limite_mb": limite, "cache_mb": round(cmb, 1), "cache_farois": cn}
