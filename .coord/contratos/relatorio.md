@@ -1286,7 +1286,7 @@ Cada merge no `main` reinicia as 2 h do limite 1 da ADR 0002. Um merge entre 04h
 
 #### 10.9.7 Quem edita, por lugar (T-0054)
 
-Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.** Fontes: R-20261127-100158-alexandre e a RN-POS-011. Desenho: `docs/desenho/T-0054.md`.
+Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.** Fontes: R-20261127-100158-alexandre, P1 A e P2 A do R-20261127-103925-alexandre, RN-POS-010 e RN-POS-011. Desenho: `docs/desenho/T-0054.md`.
 
 - **Padrão:** o da RN-GER-012. Só o perfil `admin` edita (`edicoes.EDITA`).
 - **Exceção por lugar:** a mesma tabela na web (`edicoes.EDITA_LUGAR`) e no robô (`bap_automation.EDITA_LUGAR_WEB`). Um teste do `testes` confere que as duas são iguais a esta.
@@ -1295,8 +1295,9 @@ Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.
 |---|---|
 | `("pl_entregas", "Entregas")` | `admin`, `pos_venda` |
 | `("pl_entregas", "Pendências dos meses anteriores")` | `admin`, `pos_venda` |
+| `("pl_fretes", "Notas com frete")` | `admin`, `pos_venda` (RN-POS-010; vale quando o lugar entrar em `LUGARES` e `EDICOES_WEB`) |
 
-- **Na web:** `edicoes.pode_editar(perfil, rid, tabela)` = `perfil in EDITA_LUGAR.get((rid, tabela), EDITA)`. É a única pergunta, e vale para:
+- **Na web:** `edicoes.pode_editar(perfil, lugar)`, com `lugar = (rid, tabela)`, = `perfil in EDITA_LUGAR.get(lugar, EDITA)`. É a única pergunta, e vale para:
   - o botão da linha e a coluna de ação;
   - o `GET` e o `POST /farol/<rid>/editar`. É 403 para os outros perfis. O `POST` confere antes de ler o formulário se o perfil edita algum lugar do `rid`; depois, confere o lugar do `tab`;
   - o motivo do "O PC recusou" na dica, que quem edita vê.
