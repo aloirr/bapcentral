@@ -20,7 +20,7 @@ TOKENS = {
 # A8 (UX T-0037): cores do PC (VERDE, AMARELO, VERMELHO, CINZA e AZUL-ardósia de relatorios_nucleo) -> token do mesmo papel;
 # o "atenção" (âmbar) não pode virar cinza. O AZUL e o resto fora da paleta caem no padrão (`--grafico-3`).
 COR_PC = {"#c98a00": TOKENS["--grafico-2"], "#62bb47": TOKENS["--verde-marca"], "#b3261e": TOKENS["--alerta"],
-          "#a7b0aa": TOKENS["--grafico-3"], "#4f6d7a": TOKENS["--grafico-3"], "#b7791f": TOKENS["--grafico-2"]}
+          "#a7b0aa": TOKENS["--grafico-3"], "#4f6d7a": TOKENS["--grafico-3"], TOKENS["--atencao"].lower(): TOKENS["--grafico-2"]}
 VERDE_ESCURO = TOKENS["--verde-escuro"]       # cabeçalho das tabelas no PDF e no Excel
 TEXTO = TOKENS["--texto"]
 LINHA_ZEBRA = TOKENS["--fundo"]               # linha alternada da tabela no PDF
