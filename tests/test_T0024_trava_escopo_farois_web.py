@@ -19,9 +19,9 @@ from escopo_farois_web import (FAROIS_LOTE2, FAROIS_OBRIGATORIOS,  # noqa: E402
                                FAROIS_PERMITIDOS, FAROIS_T0023, FAROIS_T0036,
                                FONTE_PENDENTE, problemas_escopo)
 
-# relatório do PC que nunca vai ao site (o pl_garantias entrou na T-0023 v2 e
-# o vc_markup na T-0036): a meta RH só sai no Exportar para o RH
-FORA = "vc_meta_rh"
+# rid inventado, que nunca entra na lista (o pl_garantias entrou na T-0023 v2
+# e o vc_markup na T-0036; um rid real pode entrar amanhã)
+FORA = "zz_fora"
 
 _NOMES = ("FAROIS_WEB", "_FONTE_BAIXADO_WEB", "_TABELA_RECORTE_WEB",
           "_UF_LINHAS_WEB", "RID_META_WEB", "selecionar_farol_web")
@@ -123,7 +123,7 @@ def test_RN_GER_006_trava_reprova_regra_de_uf_trocada():
 
 
 def test_RN_GER_006_trava_reprova_tabela_de_recorte_sem_regra():
-    tab = dict(ba._TABELA_RECORTE_WEB, **{FORA: "Meta RH"})
+    tab = dict(ba._TABELA_RECORTE_WEB, **{FORA: "Tabela inventada"})
     assert f"{FORA}: tabela de recorte sem regra declarada" in \
         problemas_escopo(_robo(_TABELA_RECORTE_WEB=tab))
 
