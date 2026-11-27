@@ -1485,8 +1485,8 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
   - "Por cidade" e "Por transportadora" vão sem recorte; a tela avisa "só na BAP inteira".
 - **Período das linhas [P1 A]:** só o mês do pacote, nas 4 abas (D2 A do §10.7.9). Como "Por UF" e "Por cidade" são títulos genéricos, o `_TABELAS_SO_MES_WEB` aceita também o par `(rid, título)`.
 - **Tela (`tela-bc3.md` §6.2):** "Notas com frete" tem 16 colunas e entra na `GRADE` (até 10 na grade, o resto no popup da linha), pelo par `("pl_fretes", "Notas com frete")`:
-  - `chave` **NF**; `grade`: NF · CLIENTE · CIDADE · UF · VLR NF · VLR FRETE · ETAPA · TRANSPORTADORA · ENTREGAR ATÉ · ENTREGUE;
-  - `blocos`: Datas (DATA PED., DATA NF) · Entrega (SLA ENTREGA, RESPONSÁVEL) · Outros (FILIAL); `cel`: NF · CLIENTE · ETAPA · VLR FRETE;
+  - `chave` **NF**; `grade` (9 colunas): NF · CLIENTE · CIDADE · UF · VLR FRETE · ETAPA · TRANSPORTADORA · ENTREGAR ATÉ · ENTREGUE. O VLR NF fica fora da grade (vai ao popup): com estas larguras (datas e moeda) e a coluna Editar do admin, 9 é o que cabe a 1366 sem rolagem (`tela-bc3.md` §6.1 e §7.2); o teto de 10 continua valendo;
+  - `blocos`: Nota (DATA PED., DATA NF, FILIAL, VLR NF) · Entrega (SLA ENTREGA, RESPONSÁVEL); `cel`: NF · CLIENTE · (vazio) · VLR FRETE (no celular, a ETAPA vai ao item aberto);
   - as 3 de resumo têm 5 colunas e ficam fora da `GRADE`;
   - abas curtas (§13.3): Resumo · Notas · UF · Cidade · Transportadora; busca "Buscar NF ou cliente".
 - **Corte acima do teto** (§10.8.7): o `pl_fretes` entra em "os outros" (todas as `tabelas` saem, com o `AVISO_ABAS_FORA`).
