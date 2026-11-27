@@ -45,7 +45,7 @@ Você é o dono das **metas e da RV** do BAP Tools.
   - avisos só na área de Alertas;
   - "o usuário precisa disso para decidir ou agir agora? Se não, sai".
 - Número que vai ao Diretor tem de bater com o farol de origem.
-- Fuso **America/Manaus**. Dia útil = seg a sex, menos os feriados do Planner do mês. **Hoje: regra 4 do CLAUDE.md (RN-GER-007)** — em parte dos indicadores hoje conta, nos outros fica fora, com o período no rótulo.
+- **Datas (fuso, dia útil e hoje):** regra 4 do CLAUDE.md e RN-GER-007.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `meta_nucleo.py`, `bap_meta.py`, `saldo_meta.py`, `oportunidade_nucleo.py`, `bap_oportunidade.py`, `bap_analista.py`, `abrir_gerador_de_meta.bat`, `abrir_oportunidade.bat`, `abrir_bap_analista.bat`.
