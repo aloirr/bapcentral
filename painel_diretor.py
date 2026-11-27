@@ -193,11 +193,6 @@ def _mes_ant(ano, mes, n=1):
 
 
 # ------------------------------------------------------------ calculo
-# decisao 48: cartoes que ficam ATE ONTEM (a lista A conta hoje)
-GRUPO_B = {"visitas", "conv_visitados", "primeira_visita", "aderencia",
-           "jornada"}
-
-
 def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     """Os 16 cartoes, a leitura do mes e os textos livres. ctx: o Contexto
     do Painel Executivo (raiz, hoje, tabela, base, feriados)."""
@@ -257,7 +252,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
 
     def fat_e_pos(a, m, ate):
         s = por_cliente_ate(a, m, ate)
-        return sum(s.values()), {c for c, v in s.items() if v > 0.005}
+        return sum(s.values()), rn.clientes_positivados_ate(itens, ate)
 
     # os farois de origem (o mesmo numero que o farol mostra)
     params_mes = {"MÊS": mes, "ANO": ano}
@@ -342,12 +337,10 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
         du: o texto da linha da media por dia util (05/11)."""
         gap_fmt = gap_fmt or fmt
         # decisao 48: o grupo B segue ate ONTEM e diz o periodo no titulo;
-        # markup e desconto sao razao do mes inteiro ("ate hoje")
+        # markup e desconto vao ate o dia do cabecalho: sem rotulo
         if (ano, mes) == (hoje.year, hoje.month):
-            if chave in ("markup", "desconto"):
-                titulo += " · até hoje"
-            elif chave in GRUPO_B and corte < corte_a:
-                titulo += f" · até {corte:%d/%m}"
+            if chave in rn.GRUPO_B_CARTOES and corte < corte_a:
+                titulo += rn.sufixo_periodo(corte)
         if linhas is None:
             linhas = [("Projeção", fmt(proj)), (rot_du, du or "—")]
             if meta and real is None:
@@ -423,11 +416,11 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     # T-0060 / decisao 43: faturamento, positivacao e pedidos CONTAM hoje
     # (hoje = DU passado); o resto (visitas, TMA...) segue ate ontem
     corte_a, ndp_a = corte, ndp
-    if rn.PROJECAO_COM_HOJE and (ano, mes) == (hoje.year, hoje.month):
-        corte_a = min(hoje, fim_mes)
-        ndp_a = du_ate(corte_a)
+    if (ano, mes) == (hoje.year, hoje.month):
+        corte_a = min(hoje, fim_mes, ult)       # o rotulo vem da ultima NF
+        ndp_a = du_ate(hoje)                    # o DU conta hoje (decisao 43)
     fat, pos = fat_e_pos(ano, mes, corte_a)
-    proj = fat / ndp_a * ndm if ndp_a else None
+    proj = rn.projecao_ritmo(fat, ndp_a / ndm) if ndp_a else None
     card(1, "fat", "Faturamento líquido", fat, proj, f_moeda, "vc_meta",
          "Farol de Metas (Por gerente, FAT. META = desafio comercial)",
          "VND − DEV pela data da NF, sem internos; projeção = real ÷ DU "
@@ -437,7 +430,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     k_pos = kpi_de("vc_meta", "Positivação")
     meta_pos = _num(re.sub(r".*meta do mês", "", k_pos.get("detalhe", "")))
     card(1, "pos", "Positivação", len(pos),
-         len(pos) / ndp_a * ndm if ndp_a else None, f_int,
+         rn.projecao_ritmo(len(pos), ndp_a / ndm) if ndp_a else None, f_int,
          "vc_meta", "Farol de Metas (POSIT.)",
          "cliente com líquido (VND − DEV) > 0 no mês; média/DU = "
          "positivados ÷ DU até a última NF", meta=meta_pos,
@@ -451,7 +444,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
         return f_ / len(p_) if p_ else None
     tk = fat / len(pos) if pos else None
     tk3 = [t for t in (ticket_de(a, m) for a, m in meses3) if t]
-    card(1, "ticket", "Ticket médio", tk, tk, f_moeda, "vc_painel",
+    card(1, "ticket", "Ticket por cliente", tk, tk, f_moeda, "vc_painel",
          "Painel Executivo",
          "faturamento líquido ÷ positivados (razão: a projeção é o próprio "
          "realizado); média/DU = faturamento/DU ÷ positivados/DU; MoM x mês anterior fechado, M3M x média dos 3 meses "
@@ -678,8 +671,8 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     a_, m3_ = ant_e_m3("compraveis")
     # (05/11) quantos dos compraveis compraram por DU (ate a ultima NF) e a
     # projecao de quantos ainda ficam sem pedido no fim do mes
-    proj_c = (max(0.0, len(compr) - ja / ndp * max(0, ndm - ndp))
-              if ndp else None)
+    proj_c = (max(0.0, len(compr) - ja / ndp_a * max(0, ndm - ndp_a))
+              if ndp_a else None)
     card(3, "compraveis", "Compram, têm limite e estão em dia, sem pedido "
          "no mês", len(compr), proj_c, f_int, "vc_base",
          "Farol de Clientes",
@@ -687,7 +680,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
          "líquida no mês (foto do dia); média/DU = desses, quantos já "
          "compraram ÷ DU; projeção = os de hoje − média/DU × DU que faltam",
          ant=a_, media3=m3_, sobe_ruim=True,
-         du=f"{f_1(ja / ndp)} compraram" if ndp else "—")
+         du=f"{f_1(ja / ndp_a)} compraram" if ndp_a else "—")
 
     meses4 = [_mes_ant(ano, mes, n) for n in (4, 3, 2, 1)]
     soma4 = defaultdict(float)
@@ -702,14 +695,14 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     rot4 = f"{MESES_C[meses4[0][1]]}–{MESES_C[meses4[-1][1]]}"
     card(3, "contas_chave", f"Contas-chave que compraram (≥ R$ 10 mil "
          f"{rot4})", len(comp_ch),
-         min(len(chave), len(comp_ch) / ndp * ndm) if chave and ndp
+         min(len(chave), len(comp_ch) / ndp_a * ndm) if chave and ndp_a
          else None,
          f_int, "vc_base", "Farol de Clientes",
          f"clientes com ≥ R$ 10 mil líquidos nos 4 meses anteriores "
          f"({len(chave)}, somaram "
          f"{moeda(sum(soma4[c] for c in chave), True)}); meta = todas "
          "comprarem no mês", meta=len(chave) or None,
-         du=por_du(len(comp_ch), ndp, f_1))
+         du=por_du(len(comp_ch), ndp_a, f_1))
 
     # ================= 4 · PRECO E ESTOQUE
     est, ixe = [], {}
@@ -826,8 +819,8 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
                 f"{a} {b}" for a, b in c["linhas"]
                 if a in ("Projeção", "GAP meta", "% ating. proj.", "MoM"))))
     return {"comp": comp, "ano": ano, "mes": mes, "mes_nome": MESES_L[mes],
-            "prox_mes": MESES_C[mes % 12 + 1], "dados_ate": corte_a, "dados_ate_b": corte,
-            "ndp": ndp_a, "ndm": ndm, "ndp_vis": ndp, "cards": cards, "leitura": leitura,
+            "prox_mes": MESES_C[mes % 12 + 1], "dados_ate": corte, "dados_ate_a": corte_a,
+            "ndp": ndp, "ndp_a": ndp_a, "ndm": ndm, "cards": cards, "leitura": leitura,
             "acoes": [(a.get("t", ""), a.get("d", ""))
                       for a in cfg.get("acoes") or [] if isinstance(a, dict)],
             "compromisso": cfg.get("compromisso") or {},
@@ -908,8 +901,8 @@ def imagem(dados, destino_png=None, destino_pdf=None, rodape=""):
     t1 = f"PAINEL DO DIRETOR · {dados['mes_nome']} {dados['ano']}"
     d.text((W - P(40) - d.textlength(t1, font=F(26, "bold")), P(14)), t1,
            font=F(26, "bold"), fill=BRANCO_I)
-    da = dados["dados_ate"]
-    t2 = (f"BAP AUTOPARTS · dados até {da:%d/%m} · {dados['ndp']} de "
+    da = dados.get("dados_ate_a") or dados["dados_ate"]
+    t2 = (f"BAP AUTOPARTS · dados até {da:%d/%m} · {dados.get('ndp_a', dados['ndp'])} de "
           f"{dados['ndm']} dias úteis")
     d.text((W - P(40) - d.textlength(t2, font=F(14)), P(52)), t2,
            font=F(14), fill=(189, 189, 189))
@@ -1186,8 +1179,8 @@ def tela(pai, dados, abrir=None, ao_editar=None, exportar=None):
                      ("PNG (WhatsApp)", exportar and (lambda: exportar("png")))):
         if cmd:
             ttk.Button(bts, text=txt, command=cmd).pack(fill="x", pady=2)
-    tk.Label(dir_, text=f"dados até {dados['dados_ate']:%d/%m} · "
-             f"{dados['ndp']} de {dados['ndm']} dias úteis",
+    tk.Label(dir_, text=f"dados até {dados.get('dados_ate_a') or dados['dados_ate']:%d/%m}"
+             f" · {dados.get('ndp_a', dados['ndp'])} de {dados['ndm']} dias úteis",
              background=bv.CARTAO, foreground=bv.SUAVE,
              font=bv.fonte(7)).pack(fill="x", **pad)
     return raiz_f
