@@ -754,8 +754,10 @@ _RX_CODIGO_CLIENTE = re.compile(r"^\d{6,8}$")
 
 def _linha_de_cliente(reg: dict) -> bool:
     """A UNICA regra do que e linha de cliente da lista (ler_espelho e
-    filtrar_espelho): codigo ou cliente nao vazio."""
-    return bool(_texto(reg.get("codigo")) or _texto(reg.get("cliente")))
+    filtrar_espelho): cliente nao vazio OU codigo de 6 a 8 digitos. O
+    rodape/total no meio da lista (sem cliente nem codigo valido) fica fora."""
+    return bool(_texto(reg.get("cliente"))
+                or _RX_CODIGO_CLIENTE.fullmatch(_texto(reg.get("codigo"))))
 
 
 def _eventos_espelho(linhas):
@@ -1541,11 +1543,11 @@ _RX_CNPJ = re.compile(r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|(?<!\d)\d{14}(?!\d)")
 _RX_CPF = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}|(?<!\d)\d{11}(?!\d)")
 _RX_FONE = re.compile(r"\(?\d{2}\)?\s?9?\d{4}-\d{4}|\(\d{2}\)\s?\d{8,9}")
 _RX_FORMATO = {
-    "ord": re.compile(r"^\d{1,3}$"),
+    "ord": re.compile(r"^\d{1,6}$"),
     "codigo": _RX_CODIGO_CLIENTE,
     "n_pedido": re.compile(r"^\d{1,10}$"),
     "sn": re.compile(r"^[SN]$", re.I),
-    "hora": re.compile(r"^\d{1,3}:\d{2}(:\d{2})?$"),
+    "hora": re.compile(r"^-?\d{1,3}:\d{2}(:\d{2})?$"),
     "data": re.compile(r"^\d{1,2}/\d{1,2}/\d{4}( \d{1,2}:\d{2}(:\d{2})?)?$"),
     # numero, "n / p%" ou "1.234,56"
     "numero": re.compile(
