@@ -1720,7 +1720,7 @@ class CalendarioVisitas(tk.Canvas):
                 teto_d = (min(teto, c.get("teto_sexta") or teto)
                           if teto and d.weekday() == 4 else teto)
                 acima = bool(teto_d and n > teto_d)
-                fundo = ("#FCEFEE" if feriado else bv.CARTAO if n or
+                fundo = ("#FDECEA" if feriado else bv.CARTAO if n or
                          d.weekday() < 5 else "#F7F8F6")
                 borda = (bv.VERDE if d == hoje else bv.VERMELHO if acima
                          else bv.CINZA_LINHA)
