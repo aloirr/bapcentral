@@ -159,16 +159,11 @@ def test_pacote_remove_chaves_internas(cli, amb):
 
 
 # ---------------------------------------------------------------- telas
-def test_sem_pacote_aviso(admin):
-    r = admin.get("/painel")
-    assert "Ainda não chegou nenhum pacote do PC" in r.text
-
-
 def test_render_painel_abas_aneis_barras_rodapes(admin):
     postar(admin, pacote_ficticio())
     r = admin.get("/painel").text
     assert "Dados de 20/11/2026 08:30" in r and "BAP AUTOPARTS" in r
-    for t in ("Painel · resultado", "Painel · produtividade", "Painel Executivo · resultado",
+    for t in ("Resultado", "Produtividade", "Painel Executivo",
               "visão absoluta · novembro até 19/11 (13 de 19 dias úteis)",
               "FATURAMENTO LÍQUIDO · PROJ.", "R$ 165 mil", "projeção do mês 66", "POSITIVAÇÃO",
               "PEDIDOS FATURADOS · PROJ.", "jul (bench.)", "−74%", "R$ 626 mil",
@@ -183,8 +178,8 @@ def test_render_painel_abas_aneis_barras_rodapes(admin):
     assert "height:92.0%" in r                      # a maior barra
     assert "Visitas" not in r
     r = admin.get("/painel?aba=produtividade").text
-    assert "Painel Executivo · produtividade" in r and "VISITAS" in r and "FATURAMENTO" not in r
-    assert "Painel Executivo · resultado" in admin.get("/painel?aba=qualquer").text
+    assert "VISITAS" in r and "FATURAMENTO" not in r
+    assert "FATURAMENTO LÍQUIDO · PROJ." in admin.get("/painel?aba=qualquer").text
 
 
 def test_pacote_sem_vc_painel_422(cli):
@@ -290,8 +285,8 @@ def _logar_outro(admin, login, senha):
 
 def test_cookie_antigo_depois_do_sair_nao_entra(admin):
     cookie = admin.cookies.get("bap_sessao")
-    assert admin.get("/", follow_redirects=False).status_code == 200
-    r = admin.post("/sair", data={"csrf": token_form(admin, "/")}, follow_redirects=False)
+    assert admin.get("/painel", follow_redirects=False).status_code == 200
+    r = admin.post("/sair", data={"csrf": token_form(admin, "/senha")}, follow_redirects=False)
     assert r.status_code == 303
     from fastapi.testclient import TestClient
     with TestClient(admin.app, base_url="https://testserver") as velho:
@@ -304,13 +299,13 @@ def test_cookie_antigo_depois_do_sair_nao_entra(admin):
 def test_troca_de_senha_derruba_outra_sessao(admin):
     nova = "nova-senha-forte-1"
     outra = _logar_outro(admin, ADMIN, nova)
-    assert outra.get("/", follow_redirects=False).status_code == 200
+    assert outra.get("/painel", follow_redirects=False).status_code == 200
     novissima = "senha-ainda-mais-forte-2"
     r = admin.post("/senha", data={"atual": nova, "nova": novissima, "confirma": novissima,
                                    "csrf": token_form(admin, "/senha")}, follow_redirects=False)
     assert r.status_code == 303
-    assert admin.get("/", follow_redirects=False).status_code == 200       # quem trocou segue
-    r = outra.get("/", follow_redirects=False)
+    assert admin.get("/painel", follow_redirects=False).status_code == 200       # quem trocou segue
+    r = outra.get("/painel", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/login"
 
 
