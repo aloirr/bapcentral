@@ -1578,9 +1578,20 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
   - hoje, no recorte, o denominador do "% do faturado" é o VND da BAP inteira;
   - ele passa a ser o faturado líquido de devolução (RN-GER-002) dos clientes daquela UF;
   - na BAP inteira, o número muda só pela troca do bruto pelo líquido (P3 B).
-- **Gráfico "Mês a mês: notas com frete"** (barras, 12 meses): vai como bloco `barras` do painel.
-  - O PC do Fretes não tem `painel`. O robô converte `graficos` em bloco pela lista `_GRAFICOS_NO_PAINEL_WEB` da T-0023.
-  - Enquanto o robô da T-0023 não estiver no `main`, o farol vai só com os cartões.
+- **Resumo (`painel.blocos` e `insights_painel`):** o PC do Fretes não tem `painel`. O robô monta o Resumo com a função pura `bap_automation.blocos_resumo_fretes_web(r)`, a partir dos `graficos`, das 3 tabelas de resumo e dos números do PC, sem recalcular regra. Ela devolve `(blocos, frases)`, nesta ordem (`row` 0 a 4, `col` 0):
+  1. **1 bloco `barras`** (`colspan` 3): o primeiro gráfico do PC com `rotulos`, o "Mês a mês: notas com frete" (12 meses).
+  2. **3 blocos `tabela`**, um por aba de resumo (`_TABELAS_RESUMO_FRETES_WEB`): "Por UF (MÊS)", "Por cidade (MÊS)" e "Por transportadora (MÊS)".
+     - `MÊS` = o `padrao` do filtro `MÊS` da aba. As linhas são só desse mês. Com `(todos)` ou sem padrão, vão todas, e o título fica sem o mês.
+     - Colunas: `UF`, `CIDADE` ou `TRANSPORTADORA` (texto) · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda. A coluna `MÊS` sai.
+     - Ordem: maior `VLR NF` primeiro. Cada valor vai arredondado a 2 casas.
+     - `total`: `TOTAL` · soma das NOTAS · soma dos VLR NF · soma dos VLR FRETE. As somas são feitas sobre os valores sem arredondar, e só o total é arredondado: as 3 tabelas dão o mesmo total.
+     - O `(sem)` do PC vira "Sem UF", "Sem cidade / UF" (o resto do texto fica) e "Sem transportadora".
+     - `tabela` entra no Fretes por `_TIPOS_BLOCO_EXTRA_WEB["pl_fretes"]`; vale a trava de coluna de pessoa do §10.1 (UF, cidade e transportadora passam).
+  3. **1 bloco `insights`** ("Resumo gerencial"), com até 2 frases `info`, só as que os cartões não dizem:
+     - a UF de maior VLR NF, sem a linha "Sem UF" (só com 2 ou mais linhas no "Por UF"): "<UF> tem N das M notas com frete e P% do valor (R$ V).". M e o total do valor contam a linha "Sem UF";
+     - a transportadora de maior VLR NF, sem a "Sem transportadora": "<TRANSPORTADORA> leva P% do valor: R$ V em N notas." ("nota." quando N = 1). O total do valor conta a "Sem transportadora".
+  - As mesmas frases vão em `insights_painel`, quando o PC não mandou nenhuma.
+  - Os blocos são da BAP inteira: o `recortes[UF]` leva só os `kpis` (§10.1).
 
 #### 10.12.3 Abas e colunas (`TabelaWeb7`, §10.7.2; a lista entra no §10.7.3 via `_COLUNAS_TABELAS_WEB`)
 
