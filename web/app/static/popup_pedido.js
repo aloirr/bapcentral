@@ -38,10 +38,11 @@
     try { pares = JSON.parse(a.getAttribute("data-pop") || "[]"); } catch (e) { pares = []; }
     pop.textContent = "";
     var ped = a.textContent.trim();
-    pop.appendChild(el("h3", "", "Pedido " + ped));
+    var tit = a.getAttribute("data-titulo");          // T-0024: popup da linha das tabelas com GRADE (sem "Pedido")
+    pop.appendChild(el("h3", "", tit ? tit : "Pedido " + ped));
     var dl = el("dl", "pop-dados");
     pares.forEach(function (p) {
-      if (p[0].toUpperCase() === "PEDIDO") return;
+      if (p[0].toUpperCase() === "PEDIDO" && !a.getAttribute("data-titulo")) return;
       dl.appendChild(el("dt", "", p[0]));
       dl.appendChild(el("dd", "", p[1]));
     });
@@ -81,7 +82,7 @@
   }
   function esconder() { atual = null; pop.hidden = true; }
 
-  document.querySelectorAll("a.sel-link[data-pop]").forEach(function (a) {
+  document.querySelectorAll("a.sel-link[data-pop], a.pop-chave[data-pop]").forEach(function (a) {
     a.addEventListener("mouseenter", function () { mostrar(a); });
     a.addEventListener("focus", function () { mostrar(a); });
     a.addEventListener("mouseleave", esconder);
