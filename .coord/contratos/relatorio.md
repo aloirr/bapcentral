@@ -5,7 +5,7 @@
 - **Escopo:** o dicionário que `relatorios_nucleo.montar(rid, raiz, hoje=None, log=None, params=None, tela=False)` devolve (`relatorios_nucleo.py:19130`). É a ponte entre os núcleos e qualquer tela: Tkinter (`bap_relatorios.py`) hoje, web amanhã.
 - **Regra de versão:** acrescentar chave opcional = v1 continua. Renomear, mudar tipo ou tirar chave = **v2**, com ADR em `docs/decisoes/` e recado aos consumidores (seção 9).
 - **Como a versão é lida:** hoje o dicionário **não tem** chave de versão. A versão sai da chave de topo opcional `versao_contrato` (`int`): **ausente = 1**. Acrescentar a chave não muda a v1. Ela passa a ser obrigatória na v2: o `montar` grava `rel["versao_contrato"]` a partir de uma constante do núcleo (proposta: `relatorios_nucleo.VERSAO_CONTRATO = 1`; pedido ao modulo-farois na T-0006). A web lê essa chave e recusa, com aviso, versão maior que a que conhece (ADR 0001, §4.6). Não confundir com `bap_dados.VERSAO` (27), que é a versão do cache.
-- **Farol de Fretes** (`pl_fretes`, T-0037, 27/11/2026): §10.11, acréscimo compatível.
+- **Farol de Fretes** (`pl_fretes`, T-0037, 27/11/2026): §10.12, acréscimo compatível.
 - **Formato do pacote** (o transporte, ADR 0003): 1 = um JSON com todos os faróis; 2 = um arquivo por farol e um índice (§10.8, T-0035, 26/11/2026). O formato não muda o `versao_contrato`.
 - Exemplos com **valores fictícios**. Nenhum dado de cliente ou vendedor.
 
@@ -739,8 +739,8 @@ Conferidas no `main` em `2d182bd`, com `montar(rid, raiz, hoje=20/11/2026, param
 
 Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do cliente) e mantém o aviso "Sem filtro por estado: os cartões mostram a BAP inteira." (§10.1).
 
-**`pl_fretes`** (T-0037, §10.11; `tons` do PC: `alerta`, `ok` ou `""`)
-- **"Notas com frete"** (16; não sai nenhuma): `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa, código e nome) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto [D6]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote, oculto), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA`. A edição vai pela §10.11.4.
+**`pl_fretes`** (T-0037, §10.12; `tons` do PC: `alerta`, `ok` ou `""`)
+- **"Notas com frete"** (16; não sai nenhuma): `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa, código e nome) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto [D6]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote, oculto), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA`. A edição vai pela §10.12.4.
 - **"Por UF"** (5): `MÊS` texto · `UF` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
 - **"Por cidade"** (5): `MÊS` texto · `CIDADE` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
 - **"Por transportadora"** (5): `MÊS` texto · `TRANSPORTADORA` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
@@ -1411,7 +1411,7 @@ Teto e corte: §10.8.7. Os 6 faróis abaixo de 60 KB (`pl_devolucoes`, `pl_ncc`,
 - Os 8 faróis somam cerca de 1,5 MB no disco do Render.
 - O aviso do PC "Exportar campanha: ... sem e-mail" não vai ao site, porque o Exportar fica no PC. Ele entra no filtro `_AVISO_SO_PC_WEB` do robô.
 
-### 10.11 Farol de Fretes (`pl_fretes`, T-0037): as 4 abas e a edição de "Notas com frete"
+### 10.12 Farol de Fretes (`pl_fretes`, T-0037): as 4 abas e a edição de "Notas com frete"
 
 Acrescentada em 27/11/2026 (T-0037; item 39 do inventário `recados/anexos/T-0033/inventario-pc-site.md`). Desenho completo, divisão por dono e perguntas: `docs/desenho/T-0037.md`.
 
@@ -1426,7 +1426,7 @@ Fontes:
 - a fonte do PC, "TABELA_BAP › ftPedidos (VND) + cidade do cliente";
 - a aba ENTREGAS do `ACOMPANHAMENTO_POS_VENDA.xlsx` (`_entregas_por_nf`, chave filial + NF).
 
-#### 10.11.1 O que é nota com frete e de onde vem cada número
+#### 10.12.1 O que é nota com frete e de onde vem cada número
 
 - **Nota com frete** [RN-POS-007]:
   - nota VND dos 12 meses (`ultimos_meses(hoje, 12)`, pela data da NF);
@@ -1445,7 +1445,7 @@ Fontes:
   - `ok`: entregue;
   - `""`: o resto.
 
-#### 10.11.2 Cartões (`kpis`, os mesmos do PC; `kpis_de` = `cartoes`) [RN-POS-009]
+#### 10.12.2 Cartões (`kpis`, os mesmos do PC; `kpis_de` = `cartoes`) [RN-POS-009]
 
 Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
 
@@ -1467,11 +1467,11 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
   - O PC do Fretes não tem `painel`. O robô converte `graficos` em bloco pela lista `_GRAFICOS_NO_PAINEL_WEB` da T-0023.
   - Enquanto o robô da T-0023 não estiver no `main`, o farol vai só com os cartões.
 
-#### 10.11.3 Abas e colunas (`TabelaWeb7`, §10.7.2; a lista entra no §10.7.3 via `_COLUNAS_TABELAS_WEB`)
+#### 10.12.3 Abas e colunas (`TabelaWeb7`, §10.7.2; a lista entra no §10.7.3 via `_COLUNAS_TABELAS_WEB`)
 
 | Chave da aba (URL) | `titulo` (PC) | Colunas depois do corte (nome · tipo) | Filtros | Edição |
 |---|---|---|---|---|
-| `notas` | "Notas com frete" | `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa: `cliente_sem_documento`, RN-GER-011) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto (D6 A) | `MÊS` (padrão = mês do pacote, oculto [P1]), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA` | **sim** (§10.11.4) |
+| `notas` | "Notas com frete" | `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa: `cliente_sem_documento`, RN-GER-011) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto (D6 A) | `MÊS` (padrão = mês do pacote, oculto [P1]), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA` | **sim** (§10.12.4) |
 | `uf` | "Por UF" | `MÊS` texto · `UF` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda | `MÊS` | não |
 | `cidade` | "Por cidade" | `MÊS` texto · `CIDADE` texto ("CIDADE / UF") · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda | `MÊS` | não |
 | `transportadora` | "Por transportadora" | `MÊS` texto · `TRANSPORTADORA` texto ("(sem)" = vazio) · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda | `MÊS` | não |
@@ -1491,7 +1491,7 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
   - abas curtas (§13.3): Resumo · Notas · UF · Cidade · Transportadora; busca "Buscar NF ou cliente".
 - **Corte acima do teto** (§10.8.7): o `pl_fretes` entra em "os outros" (todas as `tabelas` saem, com o `AVISO_ABAS_FORA`).
 
-#### 10.11.4 Edição de "Notas com frete" (a mesma linha da aba ENTREGAS)
+#### 10.12.4 Edição de "Notas com frete" (a mesma linha da aba ENTREGAS)
 
 - O lugar é `("pl_fretes", "Notas com frete")`, com módulo `pos_venda`, arquivo `RELATORIOS/ACOMPANHAMENTO_POS_VENDA.xlsx`, aba `ENTREGAS` e ação "Editar".
   - Entra em `bap_automation.EDICOES_WEB` e em `web/app/edicoes.LUGARES` (§10.9.3: mais um lugar do módulo `pos_venda`, aba `ENTREGAS`).
@@ -1526,7 +1526,7 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
   - isso entra no **mesmo** lote do robô que passa a mandar a `edicao` do Fretes, nunca antes.
 - Nada aqui escreve o `transportadoras_config.json` nem outro `.json` digitado. Pela RN-GER-016, o cadastro só vira editável na web com um "autorizo" para esse arquivo (pergunta futura, fora da T-0037).
 
-#### 10.11.5 Quem vê
+#### 10.12.5 Quem vê
 
 | Perfil | Resumo | Abas | Edita |
 |---|---|---|---|
@@ -1540,7 +1540,7 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
 - Aba fora do perfil = 403.
 - Página com tabela: `no-store` e `noindex` (§10.7.5).
 
-#### 10.11.6 Ordem de publicação
+#### 10.12.6 Ordem de publicação
 
 1. Este contrato.
 2. **Web antes** (modulo-web): o `pl_fretes` em `FAROIS`/`ACEITOS`, as 4 abas, o lugar da edição e a `GRADE` e a situação pelos lugares irmãos (`IRMAOS`). A web nova aceita pacote sem o `pl_fretes`.
