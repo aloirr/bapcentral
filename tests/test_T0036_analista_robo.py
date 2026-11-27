@@ -749,13 +749,31 @@ def test_RN_GER_006_numero_do_diretor_desconto_comercial_bate_com_o_saldo(
     assert set(barras) == set(uf_pct)
 
 
-@pytest.mark.xfail(strict=True, reason="DEFEITO (modulo-farois, "
-                   "painel_diretor.py): o Diretor lê o texto arredondado do "
-                   "cartão do Saldo ('15%') e mostra '15,0%' com 1 casa; a "
-                   "regra dá 15,1% (e a barra do estado já usa o número "
-                   "cheio)")
 def test_RN_GER_006_numero_do_diretor_desconto_comercial_total_com_uma_casa(
         com_diretor):
+    """O cartão do Diretor usa o número cheio da regra (15,1%), não o texto
+    arredondado do Saldo ('15%')."""
     _rels, pac = com_diretor
     total, _dc = _desc_do_mes(_tab(pac["vc_saldo"], "Pedido a pedido"))
     assert _pct(_rrm_desc(pac)["valor"]) == round(total, 1)
+
+
+def test_RN_GER_006_desconto_comercial_cheio_funcao_pura():
+    """painel_diretor.desconto_comercial_cheio: Σ DESC ÷ Σ TABELA × 100 só no
+    mês padrão do filtro MÊS; base zero ou tabela ausente = None."""
+    import painel_diretor as pd
+    f = pd.desconto_comercial_cheio
+    cols = [{"nome": "MÊS"}, {"nome": "DESC. COMERCIAL"},
+            {"nome": "VLR TABELA"}]
+    filtros = [{"coluna": "MÊS", "padrao": "NOV/2026"}]
+    tab = {"colunas": cols, "filtros": filtros, "linhas": [
+        ["NOV/2026", 151.0, 1000.0],
+        ["OUT/2026", 900.0, 1000.0],        # fora do filtro: ignorado
+    ]}
+    assert f(tab) == pytest.approx(15.1)
+    # base zero no mês do filtro (só o mês fora tem tabela) -> None
+    tab0 = {"colunas": cols, "filtros": filtros, "linhas": [
+        ["NOV/2026", 0.0, 0.0], ["OUT/2026", 50.0, 100.0]]}
+    assert f(tab0) is None
+    assert f(None) is None
+    assert f({"colunas": cols, "filtros": filtros, "linhas": []}) is None
