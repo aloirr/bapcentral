@@ -24,7 +24,8 @@
   <div class="rc-topo">
     <div class="rc-id">
       <div class="rc-rot">{{ c.titulo }}</div>
-      {# o número grande e a legenda estão na faixa (RD-0063): o cartão fica com os anéis, a variação e as barras #}
+      {# os 3 primeiros têm o número na faixa (RD-0063); do 4º em diante o número e a legenda ficam aqui #}
+      {% if not c.na_faixa %}<div class="rc-valor">{{ c.valor }}</div>{% if c.legenda %}<div class="rc-leg">{{ c.legenda }}</div>{% endif %}{% endif %}
     </div>
     {% if c.aneis %}
     <div class="rc-aneis">

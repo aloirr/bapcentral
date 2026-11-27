@@ -142,3 +142,30 @@ def test_dias_uteis_na_faixa_de_todas_as_abas_do_painel(com_painel):
 def test_regra_das_3_abas_no_celular_e_uma_so():
     assert render.abas_no_celular(list("abcde"), "a") == [0, 1, 2] and render.abas_no_celular(list("abcde"), "b") == [0, 1, 2]
     assert render.abas_no_celular(list("abcde"), "d") == [0, 1, 3] and render.abas_no_celular(list("abc"), "x") == [0, 1, 2]
+
+
+def test_cartoes_alem_dos_3_da_faixa_mantem_numero_e_legenda(admin):
+    # R1: o PC manda 10 cartões no Resultado; só os 3 primeiros têm o número na faixa. O 4º e o 10º mostram o valor no cartão.
+    from conftest import _cartao, pacote_ficticio
+    p = pacote_ficticio()
+    res = p["relatorios"]["vc_painel"]["abas"]["resultado"]["painel"]["blocos"][0]["dados"]["res"]
+    res += [_cartao(f"Cartão extra {k}", f"R$ {k},00 extra", f"legenda {k}", [("MÊS", 50.0, "x")]) for k in range(4, 11)]
+    assert len(res) == 10 and postar(admin, p).status_code == 200
+    h = admin.get("/painel").text
+    assert h.count("rc-valor") == 7                                                   # só do 4º ao 10º
+    assert 'class="rc-valor">R$ 4,00 extra<' in h and 'class="rc-valor">R$ 10,00 extra<' in h
+    assert 'class="rc-leg">legenda 4<' in h and 'class="rc-leg">legenda 10<' in h
+    faixa = h.split('class="bc3-ks"')[1].split("</header>")[0]
+    assert "R$ 165 mil" in faixa and "extra" not in faixa and h.count("R$ 165 mil") == 1   # os 3 primeiros: número só na faixa
+
+
+def test_perfis_do_painel_numa_constante_so():
+    assert render.VEEM_PAINEL == ("admin", "diretor", "gerente")
+    assert all(render.pagina_inicial(p) == "/painel" for p in render.VEEM_PAINEL)
+
+
+def test_troca_obrigatoria_mostra_so_a_casca_sem_menu(cli):
+    from conftest import ADMIN, SENHA0, entrar
+    assert entrar(cli, ADMIN, SENHA0).status_code == 303
+    h = cli.get("/senha").text
+    assert "bc3-lado" in h and "bc3-grupo" not in h and ">Sair<" in h

@@ -111,9 +111,13 @@ def kpis_do_corpo(kpis: list[dict]) -> list[dict]:
 
 
 def abas_no_celular(chaves: list, atual) -> list[int]:
-    """RD-0065 (b): no celular a barra mostra 3 abas (as duas primeiras e a aberta) e "Mais" leva as outras (contrato §5.3)."""
+    """RD-0065 (b): no celular a barra mostra 3 abas (as duas primeiras e a aberta) e "Mais" leva as outras (contrato §5.3).
+    Aba desconhecida = a página caiu na 1ª aba: aparecem as 3 primeiras."""
     pos = list(chaves).index(atual) if atual in chaves else 0
     return [0, 1, pos] if pos > 1 else [0, 1, 2]
+
+
+NA_FAIXA = 3          # os 3 primeiros cartões RRM levam o número à faixa; os outros (o PC manda 10, 10 e 6) mantêm o deles no cartão
 
 
 def faixa_painel(tela: dict | None, tela_f: dict | None) -> list[dict]:
@@ -122,7 +126,7 @@ def faixa_painel(tela: dict | None, tela_f: dict | None) -> list[dict]:
     if tela_f:
         return kpis_da_faixa(tela_f["kpis"])
     out = []
-    for c in ((tela or {}).get("cartoes") or [])[:3]:
+    for c in ((tela or {}).get("cartoes") or [])[:NA_FAIXA]:
         aneis = [a for a in c["aneis"] if a["tem"]]
         det = c["legenda"] if any(ch.isdigit() for ch in c["legenda"]) else ""     # sem número próprio, o rótulo já diz
         out.append({"rot": c["titulo"], "valor": c["valor"], "detalhe": det,
@@ -182,7 +186,7 @@ def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
         cartoes = ((aba.get("recortes") or {}).get("uf") or {}).get(uf, {}).get("cartoes") or []
         sub = f"{uf} · estado = filial da nota · {sub}" if sub else f"{uf} · estado = filial da nota"
     return {"sub": sub, "uf": uf,
-            "cartoes": [cartao(c) for c in cartoes],
+            "cartoes": [{**cartao(c), "na_faixa": i < NA_FAIXA} for i, c in enumerate(cartoes)],
             "como_ler": como_ler, "avisos": d.get("avisos") or []}
 
 
@@ -197,6 +201,7 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
     "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
 }
+VEEM_PAINEL = ("admin", "diretor", "gerente")      # quem vê o Painel Executivo: a `/`, a lateral e a rota usam esta tupla só
 TONS = ("ok", "atencao", "alerta", "info")
 AVISO_UF = "Os outros cartões, o resumo e os gráficos: só na BAP inteira."   # T-0033 (RD-0034): um aviso só
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
@@ -204,9 +209,6 @@ INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
-# T-0030: faróis que já usam o visual BC3 (barra lateral + faixa verde, uma tela só no PC, lista que abre no
-# celular). O Farol de Pedidos vai primeiro; os outros entram na mesma lista.
-BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos",)), ("Pós-venda", ("pl_entregas", "pl_inadimplencia")),
                ("Vendas", ("vc_visitas", "vc_meta")))
 
@@ -235,7 +237,7 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
 def pagina_inicial(perfil: str) -> str:
     """T-0034 (Alexandre, 26/11, decisão 2 A): admin, diretor e gerente abrem no Painel Executivo; os outros, no primeiro
     farol da área, pela ordem do menu lateral (GRUPOS_MENU)."""
-    if perfil in ("admin", "diretor", "gerente"):
+    if perfil in VEEM_PAINEL:
         return "/painel"
     meus = dict(farois_do_perfil(perfil))
     for _, rids in GRUPOS_MENU:

@@ -24,7 +24,7 @@ from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
 MANAUS = ZoneInfo("America/Manaus")
-VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
+VERES = render.VEEM_PAINEL          # [SUPOSIÇÃO] os 3 veem o painel
 PAINEL_RID = "vc_painel"
 FORM_MAX = 16 * 1024
 FECHAR_MAX = 256 * 1024
@@ -173,6 +173,8 @@ def criar_app() -> FastAPI:
             ativo = ctx.get("rid") or {"/painel": "painel", "/usuarios": "usuarios", "/senha": "senha"}.get(request.url.path)
             ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ativo,
                                              painel=u["perfil"] in VERES, admin=u["perfil"] == "admin")
+            if u["trocar_senha"]:
+                ctx["nav"] = []             # troca obrigatória: só a casca (marca e Sair), sem links que não levam a lugar nenhum
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
 
     async def formulario(request: Request) -> dict:
