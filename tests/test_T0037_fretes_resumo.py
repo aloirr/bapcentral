@@ -9,7 +9,7 @@ do VLR NF) e ao "Frete estimado" (RN-POS-007 e RN-POS-009); a barra do mês é
 o mesmo nº de notas. Sem dado pessoal (RN-GER-011, regra 6).
 
 Base: o pacote real das bases congeladas, hoje = 24/11/2026. Teste trazido
-do modulo-robo (robô f361173). Contrato §10.12; desenho docs/desenho/T-0037.md.
+do modulo-robo (robô 4370d2d). Contrato §10.12; desenho docs/desenho/T-0037.md.
 Sem os faróis e o robô da T-0037, pula.
 """
 import json
@@ -107,8 +107,9 @@ def test_T0037_resumo_so_2_frases_e_nao_repetem_cartao(real):
 
 
 def test_T0037_resumo_frase_de_uf_bate_com_a_tabela(real):
-    """Valor × regra da 1ª frase: a UF com mais notas, o nº dela, o total
-    (= cartão) e o % do valor saem da tabela "Por UF (NOV/26)"."""
+    """Valor × regra da 1ª frase: a UF de maior VLR NF (sem a linha "Sem
+    UF"), o nº de notas dela, o total (= cartão) e o % do valor saem da
+    tabela "Por UF (NOV/26)"."""
     _, f = real
     fr = f["insights_painel"][0][1]
     m = re.fullmatch(r"(\w\w) tem (\d+) das (\d+) notas com frete e (\d+)% "
@@ -121,7 +122,7 @@ def test_T0037_resumo_frase_de_uf_bate_com_a_tabela(real):
     assert int(n_uf) == lin[uf][1]
     assert int(n_tot) == t_uf["total"][1]
     assert uf != "Sem UF"                       # a linha sem UF não é citada
-    assert lin[uf][1] == max(x[1] for x in t_uf["linhas"]
+    assert lin[uf][2] == max(x[2] for x in t_uf["linhas"]
                              if x[0] != "Sem UF")
     assert int(pct) == round(100 * lin[uf][2] / t_uf["total"][2])
     assert int(rs.replace(".", "")) == round(lin[uf][2])
@@ -202,7 +203,28 @@ def test_T0037_frase_da_uf_pula_a_linha_sem_uf():
                    "PA tem 1 das 6 notas com frete e 33% do valor (R$ 50).")]
 
 
+def test_T0037_frase_da_uf_e_a_de_maior_valor_nao_a_de_mais_notas():
+    """PA tem mais notas (5, R$ 100) e RR mais valor (1, R$ 300): a frase
+    cita RR, com 300 de 400 = 75% do valor."""
+    _, fr = ba.blocos_resumo_fretes_web({"tabelas": [_tab_uf([
+        ["NOV/26", "PA", 5, 100.0, 5.0],
+        ["NOV/26", "RR", 1, 300.0, 9.0]])]})
+    assert fr == [("info",
+                   "RR tem 1 das 6 notas com frete e 75% do valor (R$ 300).")]
+
+
 def test_T0037_so_sem_uf_nao_tem_frase_de_uf():
     _, fr = ba.blocos_resumo_fretes_web({"tabelas": [_tab_uf([
         ["NOV/26", "(sem)", 5, 100.0, 1.0]])]})
     assert fr == []
+
+
+def test_T0037_cidade_sem_uf_sem_barra_solta():
+    """A cidade sem UF sai só com o nome (sem " /"); "(sem) / " vira "Sem
+    cidade"."""
+    f = ba._rotulo_sem_fretes_web
+    assert f("CIDADE", "CIDADE FICT A / ") == "CIDADE FICT A"
+    assert f("CIDADE", "CIDADE FICT A /") == "CIDADE FICT A"
+    assert f("CIDADE", "CIDADE FICT A / PA") == "CIDADE FICT A / PA"
+    assert f("CIDADE", "(sem) / ") == "Sem cidade"
+    assert f("CIDADE", "(sem) / PA") == "Sem cidade / PA"

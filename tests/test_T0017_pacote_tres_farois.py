@@ -701,14 +701,25 @@ def test_T0017_corte_em_3_passos_na_ordem(real):
 
 
 # ==================================================== lista de colunas
-# (T-0037) faróis novos que entram por partes (contrato, web e robô em PRs
-# separados): a lista deles só é comparada quando o robô já os tem em
-# FAROIS_WEB; antes disso, ficam fora dos dois lados da comparação
-_RIDS_POR_PARTES_WEB = ("pl_fretes",)
+# (T-0037) farol novo entra por partes (contrato, web e robô em PRs
+# separados): a lista de um farol só é comparada quando o robô já o manda
+# (FAROIS_WEB); antes disso, fica fora dos dois lados. Vale para todo farol
+# (pl_fretes da T-0037; pl_devolucoes, pl_garantias e pl_ncc da T-0023, com
+# a web no main antes do robô). Com o farol no FAROIS_WEB, a comparação é
+# inteira: o robô não entra antes do contrato e da web.
+def _rids_ignorados_web(*outros_lados):
+    """Os rids de algum lado (robô e `outros_lados`) que o robô não manda."""
+    rids = set(ba._COLUNAS_TABELAS_WEB).union(*outros_lados)
+    return {r for r in rids if r not in ba.FAROIS_WEB}
 
 
-def _rids_ignorados_web():
-    return {r for r in _RIDS_POR_PARTES_WEB if r not in ba.FAROIS_WEB}
+def _rids_do_contrato_1073():
+    arq = RAIZ / ".coord" / "contratos" / "relatorio.md"
+    txt = arq.read_text(encoding="utf-8") if arq.exists() else ""
+    if "#### 10.7.3" not in txt:
+        return set()
+    sec = txt.split("#### 10.7.3", 1)[1].split("#### 10.7.4", 1)[0]
+    return set(re.findall(r"^\*\*`([a-z_]+)`\*\*", sec, flags=re.M))
 
 
 def _contrato_1073(ignorar_rids=()):
@@ -781,11 +792,12 @@ def _robo(ignorar_rids=()):
 def test_T0017_colunas_robo_igual_web(web_app):
     # (T-0037) título genérico ("Por UF") vem na web por (rid, título), em
     # COLUNAS_RID
-    # (T-0037) farol por partes que o robô ainda não manda (FAROIS_WEB): as
-    # tabelas dele ficam fora dos dois lados (na web, as do (rid, título) e as
-    # do título que só ele usa, pelas ABAS do rid)
-    fora = _rids_ignorados_web()
+    # (T-0037) farol que o robô ainda não manda (FAROIS_WEB): as tabelas dele
+    # ficam fora dos dois lados (na web, as do (rid, título) e as do título
+    # que só ele usa, pelas ABAS do rid)
     abas_web = getattr(web_app.tabelas, "ABAS", {})
+    rid_web = getattr(web_app.tabelas, "COLUNAS_RID", {})
+    fora = _rids_ignorados_web(abas_web, {r for r, _t in rid_web})
     so_dos_fora = {t for r in fora for _a, t in abas_web.get(r, ())} - {
         t for r, abas in abas_web.items() if r not in fora for _a, t in abas}
     web = {**{t: c for t, c in web_app.tabelas.COLUNAS.items()
@@ -811,7 +823,7 @@ def test_T0017_colunas_robo_igual_web(web_app):
 
 
 def test_T0017_colunas_robo_igual_contrato_1073():
-    fora = _rids_ignorados_web()              # (T-0037) farol por partes
+    fora = _rids_ignorados_web(_rids_do_contrato_1073())   # por partes
     contrato = _contrato_1073(fora)
     assert contrato is not None, "§10.7.3 ausente no contrato"
     robo = _robo(fora)
