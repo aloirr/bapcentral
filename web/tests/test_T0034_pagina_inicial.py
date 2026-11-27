@@ -197,3 +197,15 @@ def test_inter_hospedada_e_ajustes_da_marca(cli):
     assert ".rc-barras .barra .rot-b{background:var(--cartao)" in css
     assert "font-weight:800" not in css                                          # manual §5: só 400, 600 e 700
     assert ".selo-cinza{background:var(--borda);color:var(--suave)}" in css
+
+
+def test_cada_cartao_traz_a_comparacao_do_proprio_indicador(admin):
+    # condição do po: a faixa out/set/jul de Positivação e Pedidos não é a do Faturamento (R$ 149/237/626 mil)
+    from conftest import pacote_ficticio
+    assert postar(admin, pacote_ficticio()).status_code == 200
+    h = admin.get("/painel").text
+    cartoes = h.split('<article class="rc">')[1:]
+    assert len(cartoes) == 3
+    fat, pos, ped = cartoes
+    assert "R$ 626 mil" in fat and "R$ 626 mil" not in pos and "R$ 626 mil" not in ped
+    assert ">126<" in pos and ">168<" in ped and "R$" not in pos.split('class="rc-faixa"')[1].split("</div></div>")[0]
