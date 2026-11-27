@@ -746,10 +746,6 @@ NOME_FORA_DA_BASE = "CLIENTE FORA DA BASE"
 
 LOJA_NAO_IDENTIFICADA = "(loja não identificada)"
 
-# um codigo com UMA loja so nao tem outra para confundir: o pedido de outra
-# filial continua com os dados dela (RN-GER-019, [SUPOSICAO] do modulo-farois)
-HERDA_LOJA_UNICA = True
-
 
 def cadastro_do_pedido(filial, cod_cliente, lojas_do_codigo) -> dict:
     """RN-GER-019: no pedido, os dados do cliente (nome, UF, cidade, limite,
@@ -766,11 +762,11 @@ def cadastro_do_pedido(filial, cod_cliente, lojas_do_codigo) -> dict:
     identificada, credito_apurado}:
       - uma so loja do codigo na UF da filial: essa loja;
       - o codigo tem uma unica loja (nao ha outra para confundir):
-        essa loja, com os dados dela (HERDA_LOJA_UNICA);
+        essa loja, com os dados dela;
       - senao (nenhuma ou varias na UF): UF = a da filial; sem cidade,
         limite nem saldo; o nome fica so se for igual em todas as lojas
         daquela UF (sem nenhuma na UF: em todas do codigo); senao
-        LOJA_NAO_IDENTIFICADA. credito_apurado False.
+        LOJA_NAO_IDENTIFICADA; a fantasia e igual ao nome. credito_apurado False.
     credito_apurado False tambem quando a loja certa e achada mas o saldo
     dela nao e conhecido."""
     lojas = [x for x in (lojas_do_codigo or []) if isinstance(x, dict)]
@@ -779,7 +775,7 @@ def cadastro_do_pedido(filial, cod_cliente, lojas_do_codigo) -> dict:
     escolhida = None
     if len(na_uf) == 1:
         escolhida = na_uf[0]
-    elif len(lojas) == 1 and HERDA_LOJA_UNICA:
+    elif len(lojas) == 1:                 # loja unica: usa essa loja (RN)
         escolhida = lojas[0]
     if escolhida is not None:
         saldo = escolhida.get("saldo")
@@ -793,8 +789,10 @@ def cadastro_do_pedido(filial, cod_cliente, lojas_do_codigo) -> dict:
     base = na_uf or lojas
     nomes = {sem_acento(texto(x.get("nome"))).upper() for x in base}
     nome = texto(base[0].get("nome")) if base and len(nomes) == 1 else ""
-    return {"cod": cod_cliente, "nome": nome or LOJA_NAO_IDENTIFICADA,
-            "fantasia": "", "uf": uf_f, "cidade": "", "limite": None,
+    nome = nome or LOJA_NAO_IDENTIFICADA
+    # fantasia = nome: o titulo do cartao (celular) nunca fica so com o numero
+    return {"cod": cod_cliente, "nome": nome,
+            "fantasia": nome, "uf": uf_f, "cidade": "", "limite": None,
             "saldo": None, "atraso_valor": None, "identificada": False,
             "credito_apurado": False}
 
@@ -1504,7 +1502,7 @@ def detalhe_pedido(ctx, filial="", pedido="", nf=""):
                          f"Acima de 15% · {sp['situacao'].lower()}"
                          if precisa else "")}
     return {"titulo": titulo, "subtitulo": f"{ctx.filial(i0['filial'])} · "
-            f"{ctx.nome_cliente(i0['cliente'])}", "campos": campos,
+            f"{ctx.nome_cliente(i0['cliente'], i0['filial'])}", "campos": campos,
             "kpis": kpis, "colunas": cols, "linhas": linhas, "tons": tons,
             "total": total, "autorizacao": aut}
 
@@ -1804,7 +1802,8 @@ def pedidos_excluidos(ctx):
                 moeda(sum(l[10] for l in ls))),
             kpi("% dos pedidos digitados", p(pct_de(len(ls), dig)), "neutro",
                 f"de {br(dig)} digitados"),
-            kpi("Clientes", br(len({l[5] for l in ls})), "neutro"),
+            kpi("Clientes", br(len({texto(l[5]).split(" - ")[0]
+                                    for l in ls})), "neutro"),   # por codigo
             kpi("Vendedor com mais exclusões",
                 vend.most_common(1)[0][0].split(" - ")[-1][:22] if vend else "—",
                 "atencao" if vend else "neutro",
@@ -1857,7 +1856,7 @@ CREDITO_SEM = "Sem Limite"
 CREDITO_PARCIAL = "Com Limite Parcial"
 CREDITO_ATRASO = "Com Limite, mas em Atraso"
 CREDITO_OK = "Com Limite"
-CREDITO_NAO_APURADO = "Crédito não apurado"     # RN-GER-019: loja sem saldo
+CREDITO_NAO_APURADO = "Saldo Não Apurado"     # RN-GER-019: loja sem saldo
 
 
 def analise_credito(cli: dict, valor: float) -> str:
@@ -2372,15 +2371,15 @@ def _analitico_produto(ctx):
     for it in ctx.tabela["itens"]:
         if it["tipo"] != "VEA":
             continue
-        cli = ctx.cliente_do_pedido(it["filial"], it["cliente"])  # RN-GER-019
+        cli = ctx.cliente(it["cliente"])
         falta = max(0.0, it["qtd"] - it["qtd_at"])
         linhas.append([it["pedido"], it["dt_pedido"], cli.get("cidade", ""),
                        "4" + it["filial"], _fornecedor(ctx, it["cod"]),
                        it["cod"], ctx.produto(it["cod"]), it["qtd"],
                        it["est_prod"], it.get("dem_ant", 0.0),
                        it["est_disp"], it["qtd_at"], falta,
-                       ctx.nome_cliente(it["cliente"], it["filial"]),
-                       ctx.filial(it["filial"]), it["p_venda"] * falta if falta else 0.0])
+                       ctx.nome_cliente(it["cliente"]), ctx.filial(it["filial"]),
+                       it["p_venda"] * falta if falta else 0.0])
         tons.append("alerta" if it["qtd_at"] <= 0 else
                     ("atencao" if falta else "ok"))
     juntos = sorted(zip(linhas, tons), key=lambda z: (
@@ -7334,13 +7333,12 @@ def entregas(ctx):
         if not dnf or dnf >= inicio or mes_de(dnf) not in meses12 \
                 or (fil, nf.lstrip("0")) in ja:
             continue
-        cli = ctx.cliente_do_pedido(fil, i0["cliente"])     # RN-GER-019
+        cli = ctx.cliente(i0["cliente"])
         frete = bd.e_frete(cli.get("cidade"))
         vlr = sum(i["valor"] for i in itens)
         antigas.append([rotulo_mes(mes_de(dnf)), CONCLUIDA, "ENTREGUE",
                         nf.lstrip("0"), i0["dt_pedido"], dnf, None, None,
-                        ctx.nome_cliente(i0["cliente"], fil),
-                        cli.get("cidade", ""),
+                        ctx.nome_cliente(i0["cliente"]), cli.get("cidade", ""),
                         cli.get("uf", ""), "FRETE" if frete else "LOCAL", vlr,
                         _frete("", vlr, frete, cad), "", None, "",
                         ctx.filial(fil),
@@ -7681,8 +7679,8 @@ def _historico_de_compra(ctx):
         if it["tipo"] != "VND":
             continue
         cod = it["cliente"]
-        cli = ctx.cliente_do_pedido(it["filial"], cod)      # RN-GER-019
-        ctab = ctx.credito_do_pedido(it["filial"], cod)
+        cli = ctx.cliente(cod)
+        ctab = ctx.tabela["clientes"].get(cod, {})
         nf = texto(it.get("nf")).lstrip("0")
         e = ents.get((texto(it["filial"]), nf)) or {}
         linhas.append([
@@ -8014,16 +8012,15 @@ def devolucoes(ctx):
                                           "(sem acompanhamento)" if not a
                                           else "")
         vend = ctx.vendedor(i0["vend"])
-        for g, k in ((por_vend, vend), (por_cli, ctx.nome_cliente(i0["cliente"], fil))):
+        for g, k in ((por_vend, vend), (por_cli, ctx.nome_cliente(i0["cliente"]))):
             g[k][0] += 1
             g[k][1] += valor
         for i in itens:
             por_prod[i["cod"]][0] += abs(i["qtd"])
             por_prod[i["cod"]][1] += abs(i["valor"])
-        cli = ctx.cliente_do_pedido(fil, i0["cliente"])     # RN-GER-019
+        cli = ctx.cliente(i0["cliente"])
         linhas.append([rotulo_mes(m), i0["dt_nf"], nf, ctx.filial(fil),
-                       ctx.nome_cliente(i0["cliente"], fil),
-                       cli.get("cidade", ""),
+                       ctx.nome_cliente(i0["cliente"]), cli.get("cidade", ""),
                        cli.get("uf", ""), vend, valor, len(itens),
                        ", ".join(sorted({i["cod"] for i in itens}))[:120],
                        etapa, motivo, texto(a.get("autorizado_por")),
@@ -8142,7 +8139,7 @@ def fretes(ctx):
         m = mes_de(i0["dt_nf"])
         if m not in meses:
             continue
-        cli = ctx.cliente_do_pedido(fil, i0["cliente"])     # RN-GER-019
+        cli = ctx.cliente(i0["cliente"])
         valor = sum(i["valor"] for i in itens)
         por_mes[rotulo_mes(m)][2] += valor
         if not bd.e_frete(cli.get("cidade")):
@@ -8160,7 +8157,7 @@ def fretes(ctx):
             if i0["dt_pedido"] and e else None
         transp = texto(e.get("transportadora"))
         linhas.append([rotulo_mes(m), i0["dt_pedido"], i0["dt_nf"], nf,
-                       ctx.filial(fil), ctx.nome_cliente(i0["cliente"], fil),
+                       ctx.filial(fil), ctx.nome_cliente(i0["cliente"]),
                        cli.get("cidade", ""), cli.get("uf", ""), valor,
                        _frete(transp, valor, True, cad, frete_real_de(e),
                               cli.get("uf", ""), cli.get("cidade", "")),
@@ -11826,7 +11823,7 @@ def saldo_desconto(ctx):
         lin[I_DNF] = max(i["dt_nf"] for i in itens if i["dt_nf"])
         lin[I_FIL], lin[I_PED], lin[I_NF] = ctx.filial(fil), ped, \
             ", ".join(nfs)
-        lin[I_CLI] = ctx.nome_cliente(i0["cliente"], fil)
+        lin[I_CLI] = ctx.nome_cliente(i0["cliente"])
         lin[I_VEND] = ctx.vendedor(i0["vend"])
         lin[I_SUP] = ctx.supervisor_de(i0["vend"])
         lin[I_COND] = ctx.cond(i0["cond"])
@@ -11836,7 +11833,7 @@ def saldo_desconto(ctx):
         lin[I_FRT] = sp.get("frete")
         # (10/11) a UF = a da filial da nota/pedido
         lin[I_UF] = uf_da_filial(i0.get("filial")) or texto(
-            ctx.cliente_do_pedido(fil, i0["cliente"]).get("uf"))
+            ctx.cliente(i0["cliente"]).get("uf"))
         lin[I_CHV] = chave_pedido(fil, ped)
         linhas.append(lin)
         tons.append("alerta" if sp["conta"] < -0.005 else "ok")
