@@ -236,3 +236,15 @@ def test_RN_POS_009_resumo_do_fretes_titulos_total_frases_e_rotulos_do_pc(admin)
     assert por_transp["Sem transportadora"] == int(kp["Sem transportadora"]["valor"]) == 1   # cartão = linha
     for r in ("Sem UF", "SERRA BONITA / Sem UF", "Sem transportadora", "Sem acompanhamento"):
         assert r in html and not re.search(r"\(sem\)", html, re.I)
+
+
+def test_UX_A8_cores_do_pc_viram_o_token_do_mesmo_papel():
+    """O âmbar de "atenção" do PC (AMARELO) não pode virar o cinza neutro (atingimento, rota, CHURN)."""
+    from app import marca
+    t = marca.TOKENS
+    h = render._bloco_hbarras({"rotulos": ["ok", "atenção", "alerta", "neutro"], "valores": [1, 2, 3, 4],
+                               "cores": ["#62BB47", "#C98A00", "#B3261E", "#A7B0AA"]})
+    assert [x["cor"] for x in h["linhas"]] == [t["--verde-marca"], t["--grafico-2"], t["--alerta"], t["--grafico-3"]]
+    assert len({x["cor"] for x in h["linhas"]}) == 4                  # os estados continuam distintos
+    h2 = render._bloco_hbarras({"rotulos": ["a"], "valores": [1], "cores": ["#59BA61"]})
+    assert h2["linhas"][0]["cor"] == t["--verde-marca"]

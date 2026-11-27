@@ -723,4 +723,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
   .gb-larga .gb-rot{font-weight:600;letter-spacing:-.02em}
   .gb-larga .r-l{display:none}.gb-larga .r-c{display:inline}
   .gb-larga .gb-rot,.gb-larga .gb-txt{font-size:11px}
+  .bc3 .graf .gb.gb-larga .gb-rot{font-size:11px;overflow:visible;font-weight:600;letter-spacing:-.02em}
+  .bc3 .graf .gb.gb-larga{overflow:visible}
+  .bc3 .graficos .graf.graf-larga{padding-left:12px;padding-right:12px}
+  .gb-larga .gb-col:nth-last-child(even) .gb-rot{visibility:hidden}      /* um rótulo sim, um não, do último mês para trás */
 }

@@ -430,6 +430,7 @@ def _cor(c, padrao) -> str:
     """R1 (UX T-0037): só entra cor da paleta da marca (`marca.TOKENS`); qualquer outra (o AZUL do PC, por exemplo)
     vira o padrão (`--grafico-3`)."""
     if isinstance(c, str) and _COR.match(c):
+        c = marca.COR_PC.get(c.lower(), c)                        # A8: a cor antiga do PC vira o token do mesmo papel
         if c.lower() in {v.lower() for v in marca.TOKENS.values() if isinstance(v, str)}:
             return c
     return padrao
