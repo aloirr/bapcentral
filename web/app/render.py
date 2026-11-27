@@ -11,7 +11,7 @@ import math
 import re
 import unicodedata
 
-from . import marca
+from . import marca, visitas
 
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
@@ -215,6 +215,10 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_planner": ("Farol Roteirização", LEITURA_GERAL + ("diretor", "vendas")),
     "pl_giro": ("Farol de Giro de Produtos", LEITURA_GERAL + ("diretor", "vendas")),
     "pl_frw": ("Farol de Estoque FRW", LEITURA_GERAL + ("diretor", "pre_venda", "pos_venda")),
+    # T-0023 v2 (contrato §10.10.1): Pós-venda. O diretor vê só o Resumo (RN-GER-014: ver `tabelas.VE_TABELAS`)
+    "pl_garantias": ("Farol de Garantias", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_devolucoes": ("Farol de Devolução e Reembolsos", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_ncc": ("Farol de NCC", LEITURA_GERAL + ("diretor", "pos_venda")),
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
     "vc_meta": ("Farol de Metas Equipe", LEITURA_GERAL + ("diretor", "vendas")),
     # T-0036 (contrato §10.11.6): Analista Comercial; o diretor vê só o Resumo
@@ -230,7 +234,8 @@ LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")    # T-
 NOME_MENU = {"pv_indicadores": "Indicadores", "vc_base": "Clientes", "vc_planner": "Roteirização",
              "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW",
              # T-0036 (revisão de UX, 7): na lateral o nome é curto; o completo fica na faixa
-             "vc_saldo": "Saldo", "vc_markup": "Markup", "vc_preco": "Preço", "an_divergencias": "Divergências"}
+             "vc_saldo": "Saldo", "vc_markup": "Markup", "vc_preco": "Preço", "an_divergencias": "Divergências",
+             "pl_garantias": "Garantias", "pl_devolucoes": "Devoluções", "pl_ncc": "NCC"}
 AVISO_UF = "Os outros cartões, o resumo e os gráficos: só na BAP inteira."   # T-0033 (RD-0034): um aviso só
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
 INDISPONIVEL = "ainda não disponível na web"
@@ -238,7 +243,7 @@ _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
-               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_frw")),
+               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_garantias", "pl_devolucoes", "pl_ncc", "pl_frw")),
                ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")),   # T-0024: lote 2 no menu
                ("Analista Comercial", RIDS_ANALISTA),
                # T-0036 (contrato §10.10.1): o grupo do trade; aparece quando o Farol de Expositores entrar (T-0025 v2)
@@ -264,6 +269,10 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
         itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r].removeprefix("Farol de ")),
                   "ativo": r == ativo}
                  for r in rids if r in meus]
+        if "vc_visitas" in rids and perfil in visitas.PODEM_PEDIR:     # T-0045: ☰ → Atualizar visitas → botão (3 toques)
+            i = next((k for k, x in enumerate(itens) if x["nome"] == NOME_MENU.get("vc_visitas", "Visita")), None)
+            itens.insert(len(itens) if i is None else i + 1,
+                         {"href": "/visitas/atualizar", "nome": "Atualizar visitas", "ativo": ativo == "visitas_atualizar"})
         if itens:
             grupos.append({"nome": nome, "itens": itens})
     conta = [{"href": "/senha", "nome": "Trocar senha", "ativo": ativo == "senha"}]

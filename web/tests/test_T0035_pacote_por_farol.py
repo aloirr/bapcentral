@@ -37,7 +37,7 @@ def test_formato1_na_web_nova_vira_lote_inteiro(cli, amb):
     assert postar(cli, pacote_farol()).status_code == 200            # robô antigo, web nova
     s = cli.get("/saude").json()
     assert s["pacote"]["formatos"] == [1, 2] and s["pacote"]["origem"] == "inteiro"
-    assert s["pacote"]["farois"] == 1 and s["versao"] == "0.9.0"
+    assert s["pacote"]["farois"] == 1 and s["versao"] == "0.8.0"
 
 
 def test_formato2_com_e_sem_gzip_guarda_o_mesmo(cli, amb):

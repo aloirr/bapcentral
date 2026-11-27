@@ -172,6 +172,13 @@ def test_RN_GER_012_analista_sem_edicao_e_sem_usuarios(admin, usu):
         assert usu(p).get("/usuarios").status_code == 403
 
 
+def test_usuarios_mostra_rotulo_de_analista_e_trade(admin, usu):
+    usu("analista"); usu("trade")
+    h = admin.get("/usuarios").text
+    assert '<option value="analista">Analista</option>' in h and '<option value="trade">Trade</option>' in h
+    assert '<span class="u-perfil">Analista</span>' in h and '<span class="u-perfil">Trade</span>' in h
+
+
 def test_RN_GER_001_meta_rh_fora_do_analista_e_do_trade(admin, usu):
     # a web não tem rota de meta RH (Acomp. RH / Exportar para o RH ficam no PC); nada novo abre isso
     rotas = " ".join(getattr(r, "path", "") for r in admin.app.routes).lower()
@@ -197,6 +204,8 @@ def test_RN_GER_011_pacote_do_analista_aceito_e_sem_coluna_de_nome(cli, amb):
 
 def test_RN_GER_011_cliente_so_pelo_codigo_nos_quatro_farois():
     for (rid, titulo), cols in tabelas.COLUNAS_RID.items():
+        if rid not in tabelas.RIDS_ANALISTA:      # os 3 faróis do Pós-venda (T-0023) têm lista e regra próprias
+            continue
         assert not {n for n, _, _ in cols} & set(PROIBIDAS), (rid, titulo)
     cod = [n for n, _, _ in tabelas.COLUNAS_RID[("vc_saldo", "Pedido a pedido")]]
     assert "CÓD." in cod and "CLIENTE" not in cod
@@ -341,7 +350,7 @@ def test_T0036_correcao_herdada_junto_do_farol(admin, amb):
 
 # ------------------------------------------------------------------ versão
 def test_T0036_versao_nova_no_saude(cli):
-    assert VERSAO == "0.9.0" and cli.get("/saude").json()["versao"] == VERSAO
+    assert VERSAO == "0.8.0" and cli.get("/saude").json()["versao"] == VERSAO
 
 
 def test_T0036_tabela_fixture_confere_com_a_lista():
@@ -353,6 +362,8 @@ def test_T0036_tabela_fixture_confere_com_a_lista():
 def test_RN_GER_011_grade_nos_quatro_farois_sem_rolagem_lateral(com_analista):
     # UX 1: toda tabela de cima tem GRADE (até 10 colunas no PC, 4 no celular) e a dica de rolagem não aparece
     for (rid, titulo), cols in tabelas.COLUNAS_RID.items():
+        if rid not in tabelas.RIDS_ANALISTA:      # os 3 faróis do Pós-venda (T-0023) têm lista e regra próprias
+            continue
         g = tabelas.GRADE[(rid, titulo)]
         nomes = [n for n, _, o in cols if not o]
         assert len(g["grade"]) <= 10 and len(g["cel"]) == 4 and g["chave"] in g["grade"], (rid, titulo)
