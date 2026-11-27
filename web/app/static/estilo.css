@@ -295,7 +295,7 @@ footer{color:#5E6B62}
 .ed-col{white-space:nowrap;width:1%}
 .bt-ed{display:inline-block;background:#2F7D32;color:#fff;border-radius:6px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none}
 .ed-nao{color:#69736D}
-.ed-marca{display:inline-block;margin-left:.3rem;border-radius:6px;padding:.05rem .4rem;font-size:.72rem;font-weight:600}
+.ed-marca{display:inline-block;white-space:nowrap;margin-left:.3rem;border-radius:6px;padding:.05rem .4rem;font-size:.72rem;font-weight:600}
 .ed-pend{background:#FFF1C7;color:#8A5A00}.ed-erro{background:#B3261E;color:#fff}
 .tab-dados tr.sel td{background:#E5F3DF!important}
 .sel-link{color:#2F7D32;font-weight:600;text-decoration:underline dotted}

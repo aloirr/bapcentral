@@ -118,3 +118,9 @@ def test_RN_GER_012_pacote_sem_fretes_continua_aceito(admin):
     p = pacote_fretes()
     del p["relatorios"]["pl_fretes"]
     assert postar(admin, p).status_code == 200
+
+
+def test_RN_POS_010_formulario_mostra_a_data_real_da_fixture(admin):
+    _pacote_ok(admin)
+    url = "/farol/pl_fretes/editar?tab=Notas%20com%20frete&chave=FILIAL%20FICTICIA%7C7002%7C1"
+    assert 'value="2026-11-10"' in admin.get(url).text           # DT. REAL = 10/11/2026 (ISO no campo)
