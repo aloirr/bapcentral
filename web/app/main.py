@@ -393,7 +393,8 @@ def criar_app() -> FastAPI:
         else:
             kpis = topo["kpis"]
         if not solicitacao and (tab["filtrado"] or (uf_ok and rid != "vc_meta" and t.get("kpis_padrao") is not None)):
-            kpis = [{**k, "detalhe": k.get("detalhe") or ("sem o filtro" if tab["filtrado"] else "BAP inteira")} for k in kpis]
+            marca_k = "sem o filtro" if tab["filtrado"] else "BAP inteira"       # a marca vai sempre, mesmo com `detalhe` do PC
+            kpis = [{**k, "detalhe": f"{marca_k} · {k['detalhe']}" if k.get("detalhe") else marca_k} for k in kpis]
         uf = uf_ok
         urls = urls_tabela(request, rid, aba, tab, sub, uf, bool(tab.get("fora_base") and tab["fora_base"]["mostrar"]))
         if linhas:                                      # "carregar mais": só as linhas da página pedida (mesmo corte de perfil)

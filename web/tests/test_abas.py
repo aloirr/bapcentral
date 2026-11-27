@@ -581,6 +581,20 @@ def test_cartoes_da_aba_sem_numero_com_recorte_ou_filtro(com_tabelas):
     assert "3,6 dia(s)" in h and "<em>sem o filtro</em>" in h and '<b>—</b>' not in h   # T-0033: o número fica e diz que é sem o filtro
 
 
+def test_cartao_com_detalhe_do_pc_tambem_diz_de_onde_vem_o_numero(admin):
+    # T-0033 (W1): com estado ou filtro, a marca vai sempre, mesmo quando o PC já mandou `detalhe`
+    p, r = _rel("pv_pedidos")
+    _tab(r, "Pedidos")["kpis_padrao"][5]["detalhe"] = "em aberto"                # o cartão "Volume"
+    assert postar(admin, p).status_code == 200
+    com_tabelas = admin
+    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
+    assert "<em>BAP inteira · em aberto</em>" in h
+    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&f8=MANAUS").text
+    assert "<em>sem o filtro · em aberto</em>" in h
+    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos").text
+    assert "<em>em aberto</em>" in h and "BAP inteira · em aberto" not in h
+
+
 def test_entregas_estado_filtra_linhas_e_junta_de_pendencias(com_tabelas):
     p = pacote_tres_farois()
     t = _tab(p["relatorios"]["pl_entregas"], "Entregas")
@@ -641,8 +655,8 @@ def test_selos_faixa_barra_e_pela_linha(com_tabelas):
     assert 'class="atend-trilho"' in h and "background:#62BB47" in h              # barra do % ATENDIDO
     assert 'class="selo" style="background:#B3261E;color:#FFFFFF"' in h             # SLA > 4 em faixa: a cor vem do PC, a web só desenha
     h = com_tabelas.get("/farol/pl_entregas?aba=entregas").text
-    assert 'class="selo" style="background:#E5F3DF;color:#2F7D32"' in h             # SLA pela linha (TOM SLA = ok)
-    assert 'style="background:#B42318;color:#FFFFFF"' in h
+    assert 'class="selo" style="background:#F0F7EC;color:#2F7D32"' in h             # SLA pela linha (TOM SLA = ok)
+    assert 'style="background:#FDECEA;color:#B42318"' in h                          # chip_tom alerta: contrato novo
     h = com_tabelas.get("/farol/vc_visitas?aba=vendedor").text
     assert 'style="background:#FBDDDA;color:#B3261E"' in h and 'style="background:#E5F3DF;color:#2F7D32"' in h
 
