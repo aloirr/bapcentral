@@ -29,8 +29,7 @@ VERES = render.VEEM_PAINEL          # [SUPOSIÇÃO] os 3 veem o painel
 PAINEL_RID = "vc_painel"
 FORM_MAX = 16 * 1024
 FECHAR_MAX = 256 * 1024
-PODEM_PEDIR = ("admin", "gerente")                  # 4 A (Alexandre): admin e gerente apertam o "Atualizar visitas"
-SO_ADMIN = ("admin",)                               # refazer, diagnóstico, agenda e Retomar
+PODEM_PEDIR, SO_ADMIN = visitas.PODEM_PEDIR, visitas.SO_ADMIN      # uma constante só (visitas.py), a mesma da lateral
 ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca", "/api/edicoes", "/api/visitas")   # saúde e robô seguem; as telas param
 
 

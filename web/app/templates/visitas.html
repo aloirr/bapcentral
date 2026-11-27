@@ -17,7 +17,7 @@
 
 {% if e.pausado %}
 <section class="vz-faixa vz-pausa" role="alert">
-  <div><b>Pausado desde {{ e.pausado.desde|dia_hora }}</b><span>{{ v.pausa_texto }}</span></div>
+  <div><b>Desde {{ e.pausado.desde|dia_hora }}</b><span>{{ v.pausa_texto }}</span></div>
   {% if admin %}
   <form method="post" action="/visitas/retomar" class="vz-linha">
     <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -29,7 +29,7 @@
 {% elif v.teto_dia %}
 <section class="vz-faixa vz-teto" role="status"><div><b>Limite de hoje</b><span>{{ v.teto_texto }}</span></div></section>
 {% elif e.rodada_ativa %}
-<section class="vz-faixa" role="status"><div><b>Baixando agora</b>{% if e.rodada_ativa.fase %}<span>Etapa: {{ e.rodada_ativa.fase }}{% if e.rodada_ativa.total %}, {{ e.rodada_ativa.feitos or 0 }} de {{ e.rodada_ativa.total }}{% endif %}.</span>{% endif %}</div></section>
+<section class="vz-faixa" role="status"><div><b>{{ v.andamento }}</b></div></section>
 {% endif %}
 
 {% if pode_pedir %}
@@ -37,8 +37,8 @@
   <h2>Período</h2>
   <form method="post" action="/visitas/atualizar" class="vz-linha">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>De <input type="text" inputmode="numeric" name="de" value="{{ v.de_br }}" placeholder="dd/mm/aaaa" pattern="\d{2}/\d{2}/\d{4}" maxlength="10" size="10" required></label>
-    <label>Até <input type="text" inputmode="numeric" name="ate" value="{{ v.ate_br }}" placeholder="dd/mm/aaaa" pattern="\d{2}/\d{2}/\d{4}" maxlength="10" size="10" required></label>
+    <label>De <input type="date" name="de" value="{{ v.de_iso }}" max="{{ v.hoje_iso }}" required></label>
+    <label>Até <input type="date" name="ate" value="{{ v.ate_iso }}" max="{{ v.hoje_iso }}" required></label>
     <button type="submit" class="{{ 'bt-principal' if v.pode_apertar else 'bt-neutro' }}"{{ (' disabled title="' ~ v.motivo_travado ~ '"')|safe if not v.pode_apertar }}>Atualizar visitas</button>
     {% if admin %}<button type="submit" formaction="/visitas/refazer" class="bt-neutro"{{ (' disabled title="' ~ v.motivo_travado ~ '"')|safe if not v.pode_apertar else ' title="Baixa de novo os dias que já vieram"'|safe }}>Baixar de novo</button>{% endif %}
   </form>
@@ -60,7 +60,7 @@
     </form>
   </div>
   <p class="vz-nota">Último diagnóstico: {% if e.diagnostico.em %}{{ e.diagnostico.em|dia_hora }} · {{ {"ok": "sem problema", "falhou": "falhou"}[e.diagnostico.estado] }}{% if e.diagnostico.codigo and e.diagnostico.codigo != "OK" %} · {{ e.diagnostico.codigo }}{% endif %}{% else %}pendente{% endif %}</p>
-  {% if v.diag %}<dl class="vz-diag">{% for rot, val in v.diag %}<div><dt>{{ rot }}</dt><dd>{{ val }}</dd></div>{% endfor %}</dl>{% endif %}
+  {% if v.diag %}<details class="vz-det"><summary>Detalhes do diagnóstico</summary><dl class="vz-diag">{% for rot, val in v.diag %}<div><dt>{{ rot }}</dt><dd>{{ val }}</dd></div>{% endfor %}</dl></details>{% endif %}
 </section>
 {% endif %}
 
@@ -80,7 +80,7 @@
     <li class="{{ 'vz-topo' if loop.first }}">
       <span class="vz-quando">{{ r.quando }}</span>
       <span class="selo {{ 'selo-ok' if r.status == 'ok' else ('selo-atencao' if r.status == 'parcial' else 'selo-erro') }}">{{ 'Pausou' if pausou else r.situacao }}</span>
-      <span class="vz-texto">{{ 'Pausou a atualização (motivo acima).' if pausou else r.texto }}{% if r.status != 'ok' %}<small class="vz-cod">Código para o suporte: {{ r.codigo }}{% if r.fase and r.codigo in ('TELA_MUDOU', 'ERRO_INTERNO') %} · etapa {{ r.fase }}{% endif %}</small>{% endif %}</span>
+      <span class="vz-texto">{{ '' if pausou else r.texto }}{% if r.status != 'ok' %}<small class="vz-cod">Código para o suporte: {{ r.codigo }}{% if r.fase and r.codigo in ('TELA_MUDOU', 'ERRO_INTERNO') %} · etapa {{ r.fase }}{% endif %}</small>{% endif %}</span>
     </li>
     {% endfor %}
   </ul>

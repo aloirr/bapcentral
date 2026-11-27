@@ -682,4 +682,6 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .vz-cod{display:block;font-size:12px;font-weight:400;color:var(--suave);margin-top:2px}
 .vz-diag{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:6px 12px;margin:0}
 .vz-diag div{display:grid;gap:1px}.vz-diag dt{font-size:12px;color:var(--suave)}.vz-diag dd{margin:0;font-weight:600}
-@media(min-width:701px){.vz-adm .vz-lista{max-height:max(150px,calc(100vh - 620px));overflow:auto}}   /* a tela do admin não rola: o que sobra rola dentro da caixa */
+@media(min-width:701px){.vz-adm:has(.vz-det[open]) .vz-lista{max-height:max(150px,calc(100vh - 620px));overflow:auto}}   /* a tela do admin não rola: o que sobra rola dentro da caixa */
+.vz-det>summary{cursor:pointer;font-size:13px;color:var(--suave);margin-bottom:8px}
+@media(max-width:700px){.vz-admin .vz-linha>form,.vz-admin .vz-linha button{flex:1 1 100%;width:100%}}

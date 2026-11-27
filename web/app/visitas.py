@@ -7,8 +7,10 @@ dia (RN-VIS-008), pausa por código (RN-VIS-005 e 007), índice dos dias baixado
 
 ESPELHO: as regras de RN-VIS-002 (`_dt`, `juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`) e os regex de dado
 pessoal (`RE_PESSOAL`, `TIPOS_ACHADO`, `COLUNAS_PROIBIDAS`) são espelho MÍNIMO de `visitas_nucleo` (`_quando_manaus`,
-`juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`, `_RX_*`, `_FORA_DO_ESPELHO`): o Render publica só `web/` e
-não importa a raiz. A regra é a do núcleo (empate: a nuvem, contrato §3.1); o teste de paridade na raiz prende os dois.
+`juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`, `_RX_EMAIL`/`_RX_CNPJ`/`_RX_CPF`/`_RX_FONE`,
+`_COLUNAS_FORA_DA_NUVEM` e `TIPOS_ACHADO`, este último a criar no núcleo, RD-0114): o Render publica só `web/` e não
+importa a raiz. A regra é a do núcleo (empate: a nuvem, contrato §3.1). O teste de paridade (`tests/`, do agente
+`testes`) AINDA VAI SER CRIADO: até lá, nada prende as cópias.
 
 Disco (`<dados>/visitas/`): `estado.json` (gravação atômica), `lotes/` (a `Fila` e os corpos `<seq>.json.gz`),
 `pedidos.jsonl` e `rodadas.jsonl` (só acréscimo). Nenhum nome de vendedor ou de cliente em log, resposta ou arquivo
@@ -27,7 +29,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .arquivos import GzipGrande, GzipInvalido, acrescentar_linha, descomprimir_com_teto, gravar_bytes, gravar_json
-from .edicoes import MANAUS, ErroEdicao, Fila, _int, agora
+from .edicoes import MANAUS, RE_ISO, ErroEdicao, Fila, _int, agora, iso_de_br
 
 try:                                    # Linux (Render); no Windows de teste só a trava de thread
     import fcntl
@@ -38,6 +40,8 @@ except ImportError:                     # pragma: no cover
 TENTATIVAS_DIA = {"agenda": 4, "pedido": 3, "retentativa": 1, "diagnostico": 2}      # RN-VIS-008
 LOGINS_DIA_MAX = 8                                                                  # RN-VIS-008
 CONCESSAO_MIN = 10                                                                  # RN-VIS-004
+PODEM_PEDIR = ("admin", "gerente")       # 4 A (Alexandre): quem aperta o "Atualizar visitas" (tela, link e lateral)
+SO_ADMIN = ("admin",)                    # baixar de novo, diagnóstico, agenda e Retomar
 PEDIDO_MAX_DIAS = 7
 PEDIDO_MAX_RODADAS = 3
 FECHADOS_PC_DIAS = 40
@@ -70,9 +74,9 @@ _CONFIG = "A atualização pelo site está desligada por configuração. Avise o
 # pequenos, "para o suporte" (decisão 6 B: o código no lugar do print).
 CODIGOS = {
     "OK": ("ok", "Atualizado às {h}."),
-    "NADA_A_FAZER": ("ok", "Já estava em dia. Nada a baixar."),
+    "NADA_A_FAZER": ("ok", "Já estava em dia."),
     "PARCIAL_VENDEDOR": ("parcial", "Faltou a visita de {n} em {d}. Peça de novo esse dia."),
-    "PARCIAL_TEMPO": ("parcial", "Parte dos dias veio; o resto vem na próxima volta."),
+    "PARCIAL_TEMPO": ("parcial", "Parte dos dias veio; o resto vem na próxima atualização."),
     "MAXIMA_SENHA": ("erro", "A Máxima recusou a senha do site. Avise o Alexandre; depois, o admin clica em Retomar."),
     "MAXIMA_CONFIRMACAO": ("erro", _CONF),
     "MAXIMA_CAPTCHA": ("erro", _CONF),
@@ -91,6 +95,8 @@ CODIGOS = {
 }
 STATUS_DO_CODIGO = {c: s for c, (s, _) in CODIGOS.items()}
 TETO_DIA_TEXTO = f"O site já acessou a Máxima o máximo de vezes hoje. {_PC}; amanhã volta sozinho."
+TRAVADO = {"pausado": "Pausado: o admin retoma antes.", "pedido": "Já há um pedido na fila.",       # um motivo, uma redação:
+           "teto": "Limite de hoje atingido."}                                                     # botão (title) e erro do servidor
 SITUACAO = {"ok": "Em dia", "parcial": "Parcial", "erro": "Erro"}          # a palavra que a tela mostra no lugar do código
 SITUACAO_COR = {"ok": "ok", "parcial": "atencao", "erro": "alerta"}
 TIPOS_ACHADO = ("cnpj", "cpf", "telefone", "email", "formato")      # espelho de visitas_nucleo.TIPOS_ACHADO
@@ -148,18 +154,20 @@ def dia_br(ymd: str) -> str:
     return f"{ymd[6:]}/{ymd[4:6]}"
 
 
+def dia_iso(ymd: str) -> str:
+    """AAAAMMDD -> AAAA-MM-DD (o valor do `<input type="date">`; o navegador mostra no idioma dele)."""
+    return f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}"
+
+
 def dia_data(ymd: str) -> str:
-    """AAAAMMDD -> dd/mm/aaaa (o campo de data da tela: o formato sai do servidor, não do idioma do navegador)."""
+    """AAAAMMDD -> dd/mm/aaaa (data em texto na tela: o formato sai do servidor)."""
     return f"{ymd[6:]}/{ymd[4:6]}/{ymd[:4]}"
 
 
 def ymd_do_form(v) -> str:
-    """O que a pessoa digitou (dd/mm/aaaa, ou aaaa-mm-dd) -> AAAAMMDD; "" se não for data."""
+    """O que veio do formulário (aaaa-mm-dd do `<input type="date">`, ou dd/mm/aaaa) -> AAAAMMDD; "" se não for data."""
     v = (v or "").strip()
-    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", v) or None
-    if m:
-        return f"{m[3]}{m[2]}{m[1]}"
-    return v.replace("-", "") if re.match(r"^\d{4}-\d{2}-\d{2}$", v) else ""
+    return (iso_de_br(v) or (v if RE_ISO.match(v) else "")).replace("-", "")
 
 
 def dia_hora(v) -> str:
@@ -796,10 +804,10 @@ class Visitas:
             e = self._ler(agora_)
             if e["pedido"]:
                 self._gravar(e)
-                raise ErroVisitas(409, {"erro": "Já há um pedido na fila. Espere ele terminar."})
+                raise ErroVisitas(409, {"erro": TRAVADO["pedido"]})
             if e["pausado"]:
                 self._gravar(e)
-                raise ErroVisitas(409, {"erro": "A atualização está pausada. O admin retoma antes."})
+                raise ErroVisitas(409, {"erro": TRAVADO["pausado"]})
             pid = "P" + agora_.strftime("%Y%m%dT%H%M%S")
             e["pedido"] = {"id": pid, "de": dia_ymd(a), "ate": dia_ymd(b), "refazer": bool(refazer),
                            "pedido_em": iso(agora_), "perfil": perfil, "rodadas": 0}
@@ -921,16 +929,30 @@ class Visitas:
         elif ultima:
             sit = (ultima["situacao"], SITUACAO_COR.get(ultima["status"], "alerta"))
         else:
-            sit = ("Sem rodadas", "")
+            sit = ("—", "")
         return {"e": e, "rodadas": rod, "ultima": ultima, "teto_dia": teto, "teto_texto": TETO_DIA_TEXTO,
                 "logins": total, "logins_max": LOGINS_DIA_MAX, "situacao": sit[0], "situacao_cor": sit[1],
                 "pode_apertar": not (e["pedido"] or e["pausado"] or teto),
-                "motivo_travado": ("Pausado: o admin retoma antes" if e["pausado"] else
-                                   "Já há um pedido na fila" if e["pedido"] else
-                                   "Limite de hoje atingido" if teto else ""),
+                "motivo_travado": (TRAVADO["pausado"] if e["pausado"] else TRAVADO["pedido"] if e["pedido"] else
+                                   TRAVADO["teto"] if teto else ""),
                 "a_importar": [{"hora": hhmm_h(_dt(x.get("baixado_em"))), "dia": x["dia"]} for x in self._pendentes()],
                 "pausa_texto": self._texto_pausa(e, rod), "diag": self.diagnostico_linhas(),
-                "padrao": {"de": de, "ate": ate}, "de_br": dia_data(de), "ate_br": dia_data(ate)}
+                "padrao": {"de": de, "ate": ate}, "de_iso": dia_iso(de), "ate_iso": dia_iso(ate), "hoje_iso": agora_.strftime("%Y-%m-%d"),
+                "andamento": self._andamento(e["rodada_ativa"])}
+
+    @staticmethod
+    def _andamento(ra: dict | None) -> str:
+        """O que o site está fazendo agora, em palavras simples (a etapa técnica fica só no código do suporte)."""
+        if not ra:
+            return ""
+        fase, d = ra.get("fase"), dia_valido(ra.get("dia"))
+        if fase in ("filtros", "grade", "espelho", "filtro", "salvar"):
+            txt = f"Baixando o dia {dia_br(dia_ymd(d))}" if d else "Baixando"
+        elif fase == "envio":
+            txt = "Enviando"
+        else:
+            txt = "Entrando na Máxima"
+        return txt + (f" ({ra.get('feitos') or 0} de {ra['total']})" if ra.get("total") else "")
 
     @staticmethod
     def _texto_pausa(e: dict, rod: list[dict]) -> str:

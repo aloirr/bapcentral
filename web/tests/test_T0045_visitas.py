@@ -502,10 +502,10 @@ def test_tela_pausada_mostra_o_texto_e_o_retomar_so_ao_admin(v, admin, relogio):
     r = conceder(v).json()
     fim(v, r["id"], "MAXIMA_CAPTCHA")
     t = admin.get("/visitas/atualizar").text
-    assert "Pausado desde" in t and "A Máxima pediu uma confirmação" in t and "Retomar" in t
+    assert "Desde " in t and "A Máxima pediu uma confirmação" in t and "Retomar" in t
     ger = logar(v, admin, "ger.cinco", "gerente")
     tg = ger.get("/visitas/atualizar").text
-    assert "Pausado desde" in tg and ">Retomar<" not in tg
+    assert "Desde " in tg and ">Retomar<" not in tg
 
 
 # ---------------------------------------------------------------- /saude e disco
@@ -592,10 +592,12 @@ def test_UX_pausa_desabilita_o_botao_e_escreve_o_motivo_uma_vez(v, admin, relogi
     fim(v, r["id"], "MAXIMA_CONFIRMACAO")
     t = admin.get("/visitas/atualizar").text
     assert t.count("A Máxima pediu uma confirmação") == 1                      # a frase fica só na caixa vermelha
-    assert "Pausou a atualização (motivo acima)." in t and t.count(">Retomar<") == 1
-    assert re.search(r'<button type="submit" class="bt-neutro" disabled title="Pausado: o admin retoma antes">Atualizar visitas', t)
+    assert "Pausou" in t and "motivo acima" not in t and t.count(">Retomar<") == 1
+    assert re.search(r'<button type="submit" class="bt-neutro" disabled title="Pausado: o admin retoma antes.">Atualizar visitas', t)
     assert t.count('class="bt-principal"') == 1                                               # só o Retomar é principal
-    assert "Código para o suporte: MAXIMA_CONFIRMACAO" in t and "Situação" in t and "Pausado" in t
+    assert "Código para o suporte: MAXIMA_CONFIRMACAO" in t and "Situação" in t
+    assert "Pausado desde" not in t and t.count("Desde ") == 1                                 # a pausa não se repete (RD-0125)
+    assert visitas.TRAVADO["pausado"] in t                                                     # a mesma redação do erro do servidor
     admin.post("/visitas/atualizar", data={"csrf": token_form(admin, "/visitas/atualizar"), "de": "2026-11-27", "ate": "2026-11-27"})
     assert v.get("/api/visitas/trabalho", headers=H).json()["pedido"] is None   # o servidor também recusa
 
@@ -638,7 +640,7 @@ def test_tela_do_admin_mostra_o_diagnostico_com_contagens_sem_nome_de_coluna(v, 
 def test_textos_com_acao_e_sem_jargao():
     for c, (_, txt) in visitas.CODIGOS.items():
         assert "Render" not in txt and "etapa" not in txt.lower() and "Excel com erro" not in txt, c
-    assert visitas.texto_do_codigo("NADA_A_FAZER", {}) == "Já estava em dia. Nada a baixar."
+    assert visitas.texto_do_codigo("NADA_A_FAZER", {}) == "Já estava em dia."
     assert "2 vendedores" in visitas.texto_do_codigo("PARCIAL_VENDEDOR", {"erros_vendedor": 2, "dias": ["20261125"]})
     assert visitas.texto_do_codigo("MAXIMA_FORA", {"proxima": "06h30"}) == "A Máxima não respondeu. Tentamos de novo às 06h30."
     assert visitas.texto_do_codigo("SITE_FORA", {}) == "O site não respondeu. Tente mais tarde."
@@ -647,6 +649,7 @@ def test_textos_com_acao_e_sem_jargao():
 
 def test_formatadores_de_dia():
     assert visitas.dia_br("20261127") == "27/11" and visitas.dia_data("20261127") == "27/11/2026"
+    assert visitas.dia_iso("20261127") == "2026-11-27"
     assert visitas.ymd_do_form("27/11/2026") == "20261127" and visitas.ymd_do_form("2026-11-27") == "20261127"
     assert visitas.ymd_do_form("11/27/2026x") == "" and visitas.ymd_do_form(None) == ""
     assert visitas.dia_hora("2026-11-27T06:06:00-04:00") == "27/11 06h06" and visitas.dia_hora("lixo") == ""
@@ -658,15 +661,29 @@ def test_o_pedido_aceita_a_data_do_formulario_com_hifen(v, admin, relogio):
     assert p["de"] == "20261126" and p["ate"] == "20261127"
 
 
-def test_UX_datas_dd_mm_aaaa_saem_do_servidor_sem_input_date(v, admin, relogio):
+def test_UX_data_e_input_date_com_limite_e_o_servidor_aceita_aaaa_mm_dd(v, admin, relogio):
     t = admin.get("/visitas/atualizar").text.split("<main")[1]
-    assert 'type="date"' not in t and 'value="27/11/2026"' in t and 'placeholder="dd/mm/aaaa"' in t
-    admin.post("/visitas/atualizar", data={"csrf": token_form(admin, "/visitas/atualizar"), "de": "26/11/2026", "ate": "27/11/2026"})
+    assert 'type="date" name="de" value="2026-11-21" max="2026-11-27"' in t        # calendário nativo, com limite
+    admin.post("/visitas/atualizar", data={"csrf": token_form(admin, "/visitas/atualizar"), "de": "2026-11-26", "ate": "2026-11-27"})
     p = v.get("/api/visitas/trabalho", headers=H).json()["pedido"]
     assert p["de"] == "20261126" and p["ate"] == "20261127"
     from pathlib import Path
     js = "".join(f.read_text(encoding="utf-8") for f in (Path(visitas.__file__).parent / "static").glob("*.js"))
-    assert "toLocaleDateString" not in js                                                          # nenhum JS formata data pelo navegador
+    assert "toLocaleDateString" not in js                                           # as datas em texto saem do servidor
+
+
+def test_UX_diagnostico_fica_num_bloco_fechado_e_a_etapa_vira_palavra(v, admin, relogio):
+    rodada_e_fim(v, relogio, "diagnostico", "OK", pico_mb=600.0, duracao_s=90)
+    t = admin.get("/visitas/atualizar").text
+    assert '<details class="vz-det"><summary>Detalhes do diagnóstico</summary>' in t and "<details class=\"vz-det\" open" not in t
+    r = conceder(v).json()
+    for fase, esperado in (("login", "Entrando na Máxima"), ("maxgestao", "Entrando na Máxima"),
+                           ("grade", "Baixando o dia 26/11"), ("envio", "Enviando")):
+        v.post(f"/api/visitas/rodada/{r['id']}/progresso", json={"fase": fase, "dia": "20261126", "feitos": 2, "total": 5}, headers=H)
+        t = admin.get("/visitas/atualizar").text
+        faixa = t.split("vz-faixa")[1][:260]
+        assert esperado in faixa and fase not in faixa.lower().replace("baixando", "").replace("entrando", "")
+    assert "(2 de 5)" in t
 
 
 def test_site_descompressao_e_codigo_do_contrato_v1_1():
