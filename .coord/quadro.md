@@ -57,15 +57,14 @@ Atualizado em 27/11/2026, 04h15 (Manaus). Dono: gerente-projetos.
 | T-0035 | Pacote por farol (ADR 0003) | concluida (#131 eefb9fd, #132 479e83d v0.4.0, #133 bea0c0b, #134 767a389; pico de 64 MB de 512 no /saude) | engenheiro-software + modulo-web + modulo-robo + testes | — | — | concluída em 26/11; o robô chega à produção pela rotina diária |
 | T-0045 | Visitas da Máxima no site (opção C) — ADR 0004 | em_andamento (desenho #137 no main; rota modulo-rota/T-0045-visitas-nucleo 274d23a; web modulo-web/T-0045-visitas 8d7368f (0.6.0) em revisão; o robô em nuvem/ espera o donos.json do Alexandre; render.yaml é governança) | engenheiro-software + modulo-robo + modulo-rota + modulo-web + testes | — | — | simulação da tela ao po por delegação |
 | T-0046 | Limpeza interna da web (RD-0046 a RD-0050, RD-0053 a RD-0055, RD-0061 e os 🟢 das revisões da T-0033/T-0034; texto do AVISO_CARTOES; faixa vazia nas abas Aderência e Cliente a cliente do Visita) | aberta | modulo-web + testes | — | — | depois da T-0034 |
-| T-0036 | Faróis do Analista (Saldo, Markup, Preço, Divergências) e perfis analista e trade | em_andamento (sessão de tarefa; branches *T-0036-*; pausada) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + testes | — | — | simulação ao po por delegação |
-| T-0037 | Farol de Fretes com edição | em_andamento (sessão de tarefa; branches *T-0037-*; pausada) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + testes | — | — | simulação ao po por delegação |
+| T-0036 | Faróis do Analista (Saldo, Markup, Preço, Divergências) e perfis analista e trade | em_andamento (sessão de tarefa v2 session_01QvB2SU9Wtp5KdywcGtq7PR; branches *T-0036-*; status em docs/status/T-0036-sessao.md) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + testes | — | — | simulação ao po por delegação |
+| T-0037 | Farol de Fretes com edição | em_andamento (sessão de tarefa v2 session_01QvB2STi3xq4ykrr1HFRGBM; branches *T-0037-*; status em docs/status/T-0037-sessao.md) | engenheiro-software + modulo-robo + modulo-web + modulo-farois + testes | — | — | simulação ao po por delegação |
 | T-0047 | Faixas de cor do PC, robô e site no manual (CHIP_SLA, FAIXA_PCT_META, _FAIXA_ATING_WEB, #E5F3DF com texto verde, #FFF1C7, #FBDDDA/#B3261E; selo neutro #E3E8E4/#5E6B63; sem nível grave, R-20261127-010314) | aberta | modulo-farois + modulo-robo + modulo-web + testes | — | — | depois da T-0033 (lista em recados/anexos/T-0033/marca-tons.md) |
-| — | Farol de Fretes com edição (passo 5) | aberta | — | — | — | próxima leva (decisão de 26/11) |
 
 **Previsões:** a hora é a do último status do gerente ao po, e cada "Status HHhMM" do po leva a hora nova e o motivo quando ela muda (R-20261120-092924-alexandre).
 
 **Tarefas à parte (sem número ainda):** cobrança usar `relatorios_nucleo.sem_documento` (modulo-posvenda); tela do PC usar `solicitacao_bap.tipos_colunas` (modulo-farois); RD-0030 (filtro de linhas copiado da tela); RD-0031 (fuso de Manaus em 3 funções); RD-0014 (constante 000040).
 
-**Reservas:** T-0036 a T-0044 seguem reservadas pelo plano R-20261126-175814; a próxima tarefa livre é a T-0048. A próxima ADR livre é a 0006 (0004 = T-0045, 0005 = config pela web). O próximo RD livre é o RD-0110.
+**Reservas:** T-0036 a T-0044 seguem reservadas pelo plano R-20261126-175814; a próxima tarefa livre é a T-0048. A próxima ADR livre é a 0006 (0004 = T-0045, 0005 = config pela web). O próximo RD livre é o RD-0123.
 
 **Legenda de status:** aberta · em_andamento · em_teste · em_revisao · aguardando_alexandre · concluida · bloqueada.
