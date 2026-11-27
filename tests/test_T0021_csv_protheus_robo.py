@@ -1,7 +1,6 @@
 """T-0021: o robô leva para a web os CSVs de importação no Protheus (reversa de loja e separação de CD).
 
-Pasta temporária, dados fictícios. Os testes entram antes do robô (ordem testes -> robô): sem a
-função do robô, pulam.
+Pasta temporária, dados fictícios.
 """
 from datetime import date
 
