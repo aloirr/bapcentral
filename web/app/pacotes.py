@@ -6,7 +6,6 @@ import gzip
 import os
 import shutil
 import time
-import zlib
 from collections import OrderedDict
 import hashlib
 import json
@@ -17,7 +16,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import cobranca, render, tabelas
-from .arquivos import gravar_json
+from .arquivos import GzipGrande, GzipInvalido, descomprimir_com_teto, gravar_bytes, gravar_json
 
 FAROIS = tuple(render.FAROIS)                   # T-0017: forma "farol"
 ACEITOS = ("vc_painel",) + FAROIS
@@ -492,43 +491,14 @@ def _enxuto(corpo: dict) -> dict:
     return corpo
 
 
-def _gravar_bytes(caminho: Path, dados: bytes) -> None:
-    """Gravação atômica de bytes (tmp + fsync + os.replace)."""
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    tmp = caminho.with_name(f".tmp-{os.getpid()}-{caminho.name}")
-    try:
-        with open(tmp, "wb") as f:
-            f.write(dados)
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, caminho)
-    finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
-
-
 def descomprimir(bruto: bytes, maximo: int) -> bytes:
     """gzip com teto de saída (defesa contra bomba): passou do `maximo` = 413; gzip quebrado = 422."""
-    d = zlib.decompressobj(16 + zlib.MAX_WBITS)
-    saida, resto, total = [], bruto, 0
     try:
-        while resto:
-            parte = d.decompress(resto, maximo + 1 - total)
-            total += len(parte)
-            if total > maximo:
-                raise ErroPacote(413, {"erro": "farol grande demais"})
-            saida.append(parte)
-            resto = d.unconsumed_tail
-        parte = d.flush()
-    except zlib.error as e:
+        return descomprimir_com_teto(bruto, maximo)
+    except GzipGrande as e:
+        raise ErroPacote(413, {"erro": "farol grande demais"}) from e
+    except GzipInvalido as e:
         raise ErroPacote(422, {"erro": "gzip inválido"}) from e
-    if total + len(parte) > maximo:
-        raise ErroPacote(413, {"erro": "farol grande demais"})
-    if not d.eof:
-        raise ErroPacote(422, {"erro": "gzip inválido"})
-    saida.append(parte)
-    return b"".join(saida)
 
 
 def guardar_farol(dados: Path, lote: str, rid: str, farol: dict, sha: str,
@@ -543,22 +513,22 @@ def guardar_farol(dados: Path, lote: str, rid: str, farol: dict, sha: str,
     if len(corpo) > json_max:
         raise ErroPacote(413, {"erro": "farol grande demais"})
     gz = gzip.compress(corpo, 6, mtime=0)
-    _gravar_bytes(pasta / f"{rid}.json.gz", gz)
+    gravar_bytes(pasta / f"{rid}.json.gz", gz)
     anexos: dict = {}
     for q, v in (pars or {}).items():
         nome = f"{rid}.parcial-{q}.png"
-        _gravar_bytes(pasta / nome, base64.b64decode(v["png"], validate=True))
+        gravar_bytes(pasta / nome, base64.b64decode(v["png"], validate=True))
         anexos.setdefault("parciais", {})[q] = nome
         anexos.setdefault("rotulos", {})[q] = v["rotulo"]
     if csvs is not None:
         nome = f"{rid}.csvs.json.gz"
-        _gravar_bytes(pasta / nome, gzip.compress(json_compacto(csvs), 6, mtime=0))
+        gravar_bytes(pasta / nome, gzip.compress(json_compacto(csvs), 6, mtime=0))
         anexos["csvs"] = nome
     ent = {"arquivo": f"{rid}.json.gz", "sha256": sha, "bytes_gz": len(gz), "bytes_json": len(corpo),
            "titulo": farol.get("titulo"), "baixado_em": farol.get("baixado_em"), "herdado_de": None}
     if anexos:
         ent["anexos"] = anexos
-    _gravar_bytes(pasta / f"{rid}.meta.json", json_compacto(ent))
+    gravar_bytes(pasta / f"{rid}.meta.json", json_compacto(ent))
     _limpar_recebendo(dados)
     return ent
 

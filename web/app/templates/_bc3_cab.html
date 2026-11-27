@@ -57,6 +57,8 @@
     {# T-0032: os botões do PC que as assistentes usam para mandar o farol no WhatsApp #}
     {% set rot_parcial = {"pv_pedidos": "Parcial Pedidos", "vc_visitas": "Parcial Visitas e Conversão", "pl_entregas": "Parcial Entregas"} %}
     {% if parcial is defined and parcial %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}/parcial" title="Parcial para o WhatsApp">{{ rot_parcial.get(rid, "Parcial").split(" e ")[0] }}{% if " e " in rot_parcial.get(rid, "") %}<span class="rot-long"> e {{ rot_parcial[rid].split(" e ")[1] }}</span>{% endif %}</a>{% endif %}
+    {# T-0045: o Atualizar visitas fica no Farol de Visita (contrato visitas-nuvem §4.5; o perfil é conferido na rota) #}
+    {% if rid == "vc_visitas" and pode_visitas %}<a class="bc3-bt" href="/visitas/atualizar" title="Baixar as visitas da Máxima">Atualizar visitas</a>{% endif %}
     {# 26/11 (decisão 7 A do Alexandre): sem o botão "Cobrar no WhatsApp" aqui; a aba de mesmo nome fica #}
     {% if e_tab %}
     <details class="bc3-exp"><summary class="bc3-bt">Exportar</summary>
