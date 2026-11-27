@@ -6,7 +6,8 @@ de o modulo-robo extrair o laço para `puxar_fila_web`: `ler_estado_edicoes_web`
 `sincronizar_edicoes_web`, sem nenhuma mudança. O d2cd695 (#171, T-0023) mudou
 o laço de propósito: o `_saida=extra` do `aplicar_edicao_web` chega ao
 `_registrar_aplicada_web` (o `chave_pc` da garantia); a régua antes era o
-e1d80a8. O teste `tests/test_T0045_edicoes_web_igual_main.py` roda o mesmo cenário nesta cópia
+e1d80a8. O d2cd695 é o último main antes de o #165 (eb7e267) extrair o laço.
+O teste `tests/test_T0045_edicoes_web_igual_main.py` roda o mesmo cenário nesta cópia
 e no `bap_automation` do momento e exige o mesmo resultado, as mesmas chamadas
 ao site, o mesmo log e o mesmo estado em disco.
 
