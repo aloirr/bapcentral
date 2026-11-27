@@ -258,9 +258,9 @@ def grupos_na_ordem(perfil: str) -> tuple:
 
 
 def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
-                 admin: bool = False) -> list[dict]:
+                 admin: bool = False, vistos: list | None = None) -> list[dict]:
     """T-0030: os grupos da barra lateral, só com o que o perfil vê (fonte única do menu; a página inicial usa `pagina_inicial`)."""
-    meus = dict(farois_do_perfil(perfil))
+    meus = dict(farois_do_perfil(perfil) if vistos is None else vistos)     # T-0050: `vistos` = `acesso.farois_do_usuario`
     grupos = []
     if painel:
         grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
@@ -269,7 +269,7 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
         itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r].removeprefix("Farol de ")),
                   "ativo": r == ativo}
                  for r in rids if r in meus]
-        if "vc_visitas" in rids and perfil in visitas.PODEM_PEDIR:     # T-0045: ☰ → Atualizar visitas → botão (3 toques)
+        if "vc_visitas" in rids and "vc_visitas" in meus and perfil in visitas.PODEM_PEDIR:     # T-0045: ☰ → Atualizar visitas → botão (3 toques)
             i = next((k for k, x in enumerate(itens) if x["nome"] == NOME_MENU.get("vc_visitas", "Visita")), None)
             itens.insert(len(itens) if i is None else i + 1,
                          {"href": "/visitas/atualizar", "nome": "Atualizar visitas", "ativo": ativo == "visitas_atualizar"})
@@ -282,22 +282,25 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
     return grupos
 
 
-def pagina_inicial(perfil: str) -> str:
+def pagina_inicial(perfil: str, vistos: list | None = None, painel: bool | None = None) -> str:
     """T-0034 (Alexandre, 26/11, decisão 2 A): admin, diretor e gerente abrem no Painel Executivo; os outros, no primeiro
     farol da área, pela ordem do menu lateral (GRUPOS_MENU). T-0036 (UX 8): o perfil com grupo próprio (analista) abre
-    no 1º farol do grupo, antes do Painel."""
-    meus = dict(farois_do_perfil(perfil))
+    no 1º farol do grupo, antes do Painel. T-0050: `vistos` (faróis do usuário) e `painel` (abre no Painel: só quem o
+    tem pelo perfil e não o perdeu) vêm de `acesso`; sem eles, vale o perfil puro."""
+    meus = dict(farois_do_perfil(perfil) if vistos is None else vistos)
     for nome, rids in GRUPOS_MENU:
         if nome == GRUPO_DO_PERFIL.get(perfil):
             for r in rids:
                 if r in meus:
                     return f"/farol/{r}"
-    if perfil in VEEM_PAINEL:
+    if (perfil in VEEM_PAINEL) if painel is None else painel:
         return "/painel"
-    for _, rids in GRUPOS_MENU:
-        for r in rids:
-            if r in meus:
-                return f"/farol/{r}"
+    do_perfil = dict(farois_do_perfil(perfil))          # T-0050: o farol liberado a mais só abre a página se nada do perfil sobrou
+    for so_perfil in (True, False):
+        for _, rids in GRUPOS_MENU:
+            for r in rids:
+                if r in meus and (not so_perfil or r in do_perfil):
+                    return f"/farol/{r}"
     return "/senha"
 
 

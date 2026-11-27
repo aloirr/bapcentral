@@ -6,18 +6,40 @@
   {"rot": "Ativos", "valor": lista|selectattr("ativo")|list|length},
   {"rot": "Desativados", "valor": lista|rejectattr("ativo")|list|length},
   {"rot": "Troca pendente", "valor": lista|selectattr("trocar_senha")|list|length}]) }}{% endblock %}
+{% block cabeca %}<script src="/static/usuarios.js" defer></script>{% endblock %}
 {% block corpo %}
+{# T-0050 (simulação v2): as duas partes do acesso — "Do perfil" (desmarque para tirar) e "Liberar além do perfil" #}
+{% macro partes(p, desativado=false, generico=false) %}
+<div class="f-partes">
+  <fieldset class="f-parte f-perfil"><legend>Do perfil</legend>
+  {% if p.perfil %}<p class="f-nota">Desmarque para tirar.</p><div class="f-grupos">
+    {% for g in p.perfil %}<div class="f-grupo"><h3>{{ g.nome }}</h3>
+      {% for i in g["itens"] %}<label class="f-item"><input type="checkbox" name="farol" value="{{ i.rid }}"{{ ' checked' if i.marcado }}{{ ' disabled' if desativado }}><span class="f-nome">{{ i.nome }}</span><span class="selo f-tag selo-tirado">tirado</span></label>{% endfor %}
+    </div>{% endfor %}</div>
+  {% else %}<p class="f-nota">{{ "Os faróis do perfil entram sempre; marque só os liberados a mais." if generico else "Este perfil ainda não tem farol no site." }}</p>{% endif %}
+  </fieldset>
+  {% if p.liberar %}<fieldset class="f-parte f-lib"><legend>Liberar além do perfil</legend>
+    <p class="f-nota">Liberado, o farol abre só no Resumo: sem as tabelas de clientes e sem Exportar. O Painel Executivo abre completo.</p>
+    <div class="f-grupos">{% for g in p.liberar %}<div class="f-grupo"><h3>{{ g.nome }}</h3>
+      {% for i in g["itens"] %}<label class="f-item"><input type="checkbox" name="farol" value="{{ i.rid }}"{{ ' checked' if i.marcado }}{{ ' disabled' if desativado }}><span class="f-nome">{{ i.nome }}</span><span class="selo f-tag selo-liberado">liberado</span></label>{% endfor %}
+    </div>{% endfor %}</div></fieldset>{% endif %}
+</div>
+{% endmacro %}
 {% set rot_perfil = {"admin": "Admin", "diretor": "Diretor", "gerente": "Gerente", "analista": "Analista", "trade": "Trade", "pre_venda": "Pré-venda", "pos_venda": "Pós-venda", "vendas": "Vendas"} %}
 {% if msg %}<p class="ok" role="status">{{ msg }}</p>{% endif %}
 {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
-<details class="u-novo"{{ ' open' if erro }}>
+<details class="u-novo"{{ ' open' if (erro and novo_aberto) }}>
   <summary class="bc3-bt bc3-bt-verde">Novo usuário</summary>
-  <form method="post" action="/usuarios" class="caixa">
-    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="criar">
-    <label>Usuário <input name="login" required></label>
-    <label>Perfil <select name="perfil">{% for p in perfis %}<option value="{{ p }}">{{ rot_perfil.get(p, p) }}</option>{% endfor %}</select></label>
-    <label>Senha inicial (será trocada no 1º acesso) <input name="senha" type="password" autocomplete="new-password" required></label>
-    <button type="submit" class="bt-neutro">Criar</button>
+  <form method="post" action="/usuarios" class="caixa u-novo-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="criar"><input type="hidden" name="lista" value="1" id="u-lista" disabled>
+    <div class="u-novo-campos">
+      <label>Usuário <input name="login" required></label>
+      <label>Perfil <select name="perfil" id="u-perfil">{% for p in perfis %}<option value="{{ p }}">{{ rot_perfil.get(p, p) }}</option>{% endfor %}</select></label>
+      <label>Senha inicial (será trocada no 1º acesso) <input name="senha" type="password" autocomplete="new-password" required></label>
+    </div>
+    {% for p in perfis %}<div class="f-conj" data-perfil="{{ p }}" hidden>{{ partes(novo_partes[p], desativado=true) }}</div>{% endfor %}
+    <noscript>{{ partes(novo_partes["__generico__"], generico=true) }}</noscript>
+    <div class="f-rodape"><button type="submit" class="bt-neutro">Criar</button></div>
   </form>
 </details>
 <ul class="u-lista">
@@ -28,8 +50,20 @@
   <span class="u-selos">
     {% if not x.ativo %}<span class="selo selo-cinza">Desativado</span>{% endif %}
     {% if x.trocar_senha %}<span class="selo selo-atencao">Troca de senha pendente</span>{% endif %}
+    {% if x.tirados %}<span class="selo selo-tirado">{{ x.tirados }} {{ "farol tirado" if x.tirados == 1 else "faróis tirados" }}</span>{% endif %}
+    {% if x.liberados %}<span class="selo selo-liberado">{{ x.liberados }} {{ "farol liberado" if x.liberados == 1 else "faróis liberados" }}</span>{% endif %}
   </span>
   <span class="u-acoes">
+    <details class="u-det u-farois"{{ ' open' if x.aberto }}>
+      <summary class="bc3-bt">Faróis</summary>
+      <form method="post" action="/usuarios">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="login" value="{{ x.login }}">
+        <input type="hidden" name="acao" value="acesso"><input type="hidden" name="lista" value="1">
+        {{ partes(x.partes) }}
+        {% if x.alterado %}<p class="f-quando">Alterado em {{ x.alterado.quando }} por {{ x.alterado.quem }}</p>{% endif %}
+        <div class="f-rodape"><button type="submit" class="bt-neutro">Salvar acesso</button></div>
+      </form>
+    </details>
     <details class="u-det">
       <summary class="bc3-bt">Trocar senha</summary>
       <form method="post" action="/usuarios" class="linha">

@@ -10,7 +10,11 @@ import threading
 import time
 from pathlib import Path
 
-from .arquivos import gravar_json
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from . import acesso as ac
+from .arquivos import acrescentar_linha, gravar_json
 from .config import Config, ConfigErro
 
 PERFIS = ("admin", "diretor", "gerente", "analista", "trade", "pos_venda", "pre_venda", "vendas")   # T-0017: 3 novos; T-0036: analista e trade (RN-GER-017)
@@ -36,9 +40,20 @@ class Erro(ValueError):
     pass
 
 
+class ErroGravacao(Erro):
+    """Não deu para gravar (disco): a tela mostra 503."""
+
+
+MSG_SEM_FAROL = "{login}: marque ao menos um farol. Para tirar todo o acesso, use Desativar."
+MSG_LISTA_MUDOU = "A lista de faróis mudou. Abra a tela de novo e salve outra vez."
+MSG_FALHA = "Não deu para salvar agora. Tente de novo em 1 minuto."
+MANAUS = ZoneInfo("America/Manaus")
+
+
 class Usuarios:
     def __init__(self, cfg: Config):
         self.caminho = cfg.dados / "usuarios.json"
+        self.registro = cfg.dados / "usuarios_acesso.jsonl"      # T-0050: só de acréscimo (RN-GER-018)
         self.trava = threading.Lock()
         if not self.caminho.exists():
             if not cfg.admin_usuario or not cfg.admin_senha:
@@ -66,7 +81,8 @@ class Usuarios:
         u = self._dados["usuarios"].get((login or "").lower())
         return None if u is None else {"login": login.lower(), **{
             k: u[k] for k in ("perfil", "ativo", "trocar_senha", "bloqueado_ate", "erros")},
-            "sessao": u.get("sessao", 0)}
+            "sessao": u.get("sessao", 0),
+            "acesso": {k: list((u.get("acesso") or {}).get(k, ())) for k in ("menos", "mais")}}
 
     def listar(self) -> list[dict]:
         return [self.obter(l) for l in sorted(self._dados["usuarios"])]
@@ -103,7 +119,8 @@ class Usuarios:
         if len(senha or "") < SENHA_MIN:
             raise Erro(f"A senha precisa de pelo menos {SENHA_MIN} caracteres.")
 
-    def criar(self, login: str, senha: str, perfil: str):
+    def criar(self, login: str, senha: str, perfil: str, marcados=None, quem: str = ""):
+        """`marcados` (T-0050): faróis marcados na criação; None = o perfil puro."""
         login = (login or "").strip().lower()
         if not _LOGIN.match(login):
             raise Erro("Usuário inválido (3 a 40 caracteres: a-z, 0-9, ponto, _ e -).")
@@ -113,8 +130,90 @@ class Usuarios:
         with self.trava:
             if login in self._dados["usuarios"]:
                 raise Erro("Esse usuário já existe.")
+            exc = self._excecoes(login, perfil, marcados) if marcados is not None else None
             self._novo(login, senha, perfil, trocar=True)
+            if exc and (exc["menos"] or exc["mais"]):
+                self._dados["usuarios"][login]["acesso"] = exc
+            try:
+                self._gravar_com_registro(login, perfil, {}, exc or {}, quem, "criar")
+            except ErroGravacao:
+                self._dados["usuarios"].pop(login, None)
+                raise
+
+    def _excecoes(self, login, perfil, marcados, antigo=None) -> dict:
+        marcados = set(marcados)
+        try:
+            exc = ac.excecoes(perfil, marcados)
+        except ValueError:
+            raise Erro(MSG_LISTA_MUDOU)
+        if not marcados and (ac.padrao_do_perfil(perfil) or exc["mais"]):
+            raise Erro(MSG_SEM_FAROL.format(login=login))
+        return ac.normalizar(perfil, exc, antigo)
+
+    def _gravar_com_registro(self, alvo, perfil, antes, depois, quem, acao):
+        """RN-GER-018: acrescenta as linhas do registro, grava o json; se o json falhar, acrescenta "desfeito"."""
+        lote = secrets.token_hex(8)
+        quando = datetime.now(MANAUS).isoformat(timespec="seconds")
+        try:
+            for rid, sinal, origem in ac.mudancas(perfil, antes, depois):
+                acrescentar_linha(self.registro, {"quando": quando, "lote": lote, "quem": quem, "alvo": alvo,
+                                                  "perfil": perfil, "rid": rid, "mudanca": sinal,
+                                                  "origem": origem, "acao": acao})
             self._salvar()
+        except OSError:
+            try:
+                acrescentar_linha(self.registro, {"quando": quando, "lote": lote, "acao": "desfeito"})
+            except OSError:
+                pass
+            raise ErroGravacao(MSG_FALHA)
+
+    def definir_acesso(self, alvo: str, marcados, quem: str = "") -> list[tuple[str, str, str]]:
+        """Admin: o acesso do usuário vira `marcados` (rids). Devolve as mudanças [(rid, +/-, origem)]."""
+        with self.trava:
+            u = self._dados["usuarios"].get(alvo)
+            if u is None:
+                raise Erro("Usuário não encontrado.")
+            antes = {k: list((u.get("acesso") or {}).get(k, ())) for k in ("menos", "mais")}
+            depois = self._excecoes(alvo, u["perfil"], marcados, antes)
+            mud = ac.mudancas(u["perfil"], antes, depois)
+            if depois == antes:
+                return []
+            if depois == {"menos": [], "mais": []}:
+                u.pop("acesso", None)
+            else:
+                u["acesso"] = depois
+            try:
+                self._gravar_com_registro(alvo, u["perfil"], antes, depois, quem, "editar")
+            except ErroGravacao:
+                u["acesso"] = antes
+                raise
+            return mud
+
+    def ultima_mudanca(self, login: str) -> dict | None:
+        """{"quando": "dd/mm/aaaa hh:mm", "quem": login} da última mudança de acesso do usuário (não desfeita)."""
+        try:
+            linhas = self.registro.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return None
+        regs, desfeitos = [], set()
+        for ln in linhas:
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if r.get("acao") == "desfeito":
+                desfeitos.add(r.get("lote"))
+            elif r.get("alvo") == login:
+                regs.append(r)
+        regs = [r for r in regs if r.get("lote") not in desfeitos]
+        if not regs:
+            return None
+        r = regs[-1]
+        try:
+            quando = datetime.fromisoformat(r["quando"]).astimezone(MANAUS).strftime("%d/%m/%Y %H:%M")
+        except (KeyError, ValueError):
+            return None
+        return {"quando": quando, "quem": r.get("quem", "")}
 
     def definir_ativo(self, login: str, ativo: bool):
         with self.trava:
