@@ -99,6 +99,8 @@
   --t-faixa-titulo:21px;
   --t-faixa-numero:20px;
   --t-rotulo:11px;
+  --t-apoio:12px;
+  --t-bloco:16px;
   --t-corpo:14px;
   --t-tabela:13px;
   --ok:var(--verde-escuro);--at:var(--atencao);--al:var(--alerta);
@@ -116,9 +118,10 @@ button{background:var(--verde-escuro);color:var(--branco);border-color:var(--ver
 .rrm{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;margin:.8rem 0}
 .rc{background:var(--cartao);border:2px solid var(--c-8f9c93);display:flex;flex-direction:column;min-height:540px;--ok:var(--verde-escuro);--at:var(--atencao);--al:var(--alerta)}
 .rc-topo{background:var(--c-e8f0e4);padding:14px 16px 6px;display:flex;justify-content:space-between;gap:.5rem}
-.rc-rot{font-size:.8rem;font-weight:700;color:var(--suave);letter-spacing:.02em}
-.rc-valor{white-space:nowrap;font-size:1.5rem;font-weight:700;color:var(--texto);line-height:1.15;margin-top:.4rem;font-variant-numeric:tabular-nums}
-.rc-leg{font-size:.85rem;color:var(--suave);margin-top:.2rem}
+.rc-id{min-width:0;flex:1}
+.rc-rot{font-size:.8rem;font-weight:700;color:var(--suave);letter-spacing:.02em;line-height:1.25;height:2.5em;overflow:hidden}
+.rc-valor{white-space:nowrap;font-size:clamp(1.125rem,5.2vw,1.375rem);font-weight:700;color:var(--texto);line-height:1.15;margin-top:.4rem;font-variant-numeric:tabular-nums}
+.rc-leg{font-size:.85rem;color:var(--suave);margin-top:.2rem;line-height:1.25;height:2.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .rc-aneis{display:flex;gap:6px}
 .anel{position:relative;width:84px;text-align:center}
 .anel-rot{font-size:.7rem;font-weight:700;color:var(--suave);display:block}
@@ -155,6 +158,9 @@ button{background:var(--verde-escuro);color:var(--branco);border-color:var(--ver
 .filtros a.ativa{background:var(--verde-escuro);border-color:var(--verde-escuro);color:var(--branco)}
 .rrm-recorte .rc{min-height:0}
 .rrm-recorte .rc-topo{flex:1}
+/* T-0052: seções de altura fixa, para a faixa de comparação e o gráfico começarem na mesma altura em todos os cartões da linha */
+.rrm:not(.rrm-recorte) .rc-topo{height:138px;flex:none;box-sizing:border-box;overflow:hidden}
+.rrm:not(.rrm-recorte) .rc-faixa{height:78px;box-sizing:border-box;flex:none;overflow:hidden}
 
 /* faróis (T-0017) */
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:.8rem 0}
@@ -501,6 +507,10 @@ body.uma-tela .aviso{margin:0 0 6px}
 }
 @media(max-width:600px){
   .rrm{grid-template-columns:1fr}.rc{min-height:0}
+  /* T-0052: no celular não há linha para alinhar; as seções reservadas encolhem */
+  .rrm:not(.rrm-recorte) .rc-topo{height:auto}
+  .rc-leg{height:auto;-webkit-line-clamp:unset}.rc-leg:empty{display:none}
+  .rc-faixa.vazia{display:none}
   .filtros a{min-height:44px;display:inline-flex;align-items:center}
   .kpis{grid-template-columns:1fr 1fr;gap:8px}.kpi-valor{font-size:1.3rem}.graficos{grid-template-columns:1fr}.hb-l{grid-template-columns:minmax(60px,34%) 1fr auto}
   .kpi-est{grid-column:1/-1}
@@ -534,7 +544,7 @@ body.sem-lado .bc3-corpo{display:grid;place-items:center;min-height:100vh}
 .u-novo{margin:0 0 12px}.u-novo>summary{display:inline-flex;margin-bottom:8px}
 .u-novo>summary::-webkit-details-marker,.u-det>summary::-webkit-details-marker{display:none}
 .u-lista{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.u-linha{display:grid;grid-template-columns:minmax(120px,1.2fr) 100px minmax(0,2fr) auto;gap:8px 14px;align-items:center;background:var(--cartao);border:1px solid var(--borda);border-radius:10px;padding:8px 14px}
+.u-linha{position:relative;display:grid;grid-template-columns:minmax(120px,1.2fr) 100px minmax(0,2fr) auto;gap:8px 14px;align-items:center;background:var(--cartao);border:1px solid var(--borda);border-radius:10px;padding:8px 14px}
 .u-nome{font-weight:600;overflow-wrap:anywhere}.u-perfil{color:var(--suave);font-size:var(--t-corpo)}
 .u-selos{display:flex;gap:6px;flex-wrap:wrap}
 .u-acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
@@ -563,6 +573,7 @@ body.uma-tela .parcial-corpo .parcial{flex:1 1 0;min-height:120px;margin:0}
 /* até 3 cartões dividem a altura; o PC manda 10, 10 e 6: cada linha tem no mínimo 380 px e a área rola por dentro */
 body.uma-tela .painel-corpo .rrm{flex:1 1 0;min-height:0;margin:4px 0 0;grid-auto-rows:minmax(380px,1fr);overflow:auto}
 body.uma-tela .painel-corpo .rc{min-height:0}
+body.uma-tela .painel-corpo .rrm-recorte{grid-auto-rows:auto}
 body.uma-tela .painel-corpo .rc-barras{min-height:0}body.uma-tela .painel-corpo .rc-barras .area{min-height:100px}
 body.uma-tela .painel-corpo .graficos{flex:1 1 0;min-height:240px;margin:4px 0 0;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));grid-auto-rows:minmax(200px,1fr);overflow:auto}
 body.uma-tela .painel-corpo .graf{overflow:auto;display:flex;flex-direction:column}
@@ -610,7 +621,7 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
   .bc3-junta .bc3-lista{border:0;border-top:1px solid var(--c-f0f2f0);border-radius:0}
   .pop-pedido{display:none}
   .bc3-ind{display:none}.bc3-abas a.so-cel:not(.so-pc){display:flex}
-  .u-linha{grid-template-columns:minmax(0,1fr) auto;padding:10px 12px}.u-perfil{grid-column:1}.u-selos{grid-column:2;grid-row:1/3;justify-content:flex-end;align-self:start}
+  .u-linha{grid-template-columns:minmax(0,1fr) auto;padding:10px 12px}.u-perfil{grid-column:1}.u-selos{grid-column:1/-1;justify-content:flex-start}.u-selos:empty{display:none}
   .u-acoes{grid-column:1/-1;justify-content:flex-start}.u-det[open]>form{left:0;right:auto;white-space:normal;flex-wrap:wrap;max-width:calc(100vw - 56px)}
   .bc3-corpo .caixa{max-width:none}.bc3-login{max-width:none}
   .bt-principal,.bt-neutro,.bt-perigo-cheio,.u-det>summary{min-height:var(--alvo)}
@@ -709,3 +720,81 @@ button:disabled{opacity:.5;cursor:not-allowed}
 @media(min-width:701px){.vz-adm:has(.vz-det[open]) .vz-lista{max-height:max(150px,calc(100vh - 620px));overflow:auto}}   /* a tela do admin não rola: o que sobra rola dentro da caixa */
 .vz-det>summary{cursor:pointer;font-size:13px;color:var(--suave);margin-bottom:8px}
 @media(max-width:700px){.vz-admin .vz-linha>form,.vz-admin .vz-linha button{flex:1 1 100%;width:100%}}
+
+/* T-0050 (RN-GER-018): painel "Faróis" e "Novo usuário" da tela Usuários, como na simulação v2 (revisor-ux e marca). Só tokens do :root. */
+.f-conj[hidden]{display:none}
+/* MC-0028: aberto, o "Faróis" não fica verde (o verde-claro é só do "liberado") */
+.u-farois[open]>summary{background:var(--fundo);border-color:var(--suave)}
+/* PC: o painel abre embaixo da linha, na largura da lista, por cima das linhas seguintes */
+.u-acoes .u-farois{position:static}
+.u-farois[open]>form{position:absolute;left:8px;right:8px;top:calc(100% - 4px);z-index:25;width:auto;
+  background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);
+  padding:14px 16px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 0;margin:0;white-space:normal}
+.f-partes{grid-column:1/-1;display:grid;grid-template-columns:minmax(230px,.8fr) minmax(0,3fr);gap:0 20px}
+.f-parte{border:0;margin:0;padding:0;min-width:0}
+.f-parte+.f-parte{border-left:1px solid var(--borda);padding-left:20px}
+/* MC-0030: título de bloco 16 px, peso 600; UX 3: só "Do perfil", sem o perfil e sem a contagem */
+.f-parte>legend{padding:0;font-size:var(--t-bloco);font-weight:600;color:var(--texto)}
+/* MC-0031 / UX 4: apoio em 12 px */
+.f-nota{margin:2px 0 8px;font-size:var(--t-apoio);color:var(--suave);line-height:1.35}
+/* os grupos em colunas que se equilibram (o "liberado" não quebra a 1366) */
+.f-grupos{display:grid;gap:8px 18px}
+.f-lib .f-grupos{display:block;columns:3;column-gap:18px}
+.f-grupo{break-inside:avoid;padding:4px 0 6px}
+/* UX 1: sem a parte "Liberar" (Admin, Diretor, Gerente, Analista), a parte "Do perfil" usa a largura toda, em 5 colunas */
+.f-partes:not(:has(.f-lib)){grid-template-columns:minmax(0,1fr)}
+.f-partes:not(:has(.f-lib)) .f-perfil .f-grupos{grid-template-columns:repeat(5,minmax(0,1fr))}
+.f-grupo h3{margin:0 0 2px;font-size:var(--t-rotulo);font-weight:600;color:var(--suave);text-transform:uppercase;letter-spacing:.07em}
+.f-item{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;min-height:28px;font-size:var(--t-corpo);color:var(--texto);cursor:pointer}
+.f-nome{white-space:nowrap}
+.f-item input{width:18px;height:18px;margin:0;padding:0;accent-color:var(--verde-escuro);flex:none}
+/* UX 4: a marca do painel é o próprio .selo da linha (selo-tirado / selo-liberado); aparece só quando difere do perfil */
+.f-tag{display:none}
+.f-perfil .f-item:has(input:not(:checked)) .f-nome{color:var(--suave);text-decoration:line-through}
+.f-perfil .f-item:has(input:not(:checked)) .f-tag,.f-lib .f-item:has(input:checked) .f-tag{display:inline-block}
+/* o pé: "Alterado em" à esquerda e o botão à direita (no celular, só o botão fica fixo) */
+.f-quando{grid-column:1;margin:0;font-size:var(--t-apoio);color:var(--suave);align-self:center}
+.f-rodape{grid-column:2;display:flex;justify-content:flex-end;padding-left:12px}
+.u-farois .f-partes{border-bottom:1px solid var(--borda);padding-bottom:10px}
+.f-partes+.f-rodape{grid-column:1/-1}
+/* MC-0029: botões do pé com o tamanho de botão (14 px) */
+.f-rodape button{min-height:36px;font-size:var(--t-corpo)}
+/* mensagem de retorno: o mesmo p.ok / p.erro de hoje, com respiro antes do botão */
+.bc3-corpo>.ok,.bc3-corpo>.erro{margin:0 0 10px}
+/* selos da linha (MC-0032: o peso é o do .selo) */
+.selo-tirado{background:var(--fundo);border:1px solid var(--borda);color:var(--texto)}
+.selo-liberado{background:var(--verde-claro);color:var(--texto)}
+/* Novo usuário: os campos numa linha e as duas partes embaixo */
+.u-novo-campos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.u-novo-form .f-partes{border:1px solid var(--borda);border-radius:var(--raio);padding:12px 14px}
+.u-novo-form>.f-rodape{grid-column:1/-1;padding:0;justify-content:flex-start}
+.u-farois[open]>form,.u-novo[open]>form.u-novo-form{box-shadow:0 10px 28px var(--c-0000001f)}
+/* UX 2: no PC, o "Novo usuário" abre por cima da lista, como o painel Faróis (a página fica em 768 px) */
+@media(min-width:701px){
+  .u-novo{position:relative}
+  .u-novo[open]>form.u-novo-form{position:absolute;left:0;right:0;top:44px;z-index:26;width:auto;max-width:none;margin:0;
+    border:1px solid var(--borda)}
+  /* perfil sem farol (Trade): "Do perfil" vira uma coluna estreita e "Liberar" usa 4 colunas, para o painel caber em 768 px */
+  .f-partes-sem-perfil{grid-template-columns:minmax(120px,.22fr) minmax(0,3fr)}
+  .f-partes-sem-perfil .f-lib .f-grupos{columns:4}
+  .u-novo-form .f-partes-sem-perfil{column-gap:14px}     /* no "Novo usuário" do Trade, com tudo marcado, o "liberado" não quebra a 1366 */
+}
+@media(max-width:700px){
+  .u-farois[open]{flex:1 1 100%}
+  .u-farois[open]>form{position:static;display:grid;grid-template-columns:1fr;width:auto;box-shadow:none;margin-top:8px;padding:12px}
+  .f-partes{grid-template-columns:1fr;gap:14px}
+  .f-partes:not(:has(.f-lib)) .f-perfil .f-grupos{grid-template-columns:1fr}
+  /* a divisória vai na legenda: ela não corta mais o "Liberar além do perfil" */
+  .f-parte+.f-parte{border-left:0;padding-left:0}
+  .f-parte+.f-parte>legend{display:block;width:100%;border-top:1px solid var(--borda);padding-top:12px}
+  .f-lib .f-grupos{columns:1}
+  .f-item{min-height:var(--alvo)}
+  .f-item input{width:22px;height:22px}
+  /* só o botão fica fixo no pé (~60 px), com o "Alterado em" no fluxo, acima */
+  .f-rodape{grid-column:1;position:sticky;bottom:0;background:var(--cartao);padding:8px 0;margin-top:-2px;box-shadow:0 -1px 0 var(--borda)}
+  .f-rodape button{min-height:var(--alvo);flex:1 1 100%}
+  .u-novo-campos{grid-template-columns:1fr}
+  .u-novo-campos input,.u-novo-campos select{min-height:var(--alvo)}
+}
+@media(prefers-reduced-motion:no-preference){.u-farois[open]>form{animation:f-abre .16s ease-out}}
+@keyframes f-abre{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
