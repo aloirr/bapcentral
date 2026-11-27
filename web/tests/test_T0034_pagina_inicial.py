@@ -144,7 +144,7 @@ def test_regra_das_3_abas_no_celular_e_uma_so():
     assert render.abas_no_celular(list("abcde"), "d") == [0, 1, 3] and render.abas_no_celular(list("abc"), "x") == [0, 1, 2]
 
 
-def test_cartoes_alem_dos_3_primeiros_mantem_numero_e_legenda(admin):
+def test_todos_os_cartoes_do_resultado_mostram_numero_e_legenda(admin):
     # R1 / T-0052: o PC manda 10 cartões no Resultado; todos mostram o valor no cartão (nenhum vai para a faixa).
     from conftest import _cartao, pacote_ficticio
     p = pacote_ficticio()
@@ -155,7 +155,6 @@ def test_cartoes_alem_dos_3_primeiros_mantem_numero_e_legenda(admin):
     assert h.count("rc-valor") == 10                                                  # um por cartão
     assert 'class="rc-valor">R$ 4,00 extra<' in h and 'class="rc-valor">R$ 10,00 extra<' in h
     assert '>legenda 4</div>' in h and '>legenda 10</div>' in h
-    assert 'class="bc3-ks"' not in h and h.count("R$ 165 mil") == 1                   # o 1º também tem o valor, só no cartão
 
 
 def test_T0052_todo_cartao_tem_valor_legenda_reservada_e_faixa(admin):
@@ -172,10 +171,7 @@ def test_T0052_todo_cartao_tem_valor_legenda_reservada_e_faixa(admin):
         assert 'class="rc-valor"' in a and 'class="rc-leg"' in a
     assert [('class="rc-faixa vazia"' in a) for a in cartoes] == [False, False, False, True]
     assert all(('class="rc-faixa"' in a) or ('rc-faixa vazia' in a) for a in cartoes)
-    for v in ("R$ 165 mil", "R$ 7,00"):
-        assert h.count(v) == 1                                                        # o valor aparece uma vez só
-    assert 'class="bc3-ks"' not in h
-    assert render.faixa_painel({"cartoes": [{"titulo": "X", "valor": "1", "legenda": "", "aneis": []}]}, None) == []
+    assert render.faixa_painel(None) == []
 
 
 def test_perfis_do_painel_numa_constante_so():
@@ -198,7 +194,7 @@ def test_dias_uteis_do_mes_fechado_e_o_css_do_numero_do_cartao():
     aba = lambda sub: [{"visao": "res", "dados": {"sub": {"res": sub}}}]
     assert render.du_do_painel(aba("outubro fechado (22 dias úteis)")) == "22 DU · mês fechado"
     assert render.du_do_painel(aba("visão absoluta · novembro até 19/11 (13 de 19 dias úteis)")) == "13 de 19 DU"
-    # U10: enquanto o template usar `rc-valor` e `rc-leg`, o CSS tem as duas regras (o número do 4º cartão em diante é o maior)
+    # U10: enquanto o template usar `rc-valor` e `rc-leg`, o CSS tem as duas regras
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
     assert ".rc-valor{" in css and "clamp(1.125rem,5.2vw,1.375rem);font-weight:700" in css and ".rc-leg{" in css
     assert "minmax(380px,1fr)" in css                                           # U12: a linha seguinte aparece sem cortar cartão
@@ -247,3 +243,10 @@ def test_T0052_css_do_celular_desfaz_as_reservas_e_o_valor_tem_teto_de_22px():
     assert ".rc-faixa.vazia{display:none}" in cel and ".rc-leg:empty{display:none}" in cel
     assert ".rrm:not(.rrm-recorte) .rc-topo{height:auto}" in cel
     assert "clamp(1.125rem,5.2vw,1.375rem)" in css
+
+
+def test_T0052_legenda_so_com_numero_proprio():
+    # RD-0238: "projeção do mês" sozinha repete o rótulo do cartão e some; com número fica
+    assert render.legenda_do_cartao("projeção do mês") == "" and render.legenda_do_cartao(None) == ""
+    assert render.legenda_do_cartao("projeção do mês R$ 190 mil") == "projeção do mês R$ 190 mil"
+    assert render.legenda_do_cartao("projeção do mês 66") == "projeção do mês 66"

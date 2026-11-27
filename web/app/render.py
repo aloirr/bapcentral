@@ -69,9 +69,15 @@ def _barras(est) -> dict | None:
     return {"barras": out, "legenda": est.get("legenda") or ""}
 
 
+def legenda_do_cartao(legenda) -> str:
+    """T-0052 (RD-0238): a legenda do cartão só aparece com número próprio; sem número, o rótulo já diz (RD-0063)."""
+    leg = str(legenda or "")
+    return leg if any(ch.isdigit() for ch in leg) else ""
+
+
 def cartao(c: dict) -> dict:
     return {"titulo": str(c.get("titulo", "")).upper(), "valor": c.get("valor", ""),
-            "legenda": c.get("legenda") or "",
+            "legenda": legenda_do_cartao(c.get("legenda")),
             "aneis": [_anel(a) for a in c.get("aneis") or []],
             "faixa": [_faixa(f) for f in (c.get("faixa") or [])[:3]],
             "estados": _barras(c.get("estados")), "ajuda": c.get("ajuda") or ""}
@@ -125,13 +131,11 @@ def abas_no_celular(chaves: list, atual) -> list[int]:
 
 
 
-def faixa_painel(tela: dict | None, tela_f: dict | None) -> list[dict]:
+def faixa_painel(tela_f: dict | None) -> list[dict]:
     """T-0034 / T-0052: os números da faixa do Painel Executivo, prontos do pacote (nada é recalculado). Aba RRM: a faixa
     fica SEM números (só quando, DU e filtro): todo cartão mostra o seu valor grande, e repeti-lo no topo seria o mesmo
     número duas vezes na tela (RD-0063). Aba de painel: os cartões comuns (os ricos ficam no corpo)."""
-    if tela_f:
-        return kpis_da_faixa(tela_f["kpis"])
-    return []
+    return kpis_da_faixa(tela_f["kpis"]) if tela_f else []
 
 
 def localizar_paineis(rel: dict) -> list[dict]:
