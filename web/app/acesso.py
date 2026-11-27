@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from . import render
 
-PAINEL = "vc_painel"            # o Painel Executivo entra na lista (P2 A)
+PAINEL = render.PAINEL_RID            # o Painel Executivo entra na lista (P2 A)
 NOME_PAINEL = render.NOME_PAINEL
 
 

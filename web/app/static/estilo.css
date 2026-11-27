@@ -758,8 +758,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 /* Novo usuário: os campos numa linha e as duas partes embaixo */
 .u-novo-campos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .u-novo-form .f-partes{border:1px solid var(--borda);border-radius:var(--raio);padding:12px 14px}
-.u-novo-form .f-rodape{padding:0;justify-content:flex-start}
-.u-novo-form>.f-rodape{grid-column:1/-1}
+.u-novo-form>.f-rodape{grid-column:1/-1;padding:0;justify-content:flex-start}
 .u-farois[open]>form,.u-novo[open]>form.u-novo-form{box-shadow:0 10px 28px var(--c-0000001f)}
 /* UX 2: no PC, o "Novo usuário" abre por cima da lista, como o painel Faróis (a página fica em 768 px) */
 @media(min-width:701px){
@@ -769,6 +768,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
   /* perfil sem farol (Trade): "Do perfil" vira uma coluna estreita e "Liberar" usa 4 colunas, para o painel caber em 768 px */
   .f-partes-sem-perfil{grid-template-columns:minmax(120px,.22fr) minmax(0,3fr)}
   .f-partes-sem-perfil .f-lib .f-grupos{columns:4}
+  .u-novo-form .f-partes-sem-perfil{column-gap:14px}     /* no "Novo usuário" do Trade, com tudo marcado, o "liberado" não quebra a 1366 */
 }
 @media(max-width:700px){
   .u-farois[open]{flex:1 1 100%}

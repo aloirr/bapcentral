@@ -25,7 +25,7 @@ from .usuarios import PERFIS, Erro, ErroGravacao, Usuarios, MAX_ERROS, MSG_LISTA
 log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
 MANAUS = ZoneInfo("America/Manaus")
-PAINEL_RID = acesso.PAINEL        # T-0050: quem vê o Painel Executivo e cada farol é `acesso.pode_ver` (perfil + exceções do admin)
+PAINEL_RID = render.PAINEL_RID        # T-0050: quem vê o Painel Executivo e cada farol é `acesso.pode_ver` (perfil + exceções do admin)
 FORM_MAX = 32 * 1024                               # §10.9.1: o Editar da Garantia leva 4 textos de até 600 caracteres
 FECHAR_MAX = 256 * 1024
 PODEM_PEDIR, SO_ADMIN = visitas.PODEM_PEDIR, visitas.SO_ADMIN      # uma constante só (visitas.py), a mesma da lateral
@@ -566,7 +566,8 @@ def criar_app() -> FastAPI:
     def tabelas_para_exportar(request, u, rid, aba, todas):
         """[(tabela plana)] do que a pessoa vê (o que a tela mostra, todas as páginas). PermissionError fora do perfil."""
         perfil, rel, consulta = u["perfil"], rel_do(rid), consulta_de(request)
-        if rid not in render.FAROIS or not acesso.pode_ver(u, rid) or not rel:
+        exige_farol(u, rid)
+        if not rel:
             raise PermissionError
         abas = []                                          # (titulo no pacote, bruta, consulta)
         if rid in tabelas.RIDS:
@@ -756,7 +757,8 @@ def criar_app() -> FastAPI:
     @app.get("/farol/{rid}/editar", response_class=HTMLResponse)
     async def editar_get(request: Request, rid: str, tab: str = "", chave: str = "", volta: str = "", novo: str = ""):
         u = usuario(request)
-        if rid not in render.FAROIS or not acesso.pode_ver(u, rid) or u["perfil"] not in edicoes.EDITA:
+        exige_farol(u, rid)
+        if u["perfil"] not in edicoes.EDITA:
             raise PermissionError                       # só o admin edita (decisão de 25/11)
         volta = volta_ok(rid, volta)
         t, aba = tabela_editavel(rid, tab[:80])
@@ -777,7 +779,8 @@ def criar_app() -> FastAPI:
     @app.post("/farol/{rid}/editar")
     async def editar_post(request: Request, rid: str):
         u = usuario(request)
-        if rid not in render.FAROIS or not acesso.pode_ver(u, rid) or u["perfil"] not in edicoes.EDITA:
+        exige_farol(u, rid)
+        if u["perfil"] not in edicoes.EDITA:
             raise PermissionError                       # 403 antes de ler o formulário
         f = await formulario(request)                   # CSRF errado = 403
         tab, chave = str(f.get("tab", ""))[:80], str(f.get("chave", ""))[:80]

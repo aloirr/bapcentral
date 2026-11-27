@@ -242,7 +242,7 @@ INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
-NOME_PAINEL, GRUPO_PAINEL = "Painel Executivo", "Diretoria"     # T-0050: o Painel é um item do menu e da lista de acesso
+PAINEL_RID, NOME_PAINEL, GRUPO_PAINEL = "vc_painel", "Painel Executivo", "Diretoria"     # T-0050: o Painel é um item do menu e da lista de acesso
 
 
 def nome_curto(rid: str) -> str:
@@ -299,15 +299,15 @@ def pagina_inicial(perfil: str, vistos: list | None = None, painel: bool | None 
     do perfil sobrou. Sem eles, vale o perfil puro."""
     meus = dict(farois_do_perfil(perfil) if vistos is None else vistos)
     if padrao is None:
-        padrao = set(dict(farois_do_perfil(perfil))) | ({"vc_painel"} if perfil in VEEM_PAINEL else set())
+        padrao = set(dict(farois_do_perfil(perfil))) | ({PAINEL_RID} if perfil in VEEM_PAINEL else set())
     if painel is None:
-        painel = "vc_painel" in padrao
+        painel = PAINEL_RID in padrao
     for nome, rids in GRUPOS_MENU:
         if nome == GRUPO_DO_PERFIL.get(perfil):
             for r in rids:
                 if r in meus:
                     return f"/farol/{r}"
-    if painel and "vc_painel" in padrao:
+    if painel and PAINEL_RID in padrao:
         return "/painel"
     for so_perfil in (True, False):
         for _, rids in GRUPOS_MENU:

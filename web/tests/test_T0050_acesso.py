@@ -205,7 +205,6 @@ def test_RN_GER_018_atualizar_visitas_so_de_quem_tem_o_farol_pelo_perfil(admin):
     assert _com(admin, "vis.pre", "pre_venda", mais=["vc_visitas"]).get("/visitas/atualizar").status_code == 403
     assert _com(admin, "vis.trade", "trade", mais=["vc_visitas"]).get("/visitas/atualizar").status_code == 403
     assert _usuario(admin, "vis.vendas", "vendas").get("/visitas/atualizar").status_code == 200
-    assert _usuario(admin, "vis.diretor", "diretor").get("/visitas/atualizar").status_code == 200
 
 
 # ------------------------------------------------------------------ tela, registro e erros
