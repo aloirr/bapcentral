@@ -82,27 +82,69 @@ VERIFICACAO_TEXTO_NOVO = [
     ("https://app.exemplo.test/verificacao", "Insira o código"),
     ("https://app.exemplo.test/trocar-senha", "Troque a sua senha"),
     ("https://app.exemplo.test/mfa", "Este dispositivo não é reconhecido"),
+    ("https://app.exemplo.test/2fa", "Passo 2 de 2"),
+    ("https://app.exemplo.test/conta/otp", "Aguarde"),
+    ("https://app.exemplo.test/nova-senha", "Bem-vindo"),
+    ("https://app.exemplo.test/confirmar-dispositivo", ""),
 ]
 
 
 @pytest.mark.parametrize("url,texto", VERIFICACAO_TEXTO_NOVO)
 def test_RN_VIS_005_pagina_de_verificacao_pausa_com_qualquer_redacao(url, texto):
-    """Defeito D1 (robô 11b24fc e ed640e1): fora do /login, numa URL de verificação, o texto que não casa com o regex
+    """D1 (achado no 11b24fc e no ed640e1, corrigido no f6ae758): fora do /login, num segmento de verificação da lista fechada, o texto que não casa com o regex
     devolve None, e o `entrar` segue como "Login ok"; a rodada cai depois em TELA_MUDOU (nova tentativa),
     e a agenda entra de novo na Máxima que pediu confirmação (o §5.1 manda nunca repetir o login)."""
     assert vm.classificar_login(url, texto, False, None) == "MAXIMA_CONFIRMACAO"
 
 
 def test_RN_VIS_005_entrar_na_pagina_de_verificacao_nao_segue(tmp_path):
-    """A consequência do D1 no `entrar`: a página de verificação com redação nova não pode virar "Login ok"."""
+    """A consequência do D1 (corrigido no f6ae758) no `entrar`: a página de verificação com redação nova não pode virar "Login ok"."""
     pg = _Pagina(depois_url="https://app.exemplo.test/verificacao", corpo="Confirme o seu dispositivo")
     erro, _, _ = _entrar(tmp_path, pg)
     assert erro is not None and (erro.codigo, erro.fase) == ("MAXIMA_CONFIRMACAO", "login")
 
 
+def test_RN_VIS_005_verificacao_so_pelo_caminho_pede_duas_leituras(tmp_path):
+    """a020b53: sem texto claro, o caminho de verificação só decide na 2ª leitura do mesmo caminho, 1 s depois
+    (com texto claro, decide na 1ª). Login ainda uma vez só."""
+    import time
+    pg = _Pagina(depois_url="https://app.exemplo.test/mfa", corpo="Aguarde")
+    t0 = time.monotonic()
+    erro, _, _ = _entrar(tmp_path, pg)
+    assert (erro.codigo, erro.fase) == ("MAXIMA_CONFIRMACAO", "login")
+    assert time.monotonic() - t0 >= 1.0
+    assert len([x for x in pg.feito if x[0] == "click"]) == 1
+
+
+def test_RN_VIS_005_verificacao_de_passagem_nao_pausa(tmp_path):
+    """a020b53: o caminho de verificação que aparece uma leitura só (redirecionamento) e vai para a página inicial
+    é login ok, não pausa."""
+    class Passagem(_Pagina):
+        leituras = 0
+
+        @property
+        def url(self):
+            if self._depois is None:
+                return "https://app.exemplo.test/login"
+            Passagem.leituras += 1
+            return "https://app.exemplo.test/mfa" if Passagem.leituras == 1 else "https://app.exemplo.test/home"
+
+        @url.setter
+        def url(self, v):
+            pass
+
+        def click(self, sel, **k):
+            self.feito.append(("click", sel))
+            self._depois = "x"
+    pg = Passagem(corpo="Aguarde")
+    pg._depois = None
+    erro, log, _ = _entrar(tmp_path, pg)
+    assert erro is None and Passagem.leituras >= 2
+
+
 @pytest.mark.parametrize("texto", ["Defina uma nova senha", "Crie uma senha nova para continuar"])
 def test_RN_VIS_005_troca_de_senha_no_login_e_confirmacao_nao_senha_recusada(texto):
-    """Defeito D2 (robô 11b24fc e ed640e1), menor: no /login, o pedido de troca de senha vira MAXIMA_SENHA (o texto do
+    """D2 (achado no 11b24fc e no ed640e1, corrigido no f6ae758), menor: no /login, o pedido de troca de senha vira MAXIMA_SENHA (o texto do
     site manda conferir a senha) em vez de MAXIMA_CONFIRMACAO. Os dois pausam; muda o que o admin lê."""
     assert vm.classificar_login("https://app.exemplo.test/login", texto, False, None) == "MAXIMA_CONFIRMACAO"
 
@@ -167,10 +209,15 @@ def test_RN_VIS_002_fechados_pc_janela_de_40_dias_e_formato():
 
 
 def test_RN_VIS_002_fechados_pc_hora_com_fuso_vira_manaus_sem_trocar_o_relogio():
-    """[SUPOSIÇÃO do robô] o relógio do PC é o de Manaus: a hora gravada no índice fica, só ganha o -04:00."""
+    """Hora sem fuso conta como Manaus (só ganha o -04:00); hora com fuso vira Manaus (a regra do núcleo)."""
     hoje = date(2026, 11, 27)
     assert vm.fechados_pc({"20261126": "2026-11-27T06:07:41-04:00"}, hoje) == {
         "20261126": "2026-11-27T06:07:41-04:00"}
+    # f6ae758: o fuso pelo núcleo (`vn._quando_manaus`): UTC vira Manaus
+    assert vm.fechados_pc({"20261126": "2026-11-27T10:07:41+00:00"}, hoje) == {
+        "20261126": "2026-11-27T06:07:41-04:00"}
+    assert vm.fechados_pc({"20261126": "2026-11-27T10:07:41+00:00"}, hoje)["20261126"] == \
+        vn._quando_manaus("2026-11-27T10:07:41+00:00").isoformat(timespec="seconds")
     assert vm.fechados_pc({}, hoje) == {} and vm.fechados_pc(None, hoje) == {}
     assert vm.fechados_pc({"20261127": "2026-11-27T09:00:00"}, hoje, dias=0) == {
         "20261127": "2026-11-27T09:00:00-04:00"}
@@ -294,6 +341,72 @@ def test_RN_VIS_005_ao_fase_e_progresso(tmp_path):
                       ("grade", "20261126", 2, 5), ("grade", "20261126", 3, 5)]
     web = _web_visitas()
     assert {v[0] for v in vistos} <= set(web.FASES)
+
+
+def test_RN_VIS_005_fase_fora_do_contrato_levanta(tmp_path):
+    """f6ae758: `_fase` só aceita as FASES do contrato (§3.3); a fase torta não chega ao log nem ao site."""
+    log = []
+    r = vm.Robo(tmp_path, log.append, eventos=True)
+    for fase in vm.FASES:
+        r._fase(fase)
+    for torta in ("navegador", "LOGIN", "", None):
+        with pytest.raises(ValueError):
+            r._fase(torta)
+    assert len(log) == len(vm.FASES) and all("navegador" not in m for m in log)
+
+
+def test_RN_VIS_007_uma_linha_por_vendedor_no_log(tmp_path):
+    """f6ae758: o vendedor pronto sai numa linha só (`evento=vendedor`), sem a linha de fase repetida."""
+    log = []
+    r = vm.Robo(tmp_path, log.append, eventos=True)
+    r._fase("grade", dia="20261126")
+    r._fase("grade", feitos=1, total=3)
+    r._fase("grade", feitos=2, total=3)
+    assert log == ["evento=fase fase=grade dia=20261126",
+                   "evento=vendedor fase=grade dia=20261126 n=1",
+                   "evento=vendedor fase=grade dia=20261126 n=2"]
+
+
+@pytest.mark.parametrize("pasta,nome,dia,motivo", [
+    (VENDEDOR, f"VISITA-{VENDEDOR}-26-11-2026-06-07.xlsx", None, None),
+    (VENDEDOR, f"VISITA-{VENDEDOR}-26-11-2026-06-07-2.xlsx", "20261126", None),
+    (VENDEDOR, f"VISITA-{VENDEDOR}-26-11-2026-06-07.xlsx", "20261125", "nome"),     # outro dia
+    ("../FORA", "VISITA-../FORA-26-11-2026-06-07.xlsx", None, "pasta"),
+    ("A/B", "VISITA-A/B-26-11-2026-06-07.xlsx", None, "pasta"),
+    ("vendedor ficticio um", "VISITA-vendedor ficticio um-26-11-2026-06-07.xlsx", None, "pasta"),
+    ("", "x", None, "pasta"),
+    (None, "x", None, "pasta"),
+    (VENDEDOR, f"VISITA-{VENDEDOR}..-26-11-2026-06-07.xlsx", None, "nome"),
+    (VENDEDOR, f"VISITA-{VENDEDOR}-26-11-2026-06-07.xlsx/../x.xlsx", None, "nome"),
+    (VENDEDOR, "VISITA-OUTRO VENDEDOR FICTICIO-26-11-2026-06-07.xlsx", None, "nome"),
+    (VENDEDOR, f"VISITA-{VENDEDOR}-31-02-2026-06-07.xlsx", None, "nome"),          # data impossível
+    (VENDEDOR, f"VISITA-{VENDEDOR}-26-11-2026-25-07.xlsx", None, "nome"),          # hora impossível
+    (VENDEDOR, None, None, "nome"),
+])
+def test_RN_VIS_003_conferir_importado_regra_unica_do_nome(pasta, nome, dia, motivo):
+    """f6ae758: `conferir_importado` é a regra única do Excel que vem da nuvem (função pura)."""
+    m, dq = vm.conferir_importado(pasta, nome, dia)
+    assert m == motivo
+    if motivo is None:
+        assert dq == (date(2026, 11, 26), datetime(2026, 11, 26, 6, 7))
+    else:
+        assert dq is None
+
+
+def test_RN_VIS_003_conferir_importado_e_o_mesmo_no_robo_e_na_gravacao(tmp_path):
+    """O mesmo motivo sai da importação (`_validar_lote_visitas_web`) e da última trava (`gravar_excel_importado`)."""
+    for pasta, nome in (("../FORA", "VISITA-../FORA-26-11-2026-06-07.xlsx"),
+                        (VENDEDOR, "VISITA-OUTRO VENDEDOR FICTICIO-26-11-2026-06-07.xlsx")):
+        motivo, _ = vm.conferir_importado(pasta, nome)
+        with pytest.raises(ValueError, match=motivo):
+            vm.gravar_excel_importado(tmp_path, pasta, nome, b"x")
+
+
+def test_RN_VIS_005_no_login_so_o_caminho():
+    assert vm._no_login("https://app.exemplo.test/login?x=1") == (True, False)
+    assert vm._no_login("https://app.exemplo.test/verificacao") == (False, True)
+    assert vm._no_login("https://app.exemplo.test/home?voltar=/login#/verificacao") == (False, False)
+    assert vm._no_login(None) == (False, False)
 
 
 class _Pagina:
@@ -564,6 +677,13 @@ def test_RN_VIS_005_todas_as_fases_da_rodada_sao_as_do_contrato(tmp_path, playwr
     "https://app.exemplo.test/home#/login",                        # só no fragmento
     "https://verificacao.exemplo.test/home",                       # "verificacao" só no host
     "https://app.exemplo.test/painel?etapa=confirmar-dispositivo",
+    # 🟡 A do revisor: o caminho conta só por segmento inteiro, da lista fechada (verificacao, mfa, 2fa, otp,
+    # trocar-senha, nova-senha, confirmar-dispositivo); pedaço de palavra não é verificação
+    "https://app.exemplo.test/hotpage",
+    "https://app.exemplo.test/devices/home",
+    "https://app.exemplo.test/autenticacao/callback",
+    "https://app.exemplo.test/auth/autenticar",
+    "https://app.exemplo.test/sso/confirm-redirect",
 ])
 def test_RN_VIS_005_login_conservador_olha_so_o_caminho_da_url(url):
     """ed640e1: a regra do §5.1 olha só o caminho da URL; fora do /login e da verificação, segue (None)."""

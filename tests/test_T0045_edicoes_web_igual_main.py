@@ -162,22 +162,16 @@ def test_RN_GER_012_estado_torto_recomeca_do_zero_igual_ao_main(tmp_path):
 
 
 def test_RN_GER_012_funcoes_publicas_das_edicoes_continuam(tmp_path):
-    """Assinaturas e efeito das 4 funções públicas que o main tinha (o PC e os testes da T-0021 usam)."""
+    """Assinatura e efeito das funções públicas das edições que ficaram (`ler_estado_edicoes_web` e
+    `sincronizar_edicoes_web`). `gravar_estado_edicoes_web`, `baixar_edicoes_web` e `confirmar_edicoes_web`
+    saíram no RD-0172 (sem chamador; decisão do gerente); o laço é comparado pelo `sincronizar_edicoes_web`."""
     import inspect
     r = ref.carregar(ba)
-    for nome in ("ler_estado_edicoes_web", "gravar_estado_edicoes_web", "baixar_edicoes_web",
-                 "confirmar_edicoes_web", "sincronizar_edicoes_web"):
+    for nome in ("ler_estado_edicoes_web", "sincronizar_edicoes_web"):
         a, b = (inspect.signature(getattr(m, nome)).parameters for m in (ba, r))
         assert [(p.name, p.default) for p in a.values()] == [(p.name, p.default) for p in b.values()], nome
     est = {"epoca": "ep-9", "ate_seq": 4, "a_confirmar": [{"seq": 4, "status": "aplicada", "motivo": ""}]}
-    ba.gravar_estado_edicoes_web(tmp_path, est)
+    r.gravar_estado_edicoes_web(tmp_path, est)                  # gravado pela régua do main
     assert r.ler_estado_edicoes_web(tmp_path) == ba.ler_estado_edicoes_web(tmp_path) == est
-    s1, s2 = _Site([_reg(1), _reg(2), _reg(3)]), _Site([_reg(1), _reg(2), _reg(3)])
-    assert ba.baixar_edicoes_web(1, BASE, TOKEN, s1, print) == r.baixar_edicoes_web(1, BASE, TOKEN, s2, print)
-    assert s1.chamadas == s2.chamadas
-    for conf in (200, 409, 503, "rede"):
-        a, b = _Site([], conf=conf), _Site([], conf=conf)
-        la, lb = [], []
-        assert (ba.confirmar_edicoes_web("ep", [], BASE, TOKEN, a, la.append)
-                is r.confirmar_edicoes_web("ep", [], BASE, TOKEN, b, lb.append))
-        assert (a.chamadas, la) == (b.chamadas, lb)
+    assert ba.ler_estado_edicoes_web(tmp_path / "vazio") == r.ler_estado_edicoes_web(tmp_path / "vazio") == {
+        "epoca": "", "ate_seq": 0, "a_confirmar": []}

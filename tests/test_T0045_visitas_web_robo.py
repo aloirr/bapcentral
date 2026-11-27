@@ -342,6 +342,13 @@ def test_RN_VIS_002_hora_da_nuvem_mais_nova_ou_empate_entra(tmp_path, dia, excel
                                  {fx.ymd(dia): pc.isoformat()})[fx.ymd(dia)]["origem"] == "nuvem"
 
 
+def test_RN_VIS_002_baixado_em_com_outro_fuso_vira_manaus_no_indice(tmp_path, dia, excel, depois):
+    """f6ae758: o `baixado_em` passa pelo `vn._quando_manaus`; o índice guarda Manaus sem fuso."""
+    utc = f"{dia + timedelta(days=1):%Y-%m-%d}T10:07:41+00:00"
+    _rodar(tmp_path, SiteFalso({1: _lote(dia, excel[1], baixado_em=utc)}))
+    assert vn.indice(tmp_path)[fx.ymd(dia)] == f"{dia + timedelta(days=1):%Y-%m-%d}T06:07:41"
+
+
 # ------------------------------------------------------------------ o laço `puxar_fila_web` nas visitas
 def test_RN_VIS_003_laco_paginado_traz_todos_na_ordem(tmp_path, excel, depois):
     dias = [fx.dia_teste(n) for n in (4, 3, 2)]
