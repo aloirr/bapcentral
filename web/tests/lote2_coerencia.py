@@ -446,11 +446,12 @@ def coerencia_indicadores(rel):
     sem, mes = tabela(rel, "Semana a semana"), tabela(rel, "Mês a mês")
     for t in (sem, mes):
         n = len(t["linhas"])
-        ped = [70 + (k * 9) % 31 for k in range(n)]
-        parc = [3 + k % 5 for k in range(n)]
-        atr = [8 + (k * 3) % 8 for k in range(n)]
+        mult = 4 if t is mes else 1                      # o mês tem ~4 semanas
+        ped = [mult * (70 + (k * 9) % 31) for k in range(n)]
+        parc = [mult * (3 + k % 5) for k in range(n)]
+        atr = [mult * (8 + (k * 3) % 8) for k in range(n)]
         nop = [p - a - r for p, a, r in zip(ped, atr, parc)]
-        ent = [p - 6 - k % 4 for k, p in enumerate(ped)]
+        ent = [p - mult * (6 + k % 4) for k, p in enumerate(ped)]
         poe(t, "PEDIDOS", ped)
         poe(t, "NO PRAZO", nop)
         poe(t, "ATRASO", atr)
@@ -461,6 +462,18 @@ def coerencia_indicadores(rel):
         poe(t, "% PARCIAL", [pct(a, b) for a, b in zip(parc, ped)])
         poe(t, "% ENTREGA NO PRAZO", [pct(e - k % 5, e) for k, e in enumerate(ent)])
         poe(t, "PERÍODO", [f"SEM {36 + k}" for k in range(n)] if t is sem else [f"{m}/{'25' if m == 'DEZ' else '26'}" for m in ROTULO_MESES])
+    # NOV/26 = a soma das 4 semanas de novembro (SEM 44 a 47): a faixa soma o mês, não a última semana
+    c = {x["nome"]: i for i, x in enumerate(mes["colunas"])}
+    ult = mes["linhas"][-1]
+    sw = sem["linhas"][-4:]
+    cs = {x["nome"]: i for i, x in enumerate(sem["colunas"])}
+    for nome in ("PEDIDOS", "NO PRAZO", "ATRASO", "PARCIAL", "ENTREGUES"):
+        ult[c[nome]] = sum(ln[cs[nome]] for ln in sw)
+    ult[c["% NO PRAZO"]] = pct(ult[c["NO PRAZO"]], ult[c["PEDIDOS"]])
+    ult[c["% ATRASO"]] = pct(ult[c["ATRASO"]], ult[c["PEDIDOS"]])
+    ult[c["% PARCIAL"]] = pct(ult[c["PARCIAL"]], ult[c["PEDIDOS"]])
+    ult[c["% ENTREGA NO PRAZO"]] = round(sum(ln[cs["% ENTREGA NO PRAZO"]] for ln in sw) / 4, 1)
+    ult[c["SLA MÉDIO (DIAS)"]] = round(sum(ln[cs["SLA MÉDIO (DIAS)"]] for ln in sw) / 4, 2)
     bm = tabela(rel, "Base com compra (mês a mês)")
     base = [2600 + k * 25 for k in range(len(bm["linhas"]))]
     com = [int(b * (0.5 + (k % 5) / 40)) for k, b in enumerate(base)]

@@ -183,3 +183,24 @@ def test_resumo_sem_grafico_repetido_e_sem_rolagem_lateral_no_cartao(admin):
     corpo = h.split('class="graficos"')[1]
     assert corpo.count('class="graf graf-per"') == 2                  # "Unidades vendidas" repete "Venda (unidades)"
     assert corpo.count("Venda perdida prevista") == 1                  # só o de barras
+
+
+def test_nome_unico_por_linha_nas_tabelas_por_dimensao_e_faixa_soma_o_mes():
+    p = pacote_lote2()["relatorios"]
+    for rid, aba, nome in (("vc_base", "Por vendedor", "VENDEDOR"), ("vc_base", "Por segmento", "SEGMENTO"),
+                           ("vc_base", "Por supervisor", "SUPERVISOR"), ("vc_planner", "Por vendedor", "VENDEDOR"),
+                           ("vc_planner", "Por supervisor", "SUPERVISOR")):
+        t = next(x for x in p[rid]["tabelas"] if x["titulo"] == aba)
+        i = [c["nome"] for c in t["colunas"]].index(nome)
+        nomes = [ln[i] for ln in t["linhas"]]
+        assert len(nomes) == len(set(nomes)), (rid, aba)
+    for b in p["vc_planner"]["painel"]["blocos"]:                   # gráficos por vendedor: rótulo único
+        if b.get("tipo") == "hbarras":
+            assert len(b["rotulos"]) == len(set(b["rotulos"])), b["titulo"]
+    ind = p["pv_indicadores"]
+    sem = next(t for t in ind["tabelas"] if t["titulo"] == "Semana a semana")
+    mes = next(t for t in ind["tabelas"] if t["titulo"] == "Mês a mês")
+    i = [c["nome"] for c in sem["colunas"]].index("PEDIDOS")
+    assert mes["linhas"][-1][i] == sum(ln[i] for ln in sem["linhas"][-4:])
+    faixa = next(k["valor"] for k in ind["kpis"] if k["rotulo"] == "Pedidos faturados · NOV/26")
+    assert faixa == f"{mes['linhas'][-1][i]:,}".replace(",", ".")

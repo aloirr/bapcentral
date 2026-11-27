@@ -82,6 +82,11 @@ def _texto(rid, aba, nome, i, uf, fil):
     }
     if aba == "Por zona" and nome == "NOME":
         return f"ZONA FICTICIA {n2}"
+    # tabela "Por <dimensão>": um nome único por linha (a mesma pessoa/segmento não aparece duas vezes)
+    unico = {("Por vendedor", "VENDEDOR"): f"VENDEDOR FICTICIO {n2}", ("Por supervisor", "SUPERVISOR"): f"SUPERVISOR FICTICIO {n2}",
+             ("Por segmento", "SEGMENTO"): f"SEGMENTO FICTICIO {n2}"}
+    if (aba, nome) in unico:
+        return unico[(aba, nome)]
     if nome == "SITUAÇÃO":
         return ["RUPTURA", "COMPRAR", "A PARADA", "OK"][i % 4]
     if nome == "AÇÃO":
