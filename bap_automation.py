@@ -6649,7 +6649,12 @@ _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
                        "pl_frw": "Estoque FRW",
                        "pl_fretes": "Notas com frete"}
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
-_TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
+_TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",),
+                          # (T-0037) o Resumo do Fretes: 3 tabelas de numero
+                          "pl_fretes": ("tabela",)}
+# (T-0037) as 3 abas de resumo do Fretes que viram bloco `tabela` do Resumo
+_TABELAS_RESUMO_FRETES_WEB = (("Por UF", "UF"), ("Por cidade", "CIDADE"),
+                              ("Por transportadora", "TRANSPORTADORA"))
 # bloco tabela com coluna de pessoa/cliente nunca vai (regra 6)
 _COLUNAS_PESSOA_TABELA_WEB = ("cliente", "cnpj", "cpf", "razão", "razao",
                               "fantasia", "nome", "telefone", "e-mail",
@@ -6933,6 +6938,92 @@ def _kpis_com_estados(r: dict, sem_dado_fora: bool = False) -> list:
     return saida
 
 
+def blocos_resumo_fretes_web(r: dict):
+    """Funcao pura (T-0037, contrato 10.8): o Resumo do Farol de Fretes, que no
+    PC nao tem painel proprio (so `graficos` e `tabelas`). Devolve
+    (blocos, frases): o grafico dos 12 meses como `barras`; as tabelas Por UF,
+    Por cidade e Por transportadora, do mes padrao do filtro MES, como `tabela`
+    (sem a coluna MES, com a linha TOTAL); e o resumo gerencial como `insights`.
+    Os numeros saem das proprias tabelas e dos cartoes do PC (sem recalcular
+    regra): a soma de cada tabela e o cartao Notas com frete. Sem nome de
+    cliente, CNPJ ou pessoa: so UF, cidade e transportadora (empresa)."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    r = r or {}
+    blocos, linha = [], 0
+    for g in r.get("graficos") or []:
+        if isinstance(g, dict) and g.get("rotulos"):
+            blocos.append({"tipo": "barras", "row": linha, "col": 0,
+                           "colspan": 3, "grafico": g})
+            linha += 1
+            break
+    por_titulo = {t.get("titulo"): t for t in r.get("tabelas") or []
+                  if isinstance(t, dict)}
+    agreg = {}
+    for titulo, rot in _TABELAS_RESUMO_FRETES_WEB:
+        t = por_titulo.get(titulo)
+        if not t:
+            continue
+        nomes = [c.get("nome") if isinstance(c, dict) else c
+                 for c in t.get("colunas") or []]
+        if "MÊS" not in nomes or rot not in nomes:
+            continue
+        mes = next((f.get("padrao") for f in t.get("filtros") or []
+                    if isinstance(f, dict) and f.get("coluna") == "MÊS"), None)
+        im, ir = nomes.index("MÊS"), nomes.index(rot)
+        ls = [[l[ir], l[nomes.index("NOTAS")],
+               round(l[nomes.index("VLR NF")] or 0, 2),
+               round(l[nomes.index("VLR FRETE")] or 0, 2)]
+              for l in t.get("linhas") or []
+              if mes in (None, "(todos)") or l[im] == mes]
+        ls.sort(key=lambda x: -(x[2] or 0))
+        agreg[titulo] = ls
+        cols = [{"nome": rot, "tipo": "texto", "largura": 140, "oculta": False},
+                {"nome": "NOTAS", "tipo": "int", "largura": 70, "oculta": False},
+                {"nome": "VLR NF", "tipo": "moeda", "largura": 100,
+                 "oculta": False},
+                {"nome": "VLR FRETE", "tipo": "moeda", "largura": 100,
+                 "oculta": False}]
+        tot = ["TOTAL", sum(x[1] or 0 for x in ls),
+               round(sum(x[2] for x in ls), 2), round(sum(x[3] for x in ls), 2)]
+        blocos.append({"tipo": "tabela", "titulo": titulo, "colunas": cols,
+                       "linhas": ls, "total": tot, "row": linha, "col": 0})
+        linha += 1
+    kp = {k.get("rotulo"): k for k in r.get("kpis") or []
+          if isinstance(k, dict)}
+    n_ = sum(x[1] for x in agreg.get("Por UF", []))
+    frases = []
+    k0 = kp.get("Notas com frete")
+    if k0 and n_:
+        pct = (kp.get("% do faturado") or {}).get("valor")
+        frases.append(("info", f"{k0.get('valor')} notas com frete "
+                       f"({k0.get('detalhe')})"
+                       + (f", {pct} do faturado líquido." if pct else ".")))
+    ufs = agreg.get("Por UF") or []
+    if ufs and n_:
+        topo = max(ufs, key=lambda x: (x[1], x[2] or 0))
+        frases.append(("info", f"{topo[0]} concentra "
+                       f"{_rn.p(_rn.pct_de(topo[1], n_))} das notas com frete "
+                       f"({_rn.br(topo[1])} de {_rn.br(n_)})."))
+    k4 = kp.get("Entregues")
+    if k4 and k4.get("valor") not in (None, "0"):
+        frases.append(("ok", f"{k4['valor']} notas entregues"
+                       + (f", {k4['detalhe']}." if k4.get("detalhe") else ".")))
+    k5 = kp.get("Sem transportadora")
+    if k5 and k5.get("valor") not in (None, "0"):
+        frases.append(("atencao", f"{k5['valor']} nota(s) com acompanhamento "
+                                  "e sem transportadora."))
+    tr = [x for x in agreg.get("Por transportadora") or []
+          if x[0] and x[0] != "(sem)"]
+    if tr:
+        frases.append(("info", f"{tr[0][0]} leva mais valor: "
+                               f"{_rn.moeda(tr[0][2])} em {_rn.br(tr[0][1])} "
+                               "notas."))
+    if frases:
+        blocos.append({"tipo": "insights", "titulo": "Resumo gerencial",
+                       "linhas": frases, "row": linha, "col": 0})
+    return blocos, frases
+
+
 def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
                          grafico_com_nome=None, cobranca=None,
                          raiz=None, por_uf=None) -> dict:
@@ -6960,6 +7051,12 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     blocos, titulos_fora, avisos_extra = [], [], []
     tipos = _TIPOS_BLOCO_FAROL_WEB + _TIPOS_BLOCO_EXTRA_WEB.get(rid, ())
     brutos = list((r.get("painel") or {}).get("blocos") or [])
+    if not brutos and rid == "pl_fretes":
+        # (T-0037) o Fretes nao tem painel no PC: o Resumo sai dos graficos e
+        # das tabelas de resumo, com as frases do resumo gerencial
+        brutos, frases = blocos_resumo_fretes_web(r)
+        if frases and not r.get("insights_painel"):
+            r = dict(r, insights_painel=frases)
     if not brutos and rid in RIDS_LIVRES_WEB:
         # (T-0024) farol sem painel (Painel de indicadores): os graficos do PC
         # viram blocos de barras, um embaixo do outro
