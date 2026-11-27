@@ -9074,12 +9074,15 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
 # (T-0036, 10.11.4) Excel de correcao das Divergencias (so admin na web)
 # (RD-0002) os cabecalhos vem do nucleo (CAB_CORRIGIR / CAB_ANALISAR), sem
 # a coluna CLIENTE (RN-GER-011)
-import relatorios_nucleo as _rn_cab                     # noqa: E402
-_COLUNAS_CORRECAO_WEB = {
-    "corrigir": ("CORRIGIR NO PROTHEUS",
-                 tuple(c for c in _rn_cab.CAB_CORRIGIR if c != "CLIENTE")),
-    "analisar": ("ANALISAR",
-                 tuple(c for c in _rn_cab.CAB_ANALISAR if c != "CLIENTE"))}
+def _colunas_correcao_web() -> dict:
+    """{"corrigir": (titulo, colunas), "analisar": (titulo, colunas)} do
+    Excel de correcao, com os cabecalhos do nucleo sem a coluna CLIENTE."""
+    import relatorios_nucleo as _rn_cab
+    return {
+        "corrigir": ("CORRIGIR NO PROTHEUS",
+                     tuple(c for c in _rn_cab.CAB_CORRIGIR if c != "CLIENTE")),
+        "analisar": ("ANALISAR",
+                     tuple(c for c in _rn_cab.CAB_ANALISAR if c != "CLIENTE"))}
 
 
 def _correcao_divergencias_web(rel) -> dict | None:
@@ -9100,7 +9103,7 @@ def _correcao_divergencias_web(rel) -> dict | None:
                     type(erro).__name__)
         return None
     saida = {}
-    for chave, (titulo, nomes) in _COLUNAS_CORRECAO_WEB.items():
+    for chave, (titulo, nomes) in _colunas_correcao_web().items():
         lns = (linhas or {}).get(chave)
         if not isinstance(lns, list):
             return None
