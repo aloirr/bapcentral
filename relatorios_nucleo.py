@@ -661,7 +661,13 @@ def com_status(ctx, t, pos=None, i_cli=None, chaves=None, planner=True,
         t["total"] = t["total"][:k] + [""] * n + t["total"][k:]
     f = t.get("kpis_de")
     if f:
-        t["kpis_de"] = lambda ls, f=f: f(tira(ls))
+        def kp_sem_novas(ls, filtro=None, f=f):
+            # o filtro vem com os indices da tela (com as colunas novas)
+            fo = {(j if not isinstance(j, int) or j < k else j - n): v
+                  for j, v in (filtro or {}).items()
+                  if not (isinstance(j, int) and k <= j < k + n)}
+            return chamar_kpis_de(f, tira(ls), fo or None)
+        t["kpis_de"] = kp_sem_novas
     ed = t.get("edicao")                # (13/10) a edicao segue a coluna
     if isinstance(ed, dict):
         ed = dict(ed)
@@ -2151,7 +2157,7 @@ def farol_pedidos(ctx):
                 "unidades"),
         ]
 
-    def cartoes(ls):
+    def cartoes(ls, filtro=None):
         # RN-GER-013 (Alexandre, 26/11: "A"): os numeros sem os pedidos de
         # cliente fora da base, como a tabela do site (caixa "Ignorar" marcada)
         ls = [l for l in ls if l[I_RAZ] != NOME_FORA_DA_BASE]
@@ -2164,7 +2170,8 @@ def farol_pedidos(ctx):
         fat = [l for l in ls if l[I_SIT] in ("FATURADO", "ENTREGUE",
                                              "DEVOLVIDO", "CANCELADO")]
         dev_f = devolucoes_da_vista(
-            ctx, {(l[I_MES], l[I_FIL], l[I_VEND]) for l in fat}, todas_nf)
+            ctx, {(l[I_MES], l[I_FIL], l[I_VEND]) for l in fat}, todas_nf,
+            filiais_do_recorte(fat, filtro, I_FIL, (I_VEND,)))
         no_prazo = sum(1 for l in fat if l[I_SLA] is not None
                        and l[I_SLA] <= bd.PRAZO_FATURAR)
         com_dias = sum(1 for l in fat if l[I_SLA] is not None)
@@ -11785,15 +11792,21 @@ def _devolucoes_por_chave(ctx) -> dict:
     return ctx._dev_chave
 
 
-def devolucoes_da_vista(ctx, chaves, todas) -> float:
-    """(22/10, Alexandre) FATURADO = o REAL: a venda menos as devolucoes.
+def devolucoes_da_vista(ctx, chaves, todas, filiais_inteiras=None) -> float:
+    """FATURADO = o REAL: a venda menos as devolucoes (22/10).
     As devolucoes das linhas que estao na tela: chaves = {(mes, filial,
     vendedor)} das linhas; todas = {mes: {(filial, vendedor)}} de todas as
     linhas do farol. Mes com todas as linhas na tela = todas as devolucoes
-    do mes (tambem de quem nao vendeu no mes); filtrado = so as da filial e
-    do vendedor das linhas [SUPOSICAO: o filtro de cliente nao recorta a
-    devolucao]."""
+    do mes (tambem de quem nao vendeu no mes). Mes filtrado: por padrao so
+    as dos pares (filial, vendedor) das linhas [SUPOSICAO: o filtro de
+    cliente nao recorta a devolucao].
+    T-0058 (RN-GER-002): filiais_inteiras = conjunto de filiais que o
+    CHAMADOR diz estarem na tela por inteiro (recorte por estado/filial da
+    nota, nunca filtro de vendedor ou supervisor): dessas desconta TODA a
+    devolucao (mes, filial, *), inclusive de vendedor sem venda na filial
+    no mes. So vale para as filiais com linha no mes."""
     dev = _devolucoes_por_chave(ctx)
+    inteiras = set(filiais_inteiras or ())
     por_m = defaultdict(set)
     for m, f, v in chaves:
         por_m[m].add((f, v))
@@ -11801,9 +11814,27 @@ def devolucoes_da_vista(ctx, chaves, todas) -> float:
     for m, ks in por_m.items():
         if ks >= (todas.get(m) or set()):
             tot += sum(x for (mm, _f, _v), x in dev.items() if mm == m)
-        else:
-            tot += sum(dev.get((m, f, v), 0.0) for f, v in ks)
+            continue
+        fils = {f for f, _v in ks} & inteiras
+        tot += sum(x for (mm, f, v), x in dev.items()
+                   if mm == m and (f in fils or (f, v) in ks))
     return tot
+
+
+def filiais_do_recorte(linhas, filtro, i_fil, i_pessoa=()) -> frozenset:
+    """Funcao pura (T-0058): as filiais das linhas SE o filtro tem a coluna
+    FILIAL (recorte por estado ou filial da nota) e nenhuma coluna de
+    pessoa (i_pessoa: vendedor, supervisor); senao, vazio (por par).
+    i_fil: indice da coluna FILIAL ou tupla (FILIAL, outras colunas que
+    tambem recortam por filial da nota, ex.: a UF do Farol de Saldo); as
+    filiais vem do primeiro indice. [SUPOSICAO: FILIAL junto com outro
+    filtro que nao e de pessoa (cliente, situacao) desconta a filial
+    inteira.]"""
+    cols = tuple(i_fil) if isinstance(i_fil, (tuple, list)) else (i_fil,)
+    if not filtro or not any(filtro.get(j) for j in cols) or \
+            any(filtro.get(j) for j in i_pessoa):
+        return frozenset()
+    return frozenset(l[cols[0]] for l in linhas)
 
 
 def saldo_desconto(ctx):
@@ -11919,11 +11950,12 @@ def saldo_desconto(ctx):
         x["pcom"] = pct_de(x["dcom"], x["base"])
         return x
 
-    def cartoes(ls):
+    def cartoes(ls, filtro=None):
         x = resumo(ls)
         mt = meta_de(ls)
         dev = devolucoes_da_vista(
-            ctx, {(l[I_MES], l[I_FIL], l[I_VEND]) for l in ls}, todas_k)
+            ctx, {(l[I_MES], l[I_FIL], l[I_VEND]) for l in ls}, todas_k,
+            filiais_do_recorte(ls, filtro, (I_FIL, I_UF), (I_VEND, I_SUP)))
         cs = [
             # (22/10, Alexandre) FATURADO = o real, ja sem as devolucoes
             kpi("Faturado", moeda(x["venda"] - dev), "neutro",
