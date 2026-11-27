@@ -31,6 +31,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import bap_dados as bd
+from painel_farol import pct_do_liquido
 from bap_dados import sem_acento, texto
 
 PRE = "Pré-venda e Faturamento"
@@ -2610,6 +2611,12 @@ def _meses_antes(comp, n):
             ano, mes = ano - 1, 12
         saida.append(f"{ano}-{mes:02d}")
     return saida
+
+
+def _uteis_ate_ontem(ctx):
+    """RN-GER-007: a contagem de dias uteis que deixa HOJE fora (conta ate
+    ontem). Uma so, para o montar e o ao_mudar da NCC."""
+    return lambda a, b: ctx.uteis(a, min(b, ctx.hoje - timedelta(days=1)))
 
 
 def _liquido(it):
@@ -6918,10 +6925,8 @@ def farol_ncc(ctx):
         ed_ = ctrl.get(k_nc) or {}
         status = ed_.get("status") or como(n["cod"], ult)
         dt_mov = ed_.get("dt_mov")
-        # RN-GER-007: hoje fica fora do DU (conta ate ontem)
         du_, _prz, sit_sla = nc.sla(
-            status, dt_mov, n["emissao"], hoje,
-            lambda a, b: ctx.uteis(a, min(b, hoje - timedelta(days=1))),
+            status, dt_mov, n["emissao"], hoje, _uteis_ate_ontem(ctx),
             ctx.mais_uteis)
         orig[k_nc] = (status, dt_mov)
         lin.append([
@@ -7025,7 +7030,7 @@ def farol_ncc(ctx):
             linha[I_MOV] = hoje
         emis = linha[8]                     # a EMISSAO
         linha[I_DU], _p, linha[I_SLA] = nc.sla(
-            linha[I_COMO], linha[I_MOV], emis, hoje, ctx.uteis,
+            linha[I_COMO], linha[I_MOV], emis, hoje, _uteis_ate_ontem(ctx),
             ctx.mais_uteis)
     r["tabelas"].append(tabela(
         "NCC pendentes", cols, lin, tons,
@@ -7833,8 +7838,8 @@ def devolucoes(ctx):
     fat_mes, fat_vend = defaultdict(float), defaultdict(float)
     for it in ctx.tabela["itens"]:
         # RN-GER-002: faturado = VND - DEV, pela data da NF
-        if it["tipo"] in ("VND", "DEV") and it["dt_nf"]:
-            v = it["valor"] if it["tipo"] == "VND" else -abs(it["valor"])
+        v = _liquido(it)
+        if v is not None and it["dt_nf"]:
             fat_mes[rotulo_mes(mes_de(it["dt_nf"]))] += v
             if mes_de(it["dt_nf"]) in meses:
                 fat_vend[ctx.vendedor(it["vend"])] += v
@@ -7886,8 +7891,8 @@ def devolucoes(ctx):
         sem_mot = sum(1 for l in com if l[12] in ("", "(SEM MOTIVO)"))
         return [
             kpi("Devoluções", br(len(ls)), "alerta" if ls else "ok", moeda(val)),
-            kpi("% do faturado", p(pct_de(val, fat)),
-                "alerta" if (pct_de(val, fat) or 0) > 3 else "ok",
+            kpi("% do faturado", p(pct_do_liquido(val, fat)),
+                "alerta" if (pct_do_liquido(val, fat) or 0) > 3 else "ok",
                 ""),
             kpi("Clientes", br(len({l[4] for l in ls})), "neutro"),
             kpi("Abertas no acompanhamento", br(abertas),
@@ -7900,7 +7905,7 @@ def devolucoes(ctx):
         "titulo": "Mês a mês: % do faturado",
         "rotulos": [rotulo_mes(x) for x in meses],
         "series": [{"nome": "% devolvido", "cor": AMARELO,
-                    "valores": [pct_de(dev_mes[x], fat_mes[rotulo_mes(x)]) or 0
+                    "valores": [pct_do_liquido(dev_mes[x], fat_mes[rotulo_mes(x)]) or 0
                                 for x in meses]}],
         "formato": "pct"})
     datas = datas_para_escolher(hoje)
@@ -7952,7 +7957,7 @@ def devolucoes(ctx):
          col("VALOR", "moeda"), col("FATURADO 12M", "moeda"),
          col("% DEVOLVIDO", "pct")],
         sorted([[k, v[0], v[1], fat_vend.get(k, 0.0),
-                 pct_de(v[1], fat_vend.get(k, 0.0))]
+                 pct_do_liquido(v[1], fat_vend.get(k, 0.0))]
                 for k, v in por_vend.items()], key=lambda x: -x[2])))
     r["tabelas"].append(tabela(
         "Por cliente (12 meses)", [col("CLIENTE", "texto", 280),
@@ -9572,8 +9577,8 @@ def _abas_do_painel(ctx, r, d):
         kpi("M3M", moeda(m3_real) if m3_real is not None else "—",
             tom_var(var_m3), f"projeção {sinal(var_m3)} x média 3 meses"),
         kpi("Devoluções", moeda(dev), "atencao" if dev else "ok",
-            f"{br(pct_de(dev, atual['vnd'] - dev) or 0, 1)}% do faturado"
-            if atual["vnd"] - dev > 0 else "")]    # RN-GER-002: VND - DEV
+            f"{br(pct_do_liquido(dev, atual['real']) or 0, 1)}% do faturado"
+            if pct_do_liquido(dev, atual["real"]) is not None else "")]
     _ = k_res
     paineis.append({"titulo": "Faturamento", "kpis": kpis_fat,
                     "painel": _grade_painel([
@@ -19101,10 +19106,10 @@ def _painel_devolucoes(r, ctx):
                                           for it in dev], "unicos", "num",
                    VERMELHO, "baixo"),
             pf.ind("% devolvido do faturado",
-                   [(it["dt_nf"], abs(it["valor"]), -abs(it["valor"]))
-                    for it in dev]            # RN-GER-002: VND - DEV
-                   + [(it["dt_nf"], 0, it["valor"])
-                      for it in _ev_itens(ctx)], "pct", "pct", VERMELHO,
+                   [(it["dt_nf"], abs(it["valor"]), 0) for it in dev]
+                   + [(d, 0, v) for d, v in
+                      _eventos_faturamento(ctx, liquido=True)],
+                   "pct", "pct", VERMELHO,
                    "baixo")]
     ls, ix = pf.tabela_de(r, "Devoluções")
     ano, mes = periodo(ctx)
