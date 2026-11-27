@@ -155,7 +155,7 @@ def test_entregas_campos_datas_e_grupo(ped, amb):
     html = ped.get(URL_ENT).text
     assert 'class="ed-nao"' in html                       # a linha sem chave (anterior a 01/10/2026)
     campos, form = _form(ped, _link_editar(html))
-    assert 'type="date"' in form and 'min="2026-11-' in form
+    assert 'type="date"' not in form and 'placeholder="dd/mm/aaaa"' in form   # dd/mm/aaaa sai do servidor, não do idioma do navegador
     assert "TRANSPORTADORA FICTICIA" in form
     base = dict(campos)
     # transportadora fora das opções da cidade da linha

@@ -11,7 +11,7 @@
   {"rot": "Acessos à Máxima hoje", "valor": v.logins ~ " de " ~ v.logins_max}]) }}{% endblock %}
 {% block corpo %}
 {% set e = v.e %}
-<div class="vz">
+<div class="vz{{ ' vz-adm' if admin }}">
 {% if msg %}<p class="ok" role="status">{{ msg }}</p>{% endif %}
 {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
 
@@ -37,8 +37,8 @@
   <h2>Período</h2>
   <form method="post" action="/visitas/atualizar" class="vz-linha">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>De <input type="date" name="de" value="{{ v.de_iso }}" max="{{ v.hoje_iso }}" required></label>
-    <label>Até <input type="date" name="ate" value="{{ v.ate_iso }}" max="{{ v.hoje_iso }}" required></label>
+    <label>De <input type="text" inputmode="numeric" name="de" value="{{ v.de_br }}" placeholder="dd/mm/aaaa" pattern="\d{2}/\d{2}/\d{4}" maxlength="10" size="10" required></label>
+    <label>Até <input type="text" inputmode="numeric" name="ate" value="{{ v.ate_br }}" placeholder="dd/mm/aaaa" pattern="\d{2}/\d{2}/\d{4}" maxlength="10" size="10" required></label>
     <button type="submit" class="{{ 'bt-principal' if v.pode_apertar else 'bt-neutro' }}"{{ (' disabled title="' ~ v.motivo_travado ~ '"')|safe if not v.pode_apertar }}>Atualizar visitas</button>
     {% if admin %}<button type="submit" formaction="/visitas/refazer" class="bt-neutro"{{ (' disabled title="' ~ v.motivo_travado ~ '"')|safe if not v.pode_apertar else ' title="Baixa de novo os dias que já vieram"'|safe }}>Baixar de novo</button>{% endif %}
   </form>

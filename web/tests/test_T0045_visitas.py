@@ -347,6 +347,7 @@ def test_RN_VIS_007_lote_com_dado_pessoal_nao_e_gravado_e_pausa(v, relogio, text
     r = conceder(v).json()
     x = enviar(v, r["id"], lote(r["id"], textos=("RCA", "CLIENTE", texto)))
     assert x.status_code == 422 and x.json()["erro"] == "dado pessoal"
+    assert x.json()["achados"] == [{"coluna": "CELULA", "tipo": tipo, "n": 1}]                # rótulo, tipo e n; nunca o valor
     assert texto not in x.text and "12345678" not in x.text                     # nunca o valor
     assert not (v.app_dados / "visitas" / "lotes").exists() or not list((v.app_dados / "visitas" / "lotes").glob("*.json.gz"))
     assert v.get("/api/visitas/lotes", headers=HP).json()["linhas"] == []
@@ -645,7 +646,9 @@ def test_textos_com_acao_e_sem_jargao():
 
 
 def test_formatadores_de_dia():
-    assert visitas.dia_br("20261127") == "27/11" and visitas.dia_iso("20261127") == "2026-11-27"
+    assert visitas.dia_br("20261127") == "27/11" and visitas.dia_data("20261127") == "27/11/2026"
+    assert visitas.ymd_do_form("27/11/2026") == "20261127" and visitas.ymd_do_form("2026-11-27") == "20261127"
+    assert visitas.ymd_do_form("11/27/2026x") == "" and visitas.ymd_do_form(None) == ""
     assert visitas.dia_hora("2026-11-27T06:06:00-04:00") == "27/11 06h06" and visitas.dia_hora("lixo") == ""
 
 
@@ -653,3 +656,20 @@ def test_o_pedido_aceita_a_data_do_formulario_com_hifen(v, admin, relogio):
     admin.post("/visitas/atualizar", data={"csrf": token_form(admin, "/visitas/atualizar"), "de": "2026-11-26", "ate": "2026-11-27"})
     p = v.get("/api/visitas/trabalho", headers=H).json()["pedido"]
     assert p["de"] == "20261126" and p["ate"] == "20261127"
+
+
+def test_UX_datas_dd_mm_aaaa_saem_do_servidor_sem_input_date(v, admin, relogio):
+    t = admin.get("/visitas/atualizar").text.split("<main")[1]
+    assert 'type="date"' not in t and 'value="27/11/2026"' in t and 'placeholder="dd/mm/aaaa"' in t
+    admin.post("/visitas/atualizar", data={"csrf": token_form(admin, "/visitas/atualizar"), "de": "26/11/2026", "ate": "27/11/2026"})
+    p = v.get("/api/visitas/trabalho", headers=H).json()["pedido"]
+    assert p["de"] == "20261126" and p["ate"] == "20261127"
+    from pathlib import Path
+    js = "".join(f.read_text(encoding="utf-8") for f in (Path(visitas.__file__).parent / "static").glob("*.js"))
+    assert "toLocaleDateString" not in js                                                          # nenhum JS formata data pelo navegador
+
+
+def test_site_descompressao_e_codigo_do_contrato_v1_1():
+    assert visitas.STATUS_DO_CODIGO["DESCOMPRESSAO_TETO"] == "parcial" and "DESCOMPRESSAO_TETO" not in visitas.NOVA_TENTATIVA
+    assert visitas.DESCOMPRESSAO_MAX == 50 * 1024 * 1024
+    assert "Excel grande demais" in visitas.texto_do_codigo("DESCOMPRESSAO_TETO", {"dias": ["20261126"]})

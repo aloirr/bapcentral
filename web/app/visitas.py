@@ -82,6 +82,7 @@ CODIGOS = {
     "TELA_MUDOU": ("erro", f"A tela da Máxima mudou. {_PC} por enquanto."),
     "NAVEGADOR_FALHOU": ("erro", "O navegador do site parou. {t}"),
     "SITE_RECUSOU": ("parcial", "Um dia não foi aceito pelo site ({d})."),
+    "DESCOMPRESSAO_TETO": ("parcial", f"Um dia não foi aceito pelo site ({{d}}): Excel grande demais. {_PC}."),
     "SITE_FORA": ("erro", "O site não respondeu. {t}"),
     "RODADA_INTERROMPIDA": ("erro", "A rodada parou sem terminar. {t}"),
     "CONFIG_FALTANDO": ("erro", _CONFIG),
@@ -147,9 +148,18 @@ def dia_br(ymd: str) -> str:
     return f"{ymd[6:]}/{ymd[4:6]}"
 
 
-def dia_iso(ymd: str) -> str:
-    """AAAAMMDD -> AAAA-MM-DD (o campo de data do formulário)."""
-    return f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}"
+def dia_data(ymd: str) -> str:
+    """AAAAMMDD -> dd/mm/aaaa (o campo de data da tela: o formato sai do servidor, não do idioma do navegador)."""
+    return f"{ymd[6:]}/{ymd[4:6]}/{ymd[:4]}"
+
+
+def ymd_do_form(v) -> str:
+    """O que a pessoa digitou (dd/mm/aaaa, ou aaaa-mm-dd) -> AAAAMMDD; "" se não for data."""
+    v = (v or "").strip()
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", v) or None
+    if m:
+        return f"{m[3]}{m[2]}{m[1]}"
+    return v.replace("-", "") if re.match(r"^\d{4}-\d{2}-\d{2}$", v) else ""
 
 
 def dia_hora(v) -> str:
@@ -605,20 +615,22 @@ class Visitas:
             raise ErroVisitas(422, {"erro": "sha256" if all(x.endswith(".sha256") for x in det) else "esquema inválido",
                                     "detalhes": det})
         # RN-VIS-007, segunda guarda: coluna fora da lista ou dado pessoal = o lote não é gravado e a nuvem pausa
-        achou: list[str] = []
+        achou: dict[tuple[str, str], int] = {}
         orcamento = [DESCOMPRESSAO_MAX]
         for i, b in arqs:
             for tipo_a, col in achar_no_excel(b, orcamento):
-                achou.append(f"arquivos[{i}]: {'coluna ' + col if tipo_a == 'coluna' else tipo_a}")
+                chave = (col, "formato") if tipo_a == "coluna" else ("CELULA", tipo_a)     # rótulo e tipo, nunca o valor
+                achou[chave] = achou.get(chave, 0) + 1
         if achou:
+            lista = [{"coluna": c, "tipo": t, "n": n} for (c, t), n in list(achou.items())[:20]]
             with self._tranca():
                 e = self._ler(agora_)
                 if not e["pausado"]:
                     e["pausado"] = {"codigo": "DADO_PESSOAL", "desde": iso(agora_)}
                 self._acrescentar("rodadas.jsonl", {"id": rid, "evento": "LOTE_RECUSADO", "codigo": "DADO_PESSOAL",
-                                                   "dia": dia_url, "achados": len(achou), "em": iso(agora_)})
+                                                   "dia": dia_url, "achados": lista, "em": iso(agora_)})
                 self._gravar(e)
-            raise ErroVisitas(422, {"erro": "dado pessoal", "detalhes": achou[:10]})
+            raise ErroVisitas(422, {"erro": "dado pessoal", "achados": lista})
         with self._tranca():
             rep = self._repetido(rid, dia_url, sha_cab)
             if rep is not None:
@@ -777,7 +789,7 @@ class Visitas:
     def pedir(self, de: str, ate: str, refazer: bool, perfil: str, agora_: datetime | None = None) -> str:
         """Grava o pedido do botão. Devolve o texto de sucesso; ErroVisitas(400/409) com a mensagem da tela."""
         agora_ = agora_ or agora()
-        a, b, erro = validar_periodo((de or "").replace("-", ""), (ate or "").replace("-", ""), agora_.date())
+        a, b, erro = validar_periodo(ymd_do_form(de), ymd_do_form(ate), agora_.date())
         if erro:
             raise ErroVisitas(400, {"erro": erro})
         with self._tranca():
@@ -918,8 +930,7 @@ class Visitas:
                                    "Limite de hoje atingido" if teto else ""),
                 "a_importar": [{"hora": hhmm_h(_dt(x.get("baixado_em"))), "dia": x["dia"]} for x in self._pendentes()],
                 "pausa_texto": self._texto_pausa(e, rod), "diag": self.diagnostico_linhas(),
-                "padrao": {"de": de, "ate": ate}, "de_iso": dia_iso(de), "ate_iso": dia_iso(ate),
-                "hoje_iso": agora_.strftime("%Y-%m-%d")}
+                "padrao": {"de": de, "ate": ate}, "de_br": dia_data(de), "ate_br": dia_data(ate)}
 
     @staticmethod
     def _texto_pausa(e: dict, rod: list[dict]) -> str:
