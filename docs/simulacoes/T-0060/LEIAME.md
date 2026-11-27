@@ -14,22 +14,24 @@ Na base congelada (19/11): 112.701 ÷ 13 × 19 = R$ 164.717 (Painel, Diretor e M
 ## Antes × depois
 | Número | Antes | Depois | Valor × regra |
 |---|---|---|---|
-| Real (Painel) | R$ 112.701 · R$ 9.131/dia | "Real até 19/11" R$ 112.701 · R$ 8.669/dia · 13 de 19 DU | decisão 43: hoje é DU passado (112.701 ÷ 13) |
+| Real (Painel) | R$ 112.701 · R$ 9.131/dia | "Real · até 19/11" R$ 112.701 · R$ 8.669/dia · 13 de 19 DU | decisão 43: hoje é DU passado (112.701 ÷ 13) |
 | Projeção (Painel) | R$ 173.494 | R$ 164.717 | 112.701 ÷ 13 × 19 |
 | Ating. projetado | 12% | 11% | 164.717 ÷ desafio 1.500.000 |
 | Projeção (Metas, faturamento) | R$ 173.494 | R$ 164.717 | igual ao Painel (meta_nucleo `hoje_conta=True`) |
-| Projeção (Metas, positivação) | 68 | 63 | grupo A, hoje conta |
-| Projeção (Metas, peças / cad.) | R$ 17.109 / 6 | R$ 16.099 / 6 | rótulo "· até hoje"; **lote 2: passa a até ontem** |
+| Projeção da positivação (Metas × Diretor) | Metas 68 · Diretor 68 | **66 nos dois** (45 ÷ 13 × 19 = 65,8) | o Metas subtraía a positivação de hoje (`real_proj = n_pos − hoje`, relatorios_nucleo, cartão Positivação); agora `projecao_ritmo(real, corrido)` é a conta única |
+| Projeção (Metas, peças / cad.) | R$ 17.109 / 6 | R$ 16.099 / 6 | sem sufixo: o cartão vai até o dia do cabeçalho; **lote 2: passa a até ontem** |
 | Volume (projeção) | 3.848 | 3.649 | grupo A com volume (`VOLUME_COM_HOJE`) |
 | Positivados | 45 | 45 | líquido > 0, sem 000040 |
 | Pedidos faturados | 58 | 58 | chave filial+pedido, líquido > 0 (RN-GER-014) |
-| Ticket por pedido | R$ 2.039 (bruto) | R$ 1.943 (líquido) | 112.701 ÷ 58 |
+| Ticket por pedido (Painel, aba Itens) | R$ 2.039 (bruto) | R$ 1.943 (líquido) | fórmula: faturamento líquido ÷ pedidos faturados = 112.701 ÷ 58. Não é o ticket do Diretor (÷ positivados) |
 | Diretor: faturamento / positivação | R$ 110 mil / 43 · 12 de 19 DU | R$ 113 mil / 45 · 13 de 19 DU | `corte_a` = hoje; bate com o Painel |
-| Diretor: grupo B | sem período | "Visitas · até 18/11", conversão, 1ª visita, aderência e jornada com "até 18/11"; markup e desconto "até hoje" | decisão 48 |
+| Visitas (Metas) | "Visitas" 1.074 | "Visitas" 1.074 (sem sufixo: soma até 19/11, o dia do cabeçalho) | **lote 2: passa a até ontem** (o Diretor corta em 18/11: 990; a diferença 1.074 × 990 é o corte do Espelho) |
+| Ticket do Diretor/RRM | "Ticket médio" | "Ticket por cliente" | fórmula: faturamento líquido ÷ positivados (R$ 113 mil ÷ 45 = R$ 2,5 mil) |
+| Diretor: grupo B | sem período | "Visitas · até 18/11", conversão, 1ª visita, aderência e jornada com "até 18/11"; markup e desconto sem rótulo (já vão até o dia do cabeçalho) | decisão 48 |
 | Saldo, Faturado: soma das UF | R$ 118.254 (bruto) | R$ 112.701 (líquido; devolução R$ 5.552) | D2d |
 | Metas, faturamento por UF (projeção) | PA 30.155 · MA 91.651 · AM 51.688 | PA 28.630 · MA 87.015 · AM 49.073 | real da filial da nota (PA 19.589) × 164.717 ÷ 112.701; soma = cartão |
 | Pedidos por UF (`por_filial_da_nota`) | notas | AM 23 · PA 19 · MA 16 | pedidos faturados |
-| Produtividade (Painel) | sem período | "Conversão · até 19/11", TMA, início, jornada, almoço "até 19/11" | período do Espelho do Farol de Visita |
+| Produtividade (Painel) | sem período | sem sufixo por cartão: a data aparece uma vez, em "Visitas" e "Aderência ao Planner até 19/11" | período do Espelho do Farol de Visita (o título da aba "Produtividade" é chave da aba e não foi renomeado) |
 | TMA | 0,25 h | 0,2647 h (00:15:53) | segundos lidos |
 
 ## Lote 2 (não feito agora)
@@ -39,3 +41,24 @@ Na base congelada (19/11): 112.701 ÷ 13 × 19 = R$ 164.717 (Painel, Diretor e M
 - Cadastros com compra: RRM mostra AM 1, Metas AM 0 (causa não achada) [SUP].
 - **Engenheiro-dados:** `bap_dados.py:1064` chama `mn.acompanhar(...)` sem `hoje=`; usa a data real do PC. Passar o `hoje` do contexto.
 - D2b (1 positivado fora da base cadastral): não aparece nesta base (45 = 45) [SUP: a diferença 55/54 é da produção].
+
+- Cad. com compra de RR "—" (Metas): não é só texto; a fonte é a tabela do farol, que não tem linha de RR. Padronizar para 0 muda o dado da barra: lote 2.
+- Última linha do Diretor (Jornada sozinha) e os cartões do Metas que não ocupam a largura toda: decisão 50 / regra 12, ficam para a T-0059 parte 2.
+
+- Rodapé das barras: ponto como milhar; nas barras de projeção o rodapé compara com a projeção do cartão (R$ 164.717), não com o real. Isso é só da simulação.
+- Código: `PROJECAO_COM_HOJE`, `VOLUME_COM_HOJE`, `base_projecao`, o ramo (a), `esperado_b`, `_hoje_uf` e a tira de `estados_do_cartao` foram apagados; `_hoje_fora_do_du` agora devolve sempre False e os `_de_hoje(...)` viraram no-op (limpeza em outra tarefa).
+
+## Correções do designer, corretor e revisor (mesmo commit)
+- Sufixo de período só no que difere do cabeçalho ("dados até 19/11 · 13 de 19 DU"): grupo B do Diretor e da RRM ("até 18/11"), pela constante `GRUPO_B_CARTOES` e `sufixo_periodo` em `relatorios_nucleo`. Markup, desconto, Peças, Cad. e Visitas do Metas: sem sufixo.
+- Diretor: `dados_ate`/`ndp` voltaram ao sentido antigo (ontem, grupo B); `dados_ate_a`/`ndp_a` são do grupo A (hoje no DU; o rótulo de data vem da última NF). Peças e cadastros por UF da RRM e do cartão fecham com o cartão (mesmo corte); a projeção de peças não mudou.
+- Pedidos e cadastros do cartão do Diretor: `pedidos_faturados_ate` e `clientes_positivados_ate` (líquido > 0, sem 000040).
+- Barras de projeção por UF: rodapé compara com a projeção do cartão.
+- Real: "Real + pedidos · até dd/mm" quando há pedidos em aberto somados.
+- Meta RH e parcial de RV: `_resta_b(ac)` usa `dias_restantes_b` do acompanhamento (modulo-metas); sem o campo, cai em `dias_restantes` [SUP].
+- Último DU do mês (`metas_*.png`): com hoje contando e `dias_restantes` = 0, o cartão do Metas diz "último dia: faltam R$ 1.387.299" (Nec./dia), e "mês fechado" só depois do último DU. O `_ultimo_dia(ac)` precisa do campo `dias_restantes_b` do modulo-metas (> 0 no último DU); sem ele o cartão cai em "mês fechado". O texto "mês fechado" do Metas é do `relatorios_nucleo._cartao_indicador` (meu); o do Painel Executivo "Projeção · mês fechado" (linha ~9099) e o da parcial (~11518) seguem iguais.
+
+## Rodada com o meta_nucleo do 7c76164
+- Simulação refeita com o `meta_nucleo.py` do 7c76164 (`dias_restantes_b`, visita no grupo B, `hoje_conta`) e os PNGs do Diretor depois da mudança do último DU. Nenhum número da tabela mudou.
+- `_ultimo_dia` disparou com o campo real: com hoje = 30/11 (último DU), `dias_restantes` = 0, `dias_restantes_b` = 1 e o cartão diz "último dia: faltam R$ 1.387.299".
+- Código morto removido: `_hoje_fora_do_du`, `_du_fechados`, `_de_hoje` e os acumuladores "hoje"/"vol_hoje"/"vhoje" (24 pontos em `relatorios_nucleo.py` e 2 em `visao_executiva.py`).
+- Para o engenheiro-dados: o bloco `meta@AAAA-MM` do `bap_dados.carregar` ficou em cache sem `dias_restantes_b` (na simulação o campo só apareceu depois de apagar o `.pkl`). A assinatura do bloco precisa de uma marca nova quando o `meta_nucleo` muda (VERSAO fica 27).
