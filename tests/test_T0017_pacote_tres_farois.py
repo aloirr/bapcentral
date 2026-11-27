@@ -751,10 +751,19 @@ def _contrato_1073():
     return saida
 
 
+# T-0036: os 4 do Analista têm títulos repetidos ("Por vendedor", "Por
+# supervisor"...) e a lista própria (§10.9.3, por rid e título): conferidos em
+# tests/test_T0036_analista_robo.py; aqui ficam as do §10.7.3, por título
+RIDS_LISTA_1093 = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
+
+
 def _robo():
     saida = {}
     for rid, tabs in ba._COLUNAS_TABELAS_WEB.items():
+        if rid in RIDS_LISTA_1093:
+            continue
         for titulo, cols in tabs.items():
+            assert titulo not in saida, f"título repetido no §10.7.3: {titulo}"
             saida[titulo] = [(n, tp, bool(o), s) for n, tp, o, s in cols]
     return saida
 
