@@ -7892,19 +7892,22 @@ def kpis_fretes(ls, fat_por_mes_uf, uf=None) -> list:
     faturado LIQUIDO de devolucao (RN-GER-002, pela data da NF; P3 B)} de
     todas as notas, por UF do cliente. Denominador: meses visiveis; com `uf`
     (o recorte, informado por quem chama) so o faturado dessa UF; uf=None
-    soma todas as UFs (BAP inteira, nunca adivinhada pelas linhas)."""
+    soma todas as UFs (BAP inteira, nunca adivinhada pelas linhas). `uf` pode
+    ser um texto ou um conjunto de UFs (filtro com varios estados: soma-as)."""
     meses_vis = {l[0] for l in ls}
+    ufs = None if not uf else {uf} if isinstance(uf, str) else set(uf)
     fat = sum(v for (m, u), v in fat_por_mes_uf.items()
-              if m in meses_vis and (uf is None or u == uf))
+              if m in meses_vis and (ufs is None or u in ufs))
     val = sum(l[8] for l in ls)
+    fr = sum(l[9] or 0 for l in ls)
     entregues = [l for l in ls if l[13] or l[10] in ("ENTREGUE", CONCLUIDA)]
     com_data = [l for l in ls if l[13]]
     no_prazo = [l for l in com_data if l[12] and l[13] <= l[12]]
     return [
         kpi("Notas com frete", br(len(ls)), "neutro", moeda(val)),
         kpi("% do faturado", p(pct_de(val, fat)), "info"),
-        kpi("Frete estimado", moeda(sum(l[9] or 0 for l in ls)), "neutro",
-            p(pct_de(sum(l[9] or 0 for l in ls), val)) + " do valor"),
+        kpi("Frete estimado", moeda(fr), "neutro",
+            p(pct_de(fr, val)) + " do valor"),
         kpi("Cidades atendidas", br(len({l[6] for l in ls})), "neutro"),
         kpi("Entregues", br(len(entregues)), "ok",
             f"{p(pct_de(len(no_prazo), len(com_data)))} no prazo"
