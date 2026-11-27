@@ -485,6 +485,8 @@ def test_RN_GER_002_faturado_12m_por_vendedor(real):
         assert math.isclose(f12 or 0.0, fat.get(vend, 0.0), abs_tol=0.01), i
         if f12 and f12 > 0:
             assert math.isclose(pct, 100 * v / f12, rel_tol=1e-9), i
+        else:
+            assert pct is None, i                       # líquido <= 0: "—", nunca negativo
         conferidos += 1
     assert conferidos == len(t["linhas"]) == 21
 
@@ -499,8 +501,16 @@ def test_RN_GER_002_faturado_liquido_zero_ou_negativo_mostra_traco():
     r = rn.montar("pl_devolucoes", RAIZ, hoje=HOJE, params={"ANO": "2026", "MÊS": "10"})
     rot, val = _serie_resumo(r, "% devolvido do faturado · dia a dia · OUT/26")
     v = val[rot.index("6")]
-    assert v is None or v == "—", "06/10 com faturado líquido negativo tem de mostrar —"
+    # sem percentual: None/"—", ou a barra vazia do gráfico (0 com `rotular`
+    # "nao_zero", que não escreve número nenhum, a mesma do dia sem nota)
+    g = next(b["grafico"] for b in r["painel"]["blocos"]
+             if (b.get("grafico") or {}).get("titulo") == "% devolvido do faturado · dia a dia · OUT/26")
+    assert v is None or v == "—" or (v == 0 and g.get("rotular") == "nao_zero"), \
+        "06/10 com faturado líquido negativo não pode mostrar número"
     assert all(x is None or x == "—" or x >= 0 for x in val)
+    # a regra única do núcleo: líquido <= 0 = sem percentual
+    if hasattr(rn, "pct_do_liquido"):
+        assert rn.pct_do_liquido(dev[d6], vnd[d6] - dev[d6]) is None
     # a semana de 05/10 tem faturado líquido positivo: número normal
     sem = [date(2026, 10, d) for d in range(5, 12)]
     rot_s, val_s = _serie_resumo(r, "% devolvido do faturado · semana a semana · OUT/26")
