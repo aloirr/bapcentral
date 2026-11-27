@@ -1031,7 +1031,7 @@ Fontes:
 - RN-GER-012 ("SO TEM EDIÇÃO NA WEB. NINGUEM MAIS MEXE NO PC. USUARIO QUE MEXE NISSO: ADMIN por enquanto", 25/11);
 - as decisões de 26/11, em R-20261126-171559-alexandre: o diretor vê só o Resumo nos faróis novos; o TOTAL A PAGAR das Campanhas só para admin, gerente e diretor; o `champions_config.json` editado pela web só pelo admin e gravado pelo robô;
 - a decisão 6 A do R-20261126-180314-alexandre: um "autorizo" do Alexandre por arquivo de config editado pela web;
-- ADR 0004 (config editada pela web).
+- ADR 0005 (config editada pela web).
 
 O que esta seção faz:
 - **registra a forma que já está no `main`** desde a T-0021 v4 (#109 a #112): `web/app/edicoes.py` (`LUGARES`, `erro_spec`, `valores_do_form`, `Fila`) e `bap_automation.py` (`EDICOES_WEB`, `edicao_web`, `validar_edicao_web`, `aplicar_edicao_web`, `gravar_edicoes_pc`). Até aqui, ela só existia no código;
@@ -1156,7 +1156,7 @@ Esconder com CSS não basta. O teste pede a página, o Excel e o PDF como `venda
 
 **O diretor:** pelas decisões de 26/11, ele vê só o Resumo dos faróis novos. Por isso, ele não vê a aba Vendedores nem a Supervisores. Hoje, o Resumo das Campanhas não tem o TOTAL A PAGAR: os `kpis` do topo vêm de `cartoes_de(...)[:1]`, sem o índice do pagamento. **Pergunta P1 ao Alexandre** (`docs/desenho/T-0025.md`). Até a resposta, o diretor não vê o TOTAL A PAGAR em lugar nenhum.
 
-#### 10.9.5 Parâmetros das campanhas: a config editada pela web (`vc_champions`; ADR 0004)
+#### 10.9.5 Parâmetros das campanhas: a config editada pela web (`vc_champions`; ADR 0005)
 
 **Autorização:** R-20261126-171559-alexandre: "Autorizo editar pela web os parâmetros das campanhas (champions_config.json), só admin, gravados pelo robô". Pela decisão 6 A, este "autorizo" vale **só** para este arquivo. Outra config (transportadoras, metas, Planner, kits; T-0042) pede o "autorizo" dela.
 
@@ -1214,7 +1214,7 @@ O arquivo de hoje não tem CPF nem e-mail: tem nomes da equipe, códigos e metas
 
 #### 10.9.6 Ordem de publicação (vale para cada lote da T-0023 e da T-0025)
 
-1. **Este contrato** (a §10.9 e a §10.10) e a ADR 0004.
+1. **Este contrato** (a §10.9 e a §10.10) e a ADR 0005.
 2. **Testes que destravam o CI** (testes): as travas de escopo (`tests/escopo_farois_web.py`) passam a aceitar os `rid` novos como **opcionais**, como o `FAROIS_LOTE2`. Assim, o PR do robô não fica vermelho.
 3. **Web antes** (modulo-web): aceita e desenha os faróis novos, os lugares novos, o `novo`, o `max`, a `multilinha`, o `padrao`, a data livre, `RESTRITAS`, `Kpi.coluna` e `parametros_edicao`. A `VERSAO` nova vai no `/saude`. Sem o robô novo, nada muda na tela.
 4. **Núcleo e PC só leitura** (modulo-farois, mais modulo-posvenda se precisar de função nova), seguidos do **robô** (modulo-robo), **no mesmo dia**. Os dois chegam ao PC na mesma rotina diária das 06h30 (ADR 0002). Assim, não há manhã em que o PC já está só leitura e a web ainda não grava. Nenhum dos dois entra no `main` sem a web nova no `/saude`.

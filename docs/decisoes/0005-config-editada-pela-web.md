@@ -1,4 +1,4 @@
-# ADR 0004 — Config editada pela web: por seção, com versão por hash, cópia antes e gravação pelo robô
+# ADR 0005 — Config editada pela web: por seção, com versão por hash, cópia antes e gravação pelo robô
 
 - **Status:** proposta (T-0025 v2). Primeiro arquivo: `champions_config.json`, autorizado pelo Alexandre em 26/11 (R-20261126-171559-alexandre). Os outros arquivos (T-0042) entram um por um, cada um com o "autorizo" dele (decisão 6 A do R-20261126-180314-alexandre).
 - **Data:** 2026-11-27
