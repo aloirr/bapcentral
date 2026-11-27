@@ -339,3 +339,62 @@ def test_RN_POS_010_campos_lugar_web_do_fretes_sem_frete_real():
     ent = ba.campos_do_lugar_web("pl_entregas", "Entregas")
     assert ent == ba.CAMPOS_EDICAO_WEB["pos_venda"]
     assert ent["frete_real"] == "valor"
+
+
+# ------------------------------------------------- cor do pacote web (#204)
+# Regra (RN-GER-009, manual da marca; T-0037): o site não usa o #62BB47 nem o
+# #B3261E; só o pacote web traduz para os tokens da web (--verde-marca
+# #59BA61 e --alerta #B42318). O núcleo do PC continua com as cores dele.
+@pytest.mark.parametrize("entrada, esperado", [
+    # valor × regra: o verde do PC vira o --verde-marca da web
+    ("#62BB47", "#59BA61"),
+    # valor × regra: o vermelho do PC vira o --alerta da web
+    ("#B3261E", "#B42318"),
+    # sem diferença de maiúsculas: "#62bb47" é a mesma cor → #59BA61
+    ("#62bb47", "#59BA61"),
+    ("#b3261e", "#B42318"),
+    # espaço em volta não muda a cor → traduz (o resultado vem sem o espaço)
+    ("  #62BB47 ", "#59BA61"),
+    ("\t#b3261e\n", "#B42318"),
+    # cor fora do mapa volta igual, byte a byte (inclusive o espaço)
+    ("#1F4E79", "#1F4E79"),
+    (" #ffffff ", " #ffffff "),
+    # texto que contém a cor, mas não é só a cor, não muda
+    ("verde #62BB47", "verde #62BB47"),
+    ("", ""),
+])
+def test_RN_GER_009_cor_para_web_traduz_so_as_duas_cores(entrada, esperado):
+    assert ba.cor_para_web(entrada) == esperado
+
+
+@pytest.mark.parametrize("entrada", [None, 0x62BB47, 1.5, True,
+                                     ["#62BB47"], {"cor": "#B3261E"}])
+def test_RN_GER_009_cor_para_web_valor_que_nao_e_texto_volta_igual(entrada):
+    # valor × regra: só texto é cor; o resto volta o mesmo objeto, sem cópia
+    assert ba.cor_para_web(entrada) is entrada
+
+
+def test_RN_GER_009_cor_para_web_mapa_so_com_as_duas():
+    # o mapa tem exatamente as 2 trocas do manual da marca, e nenhuma volta
+    # a dar uma cor proibida no site
+    assert ba._COR_PARA_WEB == {"#62BB47": "#59BA61", "#B3261E": "#B42318"}
+    assert not set(ba._COR_PARA_WEB.values()) & set(ba._COR_PARA_WEB)
+
+
+def test_RN_GER_009_cor_para_web_no_para_json():
+    """Toda cor do pacote passa pelo _para_json: a cor sozinha é traduzida
+    (em dict e em lista); a cor dentro de um texto não muda."""
+    pacote = {"cor": "#62bb47", "fundo": " #B3261E ",
+              "serie": ["#62BB47", "#1F4E79"],
+              "frase": "Meta batida (#62BB47) e alerta #B3261E",
+              "n": 3}
+    saida = ba._para_json(pacote)
+    # valor × regra: cor sozinha → token da web
+    assert saida["cor"] == "#59BA61"
+    assert saida["fundo"] == "#B42318"
+    assert saida["serie"] == ["#59BA61", "#1F4E79"]
+    # valor × regra: cor dentro de texto → o texto igual, nada trocado
+    assert saida["frase"] == "Meta batida (#62BB47) e alerta #B3261E"
+    assert saida["n"] == 3
+    # a entrada não mudou
+    assert pacote["cor"] == "#62bb47"

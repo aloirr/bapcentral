@@ -16,11 +16,12 @@ import pytest
 ba = pytest.importorskip("bap_automation")
 
 from escopo_farois_web import (FAROIS_LOTE2, FAROIS_OBRIGATORIOS,  # noqa: E402
-                               FAROIS_PERMITIDOS, FAROIS_T0023,
+                               FAROIS_PERMITIDOS, FAROIS_T0023, FAROIS_T0036,
                                FAROIS_T0037, problemas_escopo)
 
-# relatório do PC que nunca vai ao site (o pl_garantias entrou na T-0023 v2)
-FORA = "vc_markup"
+# rid inventado, que nunca entra na lista (o pl_garantias entrou na T-0023 v2
+# e o vc_markup na T-0036; um rid real pode entrar amanhã)
+FORA = "zz_fora"
 
 _NOMES = ("FAROIS_WEB", "_FONTE_BAIXADO_WEB", "_TABELA_RECORTE_WEB",
           "_UF_LINHAS_WEB", "RID_META_WEB", "selecionar_farol_web")
@@ -30,25 +31,33 @@ def _robo(**troca):
     """Cópia rasa dos nomes que a trava lê, com a troca pedida."""
     d = {n: getattr(ba, n) for n in _NOMES}
     d["RIDS_KPIS_POR_UF_WEB"] = tuple(getattr(ba, "RIDS_KPIS_POR_UF_WEB", ()))
+    d["RIDS_RECORTE_CONFERIDO_WEB"] = tuple(
+        getattr(ba, "RIDS_RECORTE_CONFERIDO_WEB", ()))           # T-0036
     d.update(troca)
     return SimpleNamespace(**d)
 
 
-def test_RN_GER_006_trava_lista_permitida_lote2_T0023_e_fretes_T0037():
+def test_RN_GER_006_trava_lista_permitida_lote2_T0023_T0036_e_fretes_T0037():
     """Depois do #91, os 5 do lote 2 são obrigatórios; depois do robô da
-    T-0023 v2 (#171), os 3 do pós-venda (FAROIS_T0023) também; depois do
-    robô da T-0037, o pl_fretes (UF do cliente). A lista permitida é a dos
-    obrigatórios."""
+    T-0023 v2 (#171), os 3 do pós-venda (FAROIS_T0023); depois do robô da
+    T-0036 (#159), os 4 do Analista; depois do robô da T-0037, o pl_fretes
+    (UF do cliente). A lista permitida é a dos obrigatórios."""
     assert set(FAROIS_LOTE2) == {"pv_indicadores", "vc_base", "vc_planner",
                                  "pl_giro", "pl_frw"}
     assert FAROIS_OBRIGATORIOS == ({"pl_inadimplencia", "pv_pedidos",
                                     "pl_entregas", "vc_visitas", "vc_meta"}
                                    | set(FAROIS_LOTE2) | set(FAROIS_T0023)
-                                   | set(FAROIS_T0037))
+                                   | set(FAROIS_T0036) | set(FAROIS_T0037))
     assert FAROIS_T0023 == {
         "pl_garantias": ("sem_estado",),
         "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
         "pl_ncc": ("tabela", "NCC pendentes", "FILIAL", "filial")}
+    # T-0036: + os 4 do Analista Comercial (contrato §10.11.1)
+    assert set(FAROIS_T0036) == {"vc_saldo", "vc_markup", "vc_preco",
+                                 "an_divergencias"}
+    # T-0037: + o pl_fretes, obrigatório, pela UF do cliente (RN-GER-006)
+    assert FAROIS_T0037 == {
+        "pl_fretes": ("tabela", "Notas com frete", "UF", "uf")}
     assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS
     assert FORA not in FAROIS_PERMITIDOS
 
@@ -56,7 +65,7 @@ def test_RN_GER_006_trava_lista_permitida_lote2_T0023_e_fretes_T0037():
 @pytest.mark.parametrize("rid", sorted(FAROIS_OBRIGATORIOS))
 def test_RN_GER_006_trava_reprova_obrigatorio_faltando(rid):
     """Qualquer farol obrigatório (T-0017, T-0022, lote 2 da T-0024, T-0023 v2,
-    T-0037) que sai de FAROIS_WEB reprova."""
+    T-0036, T-0037) que sai de FAROIS_WEB reprova."""
     sem = tuple(r for r in ba.FAROIS_WEB if r != rid)
     assert f"{rid}: obrigatório e fora de FAROIS_WEB" in \
         problemas_escopo(_robo(FAROIS_WEB=sem))
@@ -106,7 +115,50 @@ def test_RN_GER_006_trava_reprova_regra_de_uf_trocada():
                  "('FILIAL', 'filial')"]
 
 
+def test_RN_GER_006_trava_reprova_fretes_pela_filial():
+    """Fretes é da UF do cliente (RN-GER-006), não da filial: com o pl_fretes
+    em FAROIS_WEB, a regra trocada reprova."""
+    farois = tuple(r for r in ba.FAROIS_WEB if r != "pl_fretes") + ("pl_fretes",)
+    fontes = dict(ba._FONTE_BAIXADO_WEB,
+                  pl_fretes=ba._FONTE_BAIXADO_WEB["pv_pedidos"])
+    tab = dict(ba._TABELA_RECORTE_WEB, pl_fretes="Notas com frete")
+    uf = dict(ba._UF_LINHAS_WEB)
+    uf[("pl_fretes", "Notas com frete")] = ("FILIAL", "filial")
+    p = problemas_escopo(_robo(FAROIS_WEB=farois, _FONTE_BAIXADO_WEB=fontes,
+                               _TABELA_RECORTE_WEB=tab, _UF_LINHAS_WEB=uf))
+    assert p == ["pl_fretes: regra de UF ('FILIAL', 'filial'), esperado "
+                 "('UF', 'uf')"]
+    uf[("pl_fretes", "Notas com frete")] = ("UF", "uf")
+    assert problemas_escopo(_robo(FAROIS_WEB=farois, _FONTE_BAIXADO_WEB=fontes,
+                                  _TABELA_RECORTE_WEB=tab,
+                                  _UF_LINHAS_WEB=uf)) == []
+
+
 def test_RN_GER_006_trava_reprova_tabela_de_recorte_sem_regra():
-    tab = dict(ba._TABELA_RECORTE_WEB, **{FORA: "Markup"})
+    tab = dict(ba._TABELA_RECORTE_WEB, **{FORA: "Tabela inventada"})
     assert f"{FORA}: tabela de recorte sem regra declarada" in \
         problemas_escopo(_robo(_TABELA_RECORTE_WEB=tab))
+
+
+# ------------------------------------------------------------------ T-0036
+def test_RN_GER_006_trava_reprova_saldo_sem_conferencia_do_kpis_de():
+    """Saldo com cartão por estado sem a conferência do kpis_de (§10.11.1):
+    o número do estado pode sair errado; a trava reprova."""
+    p = problemas_escopo(_robo(RIDS_RECORTE_CONFERIDO_WEB=("vc_markup",)))
+    assert p == ["vc_saldo: fora de RIDS_RECORTE_CONFERIDO_WEB"]
+
+
+def test_RN_GER_006_trava_reprova_pesquisa_pela_filial():
+    """Pesquisa de mercado é da UF do cliente (§10.11.3), não da filial."""
+    uf = dict(ba._UF_LINHAS_WEB)
+    uf[("vc_preco", "Pesquisa de mercado")] = ("FILIAL", "filial")
+    assert problemas_escopo(_robo(_UF_LINHAS_WEB=uf)) == [
+        "vc_preco: regra de UF das linhas de 'Pesquisa de mercado' "
+        "('FILIAL', 'filial'), esperado ('UF', 'uf')"]
+
+
+def test_RN_GER_006_trava_reprova_recorte_no_preco():
+    """Preço sem cartões por estado (§10.11.1): tabela de recorte reprova."""
+    tab = dict(ba._TABELA_RECORTE_WEB, vc_preco="Reajustes por produto")
+    p = problemas_escopo(_robo(_TABELA_RECORTE_WEB=tab))
+    assert "vc_preco: sem_estado não leva recorte" in p
