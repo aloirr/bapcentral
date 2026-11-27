@@ -83,8 +83,8 @@ _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def _contato(txt) -> bool:
-    from .render import coluna_fora   # import tardio: render importa visitas, que importa este módulo
     """Coluna ou rótulo de contato/telefone: nunca vai ao site (P2 A da T-0023; regra 6)."""
+    from .render import coluna_fora   # import tardio: render importa visitas, que importa este módulo
     return coluna_fora(txt or "") or "CONTATO" in str(txt or "").upper()
 
 
@@ -272,6 +272,12 @@ def _norm_texto(v: str) -> str:
     return v.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
+def _texto_form(c: dict, s: str) -> str:
+    """Texto do formulário normalizado; sem `caixa`, em maiúsculas (como o PC)."""
+    v = _norm_texto(s)
+    return v if c.get("caixa") else v.upper()
+
+
 def _mais_um_ano(d: date) -> date:
     try:
         return d.replace(year=d.year + 1)
@@ -339,7 +345,7 @@ def _checa(c: dict, bruto: str, atual: str, v_atual, hoje: date) -> tuple[str | 
                 d = date(int(v[6:]), int(v[3:5]), int(v[:2]))
             except ValueError:
                 return None, None, f"{rot}: data inválida."
-            teto = _mais_um_ano(hoje)
+            teto = data_max(hoje)
             if not DATA_MIN <= d <= teto:
                 return None, None, f"{rot}: data fora das permitidas (de {DATA_MIN:%d/%m/%Y} até {teto:%d/%m/%Y})."
     elif tipo == "numero":
@@ -359,9 +365,7 @@ def _checa(c: dict, bruto: str, atual: str, v_atual, hoje: date) -> tuple[str | 
             return None, None, ""
         return fmt_numero(n), fmt_numero(a), ""
     else:                                                       # texto livre (a lista só sugere)
-        v, ref = _norm_texto(bruto), _norm_texto(atual)
-        if not c.get("caixa"):                                  # os dois lados no mesmo formato (como o PC)
-            v, ref = v.upper(), ref.upper()
+        v, ref = _texto_form(c, bruto), _texto_form(c, atual)   # os dois lados no mesmo formato (como o PC)
         if v == ref:
             return None, None, ""                               # regra 1 do texto: sem mudança, o campo não vai
         if REMOVIDO.casefold() in v.casefold():                                       # regra 4: o original do PC nunca é trocado pelo texto limpo
@@ -444,8 +448,7 @@ def valores_do_novo(ed: dict, form: dict, obrigatorios: tuple[str, ...] = (),
         if c is None:
             return {}, {}, f"{nome}: campo obrigatório fora do pacote."
         if nome not in valores:
-            v = _norm_texto(str(form.get("c_" + nome, c["padrao_txt"])))
-            v = v if c.get("caixa") else v.upper()
+            v = _texto_form(c, str(form.get("c_" + nome, c["padrao_txt"])))
             if not v:
                 return {}, {}, f"{c['rotulo']}: obrigatório."
             valores[nome] = v
