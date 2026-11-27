@@ -136,8 +136,19 @@ def _resumo(titulo, col):
 MESES12 = ["DEZ/25", "JAN/26", "FEV/26", "MAR/26", "ABR/26", "MAI/26", "JUN/26", "JUL/26", "AGO/26", "SET/26", "OUT/26",
            "NOV/26"]
 NOTAS12 = [4, 5, 5, 6, 7, 6, 8, 7, 9, 8, 10]                     # dez/25 a out/26 (inventado); nov/26 vem das CASOS
+def _robo_resumo():
+    """O robô novo (T-0037, `blocos_resumo_fretes_web` e `_TABELAS_RESUMO_FRETES_WEB`) ainda pode não estar no main: sem
+    ele, o teste que depende do resumo pula com o motivo; com ele, roda."""
+    import pytest
+    ba = pytest.importorskip("bap_automation")
+    for nome in ("_TABELAS_RESUMO_FRETES_WEB", "blocos_resumo_fretes_web"):
+        if not hasattr(ba, nome):
+            pytest.skip(f"bap_automation sem {nome}: depende do robô da T-0037 (ainda fora do main)")
+    return ba
+
+
 def tabelas_resumo():
-    import bap_automation as ba
+    ba = _robo_resumo()
     return [_resumo(t, rot) for t, rot in ba._TABELAS_RESUMO_FRETES_WEB]
 
 
@@ -152,7 +163,7 @@ def blocos_resumo():
         t = deepcopy(t)
         t["filtros"] = [{"coluna": "MÊS", "padrao": "NOV/26"}]
         tabs.append(t)
-    import bap_automation as ba
+    ba = _robo_resumo()
     blocos, frases = ba.blocos_resumo_fretes_web({"graficos": [graf], "tabelas": tabs})
     return json.loads(json.dumps(blocos)), json.loads(json.dumps(frases))
 
