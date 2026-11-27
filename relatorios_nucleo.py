@@ -1784,6 +1784,71 @@ def _edicao_autorizacao(i_chave, i_cod, i_por):
                         "opcoes": list(QUEM_AUTORIZA), "col": i_por}]}
 
 
+# (T-0023 v2, contrato 10.9.1) O teto do texto de cada campo editavel pela
+# web, um lugar so: o nucleo poe no "max" da edicao e o robo confere contra
+# o mesmo numero. Sem entrada = 60 caracteres (o padrao da web).
+TETO_TEXTO_LONGO = 600
+MAX_TEXTO_PADRAO = 60
+MAX_TEXTO_EDICAO = {("garantias", c): TETO_TEXTO_LONGO
+                    for c in ("reclamacao", "pendencias", "retorno_cliente",
+                              "observacao")}
+
+# (T-0023 v2, 10.9.3) os 14 campos da Garantia que a web edita, na ordem do
+# contrato: (campo, rotulo, tipo, coluna da tabela). O contato do cliente
+# NAO entra (P2 A: so se edita no PC).
+CAMPOS_EDICAO_GARANTIA = (
+    ("ticket", "TICKET", "texto", "TICKET"),
+    ("dt_solicitacao", "DT. SOLICITAÇÃO", "data", "DT. SOLICITAÇÃO"),
+    ("dt_prazo", "DT. FECHAMENTO (PRAZO)", "data", "DT. FECHAMENTO"),
+    ("dt_retorno", "DT. RETORNO", "data", "DT. RETORNO"),
+    ("status", "STATUS", "lista", "STATUS"),
+    ("resultado", "RESULTADO ANÁLISE", "lista", "RESULTADO ANÁLISE"),
+    ("cod_cliente", "CÓD. CLIENTE", "texto", "CÓD. CLIENTE"),
+    ("cod_produto", "CÓD. PRODUTO", "texto", "CÓD. PRODUTO"),
+    ("descricao", "DESCRIÇÃO PRODUTO", "texto", "DESCRIÇÃO PRODUTO"),
+    ("qtd", "QTD", "texto", "QTD"),
+    ("reclamacao", "RECLAMAÇÃO", "longo", "RECLAMAÇÃO"),
+    ("pendencias", "PENDÊNCIAS", "longo", "PENDÊNCIAS"),
+    ("retorno_cliente", "RETORNO DO CLIENTE", "longo", "RETORNO DO CLIENTE"),
+    ("observacao", "OBSERVAÇÃO", "longo", "OBSERVAÇÃO"))
+
+
+def max_texto_edicao(modulo, campo) -> int:
+    """O teto (1 a 600) do texto do campo; sem entrada, 60."""
+    return MAX_TEXTO_EDICAO.get((modulo, campo), MAX_TEXTO_PADRAO)
+
+
+def edicao_garantia(i_col, status, resultados, ticket_padrao="") -> dict:
+    """(T-0023 v2, RN-GER-012) A `edicao` da tabela Garantias, a que o robo
+    traduz para a web. Funcao pura: `i_col` = {nome da coluna: indice},
+    `status`/`resultados` = as listas do garantias.py, `ticket_padrao` =
+    garantias.novo_ticket (a web nao calcula numero). A linha nova nasce
+    com ABERTO, PENDENTE e a data de hoje ("@hoje"). O contato do cliente
+    fica fora (dado pessoal)."""
+    listas = {"status": list(status), "resultado": list(resultados)}
+    padroes = {"ticket": ticket_padrao, "dt_solicitacao": "@hoje",
+               "status": "ABERTO", "resultado": "PENDENTE"}
+    campos = []
+    for campo, rotulo, tipo, coluna in CAMPOS_EDICAO_GARANTIA:
+        c = {"campo": campo, "rotulo": rotulo, "opcoes": [],
+             "col": i_col[coluna]}
+        if tipo == "lista":
+            c["opcoes"] = listas[campo]
+        elif tipo == "data":
+            c["data"] = True                 # sem opcoes = data livre
+        else:
+            c["livre"] = True
+            c["mantem_caixa"] = tipo == "longo" or campo == "descricao"
+        if tipo == "longo":
+            c.update(multilinha=True, max=max_texto_edicao("garantias", campo))
+        if padroes.get(campo):
+            c["padrao"] = padroes[campo]
+        campos.append(c)
+    return {"arquivo": "RELATORIOS/_GARANTIAS", "aba": "",
+            "modulo": "garantias", "acao": "Editar", "chave": i_col["TICKET"],
+            "novo_web": {"rotulo": "Nova garantia"}, "campos": campos}
+
+
 def farol_pedidos(ctx):
     """
     Um farol so para o pedido inteiro: EM ABERTO, FATURADO, EXCLUIDO e - pelo
@@ -7647,8 +7712,20 @@ def garantias(ctx):
             col("SUPERVISOR", "texto", 160, oculta=True),
             col("SITUAÇÃO DO PRAZO", "texto", 140, oculta=True),
             col("TOM SLA", "texto", 60, oculta=True),
-            col("DT. FECHOU", "data", 85, oculta=True)]
-    t_ = tabela("Garantias", cols, linhas, tons,
+            col("DT. FECHOU", "data", 85, oculta=True),
+            # (T-0023 v2) ocultas: a web mostra o valor de hoje no
+            # formulario de edicao. A tela do PC nao muda.
+            col("RECLAMAÇÃO", "texto", 200, oculta=True),
+            col("OBSERVAÇÃO", "texto", 200, oculta=True),
+            col("DT. RETORNO", "data", 85, oculta=True)]
+    for l in linhas:
+        g = dados[l[2]]
+        l.extend([texto(g.get("reclamacao")), texto(g.get("observacao")),
+                  gm.data(g.get("dt_retorno"))])
+    edicao_g = edicao_garantia(
+        {c["nome"]: i for i, c in enumerate(cols)}, gm.STATUS,
+        gm.RESULTADOS, gm.novo_ticket(ctx.raiz))
+    t_ = tabela("Garantias", cols, linhas, tons, edicao=edicao_g,
                 filtros=("STATUS", "RESULTADO ANÁLISE", "PRAZO", "CIDADE",
                          "VENDEDOR"),
                 kpis_de=cartoes,
