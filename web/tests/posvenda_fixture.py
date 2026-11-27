@@ -11,7 +11,7 @@ from app import tabelas
 
 HOJE = date(2026, 11, 24)
 BAIXADO = "2026-11-24T08:10:00-04:00"
-TOM = {"cinza": ["#EEEEEA", "#5F6360"], "ok": ["#F0F7EC", "#2F7D32"], "atencao": ["#FFF4D6", "#8A5A00"], "alerta": ["#FDECEA", "#B42318"]}
+TOM = {"cinza": ["#E3E8E4", "#5E6B63"], "ok": ["#F0F7EC", "#2F7D32"], "atencao": ["#FFF4D6", "#8A5A00"], "alerta": ["#FDECEA", "#B42318"]}
 CHIP = {"ABERTO": TOM["atencao"], "EM TRATATIVA": TOM["atencao"], "FINALIZADA": TOM["ok"], "ATRASADA": TOM["alerta"],
         "NO PRAZO": TOM["ok"], "FECHADA NO PRAZO": TOM["cinza"], "FECHADA COM ATRASO": TOM["cinza"], "SLA ATRASADO": TOM["alerta"], "NO SLA": TOM["ok"], "ATENÇÃO": TOM["atencao"],
         "PENDENTE": TOM["atencao"], "PROCEDENTE": TOM["ok"], "IMPROCEDENTE": TOM["alerta"]}

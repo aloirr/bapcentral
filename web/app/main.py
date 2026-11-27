@@ -656,8 +656,7 @@ def criar_app() -> FastAPI:
         for n, rot in ((g["chave"], True), (g["cel"][1], False), ("UF", False)):
             if n in nomes and not (n == "UF" and g["cel"][1] == "UF"):
                 v = render.fmt_celula(linha[nomes.index(n)], cols[nomes.index(n)]["tipo"])
-                m = tabelas._RE_COD_NOME.match(v)
-                v = m.group(2) if m else v
+                v = tabelas.cod_e_nome(v)[1]
                 if v:
                     saida.append(f"{n} {v}" if rot else v)
         return saida

@@ -1270,6 +1270,12 @@ def preparar_grade(tab: dict, rid: str = "") -> dict:
 _RE_COD_NOME = re.compile(r"^\s*(\d+)\s+-\s+(.+)$")
 
 
+def cod_e_nome(v) -> tuple[str, str]:
+    """"900001 - NOME" -> ("900001", "NOME"); sem código, ("", v). Uma conta só (grade das Devoluções e Entregas, resumo da edição)."""
+    m = _RE_COD_NOME.match(str(v))
+    return (m.group(1), m.group(2)) if m else ("", str(v))
+
+
 def cliente_so_nome(tab: dict) -> None:
     """Entregas (UX §3.2): "900001 - NOME" vira só o nome na grade; o código vai ao popup (`cod` da célula)."""
     cols = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
@@ -1278,9 +1284,9 @@ def cliente_so_nome(tab: dict) -> None:
     i = cols.index("CLIENTE")
     for ln in tab.get("linhas") or []:
         c = ln["cel"][i]
-        m = _RE_COD_NOME.match(str(c.get("t", "")))
-        if m:
-            c["cod"], c["t"] = m.group(1), m.group(2)
+        cod, nome = cod_e_nome(c.get("t", ""))
+        if cod:
+            c["cod"], c["t"] = cod, nome
 
 
 # T-0029 / RN-GER-013 (Alexandre, 26/11/2026): pedido de cliente fora da base de clientes da BAP (pedido interno)

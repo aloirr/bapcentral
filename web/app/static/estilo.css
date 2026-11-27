@@ -354,7 +354,7 @@ button{background:var(--verde-escuro);border-color:var(--verde-escuro)}
 .ed-campo .ed-pend-txt{color:var(--atencao-texto);font-weight:600}
 .ed-campo textarea{display:block;width:100%;max-width:520px;margin-top:.2rem;font:inherit;padding:.4rem .5rem;border:1px solid var(--borda);border-radius:6px;resize:vertical}
 .ed-campo .ed-obrig{display:inline;font-weight:600;color:var(--suave)}
-.ed-botoes{display:flex;gap:1rem;align-items:center;margin:1rem 0 .4rem}
+.ed-botoes{display:flex;gap:.6rem;align-items:center;margin:.8rem 0 .4rem}
 .ed-botoes a{color:var(--verde-escuro);font-weight:600}
 .sel-aviso a{color:var(--verde-escuro);font-weight:600}
 
@@ -663,8 +663,9 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
 @media(max-width:700px){.bc3-k small{hyphens:auto;overflow-wrap:anywhere}}
 /* T-0023 v2 (UX A1/A2/A4): formulário largo (Garantia) em 4 colunas no PC, sem rolar; alvos de 44 px no celular */
 .ed-aviso-pessoal{margin:.4rem 0 0;font-size:.75rem;color:var(--suave);grid-column:1/-1}
-.ed-cancelar{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1px solid var(--borda);border-radius:8px;color:var(--texto);text-decoration:none;font-weight:600}
-.ed-botoes{display:flex;gap:.6rem;align-items:center;margin-top:.8rem}
+.ed-cancelar{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1px solid var(--borda);border-radius:8px;text-decoration:none;font-weight:600}
+.ed-botoes a.ed-cancelar{color:var(--texto)}
+.gb-col .gb-rot{text-align:center}
 @media(min-width:701px){
   .ed-form.ed-largo{max-width:none}
   .ed-largo .ed-campos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 1rem}
