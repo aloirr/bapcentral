@@ -747,28 +747,12 @@ NOME_FORA_DA_BASE = "CLIENTE FORA DA BASE"
 LOJA_NAO_IDENTIFICADA = "(loja não identificada)"
 
 
-def cadastro_do_pedido(filial, cod_cliente, lojas_do_codigo) -> dict:
-    """RN-GER-019: no pedido, os dados do cliente (nome, UF, cidade, limite,
-    saldo) vem da loja do codigo cuja UF e a da filial do pedido; sem loja
-    unica nessa UF, o pedido nao herda dados de outra loja.
-
-    A ftPedidos nao tem D2_LOJA: o pedido so traz o codigo. Por isso a loja
-    e achada pela UF da filial (uf_da_filial). lojas_do_codigo = lista de
-    dicts {uf, nome, fantasia, cidade, limite, saldo, atraso_valor}; saldo e
-    atraso_valor None = nao conhecidos (o cadastro so guarda saldo de uma
-    loja por codigo).
-
-    Devolve {cod, nome, fantasia, uf, cidade, limite, saldo, atraso_valor,
-    identificada, credito_apurado}:
-      - uma so loja do codigo na UF da filial: essa loja;
-      - o codigo tem uma unica loja (nao ha outra para confundir):
-        essa loja, com os dados dela;
-      - senao (nenhuma ou varias na UF): UF = a da filial; sem cidade,
-        limite nem saldo; o nome fica so se for igual em todas as lojas
-        daquela UF (sem nenhuma na UF: em todas do codigo); senao
-        LOJA_NAO_IDENTIFICADA; a fantasia e igual ao nome. credito_apurado False.
-    credito_apurado False tambem quando a loja certa e achada mas o saldo
-    dela nao e conhecido."""
+def cadastro_do_pedido(filial, lojas_do_codigo) -> dict:
+    """RN-GER-019 (fonte: docs/produto/03-regras.md).
+    Entrada: lojas_do_codigo = [{uf, nome, fantasia, cidade, limite, saldo,
+    atraso_valor}]; saldo None = nao conhecido.
+    Saida: {nome, fantasia, uf, cidade, limite, saldo, atraso_valor,
+    identificada, credito_apurado}."""
     lojas = [x for x in (lojas_do_codigo or []) if isinstance(x, dict)]
     uf_f = uf_da_filial(filial)
     na_uf = [x for x in lojas if uf_f and texto(x.get("uf")).upper() == uf_f]
@@ -779,7 +763,7 @@ def cadastro_do_pedido(filial, cod_cliente, lojas_do_codigo) -> dict:
         escolhida = lojas[0]
     if escolhida is not None:
         saldo = escolhida.get("saldo")
-        return {"cod": cod_cliente, "nome": texto(escolhida.get("nome")),
+        return {"nome": texto(escolhida.get("nome")),
                 "fantasia": texto(escolhida.get("fantasia")),
                 "uf": texto(escolhida.get("uf")).upper(),
                 "cidade": texto(escolhida.get("cidade")).upper(),
@@ -791,7 +775,7 @@ def cadastro_do_pedido(filial, cod_cliente, lojas_do_codigo) -> dict:
     nome = texto(base[0].get("nome")) if base and len(nomes) == 1 else ""
     nome = nome or LOJA_NAO_IDENTIFICADA
     # fantasia = nome: o titulo do cartao (celular) nunca fica so com o numero
-    return {"cod": cod_cliente, "nome": nome,
+    return {"nome": nome,
             "fantasia": nome, "uf": uf_f, "cidade": "", "limite": None,
             "saldo": None, "atraso_valor": None, "identificada": False,
             "credito_apurado": False}
@@ -1088,35 +1072,41 @@ class Contexto:
     def lojas_do_codigo(self, cod):
         """Todas as lojas de um codigo (protheus_lojas, do bap_dados) com o
         limite de cada uma; o saldo e o atraso so existem para a loja que o
-        cadastro (tabela['clientes']) guarda por codigo."""
+        cadastro (tabela['clientes']) guarda por codigo. Retorno so de
+        leitura (memo)."""
+        def _ficha(d, saldo, atraso, loja):
+            return {"loja": loja, "nome": d.get("nome"),
+                    "fantasia": d.get("fantasia"), "cidade": d.get("cidade"),
+                    "uf": d.get("uf"), "limite": d.get("limite"),
+                    "saldo": saldo, "atraso_valor": atraso}
+
         if not hasattr(self, "_lojas_idx"):
             idx = defaultdict(list)
             guarda = self.tabela.get("clientes") or {}
             for (c_, loja), d in _lojas_protheus(self).items():
                 g = guarda.get(c_) or {}
                 mesma = bool(g) and texto(g.get("loja")) == texto(loja)
-                idx[c_].append({
-                    "loja": loja, "nome": d.get("nome"),
-                    "fantasia": d.get("fantasia"), "cidade": d.get("cidade"),
-                    "uf": d.get("uf"), "limite": d.get("limite"),
-                    "saldo": g.get("saldo") if mesma else None,
-                    "atraso_valor": g.get("atraso_valor") if mesma else None})
+                idx[c_].append(_ficha(
+                    d, g.get("saldo") if mesma else None,
+                    g.get("atraso_valor") if mesma else None, loja))
             self._lojas_idx = idx
         lojas = self._lojas_idx.get(cod)
         if lojas:
             return lojas
         g = (self.tabela.get("clientes") or {}).get(cod)
-        return [{"loja": g.get("loja"), "nome": g.get("nome"),
-                 "fantasia": g.get("fantasia"), "cidade": g.get("cidade"),
-                 "uf": g.get("uf"), "limite": g.get("limite"),
-                 "saldo": g.get("saldo"),
-                 "atraso_valor": g.get("atraso_valor")}] if g else []
+        return [_ficha(g, g.get("saldo"), g.get("atraso_valor"),
+                       g.get("loja"))] if g else []
 
     def cadastro_do_pedido(self, filial, cod):
         """cadastro_do_pedido() (RN-GER-019) com as lojas deste codigo; {}
-        se o codigo nao esta no cadastro (cliente fora da base)."""
-        lojas = self.lojas_do_codigo(cod)
-        return cadastro_do_pedido(filial, cod, lojas) if lojas else {}
+        se o codigo nao esta no cadastro (cliente fora da base). Retorno so
+        de leitura (memo)."""
+        memo = self.__dict__.setdefault("_memo_cad_ped", {})
+        k = (uf_da_filial(filial), cod)
+        if k not in memo:
+            lojas = self.lojas_do_codigo(cod)
+            memo[k] = cadastro_do_pedido(filial, lojas) if lojas else {}
+        return memo[k]
 
     def cliente_do_pedido(self, filial, cod):
         """ctx.cliente(cod) com nome, fantasia, cidade e UF da loja do
@@ -1129,13 +1119,12 @@ class Contexto:
                     cidade=r["cidade"], uf=r["uf"])
 
     def credito_do_pedido(self, filial, cod):
-        """A ficha de credito (nome, limite, saldo, atraso) da loja do
-        pedido, no formato de tabela['clientes'][cod] + credito_apurado."""
+        """A ficha de credito (limite, saldo, atraso, credito_apurado) da
+        loja do pedido."""
         r = self.cadastro_do_pedido(filial, cod)
         if not r:
             return {}
-        return {"nome": r["nome"], "fantasia": r["fantasia"],
-                "limite": r["limite"], "saldo": r["saldo"],
+        return {"limite": r["limite"], "saldo": r["saldo"],
                 "atraso_valor": r["atraso_valor"],
                 "credito_apurado": r["credito_apurado"]}
 
@@ -1556,7 +1545,7 @@ def pedidos_em_aberto(ctx):
             sit, tom = "VENCE HOJE", "atencao"
         else:
             sit, tom = "NO PRAZO", ""
-        apurado = cred.get("credito_apurado") is not False
+        apurado = analise_credito(cred, valor) != CREDITO_NAO_APURADO
         saldo = cred.get("saldo", 0.0) if apurado else None
         atraso = cred.get("atraso_valor", 0.0) if apurado else None
         if not apurado:
@@ -1862,9 +1851,8 @@ CREDITO_NAO_APURADO = "Saldo Não Apurado"     # RN-GER-019: loja sem saldo
 def analise_credito(cli: dict, valor: float) -> str:
     """A ANALISE CREDITO do Farol de Pedidos (a mesma leitura do BI):
     sem limite -> o disponivel nao cobre o pedido -> tem atraso -> ok.
-    RN-GER-019: sem a loja do pedido (ou sem o saldo dela) nao se analisa:
-    nem "Sem Limite" (seria afirmar que o cliente nao tem limite) nem "Com
-    Limite" - CREDITO_NAO_APURADO, que fica no recorte "Credito a analisar"."""
+    RN-GER-019: credito_apurado False -> CREDITO_NAO_APURADO (fonte:
+    docs/produto/03-regras.md)."""
     if cli.get("credito_apurado") is False:
         return CREDITO_NAO_APURADO
     if (cli.get("limite") or 0) <= 0:
@@ -2043,7 +2031,7 @@ def farol_pedidos(ctx):
         if any(fora_da_base(i.get("razao")) for i in itens):     # RN-GER-013
             cli = {"nome": NOME_FORA_DA_BASE, "fantasia": "", "uf": "",
                    "cidade": ""}
-            ctab = {"nome": NOME_FORA_DA_BASE}
+            ctab = {}
         valor = sum(i["valor"] for i in itens)
         tab = sum(i["p_tab"] * i["qtd"] if i["p_tab"] > 0 else i["valor"]
                   for i in itens)
@@ -2055,8 +2043,8 @@ def farol_pedidos(ctx):
         pcts = [i["pct_at"] for i in itens if i.get("pct_at") is not None]
         i0 = itens[0]
         return [dtp, ped, i0.get("maxima", ""), cod,
-                ctab.get("nome") or cli.get("nome") or i0.get("razao", ""),
-                ctab.get("fantasia") or cli.get("fantasia", ""),
+                cli.get("nome") or i0.get("razao", ""),
+                cli.get("fantasia", ""),
                 cli.get("uf", ""), cidade, ctab.get("limite"),
                 ctab.get("saldo"), ctab.get("atraso_valor"),
                 sum(i["qtd"] for i in itens), tab,
