@@ -705,10 +705,13 @@ checar(_cp0["SLA"].get("chip") and _cp0["% ATENDIDO"].get("barra")
        and "STATUS" in (_tp0.get("filtros_fora") or [])
        and _tp0["filtros"][0].get("oculto")
        and _rp.get("kpis_faixa")
-       and bv.Tabela._faixa_de(1, _cp0["SLA"]["chip"])[0] == "#E5F3DF"
-       and bv.Tabela._faixa_de(9, _cp0["SLA"]["chip"])[0] == "#B3261E"
+       # (T-0033) a paleta do manual da marca, 4.2: --ok-claro #F0F7EC
+       # (o #E5F3DF dava 4,44:1), --alerta #B42318 e --verde-marca #59BA61
+       and bv.Tabela._faixa_de(1, _cp0["SLA"]["chip"]) == ("#F0F7EC",
+                                                          "#2F7D32")
+       and bv.Tabela._faixa_de(9, _cp0["SLA"]["chip"])[0] == "#B42318"
        and bv.Tabela._faixa_de(100, _cp0["% ATENDIDO"]["barra"]["faixas"]
-                               )[0] == "#62BB47",
+                               )[0] == "#59BA61",
        "Farol de Pedidos: SLA (selo) e % ATENDIDO (barra) em destaque, "
        "linhas sem cor, filtros enxutos")
 _ab = [l for l in _rp["tabelas"][0]["linhas"]
@@ -4021,10 +4024,14 @@ checar(bool(_bp14) and all({"LATITUDE", "LONGITUDE"} <= set(x_) for x_ in _bp14)
 # Pedidos; o Farol de Saldo e a janela do pedido nos outros farois so leem
 import bap_relatorios as _br14  # noqa: E402
 _rs14 = rn.montar("vc_saldo", AQUI)
+# (T-0021, 25/11, Alexandre: "SO TEM EDIÇÃO NA WEB") no PC nenhum farol grava
+# a autorizacao (AUTORIZA_EM vazio): a edicao do Pedidos e so na web
 checar(not any(t_.get("edicao") for t_ in _rs14["tabelas"])
-       and _br14.AUTORIZA_EM == ("pv_pedidos",)
+       and _br14.AUTORIZA_EM == ()
+       and ("pv_pedidos", "Pedidos") in _br14.EDICAO_SO_WEB
        and hasattr(_br14.DetalhePedido, "_autorizacao_leitura"),
-       "Autorização de venda: grava só no Farol de Pedidos; Saldo só lê")
+       "Autorização de venda: no PC só leitura (a edição do Pedidos é só na "
+       "web, T-0021); Saldo só lê")
 
 # (14/10) FAROL DE NCC (Pos-venda): creditos dos clientes a compensar, da
 # aba ftNCC (BAP Tools > NCC Pendentes). Sem a aba: aviso, sem erro.
@@ -4206,7 +4213,7 @@ checar({"STATUS", "RESULTADO ANÁLISE", "DT. SOLICITAÇÃO", "DT. FECHAMENTO",
        and hasattr(_br14, "DialogoGarantia")
        and all(not x_ for t_ in _re14["tabelas"] for x_ in t_["tons"])
        and "pv_pedidos" in rn.LINHA_PINTADA
-       and rn.CORES_SINAL["ATRASADA"][1] == "#B3261E",
+       and rn.CORES_SINAL["ATRASADA"] == ("#FDECEA", "#B42318"),  # T-0033
        "Farol de Garantias (colunas, duplo clique, nova garantia); linhas "
        "sem cor fora de Pedidos/Markup/Saldo")
 
