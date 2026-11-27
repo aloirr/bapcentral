@@ -20,7 +20,8 @@ from .arquivos import GzipGrande, GzipInvalido, descomprimir_com_teto, gravar_by
 
 FAROIS = tuple(render.FAROIS)                   # T-0017: forma "farol"
 ACEITOS = ("vc_painel",) + FAROIS
-PROIBIDAS = ("tabelas", "juntas", "edicao", "editar", "abrir")   # a web é só leitura
+PROIBIDAS = ("tabelas", "juntas", "edicao", "editar", "abrir",
+             "garantia", "campanha_export", "detalhe_pedido")   # a web é só leitura; as 3 últimas: contrato §10.10.3
 ABAS = render.CHAVES_ABAS                      # fonte única
 MANAUS = ZoneInfo("America/Manaus")
 GUARDAR = 7                                    # RN-POS-003: o Render guarda os 7 últimos

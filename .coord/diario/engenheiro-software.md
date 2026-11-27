@@ -31,3 +31,5 @@
 - 2026-11-27 — T-0045 — RD-0148: §3.6 do visitas-nuvem diz o formato de cada coluna em palavras e aponta para visitas_nucleo._FORMATO_COLUNA e _RX_FORMATO como fonte, sem copiar regex
 - 2026-11-27 — T-0023 — RD-0156: §10.9.1 sem maximo cita o padrão do núcleo (relatorios_nucleo.MAX_TEXTO_PADRAO), não mais 60 de edicoes.MAX_TEXTO
 - 2026-11-27 — T-0023 — §10.9.1, achado dos testes: max diferente do núcleo derruba a edicao na montagem (edicao_web levanta ValueError, tabela sem edicao, aviso no log); recusa com motivo_texto_web só na hora de aplicar (validar_edicao_web), cada uma no seu momento
+- 2026-11-27 — T-0036 — desenho dos faróis do Analista (Saldo, Markup, Preço, Divergências) no contrato §10.11 (cliente só pelo código, lista positiva de colunas, Excel de correção só admin como anexo, cortes do Markup) e docs/desenho/T-0036.md (perfis analista e trade, matriz, divisão por dono, testes por RN)
+- 2026-11-27 — T-0036 — tela-bc3 §4.1: a data da faixa fica como está no site (só a data à vista, "Dados de … horário de Manaus" no title), decisão R-20261127-054626-po

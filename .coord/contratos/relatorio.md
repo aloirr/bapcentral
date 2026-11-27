@@ -1409,6 +1409,121 @@ Teto e corte: §10.8.7. Os 6 faróis abaixo de 60 KB (`pl_devolucoes`, `pl_ncc`,
 - Os 8 faróis somam cerca de 1,5 MB no disco do Render.
 - O aviso do PC "Exportar campanha: ... sem e-mail" não vai ao site, porque o Exportar fica no PC. Ele entra no filtro `_AVISO_SO_PC_WEB` do robô.
 
+### 10.11 Faróis do Analista Comercial: Saldo, Markup, Preço e Divergências (T-0036)
+
+Acrescentada em 27/11/2026 (T-0036). Fontes: inventário itens 47 a 50 (`anexos/T-0033/inventario-pc-site.md`); decisão 3 A (perfis "analista" e "trade", R-20261126-180314; RN-GER-017); "diretor só Resumo nos faróis novos" (R-20261126-171559; RN-GER-014). Desenho e divisão por dono: `docs/desenho/T-0036.md`.
+
+**Mudança compatível:** o `versao_contrato` fica em **1**; o transporte é o formato 2 (§10.8). Os quatro `rid` usam a forma "farol" (§10.1) com `tabelas` no `TabelaWeb7` (§10.7.2), como `pv_pedidos`, `pl_entregas` e `vc_visitas`. Valem, sem repetir aqui: a conferência por aba e a recusa da web (§10.7.6), a lista `colunas-fora` (§10.7.4), o `total` (§10.7.2.1), os tetos e cortes (§10.8.7) e a leitura do disco (ADR 0003).
+
+#### 10.11.1 Os quatro faróis
+
+| `rid` | Título (PC) | Abas (ordem do PC) | Linhas · JSON das linhas (bases do repositório, NOV/26) |
+|---|---|---|---|
+| `vc_saldo` | Farol de Saldo | Pedido a pedido · Por vendedor · Por supervisor · Por UF | 1.587 · 406 KB |
+| `vc_markup` | Farol de Markup | Por pedido · Por UF · Por cidade · Por supervisor · Por vendedor · Por categoria · Por sistema · Por família · Por linha · Por produto · Todos os produtos | 9.541 · 2,43 MB |
+| `vc_preco` | Farol de Preço | Por categoria · Por família · Total BAP · Reajustes por produto · Pesquisa de mercado | 1.119 · 324 KB |
+| `an_divergencias` | Divergências clientes Planner x Protheus | Por vendedor · Clientes divergentes · Sem coordenada / endereço | 1.589 · 437 KB (antes do corte de colunas) |
+
+A área dos quatro, no PC, é "Analista Comercial" (`relatorios_nucleo.ANA`).
+
+- **Cartões** (`kpis`, sem filtro, iguais ao `rel["kpis"]` do PC):
+  - `vc_saldo`: Faturado · Desconto comercial · Saldo · Saldo do frete;
+  - `vc_markup`: Venda · Custo · Margem · Markup · Abaixo do mínimo · Sem custo · Em aberto;
+  - `vc_preco`: Faturamento `<MÊS>` · Efeito preço · Efeito volume · Efeito mix · Reajustes · Queda após reajuste;
+  - `an_divergencias`: Clientes na base (Planner) · Batem · Vendedor diferente · Sem vendedor no Planner · Fora da base do Planner · Código duplicado · Sem coordenada / endereço (só contagens).
+- **Número do Diretor:** o cartão "Desconto comercial" do `vc_saldo` e a coluna `% DESC. COM.` da aba "Por UF" são os números que o Painel do Diretor lê (RRM, `painel_rrm`; ADR 0001, §4.3). No mesmo pacote, o valor do farol é igual ao da aba RRM (mesmo `MÊS` e `ANO`). O `testes` compara.
+- **Painel:** os blocos `insights`, `barras` e `hbarras` do PC (§10.1). O `an_divergencias` não tem painel (só cartões e abas). Frase ou bloco com nome de cliente sai (§10.1, `_TERMOS_CLIENTE_WEB`).
+- **Recortes por estado (`recortes[UF].kpis`, §10.1):** só onde o `kpis_de` da tabela de origem reproduz os cartões da BAP inteira. Tabela de origem: `vc_saldo` → "Pedido a pedido"; `vc_markup` → "Por pedido" (estado = filial da nota, RN-GER-006). O robô confere: se o `kpis_de` de todas as linhas não dá os `kpis`, o farol vai sem `recortes` (cartões "—" com estado). `vc_preco` e `an_divergencias` vão sem `recortes`.
+- **Fica no PC:** "Ver pedido" (`detalhe_pedido`, D4 A), `parametros`, `exportar_sem_coordenada`, `importar_preenchidos` e `exportar_correcao_json` (o .json da base de clientes do Protheus leva nome e cadastro). Nenhum dos quatro tem `edicao` (RN-GER-012).
+
+#### 10.11.2 Dado pessoal: cliente só pelo código
+
+Nestes quatro `rid`, **cliente vai só pelo código** (RN-GER-011: "o código do cliente fica"). Nome, razão social, fantasia, endereço, bairro, número, telefone e CNPJ não vão. Por isso não há adendo novo à ADR 0001 (§10.1, "tabela com cliente"). Nome de vendedor e de supervisor vai ("2 A", §10.1).
+
+- **Coluna "código - nome"** (`CLIENTE` no "Pedido a pedido" e no "Por pedido"; nas bases, 100% das células no formato `^\d{6}(-\d{2})? - `): o robô troca a coluna por `CÓD.` texto, na mesma posição, com o valor de `relatorios_nucleo.codigo_do_cliente(texto) -> str` (função pura, modulo-farois). Ela devolve `"001234"` ou `"001234-01"`, e `""` quando o texto não começa pelo código. Nunca devolve o nome.
+- **Coluna só de nome** (`CLIENTE` no "Clientes divergentes" e na "Pesquisa de mercado"; `RAZÃO SOCIAL` e `NOME FANTASIA` no "Sem coordenada / endereço"): sai.
+- **Endereço** ("Sem coordenada / endereço"): saem `BAIRRO`, `ENDEREÇO`, `Nº` e `CONTATO (TELEFONE)`. Do cliente ficam só o código (`CÓD.`, `LOJA`), a `CIDADE` e a `UF` (para o filtro por estado). A coluna `PONTO` fica porque é a categoria da precisão (5 valores, sem coordenada). Se uma célula dela casar com `-?\d+\.\d{3,}`, a aba fica fora (§10.7.6).
+- **Texto livre da Pesquisa de mercado** (respostas do BAP Ajuda): `OBSERVAÇÃO`, `PRODUTO`, `CONCORRENTE` e `CÓD. CONCORRENTE` passam por `relatorios_nucleo.texto_sem_contato` (RN-GER-011). A conta 000040 já sai no PC (RN-GER-005).
+- **Lista positiva:** a web aceita só as colunas do §10.11.3, na ordem, com o mesmo `tipo` e `oculta`. Coluna a mais = aba recusada (§10.7.6).
+
+#### 10.11.3 Colunas por tabela
+
+Conferidas no `main` em `a32b610`, com `montar(rid, raiz)` nas bases do repositório. Formato do §10.7.3: `NOME` tipo; (o) = oculta; sem tipo = `texto`. Sem marca = igual ao PC.
+
+**`vc_saldo`** (filtros do PC e os 4 recortes: "Acima de 15% (desconta do saldo)", "Até 15%", "Saldo negativo", "Com saldo de frete")
+- **"Pedido a pedido"** (18): `MÊS` (o) · `DATA NF` dia · `FILIAL` · `PEDIDO` · **`CÓD.` (no lugar de `CLIENTE`)** · `VENDEDOR` · `COND. PAGTO` · `VLR TABELA` moeda · `VLR VENDA` moeda · `% DESC. COM.` pct1 · `SALDO DO PEDIDO` moeda · `SALDO FRETE` moeda · `NO SALDO` moeda · `NF` · `SUPERVISOR` · `DESC. COMERCIAL` moeda · `UF` · `CHAVE` (o). `uf_linhas` = `uf_da_filial(FILIAL)`.
+- **"Por vendedor"** (12): `MÊS` (o) · `VENDEDOR` · `SUPERVISOR` · `PEDIDOS` int · `VLR TABELA` moeda · `VLR VENDA` moeda · `DESC. COMERCIAL` moeda · `% DESC. COM.` pct1 · `SALDO FRETE` moeda · `SALDO` moeda · `META SALDO` moeda · `% ATING.` pct.
+- **"Por supervisor"** (11): as do "Por vendedor", sem `VENDEDOR`.
+- **"Por UF"** (11): as do "Por supervisor", com `UF` no lugar de `SUPERVISOR`. `uf_linhas` = `UF`.
+- **Período:** os meses que o PC carrega (1.587 linhas, cerca de 410 KB), com o filtro `MÊS` e o padrão do PC (`linhas_padrao`). O saldo se lê mês a mês, e cabe.
+
+**`vc_markup`**
+- **"Por pedido"** (27): `SITUAÇÃO` · `DATA PED.` dia · `DATA NF` dia · `FILIAL` · `PEDIDO` · `NF` · **`CÓD.` (no lugar de `CLIENTE`)** · `STATUS PROTHEUS` (o) · `STATUS` · `SITUAÇÃO PLANNER` (o) · `UF` · `CIDADE` · `SUPERVISOR` · `VENDEDOR` · `QTD` num · `R$ VENDA` moeda · `CUSTO` moeda · `SUCATA` moeda · `MARGEM` moeda · `MARKUP %` pct1 · `MKP TABELA %` pct1 · `% DESC.` pct1 · `SEM CUSTO` int · `VENDA SEM CUSTO` moeda (o) · `SO BATERIA` (o) · `CÓD. AUTORIZAÇÃO` · `AUTORIZADO POR`. `uf_linhas` = `uf_da_filial(FILIAL)`.
+- **"Por UF", "Por cidade", "Por supervisor", "Por vendedor"** (11 cada, com `total`): a 1ª coluna (`UF`, `CIDADE`, `SUPERVISOR`, `VENDEDOR`) · `PEDIDOS` int · `QTD` num · `R$ VENDA` moeda · `CUSTO` moeda · `MARGEM` moeda · `MARKUP %` pct1 · `MKP TABELA %` pct1 · `% DESC.` pct1 · `PART. MARGEM` pct1 · `SEM CUSTO` int.
+- **"Por categoria", "Por sistema", "Por família", "Por linha"** (13 cada, com `total`): a 1ª coluna · `PRODUTOS` int · `ESTOQUE` num · `VOL. VENDIDO` num · `R$ VENDA` moeda · `CUSTO` moeda · `MARGEM` moeda · `MKP REAL %` pct1 · `% DESC.` pct1 · `MKP TABELA %` pct1 · `MKP VENDA %` pct1 · `PART. MARGEM` pct1 · `SEM CUSTO` int.
+- **"Por produto"** (20, com `total`; 4.686 linhas, 1,10 MB): `PRODUTO` · `DESCRIÇÃO` · `CATEGORIA` (o) · `SISTEMA` (o) · `FAMÍLIA` (o) · `LINHA` (o) · `SITUAÇÃO` · `ESTOQUE` num · `CUSTO UNIT.` moeda2 · `PRC. TABELA MÉD.` moeda2 · `MKP TABELA %` pct1 · `PRC. VENDA MÉD.` moeda2 · `MKP VENDA %` pct1 · `VOL. VENDIDO` num · `R$ VENDA` moeda · `CUSTO` moeda · `MARGEM` moeda · `MKP REAL %` pct1 · `% DESC.` pct1 · `PART. MARGEM` pct1.
+- **"Todos os produtos"** (22; 4.694 linhas, 1,29 MB): `PRODUTO` · `DESCRIÇÃO` · `CATEGORIA` · `SISTEMA` · `FAMÍLIA` · `LINHA` · `FORNECEDOR` · `CUSTO` moeda2 · `ORIGEM CUSTO` (o) · `PRC. TABELA MÉD.` moeda2 · `% DESC.` pct1 · `PRC. VENDA MÉD.` moeda2 · `MKP VENDA %` pct1 · `PREÇO INTERIOR MÉDIO` moeda2 (o) · `MKP TABELA %` pct1 (o) · `MKP INTERIOR %` pct1 (o) · `EST.` num · `SITUAÇÃO` · `QTD VEND.` num · `R$ VENDA` moeda · `MKP REAL %` pct1 · `ÚLT. VENDA` data.
+- As abas de produto não têm estado: aviso `AVISO_SEM_ESTADO` da web (§10.7.7).
+
+**`vc_preco`** (sem `recortes` por estado; aviso do §10.1)
+- **"Por categoria", "Por família", "Total BAP"** (17 cada): `MÊS` · `AAAA-MM` (o) · a 3ª coluna (`CATEGORIA`, `FAMÍLIA`, `TOTAL`) · `LEITURA` · `FATURAMENTO` moeda · `VAR. FAT. %` pct1 · `VOLUME` num · `VAR. VOL. %` pct1 · `PREÇO MÉDIO` moeda2 · `PREÇO TABELA` moeda2 · `VAR. PREÇO %` pct1 · `VAR. TABELA %` pct1 · `VAR. FAT. R$` moeda · `EFEITO PREÇO` moeda · `EFEITO VOLUME` moeda · `EFEITO MIX` moeda · `ELASTICIDADE` num2.
+- **"Reajustes por produto"** (22): `MÊS` · `AAAA-MM` (o) · `FILIAL` · `CÓD. PRODUTO` · `PRODUTO` · `CATEGORIA` (o) · `FAMÍLIA` · `LEITURA` · `TABELA ANTES` moeda2 (o) · `TABELA AGORA` moeda2 (o) · `VAR. TABELA %` pct1 · `PRATICADO ANTES` moeda2 (o) · `PREÇO PRATICADO` moeda2 · `VAR. PREÇO %` pct1 · `QTD ANTES` num (o) · `QTD` num · `VAR. QTD %` pct1 · `FAT. ANTES` moeda (o) · `FATURAMENTO` moeda · `VAR. FAT. %` pct1 · `SISTEMA` (o) · `LINHA` (o). `uf_linhas` = `uf_da_filial(FILIAL)`.
+- **"Pesquisa de mercado"** (33 de 34; **sai `CLIENTE`**): `MÊS` (o) · `DATA` data · `VENDEDOR` · `SUPERVISOR` (o) · `CIDADE` · `UF` · `SEGMENTO` (o) · `LINHA DIA FOCO` · `PAPEL` · `CÓD. BAP` · `PRODUTO` (limpa) · `CONCORRENTE` (limpa) · `CÓD. CONCORRENTE` (o, limpa) · `LEITURA` · `COMPRA BAP` moeda2 · `COMPRA CONC.` moeda2 · `DIF. COMPRA %` pct1 · `VENDA BAP` moeda2 · `VENDA CONC.` moeda2 · `DIF. VENDA %` pct1 · `MKP CLIENTE BAP %` pct1 · `MKP CLIENTE CONC. %` pct1 · `PRC. TABELA BAP` moeda2 · `COMPRA x TABELA %` pct1 · `ESTOQUE BAP` num · `ESTOQUE CONC.` num · `SHARE ESTOQUE %` pct1 · `VOL. BAP` num · `VOL. CONC.` num · `SHARE VOLUME %` pct1 · `OBSERVAÇÃO` (limpa) · `CATEGORIA` (o) · `FAMÍLIA` (o). "Limpa" = `texto_sem_contato`. `uf_linhas` = `UF` (UF do cliente, RN-GER-006). Os 5 recortes do PC vão.
+- **Período:** os meses que o PC carrega (o farol compara com o mês anterior).
+
+**`an_divergencias`** (sem painel e sem `recortes` por estado)
+- **"Por vendedor"** (10, com `total`): `VENDEDOR` · `SUPERVISOR` · `CARTEIRA PLANNER` int · `BASE PROTHEUS` int · `IGUAIS` int · `SÓ NO PLANNER` int · `SÓ NO PROTHEUS` int · `· FORA DA BASE` int · `· PLANNER SEM VENDEDOR` int · `BATE?`.
+- **"Clientes divergentes"** (11 de 12; **sai `CLIENTE`**): `COD` · `LOJA` · `CIDADE` · `UF` · `SEGMENTO` · `ZONA` · `VENDEDOR PLANNER` · `VENDEDOR PROTHEUS (A1_VEND)` · `STATUS PROTHEUS` (o) · `SITUAÇÃO` · `O QUE FAZER`. `uf_linhas` = `UF`. O recorte "Corrigir no Protheus" vai.
+- **"Sem coordenada / endereço"** (12 de 18; **saem `RAZÃO SOCIAL`, `NOME FANTASIA`, `BAIRRO`, `ENDEREÇO`, `Nº` e `CONTATO (TELEFONE)`**): `CÓD.` · `LOJA` · `O QUE FALTA` · `NA ROTA DO MÊS` · `UF` · `CIDADE` · `VENDEDOR PLANNER` · `SUPERVISOR PLANNER` · `SEGMENTO` · `CURVA` · `SITUAÇÃO` · `PONTO`. `uf_linhas` = `UF`. Os 5 recortes do PC vão.
+
+**Mudou no PC?** Como no §10.7.3: primeiro esta lista (PR do engenheiro-software), depois o código; até lá, a aba fica fora.
+
+#### 10.11.4 Anexo "Excel de correção" (`an_divergencias`, só admin)
+
+- **O que é:** o `gravar_correcao` do PC (abas "CORRIGIR NO PROTHEUS" e "ANALISAR"), **sem a coluna `CLIENTE`**. Para corrigir o `A1_VEND` no Protheus bastam o código e a loja.
+- **No PC:** `relatorios_nucleo.correcao_linhas(ctx, chaves=None) -> {"corrigir": list[list], "analisar": list[list]}`, função pura extraída do `gravar_correcao` (que passa a usá-la; a tela do PC não muda). O `divergencias_clientes` expõe o callable `r["correcao_linhas"]`.
+- **No farol (corpo do POST):** chave `correcao` = `{"corrigir": TabelaWeb, "analisar": TabelaWeb}`, só com `titulo`, `colunas` e `linhas`, todas as colunas `texto`:
+  - "CORRIGIR NO PROTHEUS" (10): `A1_FILIAL` · `A1_COD` · `A1_LOJA` · `CIDADE` · `UF` · `A1_VEND ATUAL` · `A1_VEND CORRETO` · `VENDEDOR CORRETO` · `SUPERVISOR` · `STATUS PROTHEUS`;
+  - "ANALISAR" (9): `A1_FILIAL` · `A1_COD` · `A1_LOJA` · `CIDADE` · `UF` · `VENDEDOR NO PLANNER` · `A1_VEND ATUAL` · `SITUAÇÃO` · `O QUE FAZER`.
+- **Anexo:** como `parciais` e `csvs_protheus` (§10.8.2). A web tira a chave do farol e guarda `an_divergencias.correcao.json.gz`, com `anexos.correcao` no índice. O dicionário do farol na memória não leva o anexo.
+- **Teto:** `MAX_CORRECAO_BYTES` = 2.000.000 bytes do JSON do anexo (robô e web). Acima dele, o robô tira só o anexo, com o aviso `AVISO_CORRECAO_FORA` = `O Excel de correção ficou fora desta atualização (arquivo grande). Gere no PC.`
+- **Rota:** `GET /farol/an_divergencias/correcao.xlsx`, só `admin` (outro perfil = 403; sem anexo = 404). O arquivo é escrito por `web/app/exportar.py` (xlsx sem biblioteca de fora), com `Cache-Control: no-store` e o registro de acesso sem cliente (§10.7.5).
+- **Web antiga:** recusa a chave `correcao`. Por isso, como sempre, web antes e robô depois (§10.11.7).
+
+#### 10.11.5 Tamanho e cortes (ADR 0003)
+
+- **Medido:** o maior é o `vc_markup`, com cerca de 2,4 MB de linhas. Com `tons`, `recortes_linhas`, `uf_linhas` e o painel, fica em cerca de **3 MB** [SUPOSIÇÃO: estimativa; o robô mede e põe no log]. Cabe no teto do farol (`WEB_FAROL_TETO_MB = 8`; `FAROL_JSON_MAX` = 10 MB). No cache LRU (`CACHE_FAROIS_MB` = 96, custo estimado de 6× o `bytes_json`), ocupa cerca de 18 MB; os outros três somam menos de 8 MB.
+- **Na tela:** a página leva até 500 linhas, e o resto vem em blocos de 500 ao rolar (§10.7.8; contrato `tela-bc3.md`, §7.2). Filtro e busca rodam no servidor, sobre o farol do cache (§11). Nenhuma paginação nova no pacote.
+- **Cortes do robô** (acréscimo ao `_CORTES_FAROL_WEB`, §10.8.7), só se o farol passar do teto:
+
+| `rid` | Cortes, nesta ordem | Aviso |
+|---|---|---|
+| `vc_markup` | 1. "Todos os produtos" fica só com as linhas com `EST.` > 0 ou `QTD VEND.` > 0 (os `tons` saem junto, linha a linha) | `AVISO_MARKUP_ATIVOS` = `A aba Todos os produtos ficou só com os produtos com estoque ou venda, para caber no pacote. Veja o resto no PC.` |
+| | 2. "Todos os produtos" sai | `AVISO_ABAS_FORA` |
+| | 3. "Por produto" sai | `AVISO_ABAS_FORA` |
+| | 4. todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+| `vc_saldo`, `vc_preco`, `an_divergencias` | todas as `tabelas` saem (a regra "os outros") | `AVISO_ABAS_FORA` |
+
+#### 10.11.6 Quem vê (corte no servidor, antes do HTML)
+
+| Perfil | Resumo (cartões e painel) | Abas de tabela | Excel de correção |
+|---|---|---|---|
+| `admin` | sim | todas | sim |
+| `gerente` | sim | todas | não |
+| `analista` | sim | todas | não |
+| `diretor` | sim | nenhuma | não |
+| `trade`, `pre_venda`, `vendas`, `pos_venda` | o farol não aparece | — | — |
+
+- Regras: RN-GER-017 (perfis analista e trade) e RN-GER-014 (diretor só o Resumo).
+- Aba fora do perfil = 403 (§10.7.5). Sem edição em nenhum dos quatro (RN-GER-012). A matriz de todos os faróis está em `docs/desenho/T-0036.md`, §2.
+
+#### 10.11.7 Ordem de publicação
+
+1. Este contrato.
+2. **Núcleo** (modulo-farois): `codigo_do_cliente` e `correcao_linhas`. A tela do PC não muda.
+3. **Web antes** (modulo-web): os perfis, o menu, os quatro `rid` no `ACEITOS`, a validação do §10.11.3, o anexo e a rota do §10.11.4 e a `VERSAO` nova no `/saude`.
+4. **Robô depois** (modulo-robo): os quatro `rid` no `FAROIS_WEB`, depois da T-0024, da T-0023-v2 e da T-0025-v2 (um merge por vez no `FAROIS_WEB`). Chega ao PC pela rotina diária, só com o `/saude` na versão do `main` (ADR 0002, limite 3).
+
 ## 11. Parte ação: os callables e a web v1
 
 Regras gerais:

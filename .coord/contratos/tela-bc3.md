@@ -72,7 +72,7 @@
 - **Altura fixa:** `--faixa-alt` = 88 px a 1366 e 96 px a 1920. É **a mesma em todas as abas da tela**: nada "pula" ao trocar de aba (G6). O `body.uma-tela .bc3-faixa` não muda padding nem fonte por aba.
 - **Linha 1:**
   - o título completo do farol ou da tela;
-  - a data dos dados, sem a palavra "Dados de". O `title` dá o texto inteiro: "Dados de 24/11/2026 08:30, horário de Manaus". Quando a tela tem a hora do PC e a do envio (Cobrar no WhatsApp), entra uma linha curta ao lado da data, "PC: 24/11 08:07 · envios voltam às 08h e 14h", e nunca numa faixa própria acima da faixa verde;
+  - a data dos dados, **como está no site em todos os faróis** (decisão R-20261127-054626-po, T-0036): na faixa, só a data, "24/11/2026 08:30" no PC e "24/11 08:30" no celular (§8), sem a palavra "Dados de" à vista; o `title` dá o texto inteiro: "Dados de 24/11/2026 08:30, horário de Manaus" (`web/app/templates/_faixa.html`, macro `quando`). Quando a tela tem a hora do PC e a do envio (Cobrar no WhatsApp), entra uma linha curta ao lado da data, "PC: 24/11 08:07 · envios voltam às 08h e 14h", e nunca numa faixa própria acima da faixa verde;
   - o selo âmbar "Desatualizado", quando os dados do farol têm mais de 26 h;
   - à direita, o filtro de estado.
 - **Linha 2:** até **6 números**: os `kpis` do farol (ou os `kpis_padrao` da aba, §10.7 do contrato do relatório), na ordem do PC.
