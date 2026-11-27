@@ -1,8 +1,9 @@
-// T-0028: popup com os dados do pedido ao passar o mouse (ou focar) no número do pedido.
-// Lê os dados da própria linha (data-pop) e os itens do pedido na tabela "Analítico por pedido" da página.
+// T-0028/T-0033: popup da linha ao passar o mouse (ou focar) na coluna-chave de qualquer tabela. Lê os dados da própria
+// célula (data-pop = blocos [[título, [[nome, texto]]]]) e, no Farol de Pedidos (data-itens), os itens do pedido na
+// tabela "Analítico por pedido" da página.
 (function () {
   "use strict";
-  var pop = document.getElementById("pop-pedido");
+  var pop = document.getElementById("pop-linha");
   if (!pop) return;
 
   function el(tag, cls, txt) {
@@ -15,7 +16,7 @@
   function itensDoPedido(ped) {
     // a junta cujo 1º cabeçalho é PEDIDO (o Analítico): as linhas desse pedido
     var out = null;
-    document.querySelectorAll(".juntas .junta table").forEach(function (t) {
+    document.querySelectorAll(".bc3-juntas .junta table").forEach(function (t) {
       var ths = t.querySelectorAll("thead tr:last-child th");
       if (!ths.length || ths[0].textContent.trim().toUpperCase() !== "PEDIDO") return;
       var nomes = Array.prototype.map.call(ths, function (h) { return h.textContent.trim(); });
@@ -34,19 +35,21 @@
   }
 
   function montar(a) {
-    var pares;
-    try { pares = JSON.parse(a.getAttribute("data-pop") || "[]"); } catch (e) { pares = []; }
+    var blocos;
+    try { blocos = JSON.parse(a.getAttribute("data-pop") || "[]"); } catch (e) { blocos = []; }
     pop.textContent = "";
     var ped = a.textContent.trim();
-    pop.appendChild(el("h3", "", "Pedido " + ped));
-    var dl = el("dl", "pop-dados");
-    pares.forEach(function (p) {
-      if (p[0].toUpperCase() === "PEDIDO") return;
-      dl.appendChild(el("dt", "", p[0]));
-      dl.appendChild(el("dd", "", p[1]));
+    pop.appendChild(el("h3", "", a.getAttribute("data-tit") || ped));
+    blocos.forEach(function (b) {
+      if (b[0]) pop.appendChild(el("h4", "", b[0]));
+      var dl = el("dl", "pop-dados");
+      b[1].forEach(function (p) {
+        dl.appendChild(el("dt", "", p[0]));
+        dl.appendChild(el("dd", "", p[1]));
+      });
+      pop.appendChild(dl);
     });
-    pop.appendChild(dl);
-    var it = itensDoPedido(ped);
+    var it = a.hasAttribute("data-itens") ? itensDoPedido(ped) : null;
     if (it && it.linhas.length) {
       var t = el("table", "pop-itens"), tr = el("tr");
       it.cab.forEach(function (c, i) { tr.appendChild(el("th", i > 1 ? "num" : "", c)); });
@@ -81,12 +84,12 @@
   }
   function esconder() { atual = null; pop.hidden = true; }
 
-  document.querySelectorAll("a.sel-link[data-pop]").forEach(function (a) {
-    a.addEventListener("mouseenter", function () { mostrar(a); });
-    a.addEventListener("focus", function () { mostrar(a); });
-    a.addEventListener("mouseleave", esconder);
-    a.addEventListener("blur", esconder);
-  });
+  // delegação: vale também para as linhas que chegam depois (carregar mais)
+  function alvo(e) { return e.target.closest ? e.target.closest(".sel-link[data-pop]") : null; }
+  document.addEventListener("mouseover", function (e) { var a = alvo(e); if (a && a !== atual) mostrar(a); });
+  document.addEventListener("mouseout", function (e) { var a = alvo(e); if (a && !a.contains(e.relatedTarget)) esconder(); });
+  document.addEventListener("focusin", function (e) { var a = alvo(e); if (a) mostrar(a); });
+  document.addEventListener("focusout", function (e) { if (alvo(e)) esconder(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") esconder(); });
   window.addEventListener("scroll", function () { if (atual) posicionar(atual); }, { passive: true });
 })();

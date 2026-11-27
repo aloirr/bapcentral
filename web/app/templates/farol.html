@@ -1,37 +1,20 @@
 {% extends "base.html" %}
 {% block titulo %}{{ farol_nome }}{% endblock %}
 {% from "_estados.html" import barras_estados, cartoes %}
-{% from "_grade.html" import grade with context %}
-{% from "_acoes.html" import acoes with context %}
-{% block faixa %}{% if fila is defined %}<div class="aviso info faixa-pc">Situação do PC até {{ pc_ate|hhmm }}. O que você marcar aqui chega ao PC às 08h ou 14h.</div>{% endif %}{% endblock %}
 {% block mainclass %}{{ ' class="larga"'|safe if tabela }}{% endblock %}
 {% block cabeca %}{% if noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}{% endblock %}
 {% block corpo %}
-{% if bc3 %}{% include "_bc3_cab.html" %}{% endif %}
-{% if abas and not bc3 %}
-<nav class="abas abas-quebra" aria-label="Abas do farol">{% for c, n in abas %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}" class="{{ 'ativa' if c == aba }}">{{ n }}</a>{% endfor %}</nav>
-{% endif %}
+{# T-0033: só o visual BC3 (os ramos do layout antigo saíram, RD-0044) #}
+{% include "_bc3_cab.html" %}
 {% if not tela and not tabela and fila is not defined %}
-{% if not bc3 %}<h1>{{ farol_nome }}</h1>{% endif %}
-<p class="aviso atencao">{{ indisponivel|capitalize }}.</p>
-{% else %}
-{% if tabela %}
+{% if gerado_em %}<p class="aviso atencao">Este farol não veio no último pacote do PC.</p>{% endif %}
+{% elif tabela %}
 {% include "_tabela.html" %}
 {% elif fila is defined %}
 {% include "_fila.html" %}
 {% else %}
-{% if not bc3 %}<header class="cab-painel"><h1>{{ farol_nome }}</h1>{% if tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %}<span>Baixado do ERP em {{ tela.baixado_em|manaus }}</span>{% endif %}</header>
-{{ acoes(rid, parcial=parcial) }}{% endif %}
-{% if tela.ufs and not bc3 %}
-<nav class="filtros" aria-label="Filtro por estado">
-  <a href="/farol/{{ rid }}" class="{{ 'ativa' if not tela.uf }}">BAP inteira</a>
-  {% for u in tela.ufs %}<a href="/farol/{{ rid }}?uf={{ u }}" class="{{ 'ativa' if u == tela.uf }}">{{ u }}</a>{% endfor %}
-</nav>
-{% endif %}
 {% if tela.aviso_uf %}<p class="aviso info">{{ tela.aviso_uf }}</p>{% endif %}
-{% for a in tela.avisos_info %}<p class="aviso info">{{ a }}</p>{% endfor %}
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
 {% include "_resumo.html" %}
-{% endif %}
 {% endif %}
 {% endblock %}
