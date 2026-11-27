@@ -84,7 +84,8 @@ def test_RN_GER_002_filtro_de_vendedor_continua_por_par(farol):
     ls = [l for l in _do_mes(t, ix, "SET/26")
           if l[ix["FILIAL"]] == "MATOGROSSO" and l[ix["SITUAÇÃO"]] in FAT]
     vends = {l[ix["VENDEDOR"]] for l in ls}
-    assert len(vends) == 1
+    n = len(vends)
+    assert n == 1
     (vend,) = vends
     dev = rn._devolucoes_por_chave(ctx)
     de_outro = sum(x for (m, f, v), x in dev.items()
@@ -96,3 +97,36 @@ def test_RN_GER_002_filtro_de_vendedor_continua_por_par(farol):
     filtro = {ix["MÊS"]: "SET/26", ix["FILIAL"]: ["MATOGROSSO"],
               ix["VENDEDOR"]: vend}
     assert _faturado(t, ls, filtro) == rn.moeda(esperado)
+
+
+def test_RN_GER_002_filiais_do_recorte_uf_do_saldo_e_filial_inteira():
+    """Funcao pura: no Farol de Saldo a UF tambem recorta por filial da nota
+    (i_fil = (FILIAL, UF)); com vendedor ou supervisor no filtro, por par.
+    Nomes ficticios."""
+    I_FIL, I_UF, I_VEND, I_SUP = 0, 1, 2, 3
+    ls = [["BELÉM", "PA", "VENDEDOR A", "SUPERVISOR X"],
+          ["SANTARÉM", "PA", "VENDEDOR B", "SUPERVISOR X"]]
+    cols, pessoas = (I_FIL, I_UF), (I_VEND, I_SUP)
+    assert rn.filiais_do_recorte(ls, {I_UF: "PA"}, cols, pessoas) \
+        == frozenset({"BELÉM", "SANTARÉM"})
+    assert rn.filiais_do_recorte(
+        ls, {I_UF: "PA", I_VEND: "VENDEDOR A"}, cols, pessoas) == frozenset()
+    assert rn.filiais_do_recorte(
+        ls, {I_UF: "PA", I_SUP: "SUPERVISOR X"}, cols, pessoas) == frozenset()
+
+
+def test_RN_GER_002_saldo_filtro_uf_pa_ago26_desconta_toda_a_filial():
+    """vc_saldo (Pedido a pedido) filtrado so pela UF = PA em AGO/26: o
+    Faturado = venda - TODA a devolucao das filiais da nota = o Painel."""
+    r = rn.montar("vc_saldo", RAIZ, hoje=HOJE)
+    t = r["tabelas"][0]
+    ix = {c["nome"]: i for i, c in enumerate(t["colunas"])}
+    ctx = rn.Contexto(RAIZ)
+    ls = [l for l in _do_mes(t, ix, "AGO/26") if l[ix["UF"]] == "PA"]
+    fils = {l[ix["FILIAL"]] for l in ls}
+    toda_dev = sum(x for (m, f, _v), x in rn._devolucoes_por_chave(ctx).items()
+                   if m == "AGO/26" and f in fils)
+    venda = sum(l[ix["VLR VENDA"]] for l in ls)
+    pf = rn.por_filial_da_nota(ctx, "2026-08")["fat"]
+    assert _faturado(t, ls, {ix["MÊS"]: "AGO/26", ix["UF"]: "PA"}) \
+        == rn.moeda(venda - toda_dev) == rn.moeda(pf["PA"]) == "R$ 33.834"
