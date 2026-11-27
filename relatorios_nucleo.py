@@ -14497,9 +14497,10 @@ def tom_aderencia(pct):
 
 def faixa_aderencia():
     """A mesma regra no formato do chip em faixa (ate, fundo, texto)."""
-    return [(ADERENCIA_AMARELO - 0.0001, "#FBDDDA", "#B3261E"),
-            (ADERENCIA_VERDE - 0.0001, "#FFF1C7", "#8A5A00"),
-            (None, "#E5F3DF", "#2F7D32")]
+    # cores do manual da marca (docs/marca/manual.md, 4.2: alerta/atencao/ok)
+    return [(ADERENCIA_AMARELO - 0.0001, "#FDECEA", "#B42318"),
+            (ADERENCIA_VERDE - 0.0001, "#FFF4D6", "#8A5A00"),
+            (None, "#F0F7EC", "#2F7D32")]
 
 
 def _tabelas_aderencia(ctx, regs, ad, hoje):
