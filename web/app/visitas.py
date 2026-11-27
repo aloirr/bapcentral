@@ -8,7 +8,7 @@ dia (RN-VIS-008), pausa por código (RN-VIS-005 e 007), índice dos dias baixado
 ESPELHO: as regras de RN-VIS-002 (`_dt`, `juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`) e os regex de dado
 pessoal (`RE_PESSOAL`, `TIPOS_ACHADO`, `COLUNAS_PROIBIDAS`) são espelho MÍNIMO de `visitas_nucleo` (`_quando_manaus`,
 `juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`, `_RX_EMAIL`/`_RX_CNPJ`/`_RX_CPF`/`_RX_FONE`,
-`_COLUNAS_FORA_DA_NUVEM` e `TIPOS_ACHADO`, este último a criar no núcleo, RD-0114): o Render publica só `web/` e não
+`_FORA_DO_ESPELHO` e `TIPOS_ACHADO`): o Render publica só `web/` e não
 importa a raiz. A regra é a do núcleo (empate: a nuvem, contrato §3.1). O teste de paridade (`tests/`, do agente
 `testes`) AINDA VAI SER CRIADO: até lá, nada prende as cópias.
 
@@ -99,7 +99,7 @@ TRAVADO = {"pausado": "Pausado: o admin retoma antes.", "pedido": "Já há um pe
            "teto": "Limite de hoje atingido."}                                                     # botão (title) e erro do servidor
 SITUACAO = {"ok": "Em dia", "parcial": "Parcial", "erro": "Erro"}          # a palavra que a tela mostra no lugar do código
 SITUACAO_COR = {"ok": "ok", "parcial": "atencao", "erro": "alerta"}
-TIPOS_ACHADO = ("cnpj", "cpf", "telefone", "email", "formato")      # espelho de visitas_nucleo.TIPOS_ACHADO
+TIPOS_ACHADO = ("email", "cnpj", "cpf", "telefone", "formato")      # espelho de visitas_nucleo.TIPOS_ACHADO (mesma ordem)
 
 RE_ID_RODADA = re.compile(r"^R\d{8}T\d{6}$")
 RE_DIA = re.compile(r"^\d{8}$")
@@ -116,7 +116,7 @@ RE_PESSOAL = {
     "telefone": re.compile(r"\(?\d{2}\)?\s?9?\d{4}-\d{4}|\(\d{2}\)\s?\d{8,9}"),
 }
 # colunas do Espelho que nunca saem do contêiner (contrato §3.6): o rótulo no Excel é motivo de recusa
-COLUNAS_PROIBIDAS = ("KM DIST", "BONIF", "OBSERVACAO")
+COLUNAS_PROIBIDAS = ("KM DIST", "BONIF", "OBSERVACAO")        # espelho de visitas_nucleo._FORA_DO_ESPELHO
 _RX_TEXTO_XML = re.compile(r"<(?:t(?:\s[^>]*)?|v)>([^<]*)</(?:t|v)>")      # texto e número das células
 _DIAG_PENDENTE = {"estado": "pendente", "em": None, "codigo": None}
 _ESTADO_VAZIO = {"agenda": "desligada",

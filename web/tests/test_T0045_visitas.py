@@ -583,7 +583,7 @@ def test_RN_VIS_007_segunda_guarda_le_celula_numerica_e_entidade_xml():
 def test_paridade_minima_dos_regex_com_o_contrato():
     """Os 4 regex são espelho dos `_RX_*` do visitas_nucleo (o teste de paridade na raiz compara o texto)."""
     assert visitas.RE_PESSOAL["email"].pattern == r"[\w.+-]+@[\w-]+(\.[\w-]+)+"
-    assert set(visitas.TIPOS_ACHADO) == {"cnpj", "cpf", "telefone", "email", "formato"}
+    assert visitas.TIPOS_ACHADO == ("email", "cnpj", "cpf", "telefone", "formato") and tuple(visitas.RE_PESSOAL) == visitas.TIPOS_ACHADO[:4]
     assert visitas.COLUNAS_PROIBIDAS == ("KM DIST", "BONIF", "OBSERVACAO")
 
 
