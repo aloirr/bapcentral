@@ -440,10 +440,28 @@ def _sem_acento_min(txt) -> str:
     return vn._sem_acento(str(txt or "")).lower()
 
 
-def _texto_claro(texto) -> bool:
-    """O texto diz claramente confirmacao, troca de senha ou bloqueio."""
+def _classificar(url, texto, tem_captcha, http_status) -> tuple:
+    """(codigo | None, so_pelo_caminho). `so_pelo_caminho` = o codigo
+    (MAXIMA_CONFIRMACAO) veio so do caminho da URL, sem texto claro."""
+    if http_status == 403:
+        return "MAXIMA_BLOQUEIO", False
+    no_login, verif = _no_login(url)
+    if not (no_login or verif):
+        return None, False
+    if tem_captcha:
+        return "MAXIMA_CAPTCHA", False
     t = _sem_acento_min(texto)
-    return bool(_RX_CONFIRMACAO.search(t) or _RX_BLOQUEIO.search(t))
+    if _RX_BLOQUEIO.search(t):
+        return "MAXIMA_BLOQUEIO", False
+    if _RX_CONFIRMACAO.search(t):
+        return "MAXIMA_CONFIRMACAO", False
+    if not no_login:
+        # caminho de verificacao (so o caminho da URL): com qualquer redacao,
+        # a Maxima pediu confirmacao; nunca repete o login (§5.1)
+        return "MAXIMA_CONFIRMACAO", True
+    if t.strip() and _RX_CREDENCIAL.search(t):
+        return "MAXIMA_SENHA", False
+    return None, False
 
 
 def classificar_login(url, texto, tem_captcha, http_status) -> str | None:
@@ -451,25 +469,7 @@ def classificar_login(url, texto, tem_captcha, http_status) -> str | None:
     Maxima que pede parada ou None (saiu do /login, segue). `texto` = a
     mensagem de erro da tela (ou o texto da pagina de verificacao).
     Nunca tenta resolver captcha nem repete o login."""
-    if http_status == 403:
-        return "MAXIMA_BLOQUEIO"
-    no_login, verif = _no_login(url)
-    if not (no_login or verif):
-        return None
-    if tem_captcha:
-        return "MAXIMA_CAPTCHA"
-    t = _sem_acento_min(texto)
-    if _RX_BLOQUEIO.search(t):
-        return "MAXIMA_BLOQUEIO"
-    if _RX_CONFIRMACAO.search(t):
-        return "MAXIMA_CONFIRMACAO"
-    if not no_login:
-        # caminho de verificacao (so o caminho da URL): com qualquer redacao,
-        # a Maxima pediu confirmacao; nunca repete o login (§5.1)
-        return "MAXIMA_CONFIRMACAO"
-    if t.strip() and _RX_CREDENCIAL.search(t):
-        return "MAXIMA_SENHA"
-    return None
+    return _classificar(url, texto, tem_captcha, http_status)[0]
 
 
 _RX_NAVEGADOR_CAIU = re.compile(
@@ -832,15 +832,12 @@ class Robo:
             if not msg and not no_login:
                 texto = pg.evaluate(
                     "() => (document.body.innerText || '').slice(0, 3000)")
-            cod = classificar_login(url, texto, captcha, None)
-            if (cod == "MAXIMA_CONFIRMACAO" and not _texto_claro(texto)):
-                # decidido so pelo caminho da URL (sem texto claro): so vale
-                # na 2a leitura do mesmo caminho, 1 s ou mais depois
-                agora, caminho = _time.time(), _caminho(url)
-                if (vistos.get("caminho") != caminho
-                        or agora - vistos["em"] < 1.0):
-                    if vistos.get("caminho") != caminho:
-                        vistos.update(caminho=caminho, em=agora)
+            cod, so_caminho = _classificar(url, texto, captcha, None)
+            if so_caminho:
+                # decidido so pelo caminho da URL: so vale na 2a leitura do
+                # mesmo caminho, 1 s ou mais depois da 1a
+                agora = _time.time()
+                if agora - vistos.setdefault(_caminho(url), agora) < 1.0:
                     return None
             if cod:
                 return f"cod:{cod}:{msg}"
