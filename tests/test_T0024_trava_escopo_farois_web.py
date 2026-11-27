@@ -1,5 +1,5 @@
-"""T-0024: a trava do escopo de FAROIS_WEB (tests/escopo_farois_web.py) vale
-com e sem o lote 2 e reprova o que tem de reprovar.
+"""T-0024: a trava do escopo de FAROIS_WEB (tests/escopo_farois_web.py) tem o
+lote 2 como obrigatório (o #91 está no main) e reprova o que tem de reprovar.
 
 Regra citada: RN-GER-006 (estado = filial da nota no faturamento e no
 estoque; UF do cliente em fretes e carteira; sem a UF, aviso "Sem filtro por
@@ -31,12 +31,23 @@ def _robo(**troca):
 
 
 def test_RN_GER_006_trava_lista_permitida_e_os_cinco_do_lote2():
-    assert FAROIS_OBRIGATORIOS == {"pl_inadimplencia", "pv_pedidos",
-                                   "pl_entregas", "vc_visitas", "vc_meta"}
+    """Depois do #91 no main, os 5 do lote 2 são obrigatórios: a lista
+    permitida é a dos obrigatórios."""
     assert set(FAROIS_LOTE2) == {"pv_indicadores", "vc_base", "vc_planner",
                                  "pl_giro", "pl_frw"}
-    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS | set(FAROIS_LOTE2)
+    assert FAROIS_OBRIGATORIOS == {"pl_inadimplencia", "pv_pedidos",
+                                   "pl_entregas", "vc_visitas", "vc_meta"
+                                   } | set(FAROIS_LOTE2)
+    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS
     assert "pl_garantias" not in FAROIS_PERMITIDOS
+
+
+def test_RN_GER_006_trava_reprova_farol_do_lote2_faltando():
+    """Um farol do lote 2 que sai de FAROIS_WEB reprova (obrigatório)."""
+    for rid in sorted(FAROIS_LOTE2):
+        sem = tuple(r for r in ba.FAROIS_WEB if r != rid)
+        assert f"{rid}: obrigatório e fora de FAROIS_WEB" in \
+            problemas_escopo(_robo(FAROIS_WEB=sem)), rid
 
 
 def test_RN_GER_006_robo_de_verdade_passa_na_trava():
