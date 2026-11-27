@@ -1,57 +1,63 @@
 {# T-0030: cabeçalho BC3 do farol — faixa verde (título, data, estado, números) e a barra das abas (busca e Exportar).
-   Serve ao Resumo (`tela`) e às abas de tabela (`tabela`, `kpis`, `ufs`, `uf`). #}
+   T-0033: a faixa tem a mesma altura em todas as abas. Na aba de tabela leva os `kpis_padrao` inteiros (rótulo, valor, detalhe)
+   no padrão; com filtro, recorte ou estado eles saem e entra o AVISO_CARTOES (§10.7.2).
+   Serve ao Resumo (`tela`) e às abas de tabela (`tabela`, `kpis`, `ufs`, `uf`) e à fila de cobrança. #}
 {% set e_tab = tabela is defined and tabela %}
 {% set lista_uf = (ufs if e_tab else (tela.ufs if tela else [])) or [] %}
 {% set uf_at = (uf if e_tab else (tela.uf if tela else '')) or '' %}
-{% set ks_todos = (kpis if e_tab else (tela.kpis if tela else [])) or [] %}
-{# cartão com barras por estado ou linhas de detalhe fica no corpo (Resumo); a faixa leva só os números #}
-{% set ks = ks_todos|rejectattr('estados')|rejectattr('linhas')|list %}
+{# a aba de tabela leva os `kpis_padrao` (ou nenhum + AVISO_CARTOES, feito em main.py); a fila e a Solicitação levam os do Resumo #}
+{% set ks_todos = (kpis if (kpis is defined and kpis) else (tela.kpis if tela else [])) or [] %}
+{# Resumo: o cartão com barras por estado ou linhas fica no corpo e a faixa leva só os números. Aba de tabela: a faixa leva o cartão
+   inteiro, com `linhas` ou não (o Visita manda os 10 com `linhas`; sem isso a faixa ficava vazia no padrão) #}
+{% set ks = ks_todos if (e_tab and kpis_da_aba is defined and kpis_da_aba) else kpis_da_faixa(ks_todos) %}
 {% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
 {% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
+{# RD-0023/RD-0039: sem seletor de estado, o aviso é um só, na própria faixa (não em cada aba) #}
+{% set sem_uf = (not lista_uf) and (rid == 'vc_visitas' or (tela and tela.avisos_info and rid not in livres)) %}
+{% set dicas = {"pv_pedidos": "Buscar pedido ou cliente", "pl_entregas": "Buscar NF ou cliente", "pl_inadimplencia": "Buscar cliente ou NF", "vc_visitas": "Buscar vendedor ou cliente", "vc_meta": "Buscar nome"} %}
+{% from "_faixa.html" import quando, selo_velho, filtro_uf, filtro_uf_off, numeros %}
 <header class="bc3-faixa">
   <div class="bc3-tt">
     <h1>{{ farol_nome }}</h1>
-    {% if gerado_em %}<span class="bc3-quando">Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}</span>{% endif %}
-    {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
-    {% if lista_uf %}
-    <nav class="bc3-uf" aria-label="Filtro por estado">
-      <a href="{{ base_uf }}{{ sub_q }}" class="{{ 'on' if not uf_at }}">BAP</a>
-      {% for u in lista_uf %}<a href="{{ base_uf }}{{ sub_q }}&amp;uf={{ u }}" class="{{ 'on' if u == uf_at }}">{{ u }}</a>{% endfor %}
-    </nav>
-    {% endif %}
+    {% if fila is defined and pc_ate %}<span class="bc3-quando">Cobranças do PC até {{ pc_ate|hhmm }}</span>
+    {% else %}{% call quando(gerado_em) %}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}{% if sem_uf %} · <span class="bc3-sem-uf">Sem filtro por estado</span>{% endif %}{% endcall %}{% endif %}
+    {{ selo_velho(desatualizado) }}
+    {% if lista_uf %}{{ filtro_uf(base_uf ~ sub_q, lista_uf, uf_at) }}
+    {% elif ufs_off %}{{ filtro_uf_off(ufs_off) }}{% endif %}
   </div>
-  {% if ks %}
-  <div class="bc3-ks">
-    {% for k in ks %}<div class="bc3-k t-{{ k.cor }}"><small>{{ k.rot }}</small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
-  </div>
-  {% elif aviso_kpis is defined and aviso_kpis %}<p class="bc3-aviso-k">{{ aviso_kpis }}</p>{% endif %}
+  {{ numeros(ks) }}
+  {% if not ks and aviso_kpis is defined and aviso_kpis %}<p class="bc3-aviso-k">{{ aviso_kpis }}</p>{% endif %}
 </header>
 {% if abas or e_tab or (parcial is defined and parcial) %}<div class="bc3-sub">
   {% if abas %}
-  <nav class="bc3-abas" aria-label="Abas do farol">{% for c, n in abas %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}" class="{{ 'on' if c == aba }}"{{ ' aria-current="page"'|safe if c == aba }}>{{ n }}{% if c == aba and e_tab and tabela.total_linhas %} <span>· {{ tabela.total_linhas }}</span>{% endif %}</a>{% endfor %}</nav>
+  {# celular: 3 abas (as duas primeiras e a aberta) + "Mais ▾" com as outras; no PC, todas na linha #}
+  {% set nomes_abas = abas|map('first')|list %}
+  {% set vis = abas_no_celular(nomes_abas, aba) %}
+  <nav class="bc3-abas" aria-label="Abas do farol">{% for c, n0 in abas %}{% set n = n0|aba_curta %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}" class="{{ 'on' if c == aba }}{{ ' so-pc' if loop.index0 not in vis }}"{{ ' aria-current="page"'|safe if c == aba }}>{{ n }}{% if c == aba and e_tab and tabela.total_linhas %} <span>· {{ tabela.total_linhas }}</span>{% endif %}</a>{% endfor %}
+    {% if abas|length > 3 %}<details class="bc3-mais-abas"><summary>Mais</summary><div>{% for c, n0 in abas %}{% if loop.index0 not in vis %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}">{{ n0|aba_curta }}</a>{% endif %}{% endfor %}</div></details>{% endif %}</nav>
   {% endif %}
   <div class="bc3-acoes">
     {% if e_tab and tabela.fora_base %}{% set fb = tabela.fora_base %}
     {# T-0029: pedidos internos (cliente fora da base); marcada = ignora #}
-    <a class="bc3-chk" role="checkbox" aria-checked="{{ 'false' if fb.mostrar else 'true' }}" title="Pedidos internos: cliente fora da base de clientes da BAP"
-       href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}{{ '' if fb.mostrar else '&fora=1' }}"><i>{{ '' if fb.mostrar else '✓' }}</i>Ignorar fora da base ({{ fb.qtd }})</a>
+    <a class="bc3-chk" title="Pedidos internos"
+       href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}{{ '' if fb.mostrar else '&fora=1' }}"><i aria-hidden="true">{{ '' if fb.mostrar else '✓' }}</i>Ignorar fora da base ({{ fb.qtd }})<span class="sr">{{ ': ligado' if not fb.mostrar else ': desligado' }}</span></a>
     {% endif %}
     {% if e_tab and not (tabela.dica_busca is defined and tabela.dica_busca == "") %}
-    <form method="get" action="/farol/{{ rid }}" class="bc3-busca" role="search">
+    <form method="get" action="/farol/{{ rid }}" class="bc3-busca{{ ' tem' if tabela.busca }}" role="search">
       <input type="hidden" name="aba" value="{{ aba }}">
       {% if sub is defined and sub is not none %}<input type="hidden" name="sub" value="{{ sub }}">{% endif %}
       {% if uf_at %}<input type="hidden" name="uf" value="{{ uf_at }}">{% endif %}
       {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
       {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ tabela.dica_busca if (tabela.dica_busca is defined and tabela.dica_busca) else 'Buscar pedido, cliente ou produto' }}" maxlength="60" autocomplete="off" aria-label="Buscar">
+      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ tabela.dica_busca if (tabela.dica_busca is defined and tabela.dica_busca) else dicas.get(rid, 'Buscar') }}" maxlength="60" autocomplete="off" aria-label="Buscar">
       {% if tabela.busca %}<a href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}" title="Limpar busca" aria-label="Limpar busca">×</a>{% endif %}
     </form>
     {% endif %}
     {# T-0032: os botões do PC que as assistentes usam para mandar o farol no WhatsApp #}
     {% set rot_parcial = {"pv_pedidos": "Parcial Pedidos", "vc_visitas": "Parcial Visitas e Conversão", "pl_entregas": "Parcial Entregas"} %}
-    {% if parcial is defined and parcial %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}/parcial" title="Parcial para o WhatsApp">{{ rot_parcial.get(rid, "Parcial") }}</a>{% endif %}
-    {% if rid == "pl_inadimplencia" and abas and ("cobrar" in (abas|map(attribute=0)|list)) and aba != "cobrar" %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}?aba=cobrar">Cobrar no WhatsApp</a>{% endif %}
+    {% if parcial is defined and parcial %}<a class="bc3-bt bc3-bt-verde" href="/farol/{{ rid }}/parcial" title="Parcial para o WhatsApp">{{ rot_parcial.get(rid, "Parcial").split(" e ")[0] }}{% if " e " in rot_parcial.get(rid, "") %}<span class="rot-long"> e {{ rot_parcial[rid].split(" e ")[1] }}</span>{% endif %}</a>{% endif %}
+    {# 26/11 (decisão 7 A do Alexandre): sem o botão "Cobrar no WhatsApp" aqui; a aba de mesmo nome fica #}
     {% if e_tab %}
     <details class="bc3-exp"><summary class="bc3-bt">Exportar</summary>
       <div>{% set qs = request.url.query %}

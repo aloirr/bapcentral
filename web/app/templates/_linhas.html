@@ -1,0 +1,5 @@
+{% from "_grade.html" import corpo, itens with context %}
+{# T-0033 (contrato visual §7.2): mais linhas da mesma tabela, pedidas ao rolar; o JS pega as <tr> e os itens do celular #}
+<table><tbody>{{ corpo(tabela, base, fq) }}</tbody></table>
+<div class="m3">{{ itens(tabela, base, fq) }}</div>
+<p class="prox" data-mais="{{ mais }}"></p>
