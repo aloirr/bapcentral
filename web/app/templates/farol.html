@@ -29,7 +29,7 @@
 </nav>
 {% endif %}
 {% if tela.aviso_uf %}<p class="aviso info">{{ tela.aviso_uf }}</p>{% endif %}
-{% for a in tela.avisos_info %}<p class="aviso info">{{ a }}</p>{% endfor %}
+{% if rid not in livres %}{% for a in tela.avisos_info %}<p class="aviso info">{{ a }}</p>{% endfor %}{% endif %}
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
 {% include "_resumo.html" %}
 {% endif %}

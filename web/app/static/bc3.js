@@ -14,6 +14,10 @@
     });
   }
 
+  // celular: a aba ativa fica à vista na faixa de abas (T-0024, parecer de UX)
+  var ativa = document.querySelector(".bc3-abas a.on");
+  if (ativa && ativa.scrollIntoView && CEL.matches) ativa.scrollIntoView({ inline: "center", block: "nearest" });
+
   // paginação de uma tabela: mostra `n` linhas por vez e desenha ‹ 1 2 3 › em `nav`
   function paginar(tbody, n, nav, info, rotulo) {
     var rs = Array.prototype.slice.call(tbody.rows);
@@ -77,7 +81,7 @@
     var tb = cima.querySelector("tbody");
     if (tb && tb.rows.length && !(tb.rows.length === 1 && tb.rows[0].cells.length === 1)) {
       var rod = document.createElement("div"); rod.className = "bc3-rod";
-      rod.textContent = tb.rows.length + (document.querySelector(".sem-rolagem") ? " pedidos" : " linhas");
+      rod.textContent = tb.rows.length + (document.querySelector(".sem-rolagem:not(.grade-lote)") ? " pedidos" : " linhas");
       cima.after(rod);
     }
     cima.classList.add("bc3-rola");
