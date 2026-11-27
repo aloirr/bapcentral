@@ -23,6 +23,7 @@ class Config:
     pacote_max: int
     cookie_seguro: bool
     farol_max: int = 10 * 1024 * 1024      # T-0035: JSON do farol sem anexos (BAP_WEB_FAROL_MAX_MB)
+    visitas_token: str = ""                # T-0045: Bearer do cron de visitas (BAP_VISITAS_TOKEN; só as rotas do §3)
     cache_mb: float = 96.0                 # T-0035: orçamento estimado do cache de faróis (BAP_WEB_CACHE_MB)
 
 
@@ -56,4 +57,5 @@ def carregar() -> Config:
         cookie_seguro=os.environ.get("BAP_WEB_COOKIE_SEGURO", "1") != "0",
         farol_max=int(farol_mb * 1024 * 1024),
         cache_mb=cache_mb,
+        visitas_token=os.environ.get("BAP_VISITAS_TOKEN", ""),
     )

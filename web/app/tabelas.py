@@ -34,6 +34,10 @@ VE_TABELAS = {
     "pl_frw": ("admin", "gerente", "pre_venda", "pos_venda"),
     # T-0022: o Farol de Metas Equipe segue a mesma regra (D1 A): o diretor vê o Resumo; mude aqui se a D1 mudar
     "vc_meta": ("admin", "gerente", "vendas"),
+    # T-0023 v2 (contrato §10.10.1): o diretor vê o farol (Resumo), não as abas de tabela (RN-GER-014)
+    "pl_garantias": ("admin", "gerente", "pos_venda"),
+    "pl_devolucoes": ("admin", "gerente", "pos_venda"),
+    "pl_ncc": ("admin", "gerente", "pos_venda"),
 }
 # T-0024: faróis "livres": as abas e as colunas são as que o PC monta (sem a lista fechada do §10.7.3);
 # a web confere só o formato, as colunas que nunca vão e o documento na célula
@@ -47,6 +51,13 @@ RESUMO = ("resumo", "Resumo")
 ABAS = {
     "pv_pedidos": (("pedidos", "Pedidos"), ("solicitacao", "Solicitação BAP")),
     "pl_entregas": (("entregas", "Entregas"),),
+    # T-0023 v2 (§10.10.1): as abas dos 3 faróis do Pós-venda, na ordem do PC
+    "pl_garantias": (("garantias", "Garantias"), ("historico", "Histórico de compra"), ("produto", "Por produto"),
+                     ("status", "Status x resultado")),
+    "pl_devolucoes": (("devolucoes", "Devoluções"), ("motivo", "Por motivo"), ("vendedor", "Por vendedor (12 meses)"),
+                      ("cliente", "Por cliente (12 meses)"), ("produto", "Por produto (12 meses)")),
+    "pl_ncc": (("pendentes", "NCC pendentes"), ("cliente", "Por cliente"), ("filial", "Por filial"),
+               ("vendedor", "Por vendedor"), ("supervisor", "Por supervisor")),
     "vc_meta": (("equipe", "Equipe"), ("top30", "Top 30 clientes"), ("uf", "Por UF"), ("cidade", "Por cidade"),
                 ("bairro", "Por bairro"), ("segmento", "Por segmento"), ("zona", "Por zona"),
                 ("categoria", "Por categoria"), ("familia", "Por família da peça")),
@@ -72,7 +83,11 @@ _TROCA_ROTULO = {"COD": "CÓD.", "DESCRICAO": "DESCRIÇÃO", "JA": "JÁ", "UF": 
 ABA_CURTA = {"Por supervisor": "Supervisor", "Por vendedor": "Vendedor", "Aderência dia a dia": "Aderência",
              "Top 30 clientes": "Top 30", "Por UF": "UF", "Por cidade": "Cidade", "Por bairro": "Bairro",
              "Por segmento": "Segmento", "Por zona": "Zona", "Por categoria": "Categoria",
-             "Por família da peça": "Família", "Por cliente": "Cliente", "Por filial": "Filial"}
+             "Por família da peça": "Família", "Por cliente": "Cliente", "Por filial": "Filial",
+             # T-0023 v2 (UX §3): as abas dos 3 faróis do Pós-venda
+             "Histórico de compra": "Histórico", "Status x resultado": "Status", "Por motivo": "Motivo",
+             "Por vendedor (12 meses)": "Vendedor", "Por cliente (12 meses)": "Cliente",
+             "Por produto (12 meses)": "Produto", "NCC pendentes": "Pendentes"}
 
 
 def aba_curta(nome: str) -> str:
@@ -191,6 +206,70 @@ COLUNAS: dict[str, list] = {
                   _c("BAIRRO"), _c("SEGMENTO"), _c("VISITADA EM", "data"), _c("OBSERVAÇÃO"),
                   _c("REGISTRADO EM")],
 }
+# T-0023 v2 (§10.10.2): colunas por (rid, título), nunca só pelo título ("Por vendedor" existe no Visita e na NCC)
+def _agrupa_ncc(nome):
+    """Os 3 agrupamentos da NCC (§10.10.2): só muda a coluna do agrupamento."""
+    return [_c(nome), _c("NCC", "int"), _c("CLIENTES", "int"), _c("0-30 DIAS", "moeda"), _c("31-90 DIAS", "moeda"),
+            _c("91-180 DIAS", "moeda"), _c("+180 DIAS", "moeda"), _c("SALDO", "moeda"), _c("COMPENSAR JÁ", "moeda")]
+
+
+COLUNAS_RID: dict[tuple[str, str], list] = {
+    ("pl_garantias", "Garantias"): [
+        _c("STATUS"), _c("RESULTADO ANÁLISE"), _c("TICKET"), _c("DT. SOLICITAÇÃO", "data"),
+        _c("DT. FECHAMENTO", "data"), _c("SLA ATUAL", "int"), _c("PRAZO"), _c("CÓD. CLIENTE"), _c("CLIENTE"),
+        _c("CIDADE"), _c("CÓD. PRODUTO"), _c("DESCRIÇÃO PRODUTO", "texto", True), _c("QTD", "num"),
+        _c("PENDÊNCIAS", "texto", True), _c("RETORNO DO CLIENTE", "texto", True), _c("VENDEDOR", "texto", True),
+        _c("SUPERVISOR", "texto", True), _c("SITUAÇÃO DO PRAZO", "texto", True), _c("TOM SLA", "texto", True),
+        _c("DT. FECHOU", "data", True), _c("RECLAMAÇÃO", "texto", True), _c("OBSERVAÇÃO", "texto", True),
+        _c("DT. RETORNO", "data", True)
+    ],
+    ("pl_garantias", "Histórico de compra"): [
+        _c("CÓD. CLIENTE"), _c("RAZÃO SOCIAL"), _c("FANTASIA"), _c("CIDADE"), _c("PEDIDO"), _c("PED. MÁXIMA"),
+        _c("NF"), _c("PRAZO"), _c("DT. PEDIDO", "dia"), _c("DT. NF", "dia"), _c("DT. ENTREGA", "dia"),
+        _c("TRANSPORTADORA"), _c("RESPONSÁVEL"), _c("CÓD. PRODUTO"), _c("DESCRIÇÃO"), _c("QTD", "num"),
+        _c("VALOR", "moeda"), _c("VENDEDOR"), _c("FILIAL")
+    ],
+    ("pl_garantias", "Por produto"): [
+        _c("CÓD. PRODUTO"), _c("DESCRIÇÃO"), _c("GARANTIAS", "int"), _c("EM ABERTO", "int"),
+        _c("PROCEDENTES", "int"), _c("IMPROCEDENTES", "int")
+    ],
+    ("pl_garantias", "Status x resultado"): [
+        _c("STATUS"), _c("PENDENTE", "int"), _c("PROCEDENTE", "int"), _c("IMPROCEDENTE", "int"), _c("TOTAL", "int")
+    ],
+    ("pl_devolucoes", "Devoluções"): [
+        _c("MÊS"), _c("DATA", "data"), _c("NF DEV."), _c("FILIAL"), _c("CLIENTE"), _c("CIDADE"), _c("UF"),
+        _c("VENDEDOR"), _c("VALOR", "moeda"), _c("ITENS", "int"), _c("PRODUTOS"), _c("ETAPA"), _c("MOTIVO"),
+        _c("AUTORIZADO POR"), _c("RECEBIDA EM", "data"), _c("CRÉDITO"), _c("CRÉDITO EM", "data"), _c("RESPONSÁVEL")
+    ],
+    ("pl_devolucoes", "Por motivo"): [
+        _c("MÊS"), _c("MOTIVO"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda")
+    ],
+    ("pl_devolucoes", "Por vendedor (12 meses)"): [
+        _c("VENDEDOR"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda"), _c("FATURADO 12M", "moeda"),
+        _c("% DEVOLVIDO", "pct")
+    ],
+    ("pl_devolucoes", "Por cliente (12 meses)"): [
+        _c("CLIENTE"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda")
+    ],
+    ("pl_devolucoes", "Por produto (12 meses)"): [
+        _c("PRODUTO"), _c("DESCRIÇÃO"), _c("QTD", "num"), _c("VALOR", "moeda")
+    ],
+    ("pl_ncc", "NCC pendentes"): [
+        _c("A COMPENSAR"), _c("SLA NCC"), _c("DT. ÚLT. MOV.", "data"), _c("D.U. S/ MOV.", "int"), _c("IDADE"),
+        _c("FILIAL"), _c("NCC"), _c("PARC."), _c("EMISSÃO", "data"), _c("DIAS", "int"), _c("CLIENTE"), _c("NOME"),
+        _c("CIDADE"), _c("UF"), _c("VENDEDOR"), _c("SUPERVISOR", "texto", True), _c("VALOR NCC", "moeda"),
+        _c("JÁ ABATIDO", "moeda"), _c("SALDO", "moeda"), _c("TÍTULOS EM ABERTO", "moeda"),
+        _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")
+    ],
+    ("pl_ncc", "Por cliente"): [
+        _c("A COMPENSAR"), _c("IDADE"), _c("CLIENTE"), _c("NOME"), _c("CIDADE"), _c("UF"), _c("VENDEDOR"),
+        _c("SUPERVISOR", "texto", True), _c("NCC", "int"), _c("SALDO", "moeda"), _c("NCC MAIS ANTIGA (DIAS)", "int"),
+        _c("TÍTULOS EM ABERTO", "moeda"), _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")
+    ],
+    **{("pl_ncc", f"Por {k}"): _agrupa_ncc(k.upper()) for k in ("filial", "vendedor", "supervisor")},
+}
+# colunas que nunca vão, por tabela (§10.10.3, bloco `colunas-fora-por-tabela`): a web recusa o pacote que as traz
+FORA_POR_TABELA = {("pl_garantias", "Garantias"): frozenset({"CONTATO CLIENTE"})}
 # "Aderência dia a dia": 2 + N + 1 colunas, conferidas por padrão de nome (§10.7.3)
 ADERENCIA = "Aderência dia a dia"
 _RE_DIA = re.compile(r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$")
@@ -213,10 +292,17 @@ SELOS = {
     "Por supervisor": {"% META": "faixa"}, "Por vendedor": {"% META": "faixa"},
     "Dia a dia": {"% META": "faixa"},
 }
+# T-0023 v2: o selo por (rid, título), quando o título sozinho não basta (§10.10.2)
+SELOS_RID = {
+    ("pl_garantias", "Garantias"): {"STATUS": "texto", "SLA ATUAL": "tom", "PRAZO": "texto"},
+    ("pl_garantias", "Status x resultado"): {"STATUS": "texto"},
+    ("pl_ncc", "NCC pendentes"): {"SLA NCC": "texto"},
+}
 # tabelas que levam `uf_linhas` e `kpis_padrao` etc. não têm lista própria: o formato basta.
 
 PROIBIDAS = {"edicao", "editar", "abrir", "detalhe", "kpis_de", "total_de", "totais_por", "recortes",
-             "ordem_exportar", "cores_celulas", "so_exportar", "solicitacao_bap", "nota_pdf"}
+             "ordem_exportar", "cores_celulas", "so_exportar", "solicitacao_bap", "nota_pdf",
+             "garantia", "campanha_export", "detalhe_pedido"}
 # dentro dos cartões (`kpis_padrao`) "detalhe" é o texto do cartão; as outras chaves de ação nunca
 PROIBIDAS_KPI = (PROIBIDAS - {"detalhe"}) | {"edicao", "editar", "abrir", "tabelas", "juntas", "cobranca", "kpis_de"}
 CHAVES_TABELA = {"titulo", "colunas", "linhas", "tons", "total", "filtros", "kpis_padrao", "recortes_linhas",
@@ -395,15 +481,18 @@ def _cols_meta(cols) -> list | None:
 
 
 def _colunas_erro(titulo, cols, rid="", livre=False) -> tuple[str | None, list]:
+    fora = FORA_POR_TABELA.get((rid, titulo), ())
+    if fora and isinstance(cols, list) and any(isinstance(c, dict) and c.get("nome") in fora for c in cols):
+        return "coluna que não vai ao site (contato do cliente)", []
     esperado = (_esperado_livre(cols) if livre
                 else _cols_meta(cols) if rid == "vc_meta"
-                else _cols_esperadas(titulo, cols if isinstance(cols, list) else []))
+                else COLUNAS_RID.get((rid, titulo)) or _cols_esperadas(titulo, cols if isinstance(cols, list) else []))
     if esperado is None:
         return "colunas diferentes da lista do contrato", []
     if not (isinstance(cols, list) and len(cols) == len(esperado)):
         return "colunas diferentes da lista do contrato", []
     ocultas = {n for n, _, o in esperado if o}
-    selos = ({n: "faixa" for n, _, _ in esperado} if rid == "vc_meta" else SELOS.get(titulo, {}))
+    selos = ({n: "faixa" for n, _, _ in esperado} if rid == "vc_meta" else SELOS_RID.get((rid, titulo), SELOS.get(titulo, {})))
     if titulo == ADERENCIA:                    # T-0033: o quadrado de cada dia pode vir com a faixa de cor do PC (opcional)
         selos = {n: "faixa" for n, tp, _ in esperado if tp == "pct"}
     for c, (n, tp, o) in zip(cols, esperado):
@@ -1059,6 +1148,42 @@ GRADE.update({
 })
 
 
+# T-0023 v2 (contrato §10.10.2, "Grade"): as tabelas dos 3 faróis do Pós-venda com mais de 10 colunas visíveis. A coluna
+# Editar do admin fica à esquerda e não conta no teto. As ocultas (o valor de hoje do formulário) nunca vão à grade.
+GRADE.update({
+    ("pl_garantias", "Garantias"): {
+        "chave": "TICKET", "cel": ("TICKET", "CLIENTE", "STATUS", "SLA ATUAL"),
+        "grade": ("TICKET", "CLIENTE", "STATUS", "RESULTADO ANÁLISE", "DT. SOLICITAÇÃO", "DT. FECHAMENTO",
+                  "SLA ATUAL", "PRAZO"),
+        "blocos": (("Cliente", ("CÓD. CLIENTE", "CIDADE")), ("Produto", ("CÓD. PRODUTO", "QTD")))},
+    ("pl_garantias", "Histórico de compra"): {
+        "chave": "NF", "cel": ("NF", "FANTASIA", None, "VALOR"),
+        "grade": ("NF", "DT. NF", "PEDIDO", "FANTASIA", "CIDADE", "CÓD. PRODUTO", "DESCRIÇÃO", "QTD", "VALOR",
+                  "VENDEDOR"),
+        "blocos": (("Cliente", ("CÓD. CLIENTE", "RAZÃO SOCIAL")),
+                   ("Pedido", ("PED. MÁXIMA", "PRAZO", "DT. PEDIDO", "FILIAL")),
+                   ("Entrega", ("DT. ENTREGA", "TRANSPORTADORA", "RESPONSÁVEL")))},
+    ("pl_devolucoes", "Devoluções"): {
+        "chave": "NF DEV.", "cel": ("NF DEV.", "CLIENTE", "ETAPA", "VALOR"),
+        "grade": ("NF DEV.", "DATA", "CLIENTE", "CIDADE", "UF", "VALOR", "ETAPA", "MOTIVO", "AUTORIZADO POR",
+                  "CRÉDITO"),
+        "blocos": (("Nota", ("MÊS", "FILIAL", "VENDEDOR", "ITENS", "PRODUTOS")),
+                   ("Acompanhamento", ("RECEBIDA EM", "CRÉDITO EM", "RESPONSÁVEL")))},
+    ("pl_ncc", "NCC pendentes"): {
+        "chave": "NCC", "cel": ("NCC", "NOME", "SLA NCC", "SALDO"),
+        "grade": ("NCC", "NOME", "UF", "A COMPENSAR", "SLA NCC", "DT. ÚLT. MOV.", "D.U. S/ MOV.", "IDADE",
+                  "VENDEDOR", "SALDO"),
+        "blocos": (("Cliente", ("CLIENTE", "CIDADE")),
+                   ("Nota", ("FILIAL", "PARC.", "EMISSÃO", "DIAS", "VALOR NCC", "JÁ ABATIDO")),
+                   ("Em aberto", ("TÍTULOS EM ABERTO", "PEDIDO EM ABERTO", "ÚLTIMA COMPRA")))},
+    ("pl_ncc", "Por cliente"): {
+        "chave": "NOME", "cel": ("NOME", None, "IDADE", "SALDO"),
+        "grade": ("NOME", "UF", "VENDEDOR", "A COMPENSAR", "IDADE", "NCC", "SALDO", "NCC MAIS ANTIGA (DIAS)",
+                  "TÍTULOS EM ABERTO", "PEDIDO EM ABERTO"),
+        "blocos": (("Cliente", ("CLIENTE", "CIDADE")), ("Compra", ("ÚLTIMA COMPRA",)))},
+})
+
+
 # T-0024 (R4): a dica da busca nomeia o que a tabela mostra; "" = sem busca (tabela de até ~15 linhas)
 SEM_BUSCA_ATE = 15
 DICA_BUSCA = {
@@ -1145,17 +1270,23 @@ def preparar_grade(tab: dict, rid: str = "") -> dict:
 _RE_COD_NOME = re.compile(r"^\s*(\d+)\s+-\s+(.+)$")
 
 
+def cod_e_nome(v) -> tuple[str, str]:
+    """"900001 - NOME" -> ("900001", "NOME"); sem código, ("", v). Uma conta só (grade das Devoluções e Entregas, resumo da edição)."""
+    m = _RE_COD_NOME.match(str(v))
+    return (m.group(1), m.group(2)) if m else ("", str(v))
+
+
 def cliente_so_nome(tab: dict) -> None:
     """Entregas (UX §3.2): "900001 - NOME" vira só o nome na grade; o código vai ao popup (`cod` da célula)."""
     cols = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
-    if "CLIENTE" not in cols or "NF" not in cols:
+    if "CLIENTE" not in cols or not ({"NF", "NF DEV."} & set(cols)):
         return
     i = cols.index("CLIENTE")
     for ln in tab.get("linhas") or []:
         c = ln["cel"][i]
-        m = _RE_COD_NOME.match(str(c.get("t", "")))
-        if m:
-            c["cod"], c["t"] = m.group(1), m.group(2)
+        cod, nome = cod_e_nome(c.get("t", ""))
+        if cod:
+            c["cod"], c["t"] = cod, nome
 
 
 # T-0029 / RN-GER-013 (Alexandre, 26/11/2026): pedido de cliente fora da base de clientes da BAP (pedido interno)
