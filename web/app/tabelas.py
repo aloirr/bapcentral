@@ -184,9 +184,9 @@ TIPOS_SUB = {"texto", "num", "data"}
 NUM_TIPOS = {"int", "num", "num1", "num2", "moeda", "moeda2", "pct", "pct1", "valor"}
 TIPOS = NUM_TIPOS | {"texto", "dia", "data", "hora"}
 # paleta fixa do selo pela linha (bap_visual.py), §10.7.2
-PALETA_TOM = {"ok": (marca.TOKENS["--verde-claro"], marca.TOKENS["--verde-escuro"]),      # (fundo, texto) do selo pela linha
+PALETA_TOM = {"ok": (marca.TOKENS["--ok-claro"], marca.TOKENS["--verde-escuro"]),      # (fundo, texto) do selo pela linha
               "atencao": (marca.TOKENS["--atencao-claro"], marca.TOKENS["--atencao-texto"]),
-              "alerta": (marca.TOKENS["--alerta"], marca.TOKENS["--branco"]),
+              "alerta": (marca.TOKENS["--alerta-claro"], marca.TOKENS["--alerta"]),
               "cinza": (marca.TOKENS["--borda"], marca.TOKENS["--suave"])}
 MAX_LINHAS = 60000
 MAX_RECORTES = 20
