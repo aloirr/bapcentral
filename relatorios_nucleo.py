@@ -8001,6 +8001,13 @@ def devolucoes(ctx):
     return r
 
 
+# (T-0037, RD-0193) rotulos "Sem ..." do Farol de Fretes: o robo importa daqui
+SEM_UF = "Sem UF"
+SEM_CIDADE = "Sem cidade"
+SEM_TRANSP = "Sem transportadora"
+SEM_ACOMP = "Sem acompanhamento"
+
+
 def rotulo_agrupa_fretes(i, l) -> str:
     """(T-0037, A2/A3) Rotulo da linha das tabelas Por UF (i=7), Por cidade
     (i=6) e Por transportadora (i=11) do Farol de Fretes. Funcao pura.
@@ -8010,11 +8017,11 @@ def rotulo_agrupa_fretes(i, l) -> str:
     "Sem transportadora" tem o mesmo criterio do cartao (chave e sem transp.)."""
     v = (l[i] or "").strip() if isinstance(l[i], str) else (l[i] or "")
     if i == 7:
-        return v or "Sem UF"
+        return v or SEM_UF
     if i == 6:
-        return (v or "Sem cidade") + " / " + ((l[7] or "").strip() or "Sem UF")
+        return (v or SEM_CIDADE) + " / " + ((l[7] or "").strip() or SEM_UF)
     if not v:
-        return "Sem transportadora" if l[16] else "Sem acompanhamento"
+        return SEM_TRANSP if l[16] else SEM_ACOMP
     return v
 
 
