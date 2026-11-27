@@ -273,8 +273,8 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
                                     TableStyle)
     C = colors.HexColor
     VERDE_B, VERDE_T, TXT, SUA, LIN, ZEB, VERM = (
-        C("#62BB47"), C("#2F7D32"), C("#1E2722"), C("#69736D"),
-        C("#E3E7E2"), C("#F7F9F6"), C("#B3261E"))
+        C("#59BA61"), C("#2F7D32"), C("#1E2722"), C("#5E6B63"),
+        C("#E3E7E2"), C("#F7F9F6"), C("#B42318"))
     ZEB2 = C("#F1F4F0")         # um pouco mais forte: e ela que separa a linha
     pag = landscape(A4)
     mg = 12 * mm
@@ -381,7 +381,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
                                             alignment=2))
         txt = bv.moeda(v)
         if vermelho:
-            txt = f"<font color='#B3261E'><b>{txt}</b></font>"
+            txt = f"<font color='#B42318'><b>{txt}</b></font>"
         return Paragraph(txt, ParagraphStyle("v", parent=est["cel"],
                                              alignment=2))
 
@@ -416,7 +416,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
         ls = por_dia.get(d) or []
         cid = Counter(nu.texto(r.get("CIDADE")).title() for r in ls)
         linha_dia = Table([[
-            Paragraph(f"<font color='#62BB47'>■</font>&nbsp; "
+            Paragraph(f"<font color='#59BA61'>■</font>&nbsp; "
                       f"{DIAS[d.weekday()].upper()} · {d:%d/%m}", est["dia"]),
             Paragraph(html.escape(
                 (f"{len(ls)} visita(s) · " + " · ".join(
