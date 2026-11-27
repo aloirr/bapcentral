@@ -305,12 +305,32 @@ class Cancelado(Exception):
 # =========================================================================
 # o que baixar
 # =========================================================================
+def indice_do_pc(raiz, de: date, ate: date) -> dict:
+    """{AAAAMMDD: iso} do PC para os dias de `de` a `ate` que TEM arquivo:
+    a hora do _baixados.json ou, em arquivo posto a mao, a do arquivo (a
+    mesma leitura de vn.baixado_em). Alimenta vn.dias_a_baixar (RN-VIS-002)."""
+    ind = {}
+    for d in vn.dias_entre(de, ate):
+        arq = vn.arquivo_do_dia(raiz, d)
+        if not arq.exists():
+            continue
+        quando = vn.baixado_em(raiz, f"{d:%Y%m%d}", arq)
+        if quando:
+            ind[f"{d:%Y%m%d}"] = quando.isoformat()
+    return ind
+
+
+def hoje_manaus() -> date:
+    return datetime.now(vn.FUSO_MANAUS).date()
+
+
 def plano(raiz, de: date, ate: date, refazer=False, hoje: date | None = None):
-    """([dias], [(ano, mes)]) que precisam ser baixados."""
-    hoje = hoje or date.today()
+    """([dias], [(ano, mes)]) que precisam ser baixados. Os dias vêm da
+    função única do núcleo (RN-VIS-002), a mesma da nuvem."""
+    hoje = hoje or hoje_manaus()
     ate = min(ate, hoje)
-    dias = [d for d in vn.dias_entre(de, ate)
-            if refazer or not vn.dia_fechado(raiz, d)]
+    dias = vn.dias_a_baixar(indice_do_pc(raiz, de, ate), de, ate, hoje,
+                            refazer)
     # o arquivo do MES sai junto sempre que algum dia dele foi baixado
     # (antes: um AAAAMM.csv antigo, posto a mao, fazia o mes ser pulado)
     com_dia = {(d.year, d.month) for d in dias}
