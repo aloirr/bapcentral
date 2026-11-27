@@ -69,9 +69,15 @@ def _barras(est) -> dict | None:
     return {"barras": out, "legenda": est.get("legenda") or ""}
 
 
+def legenda_do_cartao(legenda) -> str:
+    """T-0052 (RD-0238): a legenda do cartão só aparece com número próprio; sem número, o rótulo já diz (RD-0063)."""
+    leg = str(legenda or "")
+    return leg if any(ch.isdigit() for ch in leg) else ""
+
+
 def cartao(c: dict) -> dict:
     return {"titulo": str(c.get("titulo", "")).upper(), "valor": c.get("valor", ""),
-            "legenda": c.get("legenda") or "",
+            "legenda": legenda_do_cartao(c.get("legenda")),
             "aneis": [_anel(a) for a in c.get("aneis") or []],
             "faixa": [_faixa(f) for f in (c.get("faixa") or [])[:3]],
             "estados": _barras(c.get("estados")), "ajuda": c.get("ajuda") or ""}
@@ -123,21 +129,11 @@ def abas_no_celular(chaves: list, atual) -> list[int]:
     return [0, 1, pos] if pos > 1 else [0, 1, 2]
 
 
-NA_FAIXA = 3          # os 3 primeiros cartões RRM levam o número à faixa; os outros (o PC manda 10, 10 e 6) mantêm o deles no cartão
-
-
-def faixa_painel(tela: dict | None, tela_f: dict | None) -> list[dict]:
-    """T-0034: os números da faixa do Painel Executivo, prontos do pacote (nada é recalculado). Aba RRM: os 3 cartões de
-    cabeça (os anéis MTD e MÊS ficam só no cartão, RD-0063); aba de painel: os cartões comuns (os ricos ficam no corpo)."""
-    if tela_f:
-        return kpis_da_faixa(tela_f["kpis"])
-    out = []
-    for c in ((tela or {}).get("cartoes") or [])[:NA_FAIXA]:
-        aneis = [a for a in c["aneis"] if a["tem"]]
-        det = c["legenda"] if any(ch.isdigit() for ch in c["legenda"]) else ""     # sem número próprio, o rótulo já diz
-        out.append({"rot": c["titulo"], "valor": c["valor"], "detalhe": det,
-                    "cor": aneis[-1]["tom"] if aneis else ""})
-    return out
+def faixa_painel(tela_f: dict | None) -> list[dict]:
+    """T-0034 / T-0052: os números da faixa do Painel Executivo, prontos do pacote (nada é recalculado). Aba RRM: a faixa
+    fica SEM números (só quando, DU e filtro): todo cartão mostra o seu valor grande, e repeti-lo no topo seria o mesmo
+    número duas vezes na tela (RD-0063). Aba de painel: os cartões comuns (os ricos ficam no corpo)."""
+    return kpis_da_faixa(tela_f["kpis"]) if tela_f else []
 
 
 def localizar_paineis(rel: dict) -> list[dict]:
@@ -192,37 +188,49 @@ def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
         cartoes = ((aba.get("recortes") or {}).get("uf") or {}).get(uf, {}).get("cartoes") or []
         sub = f"{uf} · estado = filial da nota · {sub}" if sub else f"{uf} · estado = filial da nota"
     return {"sub": sub, "uf": uf,
-            "cartoes": [{**cartao(c), "na_faixa": i < NA_FAIXA} for i, c in enumerate(cartoes)],
+            "cartoes": [cartao(c) for c in cartoes],
             "como_ler": como_ler, "avisos": d.get("avisos") or []}
 
 
 # ---------------------------------------------------------------- faróis (T-0017)
 # Forma "farol" do pacote (contrato §10): o PC manda kpis, insights e blocos do painel
 # prontos. Aqui só se desenha (barras em HTML/CSS); nada é recalculado.
+# T-0036 (desenho §2, P1 = A): o analista vê como o gerente tudo o que não é meta RH nem edição.
+# Uma fonte só: com a P1 = B, troca esta linha (e o analista sai das tuplas dos outros faróis).
+LEITURA_GERAL = ("admin", "gerente", "analista")
+# T-0036 (RD-0004): os faróis do Analista Comercial, lista única (menu, busca e rótulos do `tabelas`)
+RIDS_ANALISTA = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 FAROIS = {  # rid -> (nome no PC, perfis que veem)
-    "pv_pedidos": ("Farol de Pedidos", ("admin", "diretor", "gerente", "pre_venda")),
-    "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
-    "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
-    "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+    "pv_pedidos": ("Farol de Pedidos", LEITURA_GERAL + ("diretor", "pre_venda")),
+    "vc_visitas": ("Farol de Visita", LEITURA_GERAL + ("diretor", "vendas")),
+    "pl_entregas": ("Farol de Entregas", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_inadimplencia": ("Farol de Inadimplência", LEITURA_GERAL + ("diretor", "pos_venda")),
     # T-0024 (lote 2): o perfil de cada quadrado do PC (bap_central.py)
-    "pv_indicadores": ("Painel de indicadores", ("admin", "diretor", "gerente", "pre_venda")),
-    "vc_base": ("Farol de Clientes", ("admin", "diretor", "gerente", "vendas")),
-    "vc_planner": ("Farol Roteirização", ("admin", "diretor", "gerente", "vendas")),
-    "pl_giro": ("Farol de Giro de Produtos", ("admin", "diretor", "gerente", "vendas")),
-    "pl_frw": ("Farol de Estoque FRW", ("admin", "diretor", "gerente", "pre_venda", "pos_venda")),
+    "pv_indicadores": ("Painel de indicadores", LEITURA_GERAL + ("diretor", "pre_venda")),
+    "vc_base": ("Farol de Clientes", LEITURA_GERAL + ("diretor", "vendas")),
+    "vc_planner": ("Farol Roteirização", LEITURA_GERAL + ("diretor", "vendas")),
+    "pl_giro": ("Farol de Giro de Produtos", LEITURA_GERAL + ("diretor", "vendas")),
+    "pl_frw": ("Farol de Estoque FRW", LEITURA_GERAL + ("diretor", "pre_venda", "pos_venda")),
     # T-0023 v2 (contrato §10.10.1): Pós-venda. O diretor vê só o Resumo (RN-GER-014: ver `tabelas.VE_TABELAS`)
-    "pl_garantias": ("Farol de Garantias", ("admin", "diretor", "gerente", "pos_venda")),
-    "pl_devolucoes": ("Farol de Devolução e Reembolsos", ("admin", "diretor", "gerente", "pos_venda")),
-    "pl_ncc": ("Farol de NCC", ("admin", "diretor", "gerente", "pos_venda")),
+    "pl_garantias": ("Farol de Garantias", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_devolucoes": ("Farol de Devolução e Reembolsos", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_ncc": ("Farol de NCC", LEITURA_GERAL + ("diretor", "pos_venda")),
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
-    "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
+    "vc_meta": ("Farol de Metas Equipe", LEITURA_GERAL + ("diretor", "vendas")),
+    # T-0036 (contrato §10.11.6): Analista Comercial; o diretor vê só o Resumo
+    "vc_saldo": ("Farol de Saldo", LEITURA_GERAL + ("diretor",)),
+    "vc_markup": ("Farol de Markup", LEITURA_GERAL + ("diretor",)),
+    "vc_preco": ("Farol de Preço", LEITURA_GERAL + ("diretor",)),
+    "an_divergencias": ("Divergências de clientes Planner × Protheus", LEITURA_GERAL + ("diretor",)),
 }
-VEEM_PAINEL = ("admin", "diretor", "gerente")      # quem vê o Painel Executivo: a `/`, a lateral e a rota usam esta tupla só
+VEEM_PAINEL = LEITURA_GERAL + ("diretor",)      # T-0036 (P1 = A, RD-0003): o analista vê como o gerente. Quem vê o Painel Executivo: a `/`, a lateral e a rota usam esta tupla só
 TONS = ("ok", "atencao", "alerta", "info")
 LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")    # T-0024: faróis de abas livres
 # T-0024 (R4 do parecer de UX): nome curto na barra lateral; o nome completo do PC fica no título da faixa
 NOME_MENU = {"pv_indicadores": "Indicadores", "vc_base": "Clientes", "vc_planner": "Roteirização",
              "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW",
+             # T-0036 (revisão de UX, 7): na lateral o nome é curto; o completo fica na faixa
+             "vc_saldo": "Saldo", "vc_markup": "Markup", "vc_preco": "Preço", "an_divergencias": "Divergências",
              "pl_garantias": "Garantias", "pl_devolucoes": "Devoluções", "pl_ncc": "NCC"}
 AVISO_UF = "Os outros cartões, o resumo e os gráficos: só na BAP inteira."   # T-0033 (RD-0034): um aviso só
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
@@ -230,24 +238,42 @@ INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
+PAINEL_RID, NOME_PAINEL, GRUPO_PAINEL = "vc_painel", "Painel Executivo", "Diretoria"     # T-0050: o Painel é um item do menu e da lista de acesso
+
+
+def nome_curto(rid: str) -> str:
+    """Nome do farol na lateral e na tela de acesso (o completo fica na faixa)."""
+    return NOME_MENU.get(rid) or FAROIS[rid][0].removeprefix("Farol de ")
+
+
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
                ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_garantias", "pl_devolucoes", "pl_ncc", "pl_frw")),
-               ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")))   # T-0024: lote 2 no menu
+               ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")),   # T-0024: lote 2 no menu
+               ("Analista Comercial", RIDS_ANALISTA),
+               # T-0036 (contrato §10.10.1): o grupo do trade; aparece quando o Farol de Expositores entrar (T-0025 v2)
+               ("Trade", ("tm_expositores",)))
+# T-0036 (revisão UX): o grupo do próprio perfil abre a barra; os outros perfis seguem a ordem de GRUPOS_MENU
+GRUPO_DO_PERFIL = {"analista": "Analista Comercial", "trade": "Trade"}
+
+
+def grupos_na_ordem(perfil: str) -> tuple:
+    meu = GRUPO_DO_PERFIL.get(perfil)
+    return tuple(sorted(GRUPOS_MENU, key=lambda g: g[0] != meu))
 
 
 def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
-                 admin: bool = False) -> list[dict]:
+                 admin: bool = False, vistos: list | None = None, atualizar_visitas: bool | None = None) -> list[dict]:
     """T-0030: os grupos da barra lateral, só com o que o perfil vê (fonte única do menu; a página inicial usa `pagina_inicial`)."""
-    meus = dict(farois_do_perfil(perfil))
+    meus = dict(farois_do_perfil(perfil) if vistos is None else vistos)     # T-0050: `vistos` = `acesso.farois_do_usuario`
     grupos = []
     if painel:
-        grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
+        grupos.append({"nome": GRUPO_PAINEL, "itens": [{"href": "/painel", "nome": NOME_PAINEL,
                                                        "ativo": ativo == "painel"}]})
-    for nome, rids in GRUPOS_MENU:
-        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r].removeprefix("Farol de ")),
+    for nome, rids in grupos_na_ordem(perfil):
+        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": nome_curto(r),
                   "ativo": r == ativo}
                  for r in rids if r in meus]
-        if "vc_visitas" in rids and perfil in visitas.PODEM_PEDIR:     # T-0045: ☰ → Atualizar visitas → botão (3 toques)
+        if "vc_visitas" in rids and (atualizar_visitas if atualizar_visitas is not None else perfil in visitas.PODEM_PEDIR):     # T-0045: ☰ → Atualizar visitas → botão (3 toques)
             i = next((k for k, x in enumerate(itens) if x["nome"] == NOME_MENU.get("vc_visitas", "Visita")), None)
             itens.insert(len(itens) if i is None else i + 1,
                          {"href": "/visitas/atualizar", "nome": "Atualizar visitas", "ativo": ativo == "visitas_atualizar"})
@@ -260,17 +286,31 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
     return grupos
 
 
-def pagina_inicial(perfil: str) -> str:
+def pagina_inicial(perfil: str, vistos: list | None = None, painel: bool | None = None,
+                   padrao: set | None = None) -> str:
     """T-0034 (Alexandre, 26/11, decisão 2 A): admin, diretor e gerente abrem no Painel Executivo; os outros, no primeiro
-    farol da área, pela ordem do menu lateral (GRUPOS_MENU)."""
-    if perfil in VEEM_PAINEL:
+    farol da área, pela ordem do menu lateral (GRUPOS_MENU). T-0036 (UX 8): o perfil com grupo próprio (analista) abre
+    no 1º farol do grupo, antes do Painel. T-0050: `vistos` (faróis do usuário), `painel` (vê o Painel) e `padrao` (os rids
+    do perfil, com o Painel: `acesso.padrao_do_perfil`) vêm de `acesso`; o farol liberado a mais só abre a página se nada
+    do perfil sobrou. Sem eles, vale o perfil puro."""
+    meus = dict(farois_do_perfil(perfil) if vistos is None else vistos)
+    if padrao is None:
+        padrao = set(dict(farois_do_perfil(perfil))) | ({PAINEL_RID} if perfil in VEEM_PAINEL else set())
+    if painel is None:
+        painel = PAINEL_RID in padrao
+    for nome, rids in GRUPOS_MENU:
+        if nome == GRUPO_DO_PERFIL.get(perfil):
+            for r in rids:
+                if r in meus:
+                    return f"/farol/{r}"
+    if painel and PAINEL_RID in padrao:
         return "/painel"
-    meus = dict(farois_do_perfil(perfil))
-    for _, rids in GRUPOS_MENU:
-        for r in rids:
-            if r in meus:
-                return f"/farol/{r}"
-    return "/senha"
+    for so_perfil in (True, False):
+        for _, rids in GRUPOS_MENU:
+            for r in rids:
+                if r in meus and (not so_perfil or r in padrao):
+                    return f"/farol/{r}"
+    return "/painel" if painel else "/senha"
 
 
 def farois_do_perfil(perfil: str) -> list[tuple[str, str]]:
@@ -468,6 +508,12 @@ def _sem_acento(s) -> str:
 
 def coluna_fora(nome) -> bool:
     return _sem_acento(nome).strip() in COLUNAS_FORA
+
+
+def texto_proibido(t) -> bool:
+    """RD-0251: alguma palavra do texto é de COLUNAS_FORA (`coluna_fora`, sem acento, com o hífen: "E-MAIL"), ou há
+    cliente/razão/fantasia (`_CLIENTE_NO_BLOCO`). Uma lista só: a porta de leitura usa esta."""
+    return any(coluna_fora(w) for w in re.findall(r"[\w-]+", _sem_acento(t))) or bool(_CLIENTE_NO_BLOCO.search(str(t or "")))
 
 
 def coluna_proibida(nome) -> bool:

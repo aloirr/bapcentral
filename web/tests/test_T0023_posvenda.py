@@ -12,7 +12,7 @@ import pytest
 
 from conftest import TOKEN, postar, token_form
 from posvenda_fixture import ETAPAS_D, N_G, farol_ncc, garantias_registros, pacote_posvenda
-from app import edicoes, tabelas
+from app import VERSAO, edicoes, tabelas
 
 H = {"Authorization": f"Bearer {TOKEN}"}
 SENHA = "senha-teste-forte-9"
@@ -456,7 +456,7 @@ def test_T0023_ncc_estados_do_cartao_e_cartoes_por_estado(pv):
 
 
 def test_T0023_versao_da_web(admin):
-    assert admin.get("/saude").json()["versao"] == "0.7.0"
+    assert admin.get("/saude").json()["versao"] == VERSAO
 
 
 def test_T0023_formulario_aceita_ate_32kb():

@@ -2,14 +2,14 @@
 
 - **Autor:** engenheiro-software · **Data:** 27/11/2026 (revisado no PR #137)
 - **Base:** ADR 0004 (aceita) e o contrato `.coord/contratos/visitas-nuvem.md` v1, neste PR.
-- **Decisões:** D1 (cron job à parte, plano de 2 GB pago pelo tempo rodado) e D4 (usuário próprio da Máxima, só como variável secreta), ADR 0004, §0.
-- **Texto exato do `render.yaml`:** `docs/desenho/T-0045-render-yaml.diff` (aplica com `git apply` sobre o `origin/main` a32b610). Este arquivo explica o diff sem repetir o YAML.
+- **Decisões:** D1 (cron job à parte, plano de 2 GB pago pelo tempo rodado) e D4 revista (o mesmo login da Máxima do notebook, só como variável secreta), ADR 0004, §0 e adendo 1.
+- **Texto exato do `render.yaml` e das linhas do `.coord/donos.json`:** `docs/desenho/T-0045-governanca.diff` (um diff só, que substitui o antigo `T-0045-render-yaml.diff`; frase e ordem no `docs/desenho/T-0045-governanca.md`). Este arquivo explica o diff sem repetir o YAML.
 
 ## 1. Por que esta proposta é um diff, e não o `render.yaml` alterado
 
 - O `render.yaml` e o `.coord/donos.json` são do **alexandre** (`.coord/donos.json`). O guardião bloqueia o engenheiro-software nesses arquivos, e o protocolo manda não contornar.
 - Por isso, este PR leva **só arquivos do engenheiro-software**: este desenho e o `.diff` ao lado.
-- O `render.yaml` entra **num PR próprio do Alexandre** (`alexandre/T-0045-render-yaml`), como no PR #57, só no passo da ADR 0004, §9 (item 10). O merge segue com o "autorizo o merge do PR #N no commit <sha>" do po, por delegação.
+- O `render.yaml` entra **num PR próprio do Alexandre** (`alexandre/T-0045-governanca`, junto com as linhas do `donos.json`), como no PR #57, **antes** do `Dockerfile` e do `nuvem/visitas/` (ADR 0004, adendo 1). O merge segue com o "autorizo o merge do PR #N no commit <sha>" do po, por delegação.
 
 ## 2. O que o diff muda no `render.yaml`
 
@@ -45,68 +45,19 @@ A documentação do Render (`render.com/docs`) não abriu desta sessão (o proxy
 
 **Dono proposto:** **engenheiro-software**, como base técnica (a imagem, a versão do Playwright, o `requirements-visitas.txt`). O código que roda dentro (`nuvem/visitas/rodar.py`, `agenda.py`, `__init__.py`) é do **modulo-robo**. Não é do modulo-web: o cron não é o site e não fica em `web/` (o site tem `rootDir: web`, e código do cron ali faria o site refazer deploy a cada mudança do cron).
 
-Hoje `nuvem/**` e `.dockerignore` são "sem-dono", e o guardião bloqueia. **As linhas para o `.coord/donos.json`** (a única cópia; governança, antes das regras gerais; a primeira que casa vence):
+Hoje `nuvem/**` e `.dockerignore` são "sem-dono", e o guardião bloqueia. **As 3 linhas do `.coord/donos.json`** (`nuvem/visitas/Dockerfile` e `.dockerignore` → engenheiro-software; `nuvem/**` → modulo-robo, nessa ordem, porque a primeira que casa vence) estão só no `docs/desenho/T-0045-governanca.diff`.
 
-```json
-{ "padrao": "nuvem/visitas/Dockerfile", "dono": "engenheiro-software" },
-{ "padrao": ".dockerignore", "dono": "engenheiro-software" },
-{ "padrao": "nuvem/**", "dono": "modulo-robo" },
-```
+Texto: `nuvem/visitas/Dockerfile` e `.dockerignore` (o arquivo manda). As decisões:
 
-Texto do `nuvem/visitas/Dockerfile`:
-
-```dockerfile
-# Cron job bap-visitas-maxima (T-0045, ADR 0004). Dono: engenheiro-software.
-# A tag da imagem e o playwright do requirements-visitas.txt andam juntos.
-# [SUPOSIÇÃO] v1.49.1-noble: Ubuntu 24.04, Python 3.12, Chromium e as bibliotecas do sistema já dentro.
-FROM mcr.microsoft.com/playwright/python:v1.49.1-noble
-
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-WORKDIR /app
-
-# tini como PID 1: recolhe os processos do Chromium e repassa o SIGTERM ao Python (contrato, §2).
-# [SUPOSIÇÃO] a imagem roda como root até o USER abaixo, e o apt do Ubuntu 24.04 tem o tini.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends tini \
- && rm -rf /var/lib/apt/lists/*
-
-COPY requirements-visitas.txt ./
-# [SUPOSIÇÃO] --break-system-packages: o Python do Ubuntu 24.04 é "externally managed" (PEP 668).
-RUN pip install --break-system-packages -r requirements-visitas.txt
-
-# Lista FECHADA. Proibido "COPY . ." ou "ADD .": levaria as bases (RELATORIOS/, com dado de cliente) para a imagem.
-# relatorios_nucleo + bap_dados: a limpeza da RN-GER-011 no filtro do Espelho (contrato, §3.6); só biblioteca padrão no topo.
-COPY visitas_maxima.py visitas_nucleo.py relatorios_nucleo.py bap_dados.py ./
-COPY nuvem/visitas/ ./nuvem/visitas/
-
-# Usuário sem privilégio que a imagem do Playwright já traz.
-USER pwuser
-
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["python", "-m", "nuvem.visitas.rodar"]
-```
-
-Texto do `.dockerignore` (na raiz, porque o `dockerContext` é `.`): tira as bases e o resto do contexto de build, o que encurta o envio ao builder. A lista fechada do `COPY` continua sendo a proteção da imagem.
-
-```
-RELATORIOS/
-SISTEMA BAP/
-BAP Ajuda 2.0/
-.coord/
-.claude/
-.git/
-docs/
-web/
-tests/
-**/__pycache__/
-```
-
-- O `visitas_nucleo.py` importa o `xlsx_rapido`, o `meta_nucleo` e o `pastas_bap` só dentro de funções de montagem, que a nuvem não chama. O `ler_espelho` cai no `openpyxl` quando não acha o `xlsx_rapido` (por isso ele está no `requirements-visitas.txt`). O `relatorios_nucleo.py` e o `bap_dados.py` só importam a biblioteca padrão no topo (conferido: importar os dois não carrega `pandas`, `openpyxl`, `meta_nucleo` nem `pastas_bap`). Se o `rodar.py` precisar de outro arquivo, ele entra na lista do `COPY` e no `buildFilter`, e nunca uma pasta inteira.
-- Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`; a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`; todo arquivo do `COPY` está no `buildFilter`.
+- **Imagem:** `mcr.microsoft.com/playwright/python:v<versão>-noble`, com a mesma versão do `playwright==` do `requirements-visitas.txt` (trocar uma = trocar a outra). [SUPOSIÇÃO] `v1.49.1-noble`: Ubuntu 24.04, Python 3.12 e Chromium já dentro; o `pip` usa `--break-system-packages` (PEP 668).
+- **Lista fechada no `COPY`:** `requirements-visitas.txt`, `visitas_maxima.py`, `visitas_nucleo.py`, `relatorios_nucleo.py`, `bap_dados.py`, `painel_farol.py` e `nuvem/visitas/`. Proibido copiar a raiz inteira: levaria as bases (`RELATORIOS/`, com dado de cliente) para a imagem. Todo arquivo do `COPY` tem de estar no `buildFilter`; se o `rodar.py` precisar de outro arquivo, ele entra nos dois, e nunca uma pasta inteira.
+- **`painel_farol.py`:** o `relatorios_nucleo.py` importa `pct_do_liquido` dele no topo; sem ele, a trava de import quebra o build. O `painel_farol.py` só importa a biblioteca padrão. **Pendente (governança):** ele ainda falta no `buildFilter` do `render.yaml`; até entrar, mudar só nele não refaz a imagem.
+- **Pacote `nuvem` sem `__init__.py` (decisão do gerente, 27/11):** `nuvem` é pacote namespace (PEP 420, Python 3.12); só `nuvem/visitas/__init__.py` existe. A imagem leva só `nuvem/visitas/`, que é o que o `buildFilter` (`nuvem/visitas/**`) cobre; um `nuvem/__init__.py` ficaria fora do filtro. O `ENV PYTHONPATH=/app` faz `import nuvem.visitas.rodar` achar o pacote em qualquer diretório. Se um dia for preciso um `nuvem/__init__.py`, ele entra no `COPY` e no `buildFilter` juntos.
+- **tini como PID 1:** recolhe os processos do Chromium e repassa o SIGTERM ao Python (contrato, §2). [SUPOSIÇÃO] o apt do Ubuntu 24.04 tem o tini, e a imagem roda como root até o `USER pwuser`.
+- **Trava de import (ADR 0004, adendo 1):** `RUN python -c "import nuvem.visitas.rodar, nuvem.visitas.agenda"` antes do `USER`: sem o código no `main`, o build falha e nada roda. Importar o `rodar.py` não pode fazer nada (nem rede, nem navegador, nem segredo).
+- **Imports no topo:** o `visitas_nucleo.py` importa o `xlsx_rapido`, o `meta_nucleo` e o `pastas_bap` só dentro de funções de montagem, que a nuvem não chama; o `ler_espelho` cai no `openpyxl` quando não acha o `xlsx_rapido` (por isso ele está no `requirements-visitas.txt`). O `relatorios_nucleo.py` importa no topo a biblioteca padrão, o `bap_dados` e o `painel_farol`; o `bap_dados.py` e o `painel_farol.py`, só a biblioteca padrão (importar não carrega `pandas`, `openpyxl`, `meta_nucleo` nem `pastas_bap`).
+- **`.dockerignore` (raiz, porque o `dockerContext` é `.`):** tira as bases, os arquivos sensíveis (regra 5: `**/auth/`, `**/.env`, `**/*_config*.json`) e o resto do contexto, o que encurta o envio ao builder. Nenhuma linha casa com o que o `COPY` precisa; a proteção da imagem continua sendo a lista fechada.
+- Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`; tem o `RUN python -c "import nuvem.visitas.rodar, ..."` antes do `USER`; importar o `nuvem.visitas.rodar` não chama rede nem lê `BAP_MAXIMA_*`; não existe `*.dockerignore` nem fixture com dado em `nuvem/visitas/` (a pasta entra inteira na imagem); a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`; todo arquivo do `COPY` está no `buildFilter`.
 
 ## 4. Ordem do merge
 

@@ -744,6 +744,43 @@ CLIENTE_FORA_DA_BASE = "NÃO LOCALIZADO NA BASE"
 NOME_FORA_DA_BASE = "CLIENTE FORA DA BASE"
 
 
+LOJA_NAO_IDENTIFICADA = "(loja não identificada)"
+
+
+def cadastro_do_pedido(filial, lojas_do_codigo) -> dict:
+    """RN-GER-019 (fonte: docs/produto/03-regras.md).
+    Entrada: lojas_do_codigo = [{uf, nome, fantasia, cidade, limite, saldo,
+    atraso_valor}]; saldo None = nao conhecido.
+    Saida: {nome, fantasia, uf, cidade, limite, saldo, atraso_valor,
+    identificada, credito_apurado}."""
+    lojas = [x for x in (lojas_do_codigo or []) if isinstance(x, dict)]
+    uf_f = uf_da_filial(filial)
+    na_uf = [x for x in lojas if uf_f and texto(x.get("uf")).upper() == uf_f]
+    escolhida = None
+    if len(na_uf) == 1:
+        escolhida = na_uf[0]
+    elif len(lojas) == 1:                 # loja unica: usa essa loja (RN)
+        escolhida = lojas[0]
+    if escolhida is not None:
+        saldo = escolhida.get("saldo")
+        return {"nome": texto(escolhida.get("nome")),
+                "fantasia": texto(escolhida.get("fantasia")),
+                "uf": texto(escolhida.get("uf")).upper(),
+                "cidade": texto(escolhida.get("cidade")).upper(),
+                "limite": escolhida.get("limite"), "saldo": saldo,
+                "atraso_valor": escolhida.get("atraso_valor"),
+                "identificada": True, "credito_apurado": saldo is not None}
+    base = na_uf or lojas
+    nomes = {sem_acento(texto(x.get("nome"))).upper() for x in base}
+    nome = texto(base[0].get("nome")) if base and len(nomes) == 1 else ""
+    nome = nome or LOJA_NAO_IDENTIFICADA
+    # fantasia = nome: o titulo do cartao (celular) nunca fica so com o numero
+    return {"nome": nome,
+            "fantasia": nome, "uf": uf_f, "cidade": "", "limite": None,
+            "saldo": None, "atraso_valor": None, "identificada": False,
+            "credito_apurado": False}
+
+
 def fora_da_base(razao) -> bool:
     """RN-GER-013: o item e de cliente fora da base de clientes da BAP."""
     return sem_acento(texto(razao)).upper().strip() == \
@@ -1031,6 +1068,66 @@ class Contexto:
                 "uf": t.get("uf", ""), "segmento": "(FORA DA BASE)",
                 "vend": "", "vend_nome": "", "supervisor": "", "status": ""}
 
+    # -- RN-GER-019: o cadastro do cliente NO PEDIDO (a loja da filial)
+    def lojas_do_codigo(self, cod):
+        """Todas as lojas de um codigo (protheus_lojas, do bap_dados) com o
+        limite de cada uma; o saldo e o atraso so existem para a loja que o
+        cadastro (tabela['clientes']) guarda por codigo. Retorno so de
+        leitura (memo)."""
+        def _ficha(d, saldo, atraso, loja):
+            return {"loja": loja, "nome": d.get("nome"),
+                    "fantasia": d.get("fantasia"), "cidade": d.get("cidade"),
+                    "uf": d.get("uf"), "limite": d.get("limite"),
+                    "saldo": saldo, "atraso_valor": atraso}
+
+        if not hasattr(self, "_lojas_idx"):
+            idx = defaultdict(list)
+            guarda = self.tabela.get("clientes") or {}
+            for (c_, loja), d in _lojas_protheus(self).items():
+                g = guarda.get(c_) or {}
+                mesma = bool(g) and texto(g.get("loja")) == texto(loja)
+                idx[c_].append(_ficha(
+                    d, g.get("saldo") if mesma else None,
+                    g.get("atraso_valor") if mesma else None, loja))
+            self._lojas_idx = idx
+        lojas = self._lojas_idx.get(cod)
+        if lojas:
+            return lojas
+        g = (self.tabela.get("clientes") or {}).get(cod)
+        return [_ficha(g, g.get("saldo"), g.get("atraso_valor"),
+                       g.get("loja"))] if g else []
+
+    def cadastro_do_pedido(self, filial, cod):
+        """cadastro_do_pedido() (RN-GER-019) com as lojas deste codigo; {}
+        se o codigo nao esta no cadastro (cliente fora da base). Retorno so
+        de leitura (memo)."""
+        memo = self.__dict__.setdefault("_memo_cad_ped", {})
+        k = (uf_da_filial(filial), cod)
+        if k not in memo:
+            lojas = self.lojas_do_codigo(cod)
+            memo[k] = cadastro_do_pedido(filial, lojas) if lojas else {}
+        return memo[k]
+
+    def cliente_do_pedido(self, filial, cod):
+        """ctx.cliente(cod) com nome, fantasia, cidade e UF da loja do
+        pedido (RN-GER-019); o resto (segmento, vendedor) fica o do codigo."""
+        c = self.cliente(cod)
+        r = self.cadastro_do_pedido(filial, cod)
+        if not r:
+            return c
+        return dict(c, nome=r["nome"], fantasia=r["fantasia"],
+                    cidade=r["cidade"], uf=r["uf"])
+
+    def credito_do_pedido(self, filial, cod):
+        """A ficha de credito (limite, saldo, atraso, credito_apurado) da
+        loja do pedido."""
+        r = self.cadastro_do_pedido(filial, cod)
+        if not r:
+            return {}
+        return {"limite": r["limite"], "saldo": r["saldo"],
+                "atraso_valor": r["atraso_valor"],
+                "credito_apurado": r["credito_apurado"]}
+
     # -- ATIVO/INATIVO do cliente: o do Protheus (coluna STATUS do BAP
     #    Tools, na dClientesBap) e o do Planner (a situacao pelos dias sem
     #    compra: ATIVO, CHURN 30/60/90, INATIVO, NUNCA COMPROU)
@@ -1088,8 +1185,10 @@ class Contexto:
                            for c in self.base.get("clientes") or []}
         return (cod, _loja2(loja)) in self._lojas
 
-    def nome_cliente(self, cod):
-        c = self.cliente(cod)
+    def nome_cliente(self, cod, filial=None):
+        """filial (RN-GER-019): o nome da loja do pedido, nao o do codigo."""
+        c = self.cliente_do_pedido(filial, cod) if filial \
+            else self.cliente(cod)
         return f"{cod} - {c.get('fantasia') or c.get('nome') or ''}".strip(" -")
 
     def vendedor(self, cod):
@@ -1289,7 +1388,7 @@ def detalhe_pedido(ctx, filial="", pedido="", nf=""):
         return None
     i0 = achados[0]
     devolucao = all(i["tipo"] == "DEV" for i in achados)
-    cli = ctx.cliente(i0["cliente"])
+    cli = ctx.cliente_do_pedido(i0["filial"], i0["cliente"])
     notas = sorted({texto(i["nf"]).lstrip("0") for i in achados if i["nf"]})
     dts_nf = sorted({i["dt_nf"] for i in achados if i["dt_nf"]})
     conds = sorted({ctx.cond(i["cond"]) for i in achados if i["cond"]})
@@ -1336,7 +1435,7 @@ def detalhe_pedido(ctx, filial="", pedido="", nf=""):
             cols[j] = dict(cols[j], oculta=True)
     dt_p = i0["dt_pedido"]
     campos = [
-        ("Cliente", ctx.nome_cliente(i0["cliente"])),
+        ("Cliente", ctx.nome_cliente(i0["cliente"], i0["filial"])),
         ("Cidade", " / ".join(x for x in (cli.get("cidade", ""),
                                            cli.get("uf", "")) if x)),
         ("Vendedor", ctx.vendedor(i0["vend"])),
@@ -1392,7 +1491,7 @@ def detalhe_pedido(ctx, filial="", pedido="", nf=""):
                          f"Acima de 15% · {sp['situacao'].lower()}"
                          if precisa else "")}
     return {"titulo": titulo, "subtitulo": f"{ctx.filial(i0['filial'])} · "
-            f"{ctx.nome_cliente(i0['cliente'])}", "campos": campos,
+            f"{ctx.nome_cliente(i0['cliente'], i0['filial'])}", "campos": campos,
             "kpis": kpis, "colunas": cols, "linhas": linhas, "tons": tons,
             "total": total, "autorizacao": aut}
 
@@ -1431,8 +1530,8 @@ def pedidos_em_aberto(ctx):
                                     key=lambda kv: kv[1][0]["dt_pedido"] or hoje):
         i0 = itens[0]
         cod = i0["cliente"]
-        cli = ctx.cliente(cod)
-        cred = ctx.tabela["clientes"].get(cod, {})
+        cli = ctx.cliente_do_pedido(fil, cod)               # RN-GER-019
+        cred = ctx.credito_do_pedido(fil, cod)
         if any(fora_da_base(i.get("razao")) for i in itens):     # RN-GER-013
             cli = dict(cli, nome=NOME_FORA_DA_BASE, fantasia="", uf="",
                        cidade="")
@@ -1446,8 +1545,12 @@ def pedidos_em_aberto(ctx):
             sit, tom = "VENCE HOJE", "atencao"
         else:
             sit, tom = "NO PRAZO", ""
-        saldo, atraso = cred.get("saldo", 0.0), cred.get("atraso_valor", 0.0)
-        if atraso > 0:
+        apurado = analise_credito(cred, valor) != CREDITO_NAO_APURADO
+        saldo = cred.get("saldo", 0.0) if apurado else None
+        atraso = cred.get("atraso_valor", 0.0) if apurado else None
+        if not apurado:
+            credito = CREDITO_NAO_APURADO.upper()          # RN-GER-019
+        elif atraso > 0:
             credito = "CLIENTE EM ATRASO"
         elif saldo < valor:
             credito = "SEM LIMITE"
@@ -1460,7 +1563,7 @@ def pedidos_em_aberto(ctx):
                       None)
         tab = sum(i["p_tab"] * i["qtd"] for i in itens if i["p_tab"] > 0)
         linhas.append([sit, ped, ctx.filial(fil), dtp, i0["hora"], dias, prazo,
-                       ctx.nome_cliente(cod), cli.get("cidade", ""),
+                       ctx.nome_cliente(cod, fil), cli.get("cidade", ""),
                        cli.get("uf", ""), cli.get("segmento", ""),
                        ctx.vendedor(i0["vend"]), ctx.cond(i0["cond"]), valor,
                        desconto_comercial(ctx, itens), pct_at, len(itens),
@@ -1470,7 +1573,8 @@ def pedidos_em_aberto(ctx):
                         "dcom": sum(base_do_item(ctx, i)[1] for i in itens)}])
         tons.append(tom)
         for i in falt:
-            faltas.append([ped, ctx.filial(fil), ctx.nome_cliente(cod), i["cod"],
+            faltas.append([ped, ctx.filial(fil),
+                           ctx.nome_cliente(cod, fil), i["cod"],
                            ctx.produto(i["cod"]), i["qtd"], i["qtd_at"],
                            i["qtd"] - i["qtd_at"],
                            (i["qtd"] - i["qtd_at"]) * i["p_venda"],
@@ -1663,9 +1767,9 @@ def pedidos_excluidos(ctx):
         m = mes_de(i0["dt_pedido"])
         por_mes[m][0] += 1
         por_mes[m][1] += valor
-        cli = ctx.cliente(i0["cliente"])
+        cli = ctx.cliente_do_pedido(fil, i0["cliente"])     # RN-GER-019
         linhas.append([rotulo_mes(m), ped, ctx.filial(fil), i0["dt_pedido"],
-                       i0["hora"], ctx.nome_cliente(i0["cliente"]),
+                       i0["hora"], ctx.nome_cliente(i0["cliente"], fil),
                        cli.get("cidade", ""), cli.get("uf", ""),
                        ctx.vendedor(i0["vend"]), ctx.cond(i0["cond"]), valor,
                        len(itens), desconto_comercial(ctx, itens),
@@ -1687,7 +1791,8 @@ def pedidos_excluidos(ctx):
                 moeda(sum(l[10] for l in ls))),
             kpi("% dos pedidos digitados", p(pct_de(len(ls), dig)), "neutro",
                 f"de {br(dig)} digitados"),
-            kpi("Clientes", br(len({l[5] for l in ls})), "neutro"),
+            kpi("Clientes", br(len({texto(l[5]).split(" - ")[0]
+                                    for l in ls})), "neutro"),   # por codigo
             kpi("Vendedor com mais exclusões",
                 vend.most_common(1)[0][0].split(" - ")[-1][:22] if vend else "—",
                 "atencao" if vend else "neutro",
@@ -1740,11 +1845,16 @@ CREDITO_SEM = "Sem Limite"
 CREDITO_PARCIAL = "Com Limite Parcial"
 CREDITO_ATRASO = "Com Limite, mas em Atraso"
 CREDITO_OK = "Com Limite"
+CREDITO_NAO_APURADO = "Saldo Não Apurado"     # RN-GER-019: loja sem saldo
 
 
 def analise_credito(cli: dict, valor: float) -> str:
     """A ANALISE CREDITO do Farol de Pedidos (a mesma leitura do BI):
-    sem limite -> o disponivel nao cobre o pedido -> tem atraso -> ok."""
+    sem limite -> o disponivel nao cobre o pedido -> tem atraso -> ok.
+    RN-GER-019: credito_apurado False -> CREDITO_NAO_APURADO (fonte:
+    docs/produto/03-regras.md)."""
+    if cli.get("credito_apurado") is False:
+        return CREDITO_NAO_APURADO
     if (cli.get("limite") or 0) <= 0:
         return CREDITO_SEM
     if (cli.get("saldo") or 0) < valor:
@@ -1916,12 +2026,12 @@ def farol_pedidos(ctx):
         """(13/10) sp: o saldo do pedido pela regra nova - R$ TABELA ja
         com o financeiro da condicao e o % DESC. COMERCIAL (o do saldo),
         mais a autorizacao (codigo e quem autorizou)."""
-        cli = ctx.cliente(cod)
-        ctab = ctx.tabela["clientes"].get(cod, {})
+        cli = ctx.cliente_do_pedido(fil, cod)               # RN-GER-019
+        ctab = ctx.credito_do_pedido(fil, cod)
         if any(fora_da_base(i.get("razao")) for i in itens):     # RN-GER-013
             cli = {"nome": NOME_FORA_DA_BASE, "fantasia": "", "uf": "",
                    "cidade": ""}
-            ctab = {"nome": NOME_FORA_DA_BASE}
+            ctab = {}
         valor = sum(i["valor"] for i in itens)
         tab = sum(i["p_tab"] * i["qtd"] if i["p_tab"] > 0 else i["valor"]
                   for i in itens)
@@ -1933,8 +2043,8 @@ def farol_pedidos(ctx):
         pcts = [i["pct_at"] for i in itens if i.get("pct_at") is not None]
         i0 = itens[0]
         return [dtp, ped, i0.get("maxima", ""), cod,
-                ctab.get("nome") or cli.get("nome") or i0.get("razao", ""),
-                ctab.get("fantasia") or cli.get("fantasia", ""),
+                cli.get("nome") or i0.get("razao", ""),
+                cli.get("fantasia", ""),
                 cli.get("uf", ""), cidade, ctab.get("limite"),
                 ctab.get("saldo"), ctab.get("atraso_valor"),
                 sum(i["qtd"] for i in itens), tab,
@@ -1956,7 +2066,7 @@ def farol_pedidos(ctx):
         ate = ctx.mais_uteis(dtp, bd.PRAZO_FATURAR)
         atr = "ATRASADO" if ate and hoje > ate else (
             "VENCE HOJE" if ate and hoje == ate else "NO PRAZO")
-        cred = analise_credito(ctx.tabela["clientes"].get(i0["cliente"], {}),
+        cred = analise_credito(ctx.credito_do_pedido(fil, i0["cliente"]),
                                valor)
         sp = saldo_do_pedido(ctx, itens, fil, ped)
         linhas.append(linha("EM ABERTO", m_hoje, fil, ped, "", dtp, None,
@@ -7833,20 +7943,10 @@ def garantias(ctx):
             "Vendedor": c.get("vend_nome", ""),
             "Supervisor": c.get("supervisor", "")}}
 
-    def produto(cod):
-        return ctx.produto(texto(cod))
-    cls_ = ctx.base["clientes"]
-    opcoes = {k: sorted({texto(c.get(f)) for c in cls_} - {""})
-              for k, f in (("cli_cidade", "cidade"), ("cli_uf", "uf"),
-                           ("cli_bairro", "bairro"),
-                           ("cli_vendedor", "vend_nome"),
-                           ("cli_supervisor", "supervisor"))}
-    r["garantia"] = {"dados": dados_da_garantia, "produto": produto,
-                     "status": gm.STATUS, "resultados": gm.RESULTADOS,
-                     "cliente_base": cliente_base, "opcoes": opcoes,
+    r["garantia"] = {"dados": dados_da_garantia,
                      "campos_cliente": gm.CAMPOS_CLIENTE}
     if not dados:
-        r["avisos"].append("Nenhuma garantia registrada: use Nova garantia.")
+        r["avisos"].append("Nenhuma garantia registrada.")
     return r
 
 
@@ -8017,12 +8117,18 @@ def rotulo_agrupa_fretes(i, l) -> str:
     "Sem transportadora" tem o mesmo criterio do cartao (chave e sem transp.)."""
     v = (l[i] or "").strip() if isinstance(l[i], str) else (l[i] or "")
     if i == 7:
-        return v or SEM_UF
+        return uf_norm(v) or SEM_UF
     if i == 6:
-        return (v or SEM_CIDADE) + " / " + ((l[7] or "").strip() or SEM_UF)
+        return (v or SEM_CIDADE) + " / " + (uf_norm(l[7]) or SEM_UF)
     if not v:
         return SEM_TRANSP if l[16] else SEM_ACOMP
     return v
+
+
+def uf_norm(u) -> str:
+    """(T-0037) UF da nota normalizada: strip + maiusculas. Funcao pura, unica
+    para o cartao, o fator do faturado, o agrupamento Por UF e o filtro."""
+    return str(u or "").strip().upper()
 
 
 def kpis_fretes(ls, fat_por_mes_uf, uf=None) -> list:
@@ -8036,6 +8142,8 @@ def kpis_fretes(ls, fat_por_mes_uf, uf=None) -> list:
     ser um texto ou um conjunto de UFs (filtro com varios estados: soma-as)."""
     meses_vis = {l[0] for l in ls}
     ufs = None if not uf else {uf} if isinstance(uf, str) else set(uf)
+    if ufs is not None:                 # strip + maiusculas (uf_norm)
+        ufs = {uf_norm(u) for u in ufs}
     fat = sum(v for (m, u), v in fat_por_mes_uf.items()
               if m in meses_vis and (ufs is None or u in ufs))
     val = sum(l[8] for l in ls)
@@ -8045,7 +8153,7 @@ def kpis_fretes(ls, fat_por_mes_uf, uf=None) -> list:
     no_prazo = [l for l in com_data if l[12] and l[13] <= l[12]]
     return [
         kpi("Notas com frete", br(len(ls)), "neutro", moeda(val)),
-        kpi("% do faturado", p(pct_de(val, fat)), "info"),
+        kpi("% do faturado", p(pct_do_liquido(val, fat)), "info"),   # RN-GER-002
         kpi("Frete estimado", moeda(fr), "neutro",
             p(pct_de(fr, val)) + " do valor"),
         kpi("Cidades atendidas", br(len({l[6] for l in ls})), "neutro"),
@@ -8074,7 +8182,7 @@ def fretes(ctx):
         if v is None or mes_de(it["dt_nf"]) not in meses:
             continue
         fat[(rotulo_mes(mes_de(it["dt_nf"])),
-             ctx.cliente(it["cliente"]).get("uf", ""))] += v
+             uf_norm(ctx.cliente(it["cliente"]).get("uf", "")))] += v
     linhas, tons = [], []
     for (fil, nf, serie), itens in _pedidos(ctx, "VND").items():
         i0 = itens[0]
@@ -8098,9 +8206,10 @@ def fretes(ctx):
         transp = texto(e.get("transportadora"))
         linhas.append([rotulo_mes(m), i0["dt_pedido"], i0["dt_nf"], nf,
                        ctx.filial(fil), ctx.nome_cliente(i0["cliente"]),
-                       cli.get("cidade", ""), cli.get("uf", ""), valor,
+                       cli.get("cidade", ""), uf_norm(cli.get("uf", "")), valor,
                        _frete(transp, valor, True, cad, frete_real_de(e),
-                              cli.get("uf", ""), cli.get("cidade", "")),
+                              uf_norm(cli.get("uf", "")),
+                              cli.get("cidade", "")),
                        texto(e.get("etapa")) or (
                            CONCLUIDA if i0["dt_nf"] and i0["dt_nf"]
                            < _inicio_controle() else "(sem acompanhamento)"),
@@ -11551,11 +11660,12 @@ def _pedidos_abertos_da_parcial(ctx, cods):
                "VENCE HOJE" if ate and hoje == ate else "NO PRAZO")
         valor = sum(i["valor"] for i in its)
         pcts = [i["pct_at"] for i in its if i.get("pct_at") is not None]
-        cred = analise_credito(ctx.tabela["clientes"].get(i0["cliente"], {}),
+        cred = analise_credito(ctx.credito_do_pedido(fil, i0["cliente"]),
                                valor)
         vend = _cod6(i0.get("vend"))
         razao = (i0.get("razao")
-                 or texto((ctx.cliente(i0["cliente"]) or {}).get("nome")))
+                 or texto(ctx.cliente_do_pedido(
+                     fil, i0["cliente"]).get("nome")))
         ls.append([texto(ped).lstrip("0") or texto(ped), dtp, ate, sit,
                    vend, i0["cliente"], texto(razao)[:40], valor,
                    sum(i["qtd"] or 0 for i in its),
