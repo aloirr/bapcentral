@@ -1306,7 +1306,7 @@ class Tabela(tk.Frame if tk else object):
                 # do Farol de Entregas pintado pelo prazo
                 t_ = linha[c["chip_tom"]] if c["chip_tom"] < len(linha) \
                     else ""
-                cores = {"ok": ("#E5F3DF", "#2F7D32"),
+                cores = {"ok": ("#F0F7EC", "#2F7D32"),
                          "atencao": ("#FFF4D6", "#8A5A00"),
                          "alerta": ("#B42318", "#FFFFFF"),
                          # (06/11) o SLA que parou de contar (fechada)
