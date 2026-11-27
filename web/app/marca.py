@@ -1,17 +1,21 @@
 """T-0033 (contrato visual BC3 §12): a marca num lugar só para o que não lê CSS (PDF e Excel do site).
 
 Os valores são os mesmos do bloco `:root` de `static/estilo.css`, com os mesmos nomes; um teste confere que são iguais.
-Trocar uma cor é trocar a linha nos dois (a paleta nova vem do design-de-marca, com o "aprovo" do Alexandre).
+Trocar uma cor é trocar a linha nos dois (paleta do manual da marca, aprovada pelo Alexandre em R-20261126-182227-alexandre).
 """
 from __future__ import annotations
 
 EMPRESA = "BAP AUTOPARTS"          # grafia oficial (regra 8): maiúsculas e sem espaço entre AUTO e PARTS
 
 TOKENS = {
-    "--verde": "#62BB47", "--verde-escuro": "#2F7D32", "--verde-claro": "#E5F3DF", "--texto": "#1E2722",
-    "--suave": "#69736D", "--fundo": "#F6F7F5", "--grade": "#E3E8E4", "--branco": "#FFFFFF",
-    "--vermelho": "#B3261E", "--vermelho-claro": "#FBE3E1", "--amarelo": "#B7791F", "--amarelo-claro": "#FFF4D6",
+    "--verde-marca": "#59BA61", "--verde-escuro": "#2F7D32", "--verde-claro": "#E5F3DF", "--texto": "#1E2722",
+    "--suave": "#5E6B63", "--fundo": "#F3F4F2", "--borda": "#E3E8E4", "--grade": "#ECEEEB", "--preto-bap": "#231F20",
+    "--branco": "#FFFFFF", "--alerta": "#B42318", "--alerta-claro": "#FDECEA",
+    "--atencao": "#B7791F", "--atencao-texto": "#8A5A00", "--atencao-claro": "#FFF4D6",
     "--erro": "#B42318", "--erro-claro": "#FDECEA",
+    "--faixa-ini": "#2F7D32", "--faixa-fim": "#1B4D1F", "--faixa-texto": "#FFFFFF",
+    "--faixa-ok": "#A6E3A9", "--faixa-atencao": "#FFE08A", "--faixa-alerta": "#FFB4A9",
+    "--barra-1": "#7DB46A", "--barra-2": "#D8B56E", "--barra-3": "#8FA79A",
 }
 VERDE_ESCURO = TOKENS["--verde-escuro"]       # cabeçalho das tabelas no PDF e no Excel
 TEXTO = TOKENS["--texto"]

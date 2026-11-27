@@ -185,7 +185,7 @@ NUM_TIPOS = {"int", "num", "num1", "num2", "moeda", "moeda2", "pct", "pct1", "va
 TIPOS = NUM_TIPOS | {"texto", "dia", "data", "hora"}
 # paleta fixa do selo pela linha (bap_visual.py), §10.7.2
 PALETA_TOM = {"ok": ("#E5F3DF", "#2F7D32"), "atencao": ("#FFF1C7", "#8A5A00"),
-              "alerta": ("#B3261E", "#FFFFFF"), "cinza": ("#E4E7E4", "#69736D")}
+              "alerta": ("#B42318", "#FFFFFF"), "cinza": ("#E4E7E4", "#5E6B63")}   # manual da marca: alerta e suave aprovados
 MAX_LINHAS = 60000
 MAX_RECORTES = 20
 MAX_OPCOES = 300

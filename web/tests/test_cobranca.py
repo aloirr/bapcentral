@@ -235,7 +235,7 @@ def test_aba_por_cliente(admin):
 def test_fila_mostra_mensagem_link_aviso_e_situacao(admin):
     postar(admin, pacote_cobranca())
     h = _tela(admin, "cobrar").text
-    assert "Situação do PC até 08:07" in h
+    assert "Cobranças do PC até 08:07" in h
     assert "Olá, Cliente 001! Tudo bem?" in h and "<textarea" in h
     assert "https://wa.me/559232000002?text=" in h and "Fixo: confira se tem WhatsApp" in h
     assert "Sem celular: digite um número" in h                  # sem número: aviso, sem link
@@ -290,7 +290,7 @@ def test_tabela_na_tela_cliente_nome_e_valor_primeiro_sem_mudar_o_pacote(admin, 
 def test_abas_quebram_em_linhas_e_dica_de_rolagem(admin):
     postar(admin, pacote_cobranca())
     assert "abas-quebra" in _tela(admin).text or "bc3-abas" in _tela(admin).text   # T-0031
-    assert "Role para o lado" in _tela(admin, "titulos").text
+    assert "Role para o lado" not in _tela(admin, "titulos").text      # T-0033: nenhuma tabela rola para o lado, sem a dica
 def test_enviado_grava_diario_com_valores_do_pacote(admin):
     postar(admin, pacote_cobranca())
     r = _acoes(admin, "000001-01", "ENVIADO")
@@ -355,7 +355,7 @@ def test_situacao_junta_diario_pela_epoca_e_web_ate_seq(admin):
     # época atual e o PC já importou o seq 1: vale o `ultimo` do pacote (§10.6.3)
     postar(admin, pacote_cobranca(web_ate_seq=1, web_epoca=ep, gerado_em="2026-11-24T14:00:00-04:00"))
     h = _tela(admin, "cobrar").text
-    assert "PULADO HOJE" not in h and "Situação do PC até 08:07" in h
+    assert "PULADO HOJE" not in h and "Cobranças do PC até 08:07" in h
     # época diferente (diário recomeçado): todo o diário conta como não visto
     postar(admin, pacote_cobranca(web_ate_seq=99, web_epoca="outra", gerado_em="2026-11-24T14:10:00-04:00"))
     assert "PULADO HOJE" in _tela(admin, "cobrar").text

@@ -72,19 +72,23 @@ def test_T0020_baixado_do_erp_so_quando_difere_do_pacote(admin):
 
 
 def test_T0020_visual_c_marca_bap_sem_azul_nem_laranja():
+    """T-0033: o logo inteiro vem de arquivo (não mais embutido) e as cores só existem como token do :root."""
     bloco = CSS.split("/* T-0020 · visual C")[1]
-    assert "data:image/png;base64," in bloco and "#2F7D32" in bloco and ".juntas{display:flex" in bloco
+    assert "url(/static/logo_bap.png)" in bloco and "var(--verde-escuro)" in bloco
     for cor in ("#0b3a6b", "#e8590c"):                      # azul-marinho e laranja de antes
-        assert cor not in bloco.lower()
+        assert cor not in CSS.lower()
 
 
 def test_T0028_juntas_numa_linha_so_no_pc_e_empilhadas_no_celular():
-    """T-0028: Gerar ID CD, Reversa e Analítico lado a lado no PC (sem quebra), uma embaixo da outra até 900 px."""
+    """T-0028 (T-0033/RD-0036): Gerar ID CD, Reversa e Analítico lado a lado no PC; no celular uma embaixo da outra,
+    e a regra do celular vem DEPOIS da do PC (antes a do PC, repetida, vencia e deixava 3 colunas de 110 px)."""
     from pathlib import Path
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
-    assert ".juntas{display:flex;flex-wrap:nowrap" in css
-    assert ".juntas .junta{flex:1 1 auto;max-width:100%;min-width:0" in css
-    assert "@media(max-width:900px){.juntas{flex-wrap:wrap}.juntas .junta{flex-basis:100%}}" in css
+    pc = css.index(".bc3-juntas{margin:10px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr))")
+    cel = css.index(".bc3-juntas{grid-template-columns:1fr}")
+    assert css.count(".bc3-juntas{grid-template-columns:repeat(auto-fit") == 0 and pc < cel
+    assert ".juntas{display:flex" not in css            # a camada antiga (flex) saiu: só a grade do BC3 manda (RD-0045)
+    assert css.index("@media(max-width:700px){", pc) < cel
 
 
 def test_T0028_pedidos_sem_rolagem_com_popup_e_juntas_enxutas(admin):
@@ -94,10 +98,12 @@ def test_T0028_pedidos_sem_rolagem_com_popup_e_juntas_enxutas(admin):
     assert postar(admin, pacote_tres_farois()).status_code == 200
     h = admin.get("/farol/pv_pedidos?aba=pedidos").text
     corpo = h.split("<main")[1]
-    assert 'rolagem-dados sem-rolagem' in corpo and '/static/popup_pedido.js' in corpo and 'id="pop-pedido"' in corpo
+    assert 'rolagem-dados sem-rolagem' in corpo and '/static/popup_linha.js' in corpo and 'id="pop-linha"' in corpo
     pops = re.findall(r'data-pop="([^"]*)"', corpo)
     assert pops
-    nomes = [p[0] for p in json.loads(_h.unescape(pops[0]))]
+    blocos = json.loads(_h.unescape(pops[0]))                  # T-0033: o popup vem em blocos [título, [[coluna, valor]]]
+    assert [b[0] for b in blocos] == ["Cliente", "Crédito", "Pedido"]
+    nomes = [c for _, cols in blocos for c, _v in cols]
     assert "LIMITE" in nomes and "COND. PAGTO" in nomes        # vai ao popup
     cab = corpo.split('<table')[1].split('</thead>')[0]
     assert '<th class=" oc"><a' in cab or ' oc"' in cab           # e sai da grade

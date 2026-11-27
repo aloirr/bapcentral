@@ -4,6 +4,7 @@ import json
 from conftest import entrar, postar, token_form
 from farol_fixture import pacote_farol
 from fastapi.testclient import TestClient
+from app import render
 
 
 def _usuario(admin, login, perfil):
@@ -60,7 +61,7 @@ def test_farol_filtro_por_estado_troca_so_os_cartoes(admin):
     postar(admin, pacote_farol())
     h = admin.get("/farol/pl_inadimplencia?uf=AM").text
     assert "R$ 700 mil" in h and "R$ 1,20 mi" not in h
-    assert "Resumo e gráficos: BAP inteira." in h and "· BAP inteira" not in h
+    assert render.AVISO_UF in h and "· BAP inteira" not in h             # T-0033 (RD-0034): um aviso só
     assert "Recebido (R$) · mês a mês" in h              # gráficos seguem da BAP inteira
     h = admin.get("/farol/pl_inadimplencia?uf=RR").text  # sem recorte: nunca o total
     assert "R$ 1,20 mi" not in h and "Sem números de RR neste pacote." in h
@@ -95,10 +96,11 @@ def test_estados_no_cartao_invalido_422(cli):
     assert postar(cli, p).status_code == 422
 
 
-def test_estado_sem_recorte_de_um_cartao_mostra_traco_e_dica(admin):
+def test_estado_sem_recorte_de_um_cartao_some_e_o_aviso_e_um_so(admin):
     postar(admin, pacote_farol())
     h = admin.get("/farol/pl_inadimplencia?uf=AM").text
-    assert h.count("só na BAP inteira") >= 4          # cartões da BAP que o estado não tem
+    assert h.count("só na BAP inteira") == 1          # T-0033 (RD-0034): um aviso só, não um por cartão que o estado não tem
+    assert render.AVISO_UF in h and '<div class="kpi-valor">—</div>' not in h
     assert '<div class="kpi-valor">R$ 980 mil' not in h   # nunca o número da BAP inteira no cartão
 
 
@@ -217,7 +219,7 @@ def test_tabela_numeros_perto_da_1a_coluna_e_dica_de_rolagem(admin):
     h = admin.get("/farol/pl_entregas").text
     ths = h.split("<thead>")[1].split("</thead>")[0]
     assert ths.index("FRETE R$") < ths.index("REGIÃO") and ths.index("UF") < ths.index("NOTAS")
-    assert "Role para o lado" in h
+    assert "Role para o lado" not in h and "dica-rolagem" not in h     # T-0033: sem rolagem lateral, sem a dica
 
 
 def test_bloco_tabela_do_painel_igual_ao_golden_gerado_com_o_codigo_de_antes():

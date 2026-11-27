@@ -18,7 +18,7 @@
   <p class="cob-erro" role="status"></p>
 </article>
 {% endmacro %}
-<p class="cab-fila">{{ n_fila }} a cobrar</p>
+<p class="cab-fila">{{ n_fila }} a cobrar{% if n_tratados %} · <a href="/farol/{{ rid }}?aba=cobrar&amp;pag={{ paginas }}#tratados">{{ n_tratados }} já tratados hoje</a>{% endif %}</p>
 <section class="fila" data-url="/farol/{{ rid }}/cobranca" data-csrf="{{ csrf }}" data-sha="{{ pacote_sha }}">
 {% for c in fila %}{{ cartao(c) }}{% else %}{% if not tratados %}<p class="aviso atencao">Nenhum cliente na fila.</p>{% endif %}{% endfor %}
 </section>

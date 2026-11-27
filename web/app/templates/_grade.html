@@ -32,7 +32,7 @@
 {% set oc = g.fora %}
 {% set pc = g.chave %}
 {% set com_pop = pc is not none and (oc|length > 0 or sc is not none) %}
-<div class="rolagem rolagem-dados{{ ' sem-rolagem' if com_pop }}{{ ' com-lista' if (tab.linhas and pc is not none) }}{{ ' ader' if tab.titulo == 'Aderência dia a dia' }}"{% if mais %} data-mais="{{ mais }}"{% endif %}><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
+<div class="rolagem rolagem-dados{{ ' sem-rolagem' if com_pop }}{{ ' com-lista' if (tab.linhas and pc is not none) }}{{ ' vazia' if not tab.linhas }}{{ ' ader' if tab.titulo == 'Aderência dia a dia' }}"{% if mais %} data-mais="{{ mais }}"{% endif %}><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
   <thead>{% if tab.grupos %}<tr class="grupos">{% for gr in tab.grupos %}<th colspan="{{ gr.n }}" class="{{ 'g-um' if gr.n == 1 }}">{{ gr.nome }}</th>{% endfor %}</tr>{% endif %}<tr>{% if ed %}<th class="ed-col">{{ ed.cab if ed.admin else "Edição" }}</th>{% endif %}{% for c in tab.cols %}
     {% if base %}{% set prox = 'desc' if (tab.ord == c.i and not tab.desc) else 'asc' %}
     <th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}"><a href="{{ base }}&amp;ord={{ c.i }}&amp;dir={{ prox }}{{ fq }}">{{ c.nome }}{{ ' ▲' if tab.ord == c.i and not tab.desc }}{{ ' ▼' if tab.ord == c.i and tab.desc }}</a></th>
