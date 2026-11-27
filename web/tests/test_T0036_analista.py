@@ -1,0 +1,310 @@
+"""T-0036 (contrato §10.9, desenho T-0036): faróis do Analista Comercial e perfis `analista` e `trade`.
+
+Dados 100% fictícios. Cada teste cita a RN. RN-GER-014 (perfis analista e trade) é a numeração proposta no desenho;
+vale a matriz do §2 do desenho, com a P1 = A (o analista vê os outros faróis como o gerente).
+"""
+import io
+import re
+import zipfile
+from copy import deepcopy
+
+import pytest
+from analista_fixture import RIDS_NOVOS, correcao, pacote_analista, tabela
+from conftest import postar, token_form
+from farol_fixture import pacote_tres_farois
+from test_farois import _usuario
+
+from app import VERSAO, cobranca, edicoes, exportar, pacotes, render, tabelas, usuarios
+
+TODOS = ("admin", "gerente", "analista", "diretor", "trade", "pre_venda", "vendas", "pos_venda")
+VE_NOVOS = {"admin": "T", "gerente": "T", "analista": "T", "diretor": "R", "trade": "-", "pre_venda": "-",
+            "vendas": "-", "pos_venda": "-"}
+PROIBIDAS = ("CLIENTE", "RAZÃO SOCIAL", "NOME FANTASIA", "ENDEREÇO", "BAIRRO", "Nº", "CONTATO (TELEFONE)")
+CORRECAO = "/farol/an_divergencias/correcao.xlsx"
+
+
+@pytest.fixture
+def usu(admin):
+    cache = {"admin": admin}
+
+    def _de(perfil):
+        if perfil not in cache:
+            cache[perfil] = _usuario(admin, "t36." + perfil.replace("_", ""), perfil)
+        return cache[perfil]
+    return _de
+
+
+@pytest.fixture
+def com_analista(admin):
+    assert postar(admin, pacote_analista()).status_code == 200
+    return admin
+
+
+def _erros(pacote):
+    return pacotes.validar_relatorio(next(iter(pacote["relatorios"])), pacote["relatorios"][next(iter(pacote["relatorios"]))])
+
+
+def _recusa(cli, pacote):
+    r = postar(cli, pacote)
+    assert r.status_code == 422, r.text
+    return r
+
+
+# ------------------------------------------------------------------ perfis e menu
+def test_RN_GER_014_perfis_analista_e_trade():
+    assert "analista" in usuarios.PERFIS and "trade" in usuarios.PERFIS
+    assert len(usuarios.PERFIS) == 8
+
+
+def test_RN_GER_014_leitura_geral_e_fonte_unica():
+    # P1 = A: o analista entra pela constante, em todos os faróis e tabelas
+    assert render.LEITURA_GERAL == ("admin", "gerente", "analista")
+    for rid, (_, perfis) in render.FAROIS.items():
+        assert "analista" in perfis, rid
+        assert "trade" not in perfis, rid
+    for rid, perfis in tabelas.VE_TABELAS.items():
+        assert set(render.LEITURA_GERAL) <= set(perfis) and "diretor" not in perfis, rid
+    assert "analista" in cobranca.VE_TABELAS and "analista" not in cobranca.COBRA
+
+
+def test_RN_GER_014_menu_do_analista_tem_o_grupo_analista_comercial():
+    no_pacote = {rid: {} for rid in render.FAROIS}
+    grupos = render.menu_lateral("analista", no_pacote, None, painel=True)
+    nomes = [g["nome"] for g in grupos]
+    assert nomes[0] == "Diretoria" and "Analista Comercial" in nomes and nomes[-1] == "Conta"
+    ana = next(g for g in grupos if g["nome"] == "Analista Comercial")
+    assert [i["nome"] for i in ana["itens"]] == ["Farol de Saldo", "Farol de Markup", "Farol de Preço",
+                                                 "Divergências clientes Planner x Protheus"]
+    assert [i["href"] for i in ana["itens"]] == [f"/farol/{r}" for r in RIDS_NOVOS]
+    # o grupo só aparece para quem tem farol dele
+    for p in ("trade", "pre_venda", "vendas", "pos_venda"):
+        assert "Analista Comercial" not in [g["nome"] for g in render.menu_lateral(p, no_pacote, None)]
+    assert "Analista Comercial" in [g["nome"] for g in render.menu_lateral("diretor", no_pacote, None)]
+
+
+def test_RN_GER_014_pagina_inicial_do_trade_sem_farol(admin, usu):
+    r = usu("trade").get("/")
+    assert r.status_code == 200 and "Ainda não há farol do Trade Marketing no site." in r.text
+    assert "/farol/" not in r.text and "/painel" not in r.text and "/senha" in r.text
+    assert "Ainda não há farol" not in usu("analista").get("/").text
+
+
+def test_RN_GER_014_analista_abre_o_painel_como_o_gerente(usu):
+    for p in ("analista", "gerente", "diretor"):
+        assert usu(p).get("/painel").status_code == 200
+    assert usu("trade").get("/painel").status_code == 403
+
+
+# ------------------------------------------------------------------ matriz perfil x farol x aba
+def test_RN_GER_014_matriz_de_perfis_nos_quatro_farois(com_analista, usu):
+    for perfil in TODOS:
+        c = usu(perfil)
+        for rid in RIDS_NOVOS:
+            resumo = 200 if VE_NOVOS[perfil] in ("T", "R") else 403
+            assert c.get(f"/farol/{rid}").status_code == resumo, (perfil, rid)
+            for chave, _ in tabelas.ABAS[rid]:
+                esperado = 200 if VE_NOVOS[perfil] == "T" else 403
+                assert c.get(f"/farol/{rid}?aba={chave}").status_code == esperado, (perfil, rid, chave)
+
+
+def test_RN_GER_014_analista_ve_os_outros_farois_como_o_gerente(admin, usu):
+    assert postar(admin, pacote_tres_farois()).status_code == 200
+    for rid in ("pv_pedidos", "pl_entregas", "vc_visitas"):
+        for perfil in ("analista", "gerente"):
+            assert usu(perfil).get(f"/farol/{rid}").status_code == 200
+            assert usu(perfil).get(f"/farol/{rid}?aba={tabelas.ABAS[rid][0][0]}").status_code == 200
+        assert usu("trade").get(f"/farol/{rid}").status_code == 403
+
+
+def test_RN_POS_004_analista_ve_tabelas_da_inadimplencia_sem_cobrar(admin, usu):
+    from farol_fixture import farol_inadimplencia, pacote_farol
+    assert postar(admin, pacote_farol(pl_inadimplencia=farol_inadimplencia())).status_code == 200
+    c = usu("analista")
+    assert c.get("/farol/pl_inadimplencia").status_code == 200
+    assert c.get("/farol/pl_inadimplencia?aba=cobrar").status_code == 403       # o analista não cobra
+    r = c.post("/farol/pl_inadimplencia/cobranca", data={"csrf": token_form(c, "/senha"), "acao": "PULADO",
+                                                          "cliente": "900001"})
+    assert r.status_code == 403
+
+
+def test_RN_GER_012_analista_sem_edicao_e_sem_usuarios(admin, usu):
+    assert "analista" not in edicoes.EDITA and "trade" not in edicoes.EDITA and edicoes.EDITA == ("admin",)
+    for p in ("analista", "gerente", "trade"):
+        assert usu(p).get("/usuarios").status_code == 403
+
+
+def test_RN_GER_001_meta_rh_fora_do_analista_e_do_trade(admin, usu):
+    # a web não tem rota de meta RH (Acomp. RH / Exportar para o RH ficam no PC); nada novo abre isso
+    rotas = " ".join(getattr(r, "path", "") for r in admin.app.routes).lower()
+    assert "rh" not in re.findall(r"[a-z]+", rotas) and "acomp" not in rotas
+    for p in ("analista", "trade", "diretor"):
+        for url in ("/farol/vc_meta/exportar_rh", "/rh", "/acomp-rh"):
+            assert usu(p).get(url).status_code in (403, 404)
+
+
+# ------------------------------------------------------------------ colunas: lista positiva (§10.9.3)
+def test_RN_GER_011_pacote_do_analista_aceito_e_sem_coluna_de_nome(cli, amb):
+    assert postar(cli, pacote_analista()).status_code == 200
+    from conftest import guardado
+    g = guardado(amb)["relatorios"]
+    assert set(RIDS_NOVOS) <= set(g)
+    for rid in RIDS_NOVOS:
+        assert [t["titulo"] for t in g[rid]["tabelas"]] == [t for _, t in tabelas.ABAS[rid]]
+        for t in g[rid]["tabelas"]:
+            nomes = {c["nome"] for c in t["colunas"]}
+            assert not nomes & set(PROIBIDAS), (rid, t["titulo"])
+    assert "correcao" not in g["an_divergencias"]                 # o anexo sai do dicionário do farol
+
+
+def test_RN_GER_011_cliente_so_pelo_codigo_nos_quatro_farois():
+    for (rid, titulo), cols in tabelas.COLUNAS_RID.items():
+        assert not {n for n, _, _ in cols} & set(PROIBIDAS), (rid, titulo)
+    cod = [n for n, _, _ in tabelas.COLUNAS_RID[("vc_saldo", "Pedido a pedido")]]
+    assert "CÓD." in cod and "CLIENTE" not in cod
+    cod = [n for n, _, _ in tabelas.COLUNAS_RID[("vc_markup", "Por pedido")]]
+    assert cod[6] == "CÓD." and "CLIENTE" not in cod
+
+
+@pytest.mark.parametrize("rid,titulo,extra", [
+    ("vc_saldo", "Pedido a pedido", "CLIENTE"), ("vc_markup", "Por pedido", "CLIENTE"),
+    ("vc_preco", "Pesquisa de mercado", "CLIENTE"), ("an_divergencias", "Clientes divergentes", "CLIENTE"),
+    ("an_divergencias", "Sem coordenada / endereço", "ENDEREÇO"),
+    ("an_divergencias", "Sem coordenada / endereço", "CONTATO (TELEFONE)"),
+])
+def test_RN_GER_011_coluna_fora_da_lista_tira_a_aba(cli, rid, titulo, extra):
+    p = pacote_analista()
+    t = next(x for x in p["relatorios"][rid]["tabelas"] if x["titulo"] == titulo)
+    t["colunas"].append({"nome": extra, "tipo": "texto", "largura": 90, "oculta": False})
+    for ln in t["linhas"]:
+        ln.append("NOME INVENTADO")
+    r = _recusa(cli, p)
+    assert "NOME INVENTADO" not in r.text and "colunas diferentes" in r.text
+
+
+def test_RN_GER_011_coluna_trocada_de_lugar_ou_de_tipo_recusa(cli):
+    p = pacote_analista()
+    t = p["relatorios"]["vc_markup"]["tabelas"][0]
+    t["colunas"][6], t["colunas"][7] = t["colunas"][7], t["colunas"][6]
+    _recusa(cli, p)
+    p = pacote_analista()
+    p["relatorios"]["vc_saldo"]["tabelas"][0]["colunas"][7]["tipo"] = "texto"       # VLR TABELA é moeda
+    _recusa(cli, p)
+
+
+def test_RN_GER_011_ponto_com_coordenada_recusa_a_aba(cli):
+    p = pacote_analista()
+    t = p["relatorios"]["an_divergencias"]["tabelas"][2]
+    k = [c["nome"] for c in t["colunas"]].index("PONTO")
+    t["linhas"][0][k] = "-3.123456"
+    r = _recusa(cli, p)
+    assert "-3.123456" not in r.text
+
+
+def test_RN_GER_005_tabelas_so_nos_rids_conhecidos(cli):
+    p = pacote_analista()
+    p["relatorios"]["vc_preco"]["tabelas"][0]["titulo"] = "Por categoria x"
+    _recusa(cli, p)
+
+
+def test_T0036_titulos_repetidos_usam_as_colunas_de_cada_farol():
+    # "Por vendedor" existe em Visita, Saldo, Markup e Divergências, cada um com as suas colunas
+    a = [n for n, _, _ in tabelas.COLUNAS_RID[("vc_saldo", "Por vendedor")]]
+    b = [n for n, _, _ in tabelas.COLUNAS_RID[("an_divergencias", "Por vendedor")]]
+    assert a != b and tabelas._cols_esperadas("Por vendedor", [], "vc_saldo")[1][0] == "VENDEDOR"
+    assert tabelas._cols_esperadas("Por vendedor", [], "vc_visitas") == tabelas.COLUNAS["Por vendedor"]
+
+
+def test_T0036_abas_na_ordem_do_pc():
+    assert [t for _, t in tabelas.ABAS["vc_saldo"]] == ["Pedido a pedido", "Por vendedor", "Por supervisor", "Por UF"]
+    assert len(tabelas.ABAS["vc_markup"]) == 11 and tabelas.ABAS["vc_markup"][-1][0] == "todos"
+    assert [c for c, _ in tabelas.ABAS["vc_preco"]] == ["categoria", "familia", "total", "reajustes", "pesquisa"]
+    assert [c for c, _ in tabelas.ABAS["an_divergencias"]] == ["vendedor", "divergentes", "sem_coordenada"]
+
+
+# ------------------------------------------------------------------ telas
+def test_RN_GER_011_telas_mostram_codigo_e_nunca_o_cabecalho_cliente(com_analista):
+    for rid in RIDS_NOVOS:
+        for chave, _ in tabelas.ABAS[rid]:
+            h = com_analista.get(f"/farol/{rid}?aba={chave}").text
+            assert not re.search(r">\s*(CLIENTE|RAZÃO SOCIAL|NOME FANTASIA|ENDEREÇO|BAIRRO)\s*<", h), (rid, chave)
+    h = com_analista.get("/farol/vc_saldo?aba=pedido").text
+    assert "900001-01" in h
+
+
+def test_RN_GER_006_estado_pela_coluna_uf_das_linhas(com_analista):
+    todo = com_analista.get("/farol/vc_saldo?aba=pedido").text
+    h = com_analista.get("/farol/vc_saldo?aba=pedido&uf=PA").text
+    assert todo.count("MANAUS") > 0 and h.count("MANAUS") == 0 and h.count("BELEM") > 0
+
+
+# ------------------------------------------------------------------ Excel de correção (§10.9.4): só admin
+def test_RN_GER_012_correcao_so_admin(com_analista, usu):
+    for p in ("gerente", "analista", "diretor", "trade", "pre_venda", "vendas", "pos_venda"):
+        assert usu(p).get(CORRECAO).status_code == 403, p
+
+
+def test_T0036_correcao_sem_anexo_da_404(admin):
+    assert postar(admin, pacote_analista(com_correcao=False)).status_code == 200
+    assert admin.get(CORRECAO).status_code == 404
+
+
+def test_RN_GER_011_correcao_xlsx_do_admin_sem_nome_de_cliente(com_analista):
+    r = com_analista.get(CORRECAO)
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    assert z.testzip() is None
+    wb = z.read("xl/workbook.xml").decode()
+    assert "CORRIGIR NO PROTHEUS" in wb and "ANALISAR" in wb
+    todo = " ".join(z.read(n).decode() for n in z.namelist() if n.startswith("xl/worksheets/"))
+    assert "A1_VEND CORRETO" in todo and "CLIENTE" not in todo.upper()
+
+
+def test_RN_GER_011_correcao_com_coluna_cliente_recusa(cli):
+    p = pacote_analista()
+    p["relatorios"]["an_divergencias"]["correcao"]["corrigir"]["colunas"].insert(
+        3, {"nome": "CLIENTE", "tipo": "texto"})
+    _recusa(cli, p)
+    p = pacote_analista()
+    p["relatorios"]["vc_saldo"]["correcao"] = correcao()                  # anexo só nas Divergências
+    _recusa(cli, p)
+    p = pacote_analista()
+    p["relatorios"]["an_divergencias"]["correcao"]["analisar"]["linhas"][0][3] = "x" * 600
+    _recusa(cli, p)
+
+
+def test_T0036_correcao_acima_do_teto_recusa(cli, monkeypatch):
+    monkeypatch.setattr(pacotes, "MAX_CORRECAO_BYTES", 500)
+    _recusa(cli, pacote_analista())
+    assert pacotes.MAX_CORRECAO_BYTES == 500 and pacotes.json_compacto(correcao())
+
+
+def test_T0036_xlsx_correcao_tem_duas_abas_so_texto():
+    z = zipfile.ZipFile(io.BytesIO(exportar.xlsx_correcao(correcao())))
+    assert len([n for n in z.namelist() if n.startswith("xl/worksheets/sheet")]) == 2
+
+
+def test_T0036_correcao_herdada_junto_do_farol(admin, amb):
+    # o farol que o robô não mandou hoje é herdado com o anexo (§10.8.4)
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    from conftest import por_farol
+    agora = lambda h: (datetime.now(ZoneInfo("America/Manaus")) - timedelta(hours=h)).replace(microsecond=0).isoformat()  # noqa: E731
+    p = pacote_analista()
+    p["gerado_em"] = agora(20)
+    assert por_farol(admin, p)[0].status_code == 200
+    p2 = deepcopy(p)
+    p2["gerado_em"] = agora(0)
+    r, _ = por_farol(admin, p2, omitir=("an_divergencias",), manter=("an_divergencias",))
+    assert r.status_code == 200 and r.json()["herdados"] == ["an_divergencias"]
+    assert admin.get(CORRECAO).status_code == 200
+
+
+# ------------------------------------------------------------------ versão
+def test_T0036_versao_nova_no_saude(cli):
+    assert VERSAO == "0.5.0" and cli.get("/saude").json()["versao"] == VERSAO
+
+
+def test_T0036_tabela_fixture_confere_com_a_lista():
+    t = tabela("vc_markup", "Por produto", 2)
+    assert len(t["colunas"]) == 20 and tabelas._tabela_erro(t, "Por produto", "aba", "vc_markup") is None

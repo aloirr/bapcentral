@@ -178,6 +178,41 @@ def _csvs_erro(rid: str, c) -> str | None:
     return None
 
 
+# T-0036 (contrato §10.9.4): Excel de correção das Divergências (só admin), sem a coluna CLIENTE
+MAX_CORRECAO_BYTES = 2_000_000
+CORRECAO_COLUNAS = {
+    "corrigir": ("CORRIGIR NO PROTHEUS", ("A1_FILIAL", "A1_COD", "A1_LOJA", "CIDADE", "UF", "A1_VEND ATUAL",
+                                          "A1_VEND CORRETO", "VENDEDOR CORRETO", "SUPERVISOR", "STATUS PROTHEUS")),
+    "analisar": ("ANALISAR", ("A1_FILIAL", "A1_COD", "A1_LOJA", "CIDADE", "UF", "VENDEDOR NO PLANNER",
+                              "A1_VEND ATUAL", "SITUAÇÃO", "O QUE FAZER")),
+}
+
+
+def _correcao_erro(rid: str, c) -> str | None:
+    """Formato do anexo `correcao`: {corrigir, analisar}, cada um só com titulo, colunas e linhas, tudo texto."""
+    if c is None:
+        return None
+    if rid != "an_divergencias":
+        return f"{rid}: correcao só nas Divergências"
+    if not isinstance(c, dict) or set(c) != set(CORRECAO_COLUNAS):
+        return f"{rid}: correcao precisa ser {{corrigir, analisar}}"
+    for k, (titulo, nomes) in CORRECAO_COLUNAS.items():
+        t = c[k]
+        if not (isinstance(t, dict) and set(t) == {"titulo", "colunas", "linhas"} and t["titulo"] == titulo
+                and isinstance(t["colunas"], list) and isinstance(t["linhas"], list)):
+            return f"{rid}: correcao.{k} inválida"
+        if len(t["colunas"]) != len(nomes) or not all(
+                isinstance(x, dict) and set(x) <= {"nome", "tipo", "oculta"} and x.get("nome") == n
+                and x.get("tipo") == "texto" and not x.get("oculta") for x, n in zip(t["colunas"], nomes)):
+            return f"{rid}: correcao.{k} com colunas fora da lista"       # sem CLIENTE (RN-GER-011)
+        if not all(isinstance(ln, list) and len(ln) == len(nomes)
+                   and all(v is None or (isinstance(v, str) and len(v) <= 500) for v in ln) for ln in t["linhas"]):
+            return f"{rid}: correcao.{k} com linha inválida"
+    if len(json_compacto(c)) > MAX_CORRECAO_BYTES:
+        return f"{rid}: correcao grande demais"
+    return None
+
+
 def _painel_erro(rid: str, painel) -> str | None:
     """Blocos do painel (farol, aba do Painel Executivo, recorte por estado): só formato."""
     bl = painel.get("blocos") if isinstance(painel, dict) else None
@@ -291,7 +326,8 @@ def validar_farol(rid: str, r) -> list[str]:
         return [f"{rid}: avisos inválidos"]
     if r.get("baixado_em") is not None and not isinstance(r["baixado_em"], str):
         return [f"{rid}: baixado_em inválido"]
-    e_par = _parciais_erro(rid, r.get("parciais")) or _csvs_erro(rid, r.get("csvs_protheus"))
+    e_par = (_parciais_erro(rid, r.get("parciais")) or _csvs_erro(rid, r.get("csvs_protheus"))
+             or _correcao_erro(rid, r.get("correcao")))
     if e_par:
         return [e_par]
     rec = r.get("recortes")
@@ -539,6 +575,7 @@ def guardar_farol(dados: Path, lote: str, rid: str, farol: dict, sha: str,
     pasta = _recebendo(dados) / lote
     pars = farol.pop("parciais", None)
     csvs = farol.pop("csvs_protheus", None)
+    correcao = farol.pop("correcao", None)                 # T-0036: o dicionário do farol não leva o anexo
     corpo = json_compacto(farol)
     if len(corpo) > json_max:
         raise ErroPacote(413, {"erro": "farol grande demais"})
@@ -554,6 +591,10 @@ def guardar_farol(dados: Path, lote: str, rid: str, farol: dict, sha: str,
         nome = f"{rid}.csvs.json.gz"
         _gravar_bytes(pasta / nome, gzip.compress(json_compacto(csvs), 6, mtime=0))
         anexos["csvs"] = nome
+    if correcao is not None:
+        nome = f"{rid}.correcao.json.gz"
+        _gravar_bytes(pasta / nome, gzip.compress(json_compacto(correcao), 6, mtime=0))
+        anexos["correcao"] = nome
     ent = {"arquivo": f"{rid}.json.gz", "sha256": sha, "bytes_gz": len(gz), "bytes_json": len(corpo),
            "titulo": farol.get("titulo"), "baixado_em": farol.get("baixado_em"), "herdado_de": None}
     if anexos:
@@ -634,7 +675,8 @@ def _herdar(dados: Path, de: str, ent: dict, destino: Path) -> dict:
     """Copia o farol (e os anexos) do lote vigente para a pasta nova: hard link, com cópia de reserva."""
     origem = _pasta(dados) / de
     an = ent.get("anexos") or {}
-    arqs = [ent["arquivo"]] + list((an.get("parciais") or {}).values()) + ([an["csvs"]] if an.get("csvs") else [])
+    arqs = ([ent["arquivo"]] + list((an.get("parciais") or {}).values()) + ([an["csvs"]] if an.get("csvs") else [])
+            + ([an["correcao"]] if an.get("correcao") else []))
     destino.mkdir(parents=True, exist_ok=True)
     for a in arqs:
         try:
@@ -820,7 +862,7 @@ class Indice:
         if not ind or not e or not nome:
             return None
         an = e.get("anexos") or {}
-        ok = nome in (an.get("parciais") or {}).values() or nome == an.get("csvs")
+        ok = nome in (an.get("parciais") or {}).values() or nome in (an.get("csvs"), an.get("correcao"))
         p = _pasta(self.dados) / ind["lote"] / nome
         return p if ok and p.is_file() else None
 
@@ -844,6 +886,18 @@ class Indice:
                 return json.loads(f.read().decode("utf-8"))
         except (OSError, ValueError):
             return []
+
+    def correcao(self, rid: str) -> dict | None:
+        """T-0036: {corrigir, analisar} do Excel de correção (lido do disco, até 2 MB); None sem anexo."""
+        p = self.anexo(rid, ((self.entrada(rid) or {}).get("anexos") or {}).get("correcao") or "")
+        if not p:
+            return None
+        try:
+            with gzip.open(p, "rb") as f:
+                c = json.loads(f.read().decode("utf-8"))
+        except (OSError, ValueError):
+            return None
+        return c if isinstance(c, dict) else None
 
 
 def por_sha(dados: Path, rid: str, sha: str) -> dict | None:

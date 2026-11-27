@@ -174,6 +174,17 @@ def xlsx(tabelas: list[dict]) -> bytes:
     return buf.getvalue()
 
 
+def xlsx_correcao(correcao: dict) -> bytes:
+    """T-0036 (contrato §10.9.4): as 2 abas do Excel de correção (CORRIGIR NO PROTHEUS e ANALISAR), tudo texto,
+    com o mesmo escritor da exportação. Sem coluna de cliente: o pacote já chegou sem ela (RN-GER-011)."""
+    abas = []
+    for k in ("corrigir", "analisar"):
+        t = correcao.get(k) or {}
+        abas.append({"titulo": t.get("titulo") or k, "cols": [(c["nome"], "texto") for c in t.get("colunas") or []],
+                     "linhas": t.get("linhas") or [], "total": None})
+    return xlsx(abas)
+
+
 # ------------------------------------------------------------------ PDF (escrito à mão)
 def _pdf(objs: list[bytes], info: int = 0) -> bytes:
     """`objs[k]` é o corpo do objeto k+1; o objeto 1 é o catálogo."""

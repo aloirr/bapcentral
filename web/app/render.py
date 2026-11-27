@@ -146,13 +146,21 @@ def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
 # ---------------------------------------------------------------- faróis (T-0017)
 # Forma "farol" do pacote (contrato §10): o PC manda kpis, insights e blocos do painel
 # prontos. Aqui só se desenha (barras em HTML/CSS); nada é recalculado.
+# T-0036 (desenho §2, P1 = A): o analista vê como o gerente tudo o que não é meta RH nem edição.
+# Uma fonte só: com a P1 = B, troca esta linha (e o analista sai das tuplas dos outros faróis).
+LEITURA_GERAL = ("admin", "gerente", "analista")
 FAROIS = {  # rid -> (nome no PC, perfis que veem)
-    "pv_pedidos": ("Farol de Pedidos", ("admin", "diretor", "gerente", "pre_venda")),
-    "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
-    "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
-    "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+    "pv_pedidos": ("Farol de Pedidos", LEITURA_GERAL + ("diretor", "pre_venda")),
+    "vc_visitas": ("Farol de Visita", LEITURA_GERAL + ("diretor", "vendas")),
+    "pl_entregas": ("Farol de Entregas", LEITURA_GERAL + ("diretor", "pos_venda")),
+    "pl_inadimplencia": ("Farol de Inadimplência", LEITURA_GERAL + ("diretor", "pos_venda")),
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
-    "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
+    "vc_meta": ("Farol de Metas Equipe", LEITURA_GERAL + ("diretor", "vendas")),
+    # T-0036 (contrato §10.9.6): Analista Comercial; o diretor vê só o Resumo
+    "vc_saldo": ("Farol de Saldo", LEITURA_GERAL + ("diretor",)),
+    "vc_markup": ("Farol de Markup", LEITURA_GERAL + ("diretor",)),
+    "vc_preco": ("Farol de Preço", LEITURA_GERAL + ("diretor",)),
+    "an_divergencias": ("Divergências clientes Planner x Protheus", LEITURA_GERAL + ("diretor",)),
 }
 TONS = ("ok", "atencao", "alerta", "info")
 AVISO_UF = "Resumo e gráficos: BAP inteira."
@@ -166,7 +174,8 @@ _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 # celular). O Farol de Pedidos vai primeiro; os outros entram na mesma lista.
 BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos",)), ("Pós-venda", ("pl_entregas", "pl_inadimplencia")),
-               ("Vendas", ("vc_visitas", "vc_meta")))
+               ("Vendas", ("vc_visitas", "vc_meta")),
+               ("Analista Comercial", ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")))
 
 
 def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,

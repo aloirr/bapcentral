@@ -44,7 +44,7 @@
       {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
       {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="Buscar pedido, cliente ou produto" maxlength="60" autocomplete="off" aria-label="Buscar">
+      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ 'Buscar pedido, código ou produto' if rid in ('vc_saldo', 'vc_markup', 'vc_preco', 'an_divergencias') else 'Buscar pedido, cliente ou produto' }}" maxlength="60" autocomplete="off" aria-label="Buscar">
       {% if tabela.busca %}<a href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}" title="Limpar busca" aria-label="Limpar busca">×</a>{% endif %}
     </form>
     {% endif %}
@@ -58,6 +58,7 @@
         <a href="/farol/{{ rid }}/exportar?{{ qs }}&amp;formato=xlsx">Excel desta tabela</a>
         <a href="/farol/{{ rid }}/exportar?{{ qs }}&amp;formato=pdf">PDF desta tabela</a>
         <a href="/farol/{{ rid }}/exportar?todas=1&amp;formato=xlsx">Excel de todas as abas</a>
+        {% if correcao is defined and correcao %}<a href="/farol/an_divergencias/correcao.xlsx">Excel de correção (Protheus)</a>{% endif %}
         {% if csvs is defined and csvs %}<small>Arquivos para importar no Protheus</small>
         {% for c in csvs %}<a href="/farol/pv_pedidos/csv/{{ c.nome|urlencode }}" download="{{ c.nome }}">{{ c.nome }}</a>{% endfor %}{% endif %}
       </div>

@@ -27,7 +27,7 @@ except ImportError:                     # pragma: no cover
 
 MANAUS = ZoneInfo("America/Manaus")
 RID = "pl_inadimplencia"
-VE_TABELAS = ("admin", "pos_venda", "gerente")     # RN-POS-004
+VE_TABELAS = ("admin", "pos_venda", "gerente", "analista")     # RN-POS-004; T-0036: o analista lê como o gerente (fora do COBRA)
 COBRA = ("admin", "pos_venda")
 ABAS = (("resumo", "Resumo"), ("titulos", "Títulos"), ("cliente", "Por cliente"),
         ("vendedor", "Por vendedor"), ("supervisor", "Por supervisor"), ("filial", "Por filial"),

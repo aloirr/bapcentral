@@ -22,15 +22,21 @@ from .render import COLUNAS_FORA, RE_DATA, coluna_fora, fmt_celula   # a lista e
 # Decisão D1 do Alexandre ainda aberta: recomendação A = o perfil de cada farol vê todas as abas
 # (como o pós-venda na Inadimplência). Trocar aqui: B = só ("admin", "gerente"); C = tirar de
 # "vendas" as abas cliente, prospeccao e indicacao em `ABAS_SO_GERENCIA`.
+# T-0036 (P1 = A): `LEITURA_GERAL` (admin, gerente, analista) é a fonte única; a P1 = B troca só a constante do render.
 VE_TABELAS = {
-    "pv_pedidos": ("admin", "gerente", "pre_venda"),
-    "pl_entregas": ("admin", "gerente", "pos_venda"),
-    "vc_visitas": ("admin", "gerente", "vendas"),
+    "pv_pedidos": render.LEITURA_GERAL + ("pre_venda",),
+    "pl_entregas": render.LEITURA_GERAL + ("pos_venda",),
+    "vc_visitas": render.LEITURA_GERAL + ("vendas",),
     # T-0022: o Farol de Metas Equipe segue a mesma regra (D1 A): o diretor vê o Resumo; mude aqui se a D1 mudar
-    "vc_meta": ("admin", "gerente", "vendas"),
+    "vc_meta": render.LEITURA_GERAL + ("vendas",),
+    # T-0036 (contrato §10.9.6): faróis do Analista Comercial; o diretor só vê o Resumo
+    "vc_saldo": render.LEITURA_GERAL,
+    "vc_markup": render.LEITURA_GERAL,
+    "vc_preco": render.LEITURA_GERAL,
+    "an_divergencias": render.LEITURA_GERAL,
 }
 ABAS_SO_GERENCIA: dict[str, tuple[str, ...]] = {}      # D1 C: {"vc_visitas": ("cliente", "prospeccao", "indicacao")}
-PERFIS_GERENCIA = ("admin", "gerente")
+PERFIS_GERENCIA = ("admin", "gerente", "analista")   # T-0036: o analista lê como o gerente (RN-GER-014)
 
 RIDS = tuple(VE_TABELAS)
 RESUMO = ("resumo", "Resumo")
@@ -44,6 +50,17 @@ ABAS = {
     "vc_visitas": (("supervisor", "Por supervisor"), ("vendedor", "Por vendedor"), ("dia", "Dia a dia"),
                    ("aderencia", "Aderência dia a dia"), ("cliente", "Cliente a cliente"),
                    ("prospeccao", "Prospecção"), ("indicacao", "Indicação")),
+    # T-0036 (contrato §10.9.1): ordem do PC
+    "vc_saldo": (("pedido", "Pedido a pedido"), ("vendedor", "Por vendedor"), ("supervisor", "Por supervisor"),
+                 ("uf", "Por UF")),
+    "vc_markup": (("pedido", "Por pedido"), ("uf", "Por UF"), ("cidade", "Por cidade"),
+                  ("supervisor", "Por supervisor"), ("vendedor", "Por vendedor"), ("categoria", "Por categoria"),
+                  ("sistema", "Por sistema"), ("familia", "Por família"), ("linha", "Por linha"),
+                  ("produto", "Por produto"), ("todos", "Todos os produtos")),
+    "vc_preco": (("categoria", "Por categoria"), ("familia", "Por família"), ("total", "Total BAP"),
+                 ("reajustes", "Reajustes por produto"), ("pesquisa", "Pesquisa de mercado")),
+    "an_divergencias": (("vendedor", "Por vendedor"), ("divergentes", "Clientes divergentes"),
+                        ("sem_coordenada", "Sem coordenada / endereço")),
 }
 SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitacao Manual",
            "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir")
@@ -53,8 +70,12 @@ AVISO_CARTOES = "Cartões sem filtro. Com filtro, veja as linhas na tabela."
 AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
 # coluna que identifica a linha: fica fixa à esquerda ao rolar para o lado (celular)
 FIXA = {"Por vendedor": "VENDEDOR", "Dia a dia": "VENDEDOR", "Aderência dia a dia": "VENDEDOR",
-        "Cliente a cliente": "VENDEDOR"}
-LIVRES = {"OBSERVAÇÃO", "JUSTIFICATIVA", "RESULTADO", "LINHAS DE INTERESSE", "DESCRIÇÃO"}   # texto livre: quebra
+        "Cliente a cliente": "VENDEDOR",
+        # T-0036: a coluna que identifica a linha nas abas do Analista
+        "Pedido a pedido": "PEDIDO", "Por pedido": "PEDIDO", "Por produto": "PRODUTO",
+        "Todos os produtos": "PRODUTO", "Reajustes por produto": "PRODUTO"}
+LIVRES = {"OBSERVAÇÃO", "JUSTIFICATIVA", "RESULTADO", "LINHAS DE INTERESSE", "DESCRIÇÃO",
+          "O QUE FAZER", "O QUE FALTA"}   # texto livre: quebra
 ROTULO_SUB = {"Solicitacao Lojas": "Lojas", "Solicitacao CD": "CD", "Solicitacao FRW": "FRW",
               "Solicitacao Manual": "Manual", "DETALHADO_PEDIDO": "Detalhado por pedido",
               "ProdutosExcluir": "Produtos excluídos", "FiliaisExcluir": "Filiais excluídas"}
@@ -137,6 +158,98 @@ COLUNAS: dict[str, list] = {
                   _c("BAIRRO"), _c("SEGMENTO"), _c("VISITADA EM", "data"), _c("OBSERVAÇÃO"),
                   _c("REGISTRADO EM")],
 }
+# ------------------------------------------------------------------ T-0036: colunas do §10.9.3 (lista positiva)
+def _l(*specs):
+    """"NOME", "NOME|tipo" ou "NOME|tipo|o" (o = oculta) -> lista de `_c`. Só nesta lista entram colunas do Analista;
+    coluna a mais (nome de cliente, endereço, telefone) derruba a aba (RN-GER-011)."""
+    out = []
+    for sp in specs:
+        n, *r = sp.split("|")
+        out.append(_c(n, r[0] if r else "texto", len(r) > 1 and r[1] == "o"))
+    return out
+
+
+_MARKUP_GRUPO = ["PEDIDOS|int", "QTD|num", "R$ VENDA|moeda", "CUSTO|moeda", "MARGEM|moeda", "MARKUP %|pct1",
+                 "MKP TABELA %|pct1", "% DESC.|pct1", "PART. MARGEM|pct1", "SEM CUSTO|int"]
+_MARKUP_PROD = ["PRODUTOS|int", "ESTOQUE|num", "VOL. VENDIDO|num", "R$ VENDA|moeda", "CUSTO|moeda", "MARGEM|moeda",
+                "MKP REAL %|pct1", "% DESC.|pct1", "MKP TABELA %|pct1", "MKP VENDA %|pct1", "PART. MARGEM|pct1",
+                "SEM CUSTO|int"]
+_SALDO_G = ["PEDIDOS|int", "VLR TABELA|moeda", "VLR VENDA|moeda", "DESC. COMERCIAL|moeda", "% DESC. COM.|pct1",
+            "SALDO FRETE|moeda", "SALDO|moeda", "META SALDO|moeda", "% ATING.|pct"]
+_PRECO_G = ["LEITURA", "FATURAMENTO|moeda", "VAR. FAT. %|pct1", "VOLUME|num", "VAR. VOL. %|pct1",
+            "PREÇO MÉDIO|moeda2", "PREÇO TABELA|moeda2", "VAR. PREÇO %|pct1", "VAR. TABELA %|pct1",
+            "VAR. FAT. R$|moeda", "EFEITO PREÇO|moeda", "EFEITO VOLUME|moeda", "EFEITO MIX|moeda",
+            "ELASTICIDADE|num2"]
+
+# (rid, título) -> colunas; os títulos "Por vendedor", "Por UF" etc. se repetem entre faróis
+COLUNAS_RID: dict[tuple[str, str], list] = {
+    ("vc_saldo", "Pedido a pedido"): _l(
+        "MÊS|texto|o", "DATA NF|dia", "FILIAL", "PEDIDO", "CÓD.", "VENDEDOR", "COND. PAGTO", "VLR TABELA|moeda",
+        "VLR VENDA|moeda", "% DESC. COM.|pct1", "SALDO DO PEDIDO|moeda", "SALDO FRETE|moeda", "NO SALDO|moeda",
+        "NF", "SUPERVISOR", "DESC. COMERCIAL|moeda", "UF", "CHAVE|texto|o"),
+    ("vc_saldo", "Por vendedor"): _l("MÊS|texto|o", "VENDEDOR", "SUPERVISOR", *_SALDO_G),
+    ("vc_saldo", "Por supervisor"): _l("MÊS|texto|o", "SUPERVISOR", *_SALDO_G),
+    ("vc_saldo", "Por UF"): _l("MÊS|texto|o", "UF", *_SALDO_G),
+    ("vc_markup", "Por pedido"): _l(
+        "SITUAÇÃO", "DATA PED.|dia", "DATA NF|dia", "FILIAL", "PEDIDO", "NF", "CÓD.", "STATUS PROTHEUS|texto|o",
+        "STATUS", "SITUAÇÃO PLANNER|texto|o", "UF", "CIDADE", "SUPERVISOR", "VENDEDOR", "QTD|num", "R$ VENDA|moeda",
+        "CUSTO|moeda", "SUCATA|moeda", "MARGEM|moeda", "MARKUP %|pct1", "MKP TABELA %|pct1", "% DESC.|pct1",
+        "SEM CUSTO|int", "VENDA SEM CUSTO|moeda|o", "SO BATERIA|texto|o", "CÓD. AUTORIZAÇÃO", "AUTORIZADO POR"),
+    ("vc_markup", "Por UF"): _l("UF", *_MARKUP_GRUPO),
+    ("vc_markup", "Por cidade"): _l("CIDADE", *_MARKUP_GRUPO),
+    ("vc_markup", "Por supervisor"): _l("SUPERVISOR", *_MARKUP_GRUPO),
+    ("vc_markup", "Por vendedor"): _l("VENDEDOR", *_MARKUP_GRUPO),
+    ("vc_markup", "Por categoria"): _l("CATEGORIA", *_MARKUP_PROD),
+    ("vc_markup", "Por sistema"): _l("SISTEMA", *_MARKUP_PROD),
+    ("vc_markup", "Por família"): _l("FAMÍLIA", *_MARKUP_PROD),
+    ("vc_markup", "Por linha"): _l("LINHA", *_MARKUP_PROD),
+    ("vc_markup", "Por produto"): _l(
+        "PRODUTO", "DESCRIÇÃO", "CATEGORIA|texto|o", "SISTEMA|texto|o", "FAMÍLIA|texto|o", "LINHA|texto|o",
+        "SITUAÇÃO", "ESTOQUE|num", "CUSTO UNIT.|moeda2", "PRC. TABELA MÉD.|moeda2", "MKP TABELA %|pct1",
+        "PRC. VENDA MÉD.|moeda2", "MKP VENDA %|pct1", "VOL. VENDIDO|num", "R$ VENDA|moeda", "CUSTO|moeda",
+        "MARGEM|moeda", "MKP REAL %|pct1", "% DESC.|pct1", "PART. MARGEM|pct1"),
+    ("vc_markup", "Todos os produtos"): _l(
+        "PRODUTO", "DESCRIÇÃO", "CATEGORIA", "SISTEMA", "FAMÍLIA", "LINHA", "FORNECEDOR", "CUSTO|moeda2",
+        "ORIGEM CUSTO|texto|o", "PRC. TABELA MÉD.|moeda2", "% DESC.|pct1", "PRC. VENDA MÉD.|moeda2",
+        "MKP VENDA %|pct1", "PREÇO INTERIOR MÉDIO|moeda2|o", "MKP TABELA %|pct1|o", "MKP INTERIOR %|pct1|o",
+        "EST.|num", "SITUAÇÃO", "QTD VEND.|num", "R$ VENDA|moeda", "MKP REAL %|pct1", "ÚLT. VENDA|data"),
+    ("vc_preco", "Por categoria"): _l("MÊS", "AAAA-MM|texto|o", "CATEGORIA", *_PRECO_G),
+    ("vc_preco", "Por família"): _l("MÊS", "AAAA-MM|texto|o", "FAMÍLIA", *_PRECO_G),
+    ("vc_preco", "Total BAP"): _l("MÊS", "AAAA-MM|texto|o", "TOTAL", *_PRECO_G),
+    ("vc_preco", "Reajustes por produto"): _l(
+        "MÊS", "AAAA-MM|texto|o", "FILIAL", "CÓD. PRODUTO", "PRODUTO", "CATEGORIA|texto|o", "FAMÍLIA", "LEITURA",
+        "TABELA ANTES|moeda2|o", "TABELA AGORA|moeda2|o", "VAR. TABELA %|pct1", "PRATICADO ANTES|moeda2|o",
+        "PREÇO PRATICADO|moeda2", "VAR. PREÇO %|pct1", "QTD ANTES|num|o", "QTD|num", "VAR. QTD %|pct1",
+        "FAT. ANTES|moeda|o", "FATURAMENTO|moeda", "VAR. FAT. %|pct1", "SISTEMA|texto|o", "LINHA|texto|o"),
+    ("vc_preco", "Pesquisa de mercado"): _l(
+        "MÊS|texto|o", "DATA|data", "VENDEDOR", "SUPERVISOR|texto|o", "CIDADE", "UF", "SEGMENTO|texto|o",
+        "LINHA DIA FOCO", "PAPEL", "CÓD. BAP", "PRODUTO", "CONCORRENTE", "CÓD. CONCORRENTE|texto|o", "LEITURA",
+        "COMPRA BAP|moeda2", "COMPRA CONC.|moeda2", "DIF. COMPRA %|pct1", "VENDA BAP|moeda2",
+        "VENDA CONC.|moeda2", "DIF. VENDA %|pct1", "MKP CLIENTE BAP %|pct1", "MKP CLIENTE CONC. %|pct1",
+        "PRC. TABELA BAP|moeda2", "COMPRA x TABELA %|pct1", "ESTOQUE BAP|num", "ESTOQUE CONC.|num",
+        "SHARE ESTOQUE %|pct1", "VOL. BAP|num", "VOL. CONC.|num", "SHARE VOLUME %|pct1", "OBSERVAÇÃO",
+        "CATEGORIA|texto|o", "FAMÍLIA|texto|o"),
+    ("an_divergencias", "Por vendedor"): _l(
+        "VENDEDOR", "SUPERVISOR", "CARTEIRA PLANNER|int", "BASE PROTHEUS|int", "IGUAIS|int", "SÓ NO PLANNER|int",
+        "SÓ NO PROTHEUS|int", "· FORA DA BASE|int", "· PLANNER SEM VENDEDOR|int", "BATE?"),
+    ("an_divergencias", "Clientes divergentes"): _l(
+        "COD", "LOJA", "CIDADE", "UF", "SEGMENTO", "ZONA", "VENDEDOR PLANNER", "VENDEDOR PROTHEUS (A1_VEND)",
+        "STATUS PROTHEUS|texto|o", "SITUAÇÃO", "O QUE FAZER"),
+    ("an_divergencias", "Sem coordenada / endereço"): _l(
+        "CÓD.", "LOJA", "O QUE FALTA", "NA ROTA DO MÊS", "UF", "CIDADE", "VENDEDOR PLANNER",
+        "SUPERVISOR PLANNER", "SEGMENTO", "CURVA", "SITUAÇÃO", "PONTO"),
+}
+# nº de colunas do §10.9.3 (confere a digitação acima)
+_N_COLUNAS = {("vc_saldo", "Pedido a pedido"): 18, ("vc_saldo", "Por vendedor"): 12, ("vc_saldo", "Por supervisor"): 11,
+              ("vc_saldo", "Por UF"): 11, ("vc_markup", "Por pedido"): 27, ("vc_markup", "Por UF"): 11,
+              ("vc_markup", "Por produto"): 20, ("vc_markup", "Todos os produtos"): 22,
+              ("vc_markup", "Por categoria"): 13, ("vc_preco", "Por categoria"): 17,
+              ("vc_preco", "Reajustes por produto"): 22, ("vc_preco", "Pesquisa de mercado"): 33,
+              ("an_divergencias", "Por vendedor"): 10, ("an_divergencias", "Clientes divergentes"): 11,
+              ("an_divergencias", "Sem coordenada / endereço"): 12}
+assert all(len(COLUNAS_RID[k]) == n for k, n in _N_COLUNAS.items()), "lista do §10.9.3 fora do número do contrato"
+RE_COORD = re.compile(r"-?\d+\.\d{3,}")                  # coordenada na coluna PONTO: a aba fica fora (§10.9.2)
+
 # "Aderência dia a dia": 2 + N + 1 colunas, conferidas por padrão de nome (§10.7.3)
 ADERENCIA = "Aderência dia a dia"
 _RE_DIA = re.compile(r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$")
@@ -244,8 +357,10 @@ def _total_ok(tot, tipos) -> bool:
             and all(v is None or (_celula_ok(v, tp) and v != "") for v, tp in zip(tot, tipos)))
 
 
-def _cols_esperadas(titulo: str, cols) -> list | None:
-    """A lista do §10.7.3; na "Aderência dia a dia" ela sai dos nomes (padrão), None se não bate."""
+def _cols_esperadas(titulo: str, cols, rid: str = "") -> list | None:
+    """A lista do §10.7.3 (e do §10.9.3, por rid); na "Aderência dia a dia" ela sai dos nomes (padrão), None se não bate."""
+    if (rid, titulo) in COLUNAS_RID:
+        return COLUNAS_RID[(rid, titulo)]
     if titulo != ADERENCIA:
         return COLUNAS.get(titulo)
     nomes = [c.get("nome") if isinstance(c, dict) else None for c in cols]
@@ -312,7 +427,7 @@ def _cols_meta(cols) -> list | None:
 
 def _colunas_erro(titulo, cols, rid="") -> tuple[str | None, list]:
     esperado = (_cols_meta(cols) if rid == "vc_meta"
-                else _cols_esperadas(titulo, cols if isinstance(cols, list) else []))
+                else _cols_esperadas(titulo, cols if isinstance(cols, list) else [], rid))
     if esperado is None:
         return "colunas diferentes da lista do contrato", []
     if not (isinstance(cols, list) and len(cols) == len(esperado)):
@@ -372,6 +487,10 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
     for ln in linhas:
         if not (isinstance(ln, list) and len(ln) == n and all(_celula_ok(v, tp) for v, tp in zip(ln, tipos))):
             return "linha com número de células ou valores inválidos"
+    if (rid, titulo) == ("an_divergencias", "Sem coordenada / endereço"):
+        k = [x[0] for x in esperado].index("PONTO")
+        if any(isinstance(ln[k], str) and RE_COORD.search(ln[k]) for ln in linhas):
+            return "coluna PONTO com coordenada"          # §10.9.2: o endereço e a coordenada ficam no PC
     tons = t.get("tons")
     if tons is not None and not (isinstance(tons, list) and len(tons) == len(linhas)
                                  and all(isinstance(x, str) and x in TONS for x in tons)):
@@ -528,7 +647,7 @@ def validar(rid: str, r: dict) -> list[str]:
     if "tabelas" not in r:
         return []
     if rid not in RIDS:
-        return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas e vc_visitas"]
+        return [f"{rid}: tabelas só nos faróis com abas de tabela"]
     ts = r["tabelas"]
     if not isinstance(ts, list) or len(ts) > len(ABAS[rid]):
         return [f"{rid}: tabelas precisa ser lista de até {len(ABAS[rid])} abas"]

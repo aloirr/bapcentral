@@ -24,7 +24,7 @@ from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
 MANAUS = ZoneInfo("America/Manaus")
-VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
+VERES = ("admin", "diretor", "gerente", "analista")   # T-0036 (P1 = A): o analista vê o Painel como o gerente
 RELATORIO = ("vc_painel", "Painel Executivo")
 FORM_MAX = 16 * 1024
 FECHAR_MAX = 256 * 1024
@@ -270,7 +270,10 @@ def criar_app() -> FastAPI:
         if u["perfil"] == "admin":
             menu.append({"href": "/usuarios", "nome": "Usuários"})
         menu.append({"href": "/senha", "nome": "Trocar senha"})
-        return pagina(request, "home.html", menu=menu)
+        # T-0036 (2 A): o Trade Marketing ainda não tem farol no site (o de Expositores vem na T-0025-v2)
+        vazio = ("Ainda não há farol do Trade Marketing no site."
+                 if u["perfil"] == "trade" and not render.farois_do_perfil("trade") else "")
+        return pagina(request, "home.html", menu=menu, vazio=vazio)
 
     @app.get("/painel", response_class=HTMLResponse)
     async def painel(request: Request, aba: str = "resultado", uf: str = ""):
@@ -342,7 +345,9 @@ def criar_app() -> FastAPI:
                    # T-0032 (Alexandre, 26/11: "assim como tem no bap central do python"): o botão aparece sempre
                    # para quem pode; sem imagem no pacote, a página da parcial diz que ainda não chegou
                    parcial=perfil in PERFIS_PARCIAL.get(rid, ()),
-                   csvs=csvs_de(rel, rid, perfil) if aba in ("pedidos", "solicitacao") else [])
+                   csvs=csvs_de(rel, rid, perfil) if aba in ("pedidos", "solicitacao") else [],
+                   correcao=(rid == "an_divergencias" and perfil == "admin"
+                             and bool(((ind.entrada(rid) or {}).get("anexos") or {}).get("correcao"))))
         topo = render.farol_para_tela(rel, (uf[:4] if aba == "resumo" else uf_ok) or None, rid)   # uma vez só
         if aba == "resumo":
             return pagina(request, "farol.html", tela=topo, **ctx)
@@ -419,6 +424,18 @@ def criar_app() -> FastAPI:
             return JSONResponse({"erro": "arquivo indisponível"}, status_code=404)
         cobranca.registrar_acesso(cfg.dados, u["login"], "pv_pedidos", "csv-protheus", "baixar")
         return baixar(c["conteudo"].encode("utf-8"), "text/csv; charset=utf-8", c["nome"])
+
+    @app.get("/farol/an_divergencias/correcao.xlsx")
+    async def correcao_xlsx(request: Request):
+        """T-0036 (contrato §10.9.4): o Excel de correção do A1_VEND, só para o admin; sem cliente (RN-GER-011)."""
+        u = usuario(request, ("admin",))
+        c = ind.correcao("an_divergencias")
+        if not c:
+            return JSONResponse({"erro": "arquivo indisponível"}, status_code=404)
+        cobranca.registrar_acesso(cfg.dados, u["login"], "an_divergencias", "correcao", "baixar")
+        return baixar(exportar.xlsx_correcao(c),
+                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                      f"correcao_divergencias_{datetime.now(MANAUS):%Y%m%d_%H%M}.xlsx")
 
     def baixar(dados: bytes, tipo: str, nome: str, anexo: bool = True):
         cab = {"Content-Disposition": f'{"attachment" if anexo else "inline"}; filename="{nome}"',
