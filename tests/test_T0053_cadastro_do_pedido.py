@@ -4,36 +4,38 @@ A aba de pedidos (ftPedidos) traz so o codigo do cliente, sem a loja. No
 pedido, nome, UF, cidade, limite e saldo vem da loja do codigo cuja UF e a da
 filial do pedido; codigo com uma loja so usa essa loja. Sem loja unica na UF
 da filial, o pedido nao herda dados de outra loja (UF da filial, sem cidade,
-limite nem saldo; nome so se for igual; "Credito nao apurado", que entra em
+limite nem saldo; nome so se for igual; "Saldo Não Apurado", que entra em
 "Credito a analisar"). Os cartoes e o filtro por estado nao mudam.
 
-TRAVA CONDICIONAL: sem `relatorios_nucleo.cadastro_do_pedido` (o main antes
-do PR do modulo-farois) os testes PULAM com o motivo; com ele, rodam.
+Sem pular condicional: relatorios_nucleo tem de importar e ter
+`cadastro_do_pedido` (funcao e metodo do Contexto); se faltar, os testes
+FALHAM (regressao), nao pulam. A chave "identificada" do retorno de
+`cadastro_do_pedido()` e parte da RN-GER-019 (loja unica na UF da filial ou
+loja unica do codigo = True; senao False).
 
 Dados ficticios: codigos 900001+ e "CLIENTE FICTICIO".
 """
-import importlib
 from datetime import date
 from pathlib import Path
 
 import pytest
 
+import bap_automation as ba
+import relatorios_nucleo
+
 HOJE = date(2026, 11, 27)
 RR, AM = "0101004", "0101002"          # filiais: Boa Vista (RR), Manaus (AM)
-MOTIVO = ("relatorios_nucleo sem cadastro_do_pedido: a RN-GER-019 (T-0053, "
-          "modulo-farois) ainda nao esta nesta versao")
 
 
-# ---------------------------------------------------------------- trava
+# ---------------------------------------------------------------- modulo
 @pytest.fixture(scope="module")
 def rn():
-    try:
-        m = importlib.import_module("relatorios_nucleo")
-    except Exception as e:  # noqa: BLE001
-        pytest.skip(f"relatorios_nucleo nao importa neste ambiente ({e!r})")
-    if not hasattr(m, "cadastro_do_pedido") or \
-            not hasattr(m.Contexto, "cadastro_do_pedido"):
-        pytest.skip(MOTIVO)
+    """relatorios_nucleo com cadastro_do_pedido (funcao e metodo)."""
+    m = relatorios_nucleo
+    assert hasattr(m, "cadastro_do_pedido"), \
+        "RN-GER-019: falta relatorios_nucleo.cadastro_do_pedido"
+    assert hasattr(m.Contexto, "cadastro_do_pedido"), \
+        "RN-GER-019: falta Contexto.cadastro_do_pedido"
     return m
 
 
@@ -193,10 +195,20 @@ def _ctx(rn, tmp_path, antes=False, extra=(), mes="11"):
     ctx._b["posvenda"] = {"existe": True, "devolucoes": [],  # noqa: SLF001
                           "entregas": []}
     if antes:
-        # o comportamento de antes da RN-GER-019: o cadastro por codigo
+        # o comportamento de antes da RN-GER-019: o cadastro por codigo.
+        # A ficha de credito tem o mesmo formato da nova (so limite, saldo,
+        # atraso_valor e credito_apurado); antes o credito era sempre
+        # apurado quando havia cadastro.
         ctx.cliente_do_pedido = lambda fil, cod: ctx.cliente(cod)
-        ctx.credito_do_pedido = \
-            lambda fil, cod: ctx.tabela["clientes"].get(cod, {})
+
+        def _credito_antes(fil, cod):
+            r = ctx.tabela["clientes"].get(cod)
+            if not r:
+                return {}
+            return {"limite": r["limite"], "saldo": r["saldo"],
+                    "atraso_valor": r["atraso_valor"],
+                    "credito_apurado": True}
+        ctx.credito_do_pedido = _credito_antes
     return ctx
 
 
@@ -214,6 +226,8 @@ def _pedidos(rn, ctx):
 
 # ---------------------------------------------------------------- 1
 def test_RN_GER_019_pedido_da_filial_RR_usa_a_loja_RR(rn, tmp_path):
+    """RN-GER-019: pedido de cada filial usa a loja daquela UF
+    ("identificada")."""
     ctx = _ctx(rn, tmp_path)
     c = ctx.cadastro_do_pedido(RR, "900001")
     assert (c["uf"], c["cidade"], c["limite"]) == ("RR", "BOA VISTA",
@@ -232,7 +246,7 @@ def test_RN_GER_019_pedido_da_filial_RR_usa_a_loja_RR(rn, tmp_path):
     assert (am["UF"], am["CIDADE"], am["LIMITE"], am["DISP."]) == (
         "AM", "MANAUS", 80000.0, 60000.0)
     assert am["RAZÃO SOCIAL"] == "CLIENTE FICTICIO LOJA AM"
-    # o nome do pedido (detalhe, faltas, devolucoes...) e o da loja
+    # o nome do pedido (detalhe, faltas, excluidos) e o da loja
     assert ctx.nome_cliente("900001", RR) == "900001 - FICTICIO RR"
     assert ctx.nome_cliente("900001", AM) == "900001 - FICTICIO AM"
     assert ctx.nome_cliente("900001") == "900001 - FICTICIO AM"   # sem filial
@@ -249,8 +263,12 @@ def test_RN_GER_019_saldo_da_loja_certa_decide_a_analise(rn, tmp_path):
 # ---------------------------------------------------------------- 2
 def test_RN_GER_019_loja_certa_sem_saldo_conhecido_credito_nao_apurado(
         rn, tmp_path):
+    """RN-GER-019: loja certa ("identificada") sem saldo conhecido = credito
+    nao apurado, sem o saldo de outra loja."""
     ctx = _ctx(rn, tmp_path)
     cr = ctx.credito_do_pedido(RR, "900001")
+    # a ficha de credito do pedido: so credito, sem nome nem fantasia
+    assert set(cr) == {"limite", "saldo", "atraso_valor", "credito_apurado"}
     assert cr["limite"] == 20000.0 and cr["saldo"] is None
     assert cr["atraso_valor"] is None and cr["credito_apurado"] is False
     # o rotulo diz o que falta: o saldo da loja nao foi apurado
@@ -261,7 +279,7 @@ def test_RN_GER_019_loja_certa_sem_saldo_conhecido_credito_nao_apurado(
     # nao herda o saldo (60000) nem o atraso da loja AM
     assert p["DISP."] is None and p["ATRASO"] is None
     # a funcao pura: a loja certa com saldo None
-    c = rn.cadastro_do_pedido(RR, "900001", [
+    c = rn.cadastro_do_pedido(RR, [
         {"uf": "RR", "nome": "CLIENTE FICTICIO", "limite": 1.0,
          "saldo": None},
         {"uf": "AM", "nome": "CLIENTE FICTICIO", "limite": 9.0,
@@ -273,6 +291,8 @@ def test_RN_GER_019_loja_certa_sem_saldo_conhecido_credito_nao_apurado(
 
 # ---------------------------------------------------------------- 3
 def test_RN_GER_019_sem_loja_na_UF_da_filial_nao_herda_outra(rn, tmp_path):
+    """RN-GER-019: sem loja na UF da filial e com mais de uma loja, nada
+    de cidade, limite ou saldo de outra loja."""
     ctx = _ctx(rn, tmp_path)
     for cod, nome in (("900003", rn.LOJA_NAO_IDENTIFICADA),
                       ("900005", "CLIENTE FICTICIO IGUAL")):
@@ -289,11 +309,13 @@ def test_RN_GER_019_sem_loja_na_UF_da_filial_nao_herda_outra(rn, tmp_path):
         assert (d["UF"], d["CIDADE"], d["LIMITE"], d["DISP."],
                 d["ATRASO"]) == ("RR", "", None, None, None)
         assert d["ANÁLISE CRÉDITO"] == rn.CREDITO_NAO_APURADO
-        assert d["RAZÃO SOCIAL"] == nome and d["FANTASIA"] == nome
+        assert d["RAZÃO SOCIAL"] == nome
 
 
 # ---------------------------------------------------------------- 4
 def test_RN_GER_019_duas_lojas_na_mesma_UF(rn, tmp_path):
+    """RN-GER-019: duas lojas na UF da filial; nome so se for igual (sem
+    acento e caixa)."""
     ctx = _ctx(rn, tmp_path)
     dif = ctx.cadastro_do_pedido(AM, "900003")
     igual = ctx.cadastro_do_pedido(AM, "900005")
@@ -304,7 +326,7 @@ def test_RN_GER_019_duas_lojas_na_mesma_UF(rn, tmp_path):
             "AM", "", None, None)
         assert c["credito_apurado"] is False
     # nome igual sem distinguir acento e caixa
-    c = rn.cadastro_do_pedido(AM, "900099", [
+    c = rn.cadastro_do_pedido(AM, [
         {"uf": "AM", "nome": "Cliente Fictício"},
         {"uf": "am", "nome": "CLIENTE FICTICIO"}])
     assert c["nome"] == "Cliente Fictício" and not c["identificada"]
@@ -319,8 +341,8 @@ def test_RN_GER_019_duas_lojas_na_mesma_UF(rn, tmp_path):
 
 def test_RN_GER_019_sem_loja_identificada_fantasia_igual_ao_nome(
         rn, tmp_path):
-    """Sem loja identificada, a fantasia e o proprio nome (o da UF ou
-    LOJA_NAO_IDENTIFICADA): nunca a fantasia de outra loja."""
+    """RN-GER-019: sem loja "identificada", a fantasia e o proprio nome
+    (o igual ou LOJA_NAO_IDENTIFICADA), nunca a de outra loja."""
     ctx = _ctx(rn, tmp_path)
     for fil, cod in ((AM, "900003"), (AM, "900005"), (RR, "900003"),
                      (RR, "900005")):
@@ -360,6 +382,8 @@ def test_RN_GER_019_pedidos_em_aberto_marca_credito_nao_apurado(
 # ---------------------------------------------------------------- 5
 def test_RN_GER_019_loja_unica_herda_e_sem_cadastro_segue_como_antes(
         rn, tmp_path):
+    """RN-GER-019: loja unica do codigo herda; sem cadastro, o caminho de
+    antes."""
     ctx = _ctx(rn, tmp_path)
     c = ctx.cadastro_do_pedido(RR, "900002")
     assert (c["uf"], c["cidade"], c["limite"], c["saldo"]) == (
@@ -382,13 +406,13 @@ def test_RN_GER_019_loja_unica_herda_e_sem_cadastro_segue_como_antes(
 
 
 def test_RN_GER_019_loja_unica_de_outra_UF_herda_sempre(rn):
-    """Codigo com uma loja so (em qualquer UF) usa essa loja: nao ha outra
-    para confundir."""
+    """RN-GER-019: codigo com uma loja so, em qualquer UF, usa essa
+    loja."""
     lojas = [{"uf": "AM", "nome": "CLIENTE FICTICIO", "fantasia": "",
               "cidade": "MANAUS", "limite": 5000.0, "saldo": 4000.0,
               "atraso_valor": 0.0}]
     for fil in (RR, AM, "0101005"):
-        c = rn.cadastro_do_pedido(fil, "900002", lojas)
+        c = rn.cadastro_do_pedido(fil, lojas)
         assert (c["uf"], c["cidade"], c["limite"], c["saldo"]) == (
             "AM", "MANAUS", 5000.0, 4000.0)
         assert c["identificada"] is True and c["credito_apurado"] is True
@@ -396,7 +420,6 @@ def test_RN_GER_019_loja_unica_de_outra_UF_herda_sempre(rn):
 
 # ---------------------------------------------------------------- 6
 def test_RN_GER_019_cartoes_e_filtro_por_estado_nao_mudam(rn, tmp_path):
-    ba = pytest.importorskip("bap_automation")
     rel, t, nomes, ped = _pedidos(rn, _ctx(rn, tmp_path))
     rel_a, t_a, _n, ped_a = _pedidos(rn, _ctx(rn, tmp_path / "a", antes=True))
     assert rel["kpis"] == rel_a["kpis"]
@@ -446,7 +469,6 @@ def test_RN_GER_019_credito_a_analisar_inclui_o_nao_apurado(rn, tmp_path):
     nao_apurados = {p for p, d in ped.items()
                     if d["ANÁLISE CRÉDITO"] == rn.CREDITO_NAO_APURADO}
     assert nao_apurados == {"000001", "000005", "000006", "000007", "000008"}
-    assert nao_apurados <= no_recorte
     # e o recorte segue com o resto que nao e "Com Limite"
     assert no_recorte == nao_apurados | {"000003", "000009"}
     assert "000002" not in no_recorte and "000004" not in no_recorte
