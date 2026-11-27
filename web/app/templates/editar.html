@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 {# T-0021: a janelinha "Editar" do PC na web: uma lista por campo, data por seletor; só o admin #}
+{% from "_faixa.html" import faixa_simples %}
 {% block titulo %}{{ acao }} · {{ farol_nome }}{% endblock %}
+{% block faixa %}{{ faixa_simples(acao ~ " · " ~ farol_nome) }}{% endblock %}
 {% block cabeca %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block corpo %}
 <form method="post" action="/farol/{{ rid }}/editar" class="caixa ed-form">
-  <h1>{{ acao }} <small>{{ tab }}</small></h1>
+  <p class="sub">{{ tab }}</p>
   {% if resumo %}<p class="ed-resumo">{{ resumo|join(" · ") }}</p>{% endif %}
-  {% if sit and sit.status == "pendente" %}<p class="aviso atencao">Aguardando o PC: edição de {{ sit.quando[11:16] }} ({{ sit.quando[8:10] }}/{{ sit.quando[5:7] }}) por {{ sit.usuario }}. O que você mandar agora vai depois dela.</p>
+  {% if sit and sit.status == "pendente" %}<p class="aviso atencao">Aguardando o PC: edição de {{ sit.quando[11:16] }} ({{ sit.quando[8:10] }}/{{ sit.quando[5:7] }}) por {{ sit.usuario }}.</p>
   {% elif sit and sit.status == "erro" %}<p class="aviso alerta">O PC recusou a última edição desta linha{% if sit.motivo %}: {{ sit.motivo }}{% endif %}.</p>{% endif %}
   {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
   {% if aviso %}<p class="aviso info">{{ aviso }}</p>{% endif %}
@@ -39,6 +41,5 @@
     <a href="{{ volta }}">Cancelar</a>
     {% if ver_pedido %}<a class="ed-ver" href="{{ ver_pedido }}">Ver pedido</a>{% endif %}
   </div>
-  <p class="como">A edição vai para a fila do site e chega ao PC na próxima rodada do robô (a cada 30 min), gravada pela mesma função da tela do PC.</p>
 </form>
 {% endblock %}
