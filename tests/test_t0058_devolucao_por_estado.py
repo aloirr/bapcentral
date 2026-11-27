@@ -46,9 +46,8 @@ def _estados(t, mes):
             for uf, x in rec.items()}
 
 
-def _do_mes(t, ix, mes, uf=None):
-    return [l for l in t["linhas"] if l[ix["MÊS"]] == mes and (
-        uf is None or rn.uf_do_nome_da_filial(l[ix["FILIAL"]]) == uf)]
+def _do_mes(t, ix, mes):
+    return [l for l in t["linhas"] if l[ix["MÊS"]] == mes]
 
 
 def test_RN_GER_002_estado_pa_ago26_desconta_devolucao_de_quem_nao_vendeu(farol):
