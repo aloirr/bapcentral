@@ -5,6 +5,9 @@ Trazido do modulo-robo (T-0035) e revisto pelo testes. Os tetos do robô
 conferidos com os da web em test_T0035_robo_web.py."""
 import base64
 import copy
+from pathlib import Path
+
+import pytest
 
 import bap_automation as ba
 
@@ -95,3 +98,46 @@ def test_ADR0003_ordem_de_cortes_vem_de_CORTES_FAROL_WEB(monkeypatch):
     monkeypatch.setitem(ba._CORTES_FAROL_WEB, "pl_entregas", ("tabelas",))
     out = ba._cortar_farol_web("pl_entregas", _entregas(), teto_mb=0.0001)
     assert "tabelas" not in out and not any("junta" in a for a in out["avisos"])
+
+
+def test_ADR0003_entregas_cortado_passa_na_web_alinhado_e_na_ordem_original(monkeypatch):
+    """(testes, revisão do 03fb166) O corte das linhas do Entregas tem de manter a tabela válida na
+    web: `uf_linhas`, `tons` e `recortes_linhas` alinhados às linhas que ficam, e as linhas na ordem
+    original (só saem as mais antigas). A tabela é a fixture fictícia da web (web/tests)."""
+    pytest.importorskip("fastapi")
+    web = Path(__file__).resolve().parent.parent / "web"
+    monkeypatch.syspath_prepend(str(web / "tests"))
+    monkeypatch.syspath_prepend(str(web))
+    from app import pacotes
+    from farol_fixture import farol_entregas_com_abas, tabela_entregas
+    f = farol_entregas_com_abas()
+    f["tabelas"] = [tabela_entregas(n=400, pend=40)]
+    t = f["tabelas"][0]
+    nomes = [c["nome"] for c in t["colunas"]]
+    i_nf, i_uf, i_ped, i_prazo = (nomes.index(n) for n in ("NF", "UF", "DT. PED", "PRAZO"))
+    tons = ("ok", "atencao", "alerta")
+    t["tons"] = [tons[k % 3] for k in range(len(t["linhas"]))]
+    t["recortes_linhas"] = [{"rotulo": "Atrasadas", "linhas": [k for k, ln in enumerate(t["linhas"])
+                                                              if ln[i_prazo] == "ATRASADA"]}]
+    assert pacotes.validar_relatorio("pl_entregas", copy.deepcopy(f)) == []     # a fixture vale na web
+    entrada = copy.deepcopy(f)
+    pos = {ln[i_nf]: k for k, ln in enumerate(t["linhas"])}
+    tom_de = {ln[i_nf]: t["tons"][k] for k, ln in enumerate(t["linhas"])}
+    sem_junta = copy.deepcopy(f)
+    sem_junta["tabelas"][0].pop("juntas")
+    teto = len(ba._json_farol_web(sem_junta)) * 0.85 / MB        # sem a junta não basta; 3/4 das linhas cabe
+    out = ba._cortar_farol_web("pl_entregas", f, teto_mb=teto)
+    assert f == entrada                                                          # a entrada não mudou
+    to = out["tabelas"][0]
+    assert 0 < len(to["linhas"]) < 400 and ba.AVISO_ENTREGAS_RECENTES in out["avisos"]
+    erros = pacotes.validar_relatorio("pl_entregas", copy.deepcopy(out))
+    assert erros == [], f"a web recusaria o farol cortado: {erros}"
+    ordem = [pos[ln[i_nf]] for ln in to["linhas"]]
+    assert ordem == sorted(ordem), "as linhas que ficam saíram da ordem original"
+    assert to["uf_linhas"] == [ln[i_uf] for ln in to["linhas"]]
+    assert to["tons"] == [tom_de[ln[i_nf]] for ln in to["linhas"]]
+    atras = {k for k, ln in enumerate(to["linhas"]) if ln[i_prazo] == "ATRASADA"}
+    assert set(to["recortes_linhas"][0]["linhas"]) == atras
+    fora = set(pos) - {ln[i_nf] for ln in to["linhas"]}
+    ped = {ln[i_nf]: ln[i_ped] for ln in t["linhas"]}
+    assert min(ped[ln[i_nf]] for ln in to["linhas"]) >= max(ped[n] for n in fora)   # ficam as mais recentes
