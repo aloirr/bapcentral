@@ -6941,6 +6941,10 @@ def _kpis_com_estados(r: dict, sem_dado_fora: bool = False) -> list:
 def _rotulo_sem_fretes_web(rot: str, v):
     """(T-0037) o "(sem)" do PC vira texto de gente nas tabelas do Resumo."""
     v = str(v if v is not None else "(sem)")
+    if rot == "CIDADE":                # "CIDADE / " sem UF: sem a barra solta
+        v = v.rstrip()
+        if v.endswith("/"):
+            v = v[:-1].rstrip()
     if not v.startswith("(sem)"):
         return v
     resto = v[len("(sem)"):]
