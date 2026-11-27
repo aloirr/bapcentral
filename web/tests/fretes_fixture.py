@@ -1,51 +1,99 @@
-"""T-0037: Farol de Fretes fictício (contrato §10.11). Nenhum dado real: "CLIENTE TESTE nn", cidades inventadas."""
+"""T-0037: Farol de Fretes fictício (contrato §10.11). Nenhum dado real: "CLIENTE TESTE nn", cidades e
+transportadoras inventadas. ETAPA, datas, tom e cartões saem de UMA tabela de casos, coerente com o PC
+(`relatorios_nucleo.fretes`/`kpis_fretes`): entregue = ETAPA ENTREGUE ou data real; tom "alerta" = sem entrega,
+com acompanhamento e prazo vencido (hoje = 24/11/2026); "ok" = com data real; o resto sem tom."""
 from copy import deepcopy
+from datetime import date
 
-from edicao_fixture import ETAPAS, TRANSP, datas_previsao, datas_reais, farol_entregas_editavel
+from edicao_fixture import ETAPAS, HOJE, datas_previsao, datas_reais, farol_entregas_editavel
 from farol_fixture import _base, _colunas, _kpi, _ln, _tabela7, pacote_farol
 
 from app import tabelas
 
 CIDADES = ["VILA DO RIO ALTO", "PORTO DO MEIO", "SERRA BONITA"]
 UFS = ["PA", "MA", "PA"]
-N = 9
+TRANSP_F = ["TRANSP. ALFA", "TRANSP. BETA", "TRANSP. GAMA"]      # nomes fictícios curtos
+SEM_AC = "(sem acompanhamento)"
 TIT = "Notas com frete"
 
+# i: (ETAPA, TRANSPORTADORA, ENTREGAR ATÉ (dia de nov), ENTREGUE (dia de nov ou None), RESPONSÁVEL)
+# cidade = CIDADES[i % 3]: grupo 0 (VILA DO RIO ALTO) usa ALFA/BETA; o grupo 1 usa BETA/GAMA
+CASOS = {
+    1: (SEM_AC, "", 9, None, ""),                                   # sem linha no acompanhamento: sem chave, sem tom
+    2: ("ENTREGUE", "TRANSP. BETA", 10, 10, "MOTORISTA FICTICIO 1"),   # no prazo
+    3: ("EM TRÂNSITO", "TRANSP. ALFA", 25, None, "MOTORISTA FICTICIO 2"),
+    4: ("AGUARDANDO COLETA", "TRANSP. GAMA", 12, None, ""),           # prazo vencido: alerta
+    5: ("EM TRÂNSITO", "TRANSP. GAMA", 26, None, "MOTORISTA FICTICIO 1"),
+    6: ("ENTREGUE", "TRANSP. BETA", 14, 13, "MOTORISTA FICTICIO 2"),   # no prazo
+    7: ("CANCELADA", "TRANSP. GAMA", 27, None, ""),                    # cancelada: sem data
+    8: ("AGUARDANDO COLETA", "", 27, None, ""),                        # com chave e sem transportadora
+    9: ("ENTREGUE", "TRANSP. ALFA", 17, 18, "MOTORISTA FICTICIO 1"),   # entregue 1 dia depois do prazo
+}
+N = len(CASOS)
 
-def _kp():
-    # coerentes com tabela_notas: 9 notas, VLR NF R$ 85.950, frete R$ 2.565 (3,0%), 3 entregues (2 no prazo)
-    return [_kpi("Notas com frete", str(N), "neutro", "R$ 86 mil"), _kpi("% do faturado", "7,2%", "info"),
-            _kpi("Frete estimado", "R$ 2,6 mil", "neutro", "3,0% do VLR NF"), _kpi("Cidades atendidas", "3"),
-            _kpi("Entregues", "3", "ok", "67% no prazo"), _kpi("Sem transportadora", "1", "atencao")]
+
+def _nov(d):
+    return f"2026-11-{d:02d}" if d else None
+
+
+def _nf(i):
+    return f"7{i + 100:05d}"
 
 
 def tabela_notas():
     cols = _colunas(TIT)
     linhas, tons, ufs = [], [], []
-    for i in range(1, N + 1):
-        sem_ac = i == 1                           # nota sem linha no acompanhamento: sem chave
+    for i, (etapa, transp, ate, entregue, resp) in CASOS.items():
+        sem_ac = etapa == SEM_AC
+        fim = date(2026, 11, entregue) if entregue else HOJE
         linhas.append(_ln(cols, {
-            "MÊS": "NOV/26", "DATA PED.": f"2026-11-{i + 1:02d}", "DATA NF": f"2026-11-{i + 2:02d}",
-            "NF": f"7{i + 100:05d}", "FILIAL": "FILIAL FICTICIA", "CLIENTE": f"9{i:05d} - CLIENTE TESTE {i:02d}",
-            "CIDADE": CIDADES[i % 3], "UF": UFS[i % 3], "VLR NF": 8000.0 + 310 * i, "VLR FRETE": 240.0 + 9 * i,
-            "ETAPA": "(sem acompanhamento)" if sem_ac else ETAPAS[i % 4],
-            "TRANSPORTADORA": "" if sem_ac else TRANSP[i % 3], "ENTREGAR ATÉ": f"2026-11-{i + 8:02d}",
-            "ENTREGUE": f"2026-11-{i + (9 if i == 9 else 7):02d}" if i % 3 == 0 else None, "SLA ENTREGA": None if sem_ac else i % 6,
-            "RESPONSÁVEL": "" if sem_ac else f"MOTORISTA FICTICIO {i % 3 + 1}"}))
-        tons.append("alerta" if i == 4 else "ok" if i % 3 == 0 else "")
+            "MÊS": "NOV/26", "DATA PED.": _nov(i + 1), "DATA NF": _nov(i + 2), "NF": _nf(i), "FILIAL": "FILIAL FICTICIA",
+            "CLIENTE": f"9{i:05d} - CLIENTE TESTE {i:02d}", "CIDADE": CIDADES[i % 3], "UF": UFS[i % 3],
+            "VLR NF": 8000.0 + 310 * i, "VLR FRETE": 240.0 + 9 * i, "ETAPA": etapa, "TRANSPORTADORA": transp,
+            "ENTREGAR ATÉ": _nov(ate), "ENTREGUE": _nov(entregue),
+            "SLA ENTREGA": None if sem_ac else (fim - date(2026, 11, i + 1)).days, "RESPONSÁVEL": resp}))
+        vencida = not entregue and not sem_ac and HOJE > date(2026, 11, ate)
+        tons.append("alerta" if vencida else "ok" if entregue else "")
         ufs.append(UFS[i % 3])
     return linhas, tons, ufs, cols
 
 
+def _moeda_mil(v):
+    return f"R$ {v / 1000:.0f} mil" if v >= 10000 else f"R$ {v / 1000:.1f} mil".replace(".", ",")
+
+
+def _pct(a, b):
+    return f"{100 * a / b:.0f}%" if b else "0%"
+
+
+def _kp(uf=None, pct_fat="7,2%"):
+    """Os 6 cartões calculados das linhas de CASOS, como o kpis_fretes do PC."""
+    ls = [ln for ln, u in zip(*tabela_notas()[0:3:2]) if uf is None or u == uf]
+    nomes = [c[0] for c in tabelas.COLUNAS[TIT]]
+    ix = {n: nomes.index(n) for n in nomes}
+    val = sum(ln[ix["VLR NF"]] for ln in ls)
+    fr = sum(ln[ix["VLR FRETE"]] for ln in ls)
+    entregues = [ln for ln in ls if ln[ix["ENTREGUE"]] or ln[ix["ETAPA"]] == "ENTREGUE"]
+    com_data = [ln for ln in ls if ln[ix["ENTREGUE"]]]
+    no_prazo = [ln for ln in com_data if ln[ix["ENTREGUE"]] <= ln[ix["ENTREGAR ATÉ"]]]
+    sem_tr = sum(1 for ln in ls if ln[ix["ETAPA"]] != SEM_AC and not ln[ix["TRANSPORTADORA"]])
+    return [_kpi("Notas com frete", str(len(ls)), "neutro", _moeda_mil(val)), _kpi("% do faturado", pct_fat, "info"),
+            _kpi("Frete estimado", _moeda_mil(fr), "neutro", f"{100 * fr / val:.1f}% do valor".replace(".", ",")),
+            _kpi("Cidades atendidas", str(len({ln[ix['CIDADE']] for ln in ls}))),
+            _kpi("Entregues", str(len(entregues)), "ok",
+                 f"{_pct(len(no_prazo), len(com_data))} no prazo" if com_data else ""),
+            _kpi("Sem transportadora", str(sem_tr), "atencao")]
+
+
 def spec_fretes(cols, linhas):
     nomes = [c["nome"] for c in cols]
-    ic = nomes.index("CIDADE")
+    ic, inf = nomes.index("CIDADE"), nomes.index("NF")
     return {"modulo": "pos_venda", "acao": "Editar",
-            "chaves": ["" if i == 0 else f"FILIAL FICTICIA|{7000 + i}|1" for i in range(len(linhas))],
+            "chaves": ["" if ln[nomes.index("ETAPA")] == SEM_AC else f"FILIAL FICTICIA|{ln[inf]}|1" for ln in linhas],
             "campos": [
                 {"campo": "etapa", "rotulo": "ETAPA", "coluna": "ETAPA", "tipo": "lista", "opcoes": ETAPAS},
                 {"campo": "transportadora", "rotulo": "TRANSPORTADORA", "coluna": "TRANSPORTADORA", "tipo": "lista",
-                 "opcoes": TRANSP, "grupos": [TRANSP[:2], TRANSP[1:]],
+                 "opcoes": TRANSP_F, "grupos": [TRANSP_F[:2], TRANSP_F[1:]],
                  "grupo_linhas": [0 if ln[ic] == CIDADES[0] else 1 for ln in linhas]},
                 {"campo": "prevista_manual", "rotulo": "DT. PREVISTA (ENTREGA)", "coluna": "ENTREGAR ATÉ",
                  "tipo": "data", "opcoes": datas_previsao()},
@@ -69,7 +117,8 @@ def _resumo(titulo, col, rotulo=None):
     cols = _colunas(titulo, tabelas.COLUNAS_RID[("pl_fretes", titulo)])
     linhas = [_ln(cols, {"MÊS": "NOV/26", col: k, "NOTAS": n, "VLR NF": v, "VLR FRETE": fr})
               for k, (n, v, fr) in sorted(grupos.items())]
-    kp = [_kpi("Notas", str(N)), _kpi("Valor", "R$ 86 mil"), _kpi("Frete estimado", "R$ 2,6 mil")]
+    k = _kp()
+    kp = [_kpi("Notas", k[0]["valor"]), _kpi("Valor", k[0]["detalhe"]), _kpi("Frete estimado", k[2]["valor"])]
     return {"titulo": titulo, "colunas": cols, "linhas": linhas, "kpis_padrao": kp}
 
 
@@ -84,10 +133,7 @@ def farol_fretes(com_edicao=True):
     f["tabelas"] = [t, _resumo("Por UF", "UF"),
                     _resumo("Por cidade", "CIDADE", lambda v, ln: f"{v} / {ln[iu]}"),
                     _resumo("Por transportadora", "TRANSPORTADORA")]
-    f["recortes"] = {"PA": {"kpis": [_kpi("Notas com frete", "6", "neutro", "R$ 58 mil"), _kpi("% do faturado", "7,1%", "info"),
-                                     _kpi("Frete estimado", "R$ 1,7 mil", "neutro", "3,0% do VLR NF")]},
-                     "MA": {"kpis": [_kpi("Notas com frete", "3", "neutro", "R$ 28 mil"), _kpi("% do faturado", "7,4%", "info"),
-                                     _kpi("Frete estimado", "R$ 0,8 mil", "neutro", "3,0% do VLR NF")]}}
+    f["recortes"] = {"PA": {"kpis": _kp("PA", "7,1%")}, "MA": {"kpis": _kp("MA", "7,4%")}}
     return f
 
 

@@ -122,7 +122,7 @@ def test_RN_GER_012_pacote_sem_fretes_continua_aceito(admin):
 
 def test_RN_POS_010_formulario_mostra_a_data_real_da_fixture(admin):
     _pacote_ok(admin)
-    url = "/farol/pl_fretes/editar?tab=Notas%20com%20frete&chave=FILIAL%20FICTICIA%7C7002%7C1"
+    url = "/farol/pl_fretes/editar?tab=Notas%20com%20frete&chave=FILIAL%20FICTICIA%7C700102%7C1"
     assert 'value="2026-11-10"' in admin.get(url).text           # DT. REAL = 10/11/2026 (ISO no campo)
 
 
@@ -134,7 +134,7 @@ def test_RN_POS_010_marca_do_fretes_vai_ao_entregas_e_nao_a_devolucao(amb, monke
     assert edicoes.IRMAOS == (frozenset({("pl_fretes", TIT), ("pl_entregas", "Entregas"),
                                          ("pl_entregas", "Pendências dos meses anteriores")}),)
     f = edicoes.Fila(amb)
-    ch = "FILIAL FICTICIA|7009|1"
+    ch = "FILIAL FICTICIA|700109|1"
     f.registrar(usuario="x", rid="pl_fretes", tabela=TIT, modulo="pos_venda", chave=ch,
                 valores={"etapa": "EM TRÂNSITO"}, antes={})
     assert ("Entregas", ch) in f.situacao("pl_entregas")

@@ -957,7 +957,7 @@ GRADE: dict[tuple[str, str], dict] = {
                   "VLR NF")},
     # T-0037 (desenho §7.1): 10 colunas na grade, com as editáveis; RESPONSÁVEL e o resto vão ao popup
     ("pl_fretes", "Notas com frete"): {
-        "chave": "NF", "cel": ("NF", "CLIENTE", "ETAPA", "VLR FRETE"),
+        "chave": "NF", "cel": ("NF", "CLIENTE", None, "VLR FRETE"),     # celular: a ETAPA vai ao item aberto
         "grade": ("NF", "CLIENTE", "CIDADE", "UF", "VLR FRETE", "ETAPA", "TRANSPORTADORA", "ENTREGAR ATÉ",
                   "ENTREGUE"),                     # 9 + a coluna Editar: cabe a 1366 sem rolagem (tela-bc3 §7.2)
         "blocos": (("Nota", ("DATA PED.", "DATA NF", "FILIAL", "VLR NF")), ("Entrega", ("SLA ENTREGA", "RESPONSÁVEL")))},
