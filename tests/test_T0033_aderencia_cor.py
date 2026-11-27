@@ -5,10 +5,8 @@ vermelho abaixo de 50%. `relatorios_nucleo.tom_aderencia` dá o tom da linha e
 `relatorios_nucleo.faixa_aderencia` dá o chip em faixa (ate, fundo, texto) com
 as cores do manual da marca (docs/marca/manual.md, 4.2).
 
-RN: o `docs/produto/03-regras.md` não tem RN-VIS (o comentário "RN-VIS" do
-`relatorios_nucleo.py` não aponta para regra numerada). A mais próxima é a
-RN-GER-009 (identidade BAP AUTOPARTS nos materiais), que é de onde vêm as
-cores do manual; a faixa 80/50 ainda precisa de número próprio.
+RN-VIS-001 (docs/produto/03-regras.md): verde a partir de 80%, amarelo de 50%
+a 79,99%, vermelho abaixo de 50%; a mesma regra pinta a linha e cada dia.
 """
 import pytest
 
@@ -34,20 +32,20 @@ def _chip(pct):
     raise AssertionError(f"nenhuma faixa para {pct}")
 
 
-def test_RN_GER_009_aderencia_limites_80_e_50():
+def test_RN_VIS_001_aderencia_limites_80_e_50():
     assert (rn.ADERENCIA_VERDE, rn.ADERENCIA_AMARELO) == (80, 50)
 
 
 @pytest.mark.parametrize("pct, tom", CASOS)
-def test_RN_GER_009_aderencia_tom_por_faixa(pct, tom):
+def test_RN_VIS_001_aderencia_tom_por_faixa(pct, tom):
     assert rn.tom_aderencia(pct) == tom
 
 
-def test_RN_GER_009_aderencia_sem_dado_fica_sem_tom():
+def test_RN_VIS_001_aderencia_sem_dado_fica_sem_tom():
     assert rn.tom_aderencia(None) == ""
 
 
-def test_RN_GER_009_aderencia_faixa_em_ordem_e_fechada_no_fim():
+def test_RN_VIS_001_aderencia_faixa_em_ordem_e_fechada_no_fim():
     faixas = rn.faixa_aderencia()
     assert len(faixas) == 3
     limites = [ate for ate, _f, _t in faixas]
@@ -57,13 +55,23 @@ def test_RN_GER_009_aderencia_faixa_em_ordem_e_fechada_no_fim():
 
 
 @pytest.mark.parametrize("pct, tom", CASOS)
-def test_RN_GER_009_aderencia_chip_bate_com_o_tom_e_com_o_manual(pct, tom):
+def test_RN_VIS_001_aderencia_chip_bate_com_o_tom_e_com_o_manual(pct, tom):
     manual = tokens_do_manual()
     fundo, texto = TOKENS_DO_TOM[rn.tom_aderencia(pct)]
     assert rn.tom_aderencia(pct) == tom
     assert _chip(pct) == (manual[fundo], manual[texto])
 
 
-def test_RN_GER_009_aderencia_tres_cores_diferentes_no_chip():
+def test_RN_VIS_001_aderencia_tres_cores_diferentes_no_chip():
     cores = {_chip(p) for p in (0, 65, 100)}
     assert len(cores) == 3
+
+
+@pytest.mark.parametrize("pct, tom", [(49.99995, "alerta"), (79.99995, "atencao")])
+def test_RN_VIS_001_aderencia_borda_tom_e_chip_no_mesmo_corte(pct, tom):
+    """Corte único (< 50, < 80): logo abaixo do limite, o tom e o chip são os
+    da faixa de baixo (o chip não pode ir para a faixa de cima sozinho)."""
+    manual = tokens_do_manual()
+    fundo, texto = TOKENS_DO_TOM[tom]
+    assert rn.tom_aderencia(pct) == tom
+    assert _chip(pct) == (manual[fundo], manual[texto])
