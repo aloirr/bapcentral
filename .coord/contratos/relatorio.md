@@ -1461,8 +1461,8 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
 - `recortes[UF].kpis` (§10.1) pela UF **do cliente** (`_UF_LINHAS_WEB[("pl_fretes", "Notas com frete")] = ("UF", "uf")`).
 - **Correção pedida ao PC** (não é regra nova; `docs/desenho/T-0037.md`, §3):
   - hoje, no recorte, o denominador do "% do faturado" é o VND da BAP inteira;
-  - ele passa a ser o VND dos clientes daquela UF;
-  - na BAP inteira, o número não muda.
+  - ele passa a ser o faturado líquido de devolução (RN-GER-002) dos clientes daquela UF;
+  - na BAP inteira, o número muda só pela troca do bruto pelo líquido (P3 B).
 - **Gráfico "Mês a mês: notas com frete"** (barras, 12 meses): vai como bloco `barras` do painel.
   - O PC do Fretes não tem `painel`. O robô converte `graficos` em bloco pela lista `_GRAFICOS_NO_PAINEL_WEB` da T-0023.
   - Enquanto o robô da T-0023 não estiver no `main`, o farol vai só com os cartões.
