@@ -6615,12 +6615,14 @@ _DESCARTAR = object()
 
 # (T-0017) Os faroes do PC no site, so leitura (modelo M2: o PC monta e manda
 # o JSON pronto). Entram um por entrega: Inadimplencia, Pedidos, Entregas, Visita.
+# (T-0036, RD-0004) os 4 farois do Analista Comercial: lista unica
+RIDS_ANALISTA_WEB = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas",
               # (T-0024) lote 2: abas de tabela com as colunas do PC (livres)
               "pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw",
               "vc_meta",
               # (T-0036) faroes do Analista Comercial (cliente so pelo codigo)
-              "vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
+              *RIDS_ANALISTA_WEB)
 # (T-0024) farois cujas tabelas vao com as colunas que o PC monta (sem a lista
 # fechada do contrato 10.7.3): so se corta o que nunca vai e se limpa o nome
 RIDS_LIVRES_WEB = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro",
@@ -6766,7 +6768,7 @@ _FONTE_BAIXADO_WEB = {
     # Divergencias cruza o Planner (BASE_CLIENTE) com a dClientesBap, que vem
     # do Relatorio Clientes (a parte baixada do ERP)
     **{r_: (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
-       for r_ in ("vc_saldo", "vc_markup", "vc_preco")},
+       for r_ in RIDS_ANALISTA_WEB if r_ != "an_divergencias"},
     "an_divergencias": (Path(BKP_BAPTOOLS), "Relatorio_Clientes_*.xlsx")}
 
 
@@ -7581,7 +7583,6 @@ _CORTES_FAROL_WEB = {
 # sair inteira. [SUPOSICAO] colunas nao sao cortadas: o `tons`, os recortes e
 # a edicao apontam para o indice delas.
 _FRACOES_ENTREGAS_WEB = (0.75, 0.5, 0.25)
-RIDS_ANALISTA_WEB = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas") \
     + RIDS_LIVRES_WEB + RIDS_ANALISTA_WEB
 # colunas que nunca vao (sem acento, maiusculas), em qualquer tabela/junta/sub-aba
@@ -9071,15 +9072,14 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
 # o resumo, sem o detalhe por vendedor), pronta no robo, uma por periodo, em PNG
 # base64 dentro do farol (`parciais`). A web so mostra, baixa e monta o PDF.
 # (T-0036, 10.11.4) Excel de correcao das Divergencias (so admin na web)
+# (RD-0002) os cabecalhos vem do nucleo (CAB_CORRIGIR / CAB_ANALISAR), sem
+# a coluna CLIENTE (RN-GER-011)
+import relatorios_nucleo as _rn_cab                     # noqa: E402
 _COLUNAS_CORRECAO_WEB = {
-    "corrigir": ("CORRIGIR NO PROTHEUS", (
-        "A1_FILIAL", "A1_COD", "A1_LOJA", "CIDADE", "UF", "A1_VEND ATUAL",
-        "A1_VEND CORRETO", "VENDEDOR CORRETO", "SUPERVISOR",
-        "STATUS PROTHEUS")),
-    "analisar": ("ANALISAR", (
-        "A1_FILIAL", "A1_COD", "A1_LOJA", "CIDADE", "UF",
-        "VENDEDOR NO PLANNER", "A1_VEND ATUAL", "SITUAÇÃO",
-        "O QUE FAZER"))}
+    "corrigir": ("CORRIGIR NO PROTHEUS",
+                 tuple(c for c in _rn_cab.CAB_CORRIGIR if c != "CLIENTE")),
+    "analisar": ("ANALISAR",
+                 tuple(c for c in _rn_cab.CAB_ANALISAR if c != "CLIENTE"))}
 
 
 def _correcao_divergencias_web(rel) -> dict | None:
