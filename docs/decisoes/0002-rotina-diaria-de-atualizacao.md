@@ -86,3 +86,18 @@ exit /b %BAP_CODIGO%
 
 - Os testes ficam no rascunho da sessão, `test_T0018_rotina.py`, até o agente testes levar para `tests/`. São 63 casos, sem rede (monkeypatch em `_get_json`, `versao_do_site` e `baixar_main`): cada limite como função pura, o `--diario` ponta a ponta (instala, já instalado, API fora do ar, zip de outro commit ou sem comentário, falha na troca com restauração, cada limite falho sem troca e com 1 linha de log, pausa, simular), o `--primeira-vez` (exige `--confirmar`, backup total, ignora a trava 5) e o `schtasks`.
 - O `tests/test_atualizar_do_github.py` (T-0003) continua verde sem alteração.
+
+## 7. Adendo T-0056 (2026-11-27) — o HEAD recente não derruba o dia
+
+- **Problema:** o limite 1 olhava só o HEAD (`/commits/main`). Com merge na madrugada, o HEAD tinha menos de 2 h às 06h30, a rotina saía 10 e o dia se perdia. Na prática, a produção parou num robô antigo (o `/saude` mostra o pacote com 5 faróis; o robô do `main` manda uns 17).
+- **Limite 1, novo:** HEAD com 2 h ou mais segue como antes. HEAD mais novo → uma chamada a `/repos/{REPO}/commits?sha=main&per_page=100`, e a função pura `escolher_commit_maduro(commits, agora, instalado)` devolve o commit **mais novo do `main` com 2 h ou mais**, na ordem da API (data do committer).
+  - O commit escolhido passa pelos mesmos limites 2, 3, 4 e 5, e o zip baixado é o dele.
+  - Se o `VERSAO_INSTALADA.txt` aponta para um commit **mais novo** que o escolhido (instalação manual), nada volta para trás: sai 10.
+  - Se o escolhido já está instalado, sai 0 sem baixar nada. Sem commit maduro entre os 100 mais novos, sai 10.
+- **Limite 3, novo (`web_do_commit_cabe_no_site`):** a web do commit escolhido tem de ser **igual ou anterior** à do `/saude`, com comparação numérica (`0.10.0` > `0.9.0`). Versão fora de `N(.N)*` só vale igual. Sem resposta do site, não passa.
+  - O risco que o limite segura é o **robô mais novo que o site**: um pacote que o site ainda não entende. Esse caso continua barrado (web do commit > site = deploy pendente → 12).
+  - Web do commit anterior à do site pode, porque o site novo lê o pacote antigo: os testes condicionais da web garantem, e mudança incompatível do pacote exige versão nova do contrato e ADR. "Só igual" travaria todo dia em que o HEAD novo trouxe web nova, que é justamente o caso da T-0056.
+  - Risco que fica: uma web que deixe de ler o pacote antigo sem versão nova do contrato. A regra do contrato (versão nova + ADR) é a proteção. Nesse caso, a correção é pausar a rotina (`PAUSAR_ATUALIZACAO`).
+- **Log:** continua com uma linha por rodada. Depois da escolha, a linha diz qual commit foi escolhido e por quê, com a vírgula decimal: `HEAD ddddddd com 0,5 h; escolhido aaaaaaa (9,0 h); instalado: ...`, ou `HEAD com 9,0 h; ...` quando o HEAD já serve. O `main <sha>` da linha é o do commit escolhido.
+- **Cota:** até 4 requisições pagas por rodada (main, lista só com o HEAD novo, pulls, check-runs), mais o `/rate_limit`, que não gasta. `REQUISICOES_MINIMAS_API` passa de 4 para 5 (uma de folga).
+- O `atualizar_do_github.py` continua em `SO_COM_INSTALE`: a mudança só entra na produção com o "instale" do Alexandre (`ATUALIZAR_DO_GITHUB.bat`). Desenho e casos de teste: `docs/desenho/T-0056.md`.
