@@ -240,7 +240,12 @@ def _cor_pc():
 
 
 def _hex_dos_tokens(mod):
-    return {v.upper(): n for n, v in mod.TOKENS.items() if isinstance(v, str)}
+    """{hex: {nomes dos tokens}} (um hex pode ter 2 nomes: --alerta e --erro)."""
+    saida = {}
+    for n, v in mod.TOKENS.items():
+        if isinstance(v, str):
+            saida.setdefault(v.upper(), set()).add(n)
+    return saida
 
 
 def _varrer_web(padrao, exts):
@@ -280,9 +285,9 @@ def test_RN_GER_009_excecao_so_nas_chaves_do_cor_pc():
         if k.upper() in hex_tok:
             if literal:
                 erros.append(f"{k}: token escrito à mão (use TOKENS[...])")
-            elif _token_da_expressao(no) != hex_tok[k.upper()]:
-                erros.append(f"{k}: a expressão não é TOKENS"
-                             f'["{hex_tok[k.upper()]}"]')
+            elif _token_da_expressao(no) not in hex_tok[k.upper()]:
+                erros.append(f"{k}: a expressão não é TOKENS[...] de "
+                             f"{sorted(hex_tok[k.upper()])}")
         elif not literal:
             erros.append(f"{k}: chave-expressão que não é token")
         else:
@@ -308,10 +313,11 @@ def test_RN_GER_009_todo_valor_do_cor_pc_e_token():
     assert not fora, f"valor do COR_PC fora do marca.TOKENS: {fora}"
     chave_ok, valor_ok = CHAVE_TOKEN_PERMITIDA
     for k, v in cor.items():
-        nome = hex_tok.get(k.upper())
-        if nome is None:
+        nomes = hex_tok.get(k.upper())
+        if nomes is None:
             continue
-        assert nome == chave_ok, f"chave {k} é o token {nome}: só {chave_ok}"
+        assert chave_ok in nomes, \
+            f"chave {k} é o token {sorted(nomes)}: só {chave_ok}"
         assert str(v).upper() == mod.TOKENS[valor_ok].upper(), \
             f"{chave_ok} tem de ir para {valor_ok}, não para {v}"
 
