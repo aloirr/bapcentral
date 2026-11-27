@@ -4,6 +4,7 @@ Fixture 100% fictícia (`farol_fixture.pacote_tres_farois`). Os testes cobrem: p
 recusa de pacote torto, tabela igual ao fixture, estado (D5), recortes, juntas, páginas, selos,
 dado pessoal (RN-GER-011) e a Inadimplência igual à de antes (golden gerado com o código anterior).
 """
+from conftest import guardado
 import json
 import re
 from copy import deepcopy
@@ -53,7 +54,7 @@ def _tab(r, titulo):
 # ------------------------------------------------------------------ pacote aceito e guardado
 def test_pacote_dos_tres_farois_aceito_e_abas_guardadas(cli, amb):
     assert postar(cli, pacote_tres_farois()).status_code == 200
-    g = json.loads(sorted((amb / "pacotes").glob("*.json"))[-1].read_text(encoding="utf-8"))
+    g = guardado(amb)
     for rid in RIDS:
         assert [t["titulo"] for t in g["relatorios"][rid]["tabelas"]] == [t for _, t in tabelas.ABAS[rid]]
     assert len(g["relatorios"]["pv_pedidos"]["tabelas"][0]["juntas"]) == 3
@@ -771,7 +772,7 @@ def test_documento_formatado_em_celula_tira_so_a_aba_e_avisa(cli, amb):
     _tab(p["relatorios"]["vc_visitas"], "Dia a dia")["total"][3] = None
     r = postar(cli, p)
     assert r.status_code == 200, r.text                       # o pacote não cai
-    g = json.loads(sorted((amb / "pacotes").glob("*.json"))[-1].read_text(encoding="utf-8"))["relatorios"]
+    g = guardado(amb)["relatorios"]
     assert "vc_painel" in g and "pl_inadimplencia" in g       # Painel e Inadimplência seguem
     assert [t["titulo"] for t in g["pv_pedidos"]["tabelas"]] == ["Solicitação BAP"]
     assert "Prospecção" not in [t["titulo"] for t in g["vc_visitas"]["tabelas"]] and len(g["vc_visitas"]["tabelas"]) == 6

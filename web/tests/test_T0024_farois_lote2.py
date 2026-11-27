@@ -67,3 +67,14 @@ def test_selo_livre_malformado_recusado(admin):
     p = deepcopy(_pacote())
     p["relatorios"]["pl_frw"]["tabelas"][0]["colunas"][2]["chip"] = [[1, "red"]]
     assert postar(admin, p).status_code == 422
+
+
+def test_lote2_no_formato_por_farol_da_T0035(admin):
+    """§10.8: os 5 faróis entram um a um (POST por farol + fechar) e abrem do disco, com perfil e abas."""
+    from conftest import por_farol
+    r, _ = por_farol(admin, _pacote())
+    assert r.status_code == 200, r.text
+    for rid in RIDS:
+        assert admin.get(f"/farol/{rid}").status_code == 200
+    assert admin.get("/farol/vc_base?aba=clientes").status_code == 200
+    assert _cli_de(admin, "vendas").get("/farol/pl_frw").status_code == 403
