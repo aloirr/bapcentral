@@ -2,17 +2,17 @@
 
 - **Autor:** engenheiro-software · **Data:** 27/11/2026
 - **Recados:** R-20261127-094157-alexandre (a nuvem, com um passo só) e R-20261127-094656-alexandre (o mesmo login da Máxima do notebook).
-- **O diff:** `docs/desenho/T-0045-governanca.diff`, um só, que aplica com `git apply` sobre o `origin/main` d1568f8. Ele leva:
+- **O diff:** `docs/desenho/T-0045-governanca.diff`, um só, que aplica com `git apply` sobre o `origin/main` atual (conferido até o 85bc589). Ele leva:
   - **G1:** as 3 linhas do `.coord/donos.json` (`nuvem/visitas/Dockerfile` e `.dockerignore` → engenheiro-software; `nuvem/**` → modulo-robo), depois de `atualizar_do_github.py` e antes de `web/**` e `docs/**`;
   - **G2:** o `render.yaml` com o cron `bap-visitas-maxima` e o `BAP_VISITAS_TOKEN` do site (explicado no `docs/desenho/T-0045-render-yaml.md`);
-  - **G3:** a linha 40 do `.claude/agents/revisor-ux.md`, alinhada ao R-20261127-054626-po (na faixa, só a data; o "Dados de …, horário de Manaus" só no `title`).
+  - **G3** (carona da T-0036, R-20261127-054626-po): a linha 40 do `.claude/agents/revisor-ux.md`, alinhada à decisão (na faixa, só a data; o "Dados de …, horário de Manaus" só no `title`).
 - **Conferido:** `git apply --check` num worktree limpo do `origin/main`; o `donos.json` aplicado é JSON válido (131 regras); o `render.yaml` aplicado é YAML válido; `node scripts/coord.mjs dono` com o arquivo aplicado dá `nuvem/visitas/rodar.py` → modulo-robo, `nuvem/visitas/Dockerfile` e `.dockerignore` → engenheiro-software; `podeAlterar` deixa cada dono e bloqueia o outro; os 120 testes de `scripts/*.test.mjs` passam.
 
 ## (a) A frase do Alexandre
 
 Use **depois que o po avisar** que este desenho está no `main`. Abra uma sessão no ambiente **BapCentral-Governanca** (`BAP_AGENTE=alexandre`, o mesmo do PR #57), com o repositório de recados anexado, e cole:
 
-> Atualize o origin/main, crie a branch alexandre/T-0045-governanca a partir dele, rode git apply docs/desenho/T-0045-governanca.diff (se falhar, pare e me diga o erro, sem editar nada à mão), faça um commit só com a mensagem "T-0045: governança do serviço de visitas na nuvem" e o trailer "Agente: alexandre", dê push sem force, abra o PR para o main e, com o número N desse PR e o SHA completo do head dele, envie o recado com node scripts/coord.mjs enviar --de alexandre --para gerente-projetos --cc po --tipo resposta --tarefa T-0045 --prioridade alta --assunto "Autorizo o merge do PR #N (governança T-0045)" --corpo "autorizo o merge do PR #N no commit <sha>", trocando N e <sha> pelos valores reais, e me mostre o número, o SHA e o id do recado.
+> Atualize o origin/main, crie a branch alexandre/T-0045-governanca a partir dele, rode git apply docs/desenho/T-0045-governanca.diff (se falhar, pare e me diga o erro, sem editar nada à mão), faça um commit só com a mensagem "T-0045: governança do serviço de visitas na nuvem", a linha "Inclui a linha 40 do revisor-ux (T-0036, R-20261127-054626-po)" no corpo e o trailer "Agente: alexandre", confira que git diff --name-only origin/main..HEAD lista só .claude/agents/revisor-ux.md, .coord/donos.json e render.yaml (se listar outro arquivo, pare e me diga, sem dar push nem enviar o recado), dê push sem force, abra o PR para o main e, com o número N desse PR e o SHA completo do head dele, envie o recado com node scripts/coord.mjs enviar --de alexandre --para gerente-projetos --cc po --tipo resposta --tarefa T-0045 --prioridade alta --assunto "Autorizo o merge do PR #N (governança T-0045)" --corpo "autorizo o merge do PR #N no commit <sha>", trocando N e <sha> pelos valores reais, e me mostre o número, o SHA e o id do recado.
 
 - O merge continua com o gerente-projetos: CI verde nesse SHA, revisor-codigo sem 🔴 e `verificar` limpo. Commit novo no PR = novo "autorizo".
 

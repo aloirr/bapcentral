@@ -30,7 +30,7 @@ Numeração única desta ADR, do contrato e do desenho: **D1 a D5**.
 | D1 | onde o navegador roda no Render | um **cron job à parte**, `bap-visitas-maxima`, Docker, plano de 2 GB pago pelo tempo rodado (custo no §4). O site `bap-central` continua no Starter | A |
 | D2 | quando roda sozinho | às **06h00 de Manaus**, todo dia, baixando **ontem**, mais o botão | A |
 | D3 | quem aperta "Atualizar visitas" no site | **admin e gerente** | A |
-| D4 | que login da Máxima o site usa | um **usuário próprio do robô**, criado pelo Alexandre na Máxima, com o mínimo de leitura do Painel Auditoria. Usuário e senha só como variáveis secretas do cron, criadas por ele no painel do Render | A |
+| D4 | que login da Máxima o site usa | um **usuário próprio do robô**, criado pelo Alexandre na Máxima, com o mínimo de leitura do Painel Auditoria. Usuário e senha só como variáveis secretas do cron, criadas por ele no painel do Render. **(Revista no adendo 1: o mesmo login do notebook.)** | A |
 | D5 | print da tela quando dá erro na nuvem | **sem print**: só o código do erro e a fase | B |
 
 Texto literal (R-20261127-005437-alexandre, com a numeração do po, 2 a 6 = D1 a D5): "2 A / 3 A / 4 A / 5 A / 6 B".
@@ -153,7 +153,7 @@ O site guarda uma **concessão** (lease): só uma rodada ativa por vez, gravada 
 | Duas execuções do cron ao mesmo tempo (atraso do Render) | a segunda recebe 409 ao pedir a concessão e sai |
 | Rodada morta (memória, tempo) | a concessão vence, e o site grava `RODADA_INTERROMPIDA`. Os dias já enviados ficam, e a nova tentativa baixa só o que falta |
 | Pedido maior que uma rodada (45 min, §4) | a rodada para no fim de um dia, e o pedido continua na volta seguinte, até 3 rodadas |
-| "Atualizar visitas" do PC durante a rodada do site | o PC consulta o estado do site e pede confirmação (texto no contrato, §4.5). Se a pessoa seguir, os dois gravam com nomes diferentes, e vale o Excel mais novo por vendedor e dia (`espelhos_do_periodo`, regra de hoje). [SUPOSIÇÃO: a Máxima pode aceitar uma sessão só por usuário; com o usuário próprio do robô (D4), o PC usa outro login e o risco cai] |
+| "Atualizar visitas" do PC durante a rodada do site | o PC consulta o estado do site e pede confirmação (texto no contrato, §4.5). Se a pessoa seguir, os dois gravam com nomes diferentes, e vale o Excel mais novo por vendedor e dia (`espelhos_do_periodo`, regra de hoje). [SUPOSIÇÃO: a Máxima pode aceitar uma sessão só por usuário; com o usuário próprio do robô (D4), o PC usa outro login e o risco cai. Revista no adendo 1: com o mesmo login, o risco volta] |
 
 ## 4. Tempo de cada rodada, limites e custo
 
@@ -235,7 +235,7 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
   - **varredura do que sobrou** (RN-VIS-007): é melhor parar a nuvem e usar o PC por uns dias do que guardar dado pessoal no Render;
   - o diagnóstico faz o mesmo antes de ligar a agenda, e mostra as colunas que ficaram de fora;
   - o lote é **só trânsito**: nenhuma rota o mostra, e ele sai pela retenção (`LOTE_GUARDA_DIAS`).
-- **Conta da Máxima (D4):** um usuário próprio do robô, com o mínimo de leitura do Painel Auditoria. Um vazamento do painel do Render expõe só esse usuário, que o Alexandre desativa na Máxima.
+- **Conta da Máxima (D4, revista no adendo 1):** o mesmo login da Máxima que o robô do notebook usa. Um vazamento do painel do Render expõe esse login, que também é o do notebook: o Alexandre troca a senha na Máxima e atualiza os dois lugares (notebook e Render).
 - **Regra 9:** nada de Microsoft 365 ou Graph. A Prospecção continua lida no PC.
 
 ## 8. Testes (agente testes; nomes com a RN)
@@ -264,7 +264,7 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 | # | Dono | O quê | Tamanho | Depende de |
 |---|---|---|---|---|
 | 1 | engenheiro-software | esta ADR; o contrato `visitas-nuvem.md` v1; `requirements-visitas.txt`; a proposta do `render.yaml` e o texto do `Dockerfile` (`docs/desenho/T-0045-render-yaml.md` e `.diff`), todos no PR #137 | feito | decisões |
-| 2 | Alexandre (pelo po) | **governança 1:** as linhas do `.coord/donos.json` (desenho, §3). Na Máxima: o usuário próprio do robô | — | 1 |
+| 2 | Alexandre (pelo po) | **governança 1:** as linhas do `.coord/donos.json` (desenho, §3). Na Máxima: o usuário próprio do robô (revisto no adendo 1: nada a criar; vai junto com o item 10) | — | 1 |
 | 3 | modulo-rota | `visitas_nucleo`: `dias_a_baixar(indice, de, ate, hoje, refazer)` (sai do `visitas_maxima.plano` e do `dia_fechado`), `juntar_baixado`, `filtrar_espelho` e `achar_dado_pessoal` (contrato, §3.6) | M (4 h) | 1 |
 | 4 | designer-ux | simulação da tela "Atualizar visitas" (PNG, antes × depois), regra 10, ao Alexandre pelo po, com a divisão admin × gerente do §0 explícita | P (1 h) | 1 |
 | 5 | modulo-web | contrato §3, §4.1 a §4.3, §4.5 e §7: rotas do cron e do robô, concessão, teto do dia, fila (`edicoes.Fila` parametrizada), diagnóstico e agenda em disco, `validar_lote`, `fechados_pc`, retenção, `/saude`, a tela no Farol de Visita, perfis, a versão nova do site | G (8 h) | 1, 4 |
@@ -272,11 +272,11 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 | 7 | engenheiro-software | o `nuvem/visitas/Dockerfile` e o `.dockerignore` (o texto do item 1) | P | 2 |
 | 8 | modulo-robo | `nuvem/visitas/`: `rodar.py` (vigia, diagnóstico, filtro antes do envio, cliente HTTP da biblioteca padrão), `agenda.py` (`deve_rodar`) e `__init__.py`; `bap_automation.puxar_fila_web` (extraído do `sincronizar_edicoes_web`) e `sincronizar_visitas_web` na volta de 30 min, com o `fechados_pc` e o 404 da web antiga | M (7 h) | 2, 3, 5 (no ar), 6 |
 | 9 | testes | §8, a fixture sem dado pessoal e a matriz web nova × robô antigo | M (6 h) | 3, 5, 6, 8 |
-| 10 | Alexandre (pelo po) | **governança 2:** o `render.yaml` num **PR próprio do Alexandre** (`alexandre/T-0045-render-yaml`), só depois dos itens 5, 7 e 8 no `main`, com o "autorizo" do po por delegação. No mesmo sync do Blueprint, ele preenche os 2 segredos que o Render pede (`sync: false`), para não haver voltas com `CONFIG_FALTANDO` | — | 5, 7, 8, 9 |
+| 10 | Alexandre (pelo po) | **governança 2:** o `render.yaml` num **PR próprio do Alexandre** (`alexandre/T-0045-render-yaml`), só depois dos itens 5, 7 e 8 no `main`, com o "autorizo" do po por delegação. No mesmo sync do Blueprint, ele preenche os 2 segredos que o Render pede (`sync: false`), para não haver voltas com `CONFIG_FALTANDO`. **(Revisto no adendo 1: junto com o item 2, no PR `alexandre/T-0045-governanca`, antes dos itens 7 e 8)** | — | 5, 7, 8, 9 (revisto no adendo 1: só 1) |
 | 11 | modulo-robo + testes | acompanhar o **diagnóstico** (automático na primeira volta) e levar o resultado ao Alexandre; com o "ok", o admin liga a agenda; depois, a conferência de 5 dias úteis | P (2 h) + acompanhamento | 10 |
 
-- **Ordem:** 1 → 2 → (3 ∥ 4 ∥ 5) → 6 → (7 ∥ 8) → 9 → 10 → 11.
-- **Web antes do robô:** o PR do item 5 vai ao ar antes do "instale" da parte do PC do item 8 e antes do `render.yaml`.
+- **Ordem:** 1 → 2 → (3 ∥ 4 ∥ 5) → 6 → (7 ∥ 8) → 9 → 10 → 11. (Revista no adendo 1: 1 → (2 + 10) → 8 → 7 → 9 → 11.)
+- **Web antes do robô:** o PR do item 5 vai ao ar antes do "instale" da parte do PC do item 8 e antes do `render.yaml` (revisto no adendo 1: o `render.yaml` vem antes).
 - **Se o `render.yaml` entrar antes do código:** o build do cron fica vermelho no painel até o código chegar; o site não cai.
 - **modulo-rota** entra só no item 3: a aderência ao Planner fica no PC e não muda.
 - **Total:** cerca de 35 h de time, mais o diagnóstico.
@@ -286,7 +286,7 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 - **A Máxima pode estranhar o IP do Render** (EUA, Oregon) e pedir confirmação a cada login, ou bloquear. É o maior risco [SUPOSIÇÃO]. O diagnóstico mostra isso antes de ligar a agenda; as saídas estão no §6.
 - **O Espelho pode trazer dado pessoal** que a limpeza não pega (num endereço, por exemplo). A nuvem para no primeiro achado, e o PC segue como reserva até a decisão do §6. Pode haver falso positivo (um número com cara de telefone); o custo é usar o PC por uns dias, nunca guardar o dado.
 - **`relatorios_nucleo.py` na imagem:** ele muda com frequência, e cada mudança refaz a imagem do cron (`buildFilter`). Se os minutos de build pesarem, as funções da RN-GER-011 vão para um módulo pequeno (pedido ao dono do `relatorios_nucleo`).
-- **Sessão única na Máxima** [SUPOSIÇÃO]: com o usuário próprio do robô, o PC e a nuvem usam logins diferentes. O aviso do §3.4 continua para quem usar o mesmo login.
+- **Sessão única na Máxima** [SUPOSIÇÃO]: com o usuário próprio do robô, o PC e a nuvem usam logins diferentes. O aviso do §3.4 continua para quem usar o mesmo login. (Revista no adendo 1: o PC e a nuvem usam o mesmo login, e o aviso do §3.4 vale sempre.)
 - **Os termos de uso da Máxima** valem para a automação no Render como valem hoje no PC. Essa confirmação é do Alexandre.
 - **Imagem Docker grande:** cada mudança no código das visitas refaz cerca de 2 GB de imagem. O `buildFilter` limita isso ao código da nuvem. Os minutos de build entram na franquia do Render [SUPOSIÇÃO].
 - **Atraso até a tela:** §4 e §5.3; o robô do PC precisa estar ligado.

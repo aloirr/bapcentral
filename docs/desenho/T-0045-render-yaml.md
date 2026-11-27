@@ -104,7 +104,7 @@ tests/
 ```
 
 - O `visitas_nucleo.py` importa o `xlsx_rapido`, o `meta_nucleo` e o `pastas_bap` só dentro de funções de montagem, que a nuvem não chama. O `ler_espelho` cai no `openpyxl` quando não acha o `xlsx_rapido` (por isso ele está no `requirements-visitas.txt`). O `relatorios_nucleo.py` e o `bap_dados.py` só importam a biblioteca padrão no topo (conferido: importar os dois não carrega `pandas`, `openpyxl`, `meta_nucleo` nem `pastas_bap`). Se o `rodar.py` precisar de outro arquivo, ele entra na lista do `COPY` e no `buildFilter`, e nunca uma pasta inteira.
-- Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`; tem o `RUN python -c "import nuvem.visitas.rodar, ..."` antes do `USER`; importar o `nuvem.visitas.rodar` não chama rede nem lê `BAP_MAXIMA_*`; a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`; todo arquivo do `COPY` está no `buildFilter`.
+- Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`; tem o `RUN python -c "import nuvem.visitas.rodar, ..."` antes do `USER`; importar o `nuvem.visitas.rodar` não chama rede nem lê `BAP_MAXIMA_*`; não existe `*.dockerignore` nem fixture com dado em `nuvem/visitas/` (a pasta entra inteira na imagem); a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`; todo arquivo do `COPY` está no `buildFilter`.
 
 ## 4. Ordem do merge
 
