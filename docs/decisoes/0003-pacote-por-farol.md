@@ -1,6 +1,6 @@
 # ADR 0003 — Pacote por farol: um arquivo por farol (gzip) e um índice, lido do disco sob demanda
 
-- **Status:** proposta (T-0035). Não muda o `render.yaml`, então não pede "autorizo". A única decisão visível ao Alexandre é a §4.4 (o farol que falhou numa rodada fica com os dados da rodada anterior), com recomendação.
+- **Status:** proposta (T-0035). Não muda o `render.yaml`, então não pede "autorizo". A §4.4 está **decidida: A** (R-20261126-182227-alexandre): o farol que falhou numa rodada fica com os dados da rodada anterior.
 - **Data:** 2026-11-26
 - **Tarefa:** T-0035 · **Autor:** engenheiro-software
 - **Depende de:** ADR 0001 (web no Render, modelo M2, adendos 2 a 5), ADR 0002 (rotina diária: o limite 3 compara a `VERSAO` da web com o `/saude`), contrato do relatório §10 (a nova §10.8 é desta ADR)
@@ -83,7 +83,11 @@ pacotes/
 - **Teto por farol no robô:** `WEB_FAROL_TETO_MB = 8`, medido no JSON do farol **sem os anexos** (`parciais`, `csvs_protheus`).
   - Os anexos têm os tetos que já existem: `MAX_PNG_B64` e `MAX_CSVS_TOTAL` (`web/app/pacotes.py`).
   - Acima do teto, uma função pura nova corta **o farol**: `_cortar_farol_web(rid, farol, teto_mb) -> dict`, com a ordem de corte por `rid` numa constante (`_CORTES_FAROL_WEB`).
-  - Os passos 1 a 3 do `_cortar_pacote_web` viram os cortes do `pv_pedidos` e do `vc_visitas`. O último corte de qualquer farol é tirar todas as `tabelas`, e o farol cai no §10.1. Cada corte deixa um aviso no farol (`AVISO_ABAS_FORA`).
+  - Os passos 1 a 3 do `_cortar_pacote_web` viram os cortes do `pv_pedidos` e do `vc_visitas`.
+  - O `pl_entregas` ganha cortes próprios, nesta ordem: primeiro a junta de pendências sai; depois a aba "Entregas" fica só com as linhas mais recentes (75%, 50%, 25%).
+  - O último corte de qualquer farol é tirar todas as `tabelas`, e o farol cai no §10.1.
+  - Cada corte deixa o aviso dele no farol. A ordem e os textos estão no contrato, §10.8.7 e §10.7.6.
+  - **Anexo acima do teto** (nos dois formatos): sai só o anexo, com aviso, e o farol segue. Se algum teto de CSV estoura, saem todos os CSVs.
   - O `_cortar_pacote_web` e o `WEB_PACOTE_TETO_MB` ficam só para o formato 1 (web antiga).
 - **`montar_pacote_web`** continua pura e devolve o mesmo dicionário. Ela ganha `cortar: bool = True`. O envio por farol chama com `cortar=False` e corta farol a farol.
 - **Simulação:** o `--simular-pacote` grava também a pasta do lote (o `indice.json` e os `.json.gz`) ao lado do JSON de hoje, para o testes medir o tamanho e a memória.
@@ -110,11 +114,11 @@ pacotes/
   - Valida como hoje (`pacotes.validar`), divide o pacote num lote (`origem: "inteiro"`) com as mesmas funções do envio por farol e troca o vigente.
   - O teto dele continua o `BAP_WEB_PACOTE_MAX_MB` (25). Ele sai numa ADR futura, depois de 2 semanas sem uso no log.
 
-### 4.4 Farol que falhou na rodada (decisão a levar, recomendação A)
+### 4.4 Farol que falhou na rodada (decidido: A, R-20261126-182227-alexandre)
 
 - **Hoje:** o farol que não montou no PC some do pacote ("Sem dados hoje"), mas os outros também param se o envio inteiro falhar.
 - **Com o envio por farol,** pode faltar um farol só numa rodada (rede, 413). Duas opções:
-  - **(A) recomendada:** o farol da lista `manter` é copiado do lote vigente para o novo (hard link, com fallback para cópia), com `herdado_de` e o `gerado_em`/`recebido_em` dele. A faixa mostra a data **do farol** e o selo "Desatualizado" quando ela passa de 26 h (contrato tela-bc3 §4.1). Farol herdado com mais de 26 h não é copiado de novo e sai.
+  - **(A) decidida:** o farol da lista `manter` é copiado do lote vigente para o novo (hard link, com fallback para cópia), com `herdado_de` e o `gerado_em`/`recebido_em` dele. A faixa mostra a data **do farol** e o selo "Desatualizado" quando ela passa de 26 h (contrato tela-bc3 §4.1). Farol herdado com mais de 26 h não é copiado de novo e sai.
   - **(B):** o farol some até a próxima rodada boa, como hoje com o farol que não montou.
 - **O farol que não montou no PC** (`erro_montagem`) **não** entra no `manter`: ele some, como hoje. Isso evita mostrar como atual um número que o PC não conseguiu fazer.
 - **Número do Diretor:** com (A), o `vc_painel` e um farol herdado podem ter datas diferentes. A data de cada um aparece na tela, e a conferência PC × web (ADR 0001, §5) compara farol com farol do mesmo `gerado_em`.

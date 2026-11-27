@@ -786,6 +786,11 @@ Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do clien
 |---|---|---|
 | `AVISO_ABAS_FORA` | o robô, em `avisos` do farol | `Abas fora desta atualização: {lista}. Veja no PC.` `{lista}` = os títulos das abas que ficaram fora, na ordem do §10.7.1, separados por `", "`. Ex.: "Abas fora desta atualização: Dia a dia, Prospecção. Veja no PC." Um aviso só, mesmo com uma aba |
 | `AVISO_CARTOES` | a web, na aba de tabela | `Cartões sem filtro. Com filtro, veja as linhas na tabela.` Aparece no lugar dos cartões da aba quando há filtro fora do padrão, recorte ou estado (§10.7.2, `kpis_padrao`) |
+| `AVISO_PARCIAIS_FORA` | o robô, em `avisos` do farol (§10.8.7) | `As parciais em imagem ficaram fora desta atualização (pacote grande). Veja no PC.` |
+| `AVISO_CSVS_FORA` | o robô, em `avisos` do `pv_pedidos` (§10.8.7) | `Os CSVs do Protheus ficaram fora desta atualização (pacote grande). Veja no PC.` |
+| `AVISO_SOLICITACAO_ABERTO` | o robô, em `avisos` do `pv_pedidos` (§10.7.8, §10.8.7) | `A Solicitação BAP foi reduzida aos pedidos em aberto para caber no pacote.` |
+| `AVISO_JUNTA_ENTREGAS` | o robô, em `avisos` do `pl_entregas` (§10.8.7) | `A junta de pendências dos meses anteriores ficou fora desta atualização (pacote grande). Veja no PC.` |
+| `AVISO_ENTREGAS_RECENTES` | o robô, em `avisos` do `pl_entregas` (§10.8.7) | `A aba Entregas ficou só com as entregas mais recentes para caber no pacote. Veja o resto no PC.` |
 
 **Ordem dos avisos do farol** (decisão do gerente, achado 13; o robô grava `avisos` já nesta ordem, nos três `rid`):
 1. `AVISO_ABAS_FORA` (falta de dado é o mais importante);
@@ -958,7 +963,7 @@ Donos: o robô manda (modulo-robo, `bap_automation.enviar_pacote_web`). A web re
 - **`manter`:** opcional. São os faróis que o robô montou, mas não conseguiu entregar (413, 422 ou rede depois das 3 tentativas).
   - A web copia o farol do lote vigente para o novo, com `herdado_de`. Isso só acontece se ele existe lá e se o `gerado_em` dele tem até 26 h. Sem isso, o farol fica fora.
   - O farol que **não montou** no PC (`erro_montagem`) nunca vai no `manter`.
-  - Esta chave depende da decisão da ADR 0003, §4.4 (recomendação A). Com (B), a web ignora o `manter`.
+  - Vale pela decisão da ADR 0003, §4.4 (A, R-20261126-182227-alexandre).
 - **Depois do `fechar`:** grava o `indice.json` e move a pasta para `pacotes/<lote>/`. Em seguida, roda a retenção e a limpeza (`_recebendo` com mais de 2 h sai).
 
 | Resposta | Quando |
@@ -985,13 +990,30 @@ Donos: o robô manda (modulo-robo, `bap_automation.enviar_pacote_web`). A web re
 
 #### 10.8.7 Tetos e cortes no robô
 
-- **`WEB_FAROL_TETO_MB = 8`,** medido no JSON do farol sem anexos. Acima disso entra o `_cortar_farol_web(rid, farol, teto_mb)`: uma função pura que devolve outro dicionário, com a ordem por `rid` em `_CORTES_FAROL_WEB`.
-  - `pv_pedidos`: a "Solicitação BAP" só com as linhas EM ABERTO.
-  - `vc_visitas`: "Cliente a cliente" fora.
-  - Depois, em qualquer farol, todas as `tabelas` saem (o farol cai no §10.1).
-  - Cada corte deixa o `AVISO_ABAS_FORA` (§10.7.6).
-- **Anexos:** os tetos que já existem (`MAX_PNG_B64`, `MAX_CSVS_TOTAL`). Acima deles, o anexo sai com o aviso das parciais (o passo 0 de hoje).
-- **Formato 1 (web antiga):** continuam o `_cortar_pacote_web` e o `WEB_PACOTE_TETO_MB = 20` do §10.7.8.
+**Teto do farol.** `WEB_FAROL_TETO_MB = 8`, medido no JSON do farol sem anexos.
+- Acima dele entra `_cortar_farol_web(rid, farol, teto_mb)`, uma função pura que devolve outro dicionário.
+- O robô corta na ordem de `_CORTES_FAROL_WEB[rid]` e para assim que o farol cabe.
+- Todo corte deixa o aviso dele em `avisos`, com o texto do §10.7.6.
+
+| `rid` | Cortes, nesta ordem | Aviso |
+|---|---|---|
+| `pv_pedidos` | 1. a "Solicitação BAP" fica só com as linhas EM ABERTO (as listas de exclusão vão inteiras) | `AVISO_SOLICITACAO_ABERTO` |
+| | 2. todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+| `pl_entregas` | 1. a junta "Pendências dos meses anteriores" sai | `AVISO_JUNTA_ENTREGAS` |
+| | 2. a aba "Entregas" fica só com as linhas mais recentes. A ordem é pela `DT. PED` (ISO); sem ela, pela `DT. NF`. O robô tenta 75%, 50% e 25% das linhas, nesta ordem, e para na primeira que cabe. Os `tons` saem junto, linha a linha. As colunas não mudam | `AVISO_ENTREGAS_RECENTES` (um só, qualquer que seja a fatia) |
+| | 3. todas as `tabelas` saem (o farol cai no §10.1) | `AVISO_ABAS_FORA` |
+| `vc_visitas` | 1. "Cliente a cliente" sai | `AVISO_ABAS_FORA` |
+| | 2. todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+| os outros | todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+
+**Anexos acima do teto** (nos dois formatos; antes do teto do farol). Os tetos são os mesmos da web (`web/app/pacotes.py`). A web recusaria o farol inteiro (422), então o robô tira **só o anexo** e o farol segue.
+
+| Anexo | Teto | O que sai | Aviso |
+|---|---|---|---|
+| `parciais` | `MAX_PNG_B64` = 3.000.000 caracteres base64, por imagem | só a imagem acima do teto. As outras ficam; sem nenhuma, a chave sai | `AVISO_PARCIAIS_FORA` |
+| `csvs_protheus` | até 60 CSVs; até 200.000 bytes UTF-8 por CSV; `MAX_CSVS_TOTAL` = 1.500.000 bytes somados | se **qualquer** teto estoura, **todos** os CSVs saem (a lista do Protheus não vai pela metade) | `AVISO_CSVS_FORA` |
+
+**Formato 1 (web antiga).** Continuam o `_cortar_pacote_web` e o `WEB_PACOTE_TETO_MB = 20` do §10.7.8. O corte dos anexos acima do teto vale também aqui.
 
 #### 10.8.8 Ordem de publicação
 
