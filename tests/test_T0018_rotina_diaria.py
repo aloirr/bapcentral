@@ -224,6 +224,12 @@ def _zip_main(caminho: Path, arquivos: dict[str, bytes], sha: str, versao: str,
         z.comment = (sha if comentario is None else comentario).encode()
 
 
+def _commit(sha: str, data: datetime) -> dict:
+    """Item da API de commits (``/commits/main`` e ``/commits?sha=main``), data em UTC."""
+    return {"sha": sha, "commit": {"committer": {
+        "date": data.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}}}
+
+
 @pytest.fixture
 def rede(monkeypatch, tmp_path):
     """API falsa. Altere ``estado`` no teste para cada cenario."""
@@ -233,6 +239,9 @@ def rede(monkeypatch, tmp_path):
         "versao_main": "0.2.0", "versao_site": "0.2.0",
         "arquivos": {"bap_central.py": b"novo\n", "instalar_bap.bat": b"novo bat\n"},
         "chamadas": [], "comentario": None, "fora_do_ar": False,
+        # T-0056: HEAD do main (None = o proprio ``sha``) e a lista de commits
+        # (None = so o HEAD). ``sha`` segue sendo o commit do zip e dos pulls.
+        "head": None, "data_head": None, "lista": None, "lista_fora_do_ar": False,
     }
 
     def get_json(url, timeout=30):
@@ -241,9 +250,13 @@ def rede(monkeypatch, tmp_path):
             raise atu.ErroApi("HTTP 503")
         if url.endswith("/rate_limit"):
             return {"resources": {"core": {"remaining": estado["cota"]}}}
+        cabeca = _commit(estado["head"] or estado["sha"], estado["data_head"] or estado["data"])
         if url.endswith("/commits/main"):
-            return {"sha": estado["sha"], "commit": {"committer": {
-                "date": estado["data"].astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}}}
+            return cabeca
+        if "/commits?sha=main" in url:                     # T-0056
+            if estado["lista_fora_do_ar"]:
+                raise atu.ErroApi("HTTP 503")
+            return [cabeca] if estado["lista"] is None else estado["lista"]
         if url.endswith("/pulls"):
             return estado["pulls"]
         if "/check-runs" in url:

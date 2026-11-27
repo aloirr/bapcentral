@@ -237,3 +237,55 @@ def test_RN_VIS_005_todo_codigo_do_robo_esta_na_web(web_app):
             "NAVEGADOR_FALHOU", "MAXIMA_FORA", "ERRO_INTERNO"} <= todos
     fora = sorted(todos - set(web_app.visitas.CODIGOS))
     assert fora == [], fora
+
+
+# ------------------------------------------------------------------ cron × web (RD-A1, padrão RD-0174)
+# O cron (`nuvem/visitas/agenda.py` e `rodar.py`, modulo-robo) tem cópias das constantes da web (contrato §2, §3.1,
+# §3.2, §3.5 e §5): um lado que muda sem o outro reprova. TIPOS_ACHADO e MANAUS do cron vêm do `visitas_nucleo`
+# (importação, não cópia) e ficam fora daqui. Exigem o `nuvem/visitas/` (T-0045, PR do modulo-robo) no main.
+def _cron():
+    from nuvem.visitas import agenda, rodar
+    return agenda, rodar
+
+
+_CONTRATO_S2 = {"TENTATIVAS_DIA": {"agenda": 4, "pedido": 3, "retentativa": 1, "diagnostico": 2},
+                "LOGINS_DIA_MAX": 8, "PEDIDO_MAX_DIAS": 7, "PEDIDO_MAX_RODADAS": 3,
+                "RETENTATIVAS_AGENDA": ("06h30", "07h00", "07h30"),
+                "NOVA_TENTATIVA": ("MAXIMA_FORA", "TELA_MUDOU", "NAVEGADOR_FALHOU", "SITE_RECUSOU",
+                                   "RODADA_INTERROMPIDA", "PARCIAL_TEMPO", "ERRO_INTERNO")}
+
+
+@pytest.mark.parametrize("nome", sorted(_CONTRATO_S2))
+def test_RN_VIS_008_constantes_da_agenda_do_cron_iguais_na_web_e_no_contrato(web_app, nome):
+    agenda, _ = _cron()
+    cron, web = getattr(agenda, nome), getattr(web_app.visitas, nome)
+    if isinstance(cron, (list, tuple)):
+        assert tuple(cron) == tuple(web) == _CONTRATO_S2[nome]
+    else:
+        assert cron == web == _CONTRATO_S2[nome]
+
+
+def test_RN_VIS_005_pede_fase_do_cron_igual_na_web(web_app):
+    _, rodar = _cron()
+    assert tuple(rodar.PEDE_FASE) == tuple(web_app.visitas.PEDE_FASE) == ("TELA_MUDOU", "ERRO_INTERNO")
+
+
+@pytest.mark.parametrize("cron_nome,web_nome", [("RX_ID", "RE_ID_RODADA"), ("RX_ROTULO", "RE_ROTULO")])
+def test_RN_VIS_004_regex_do_cron_igual_na_web(web_app, cron_nome, web_nome):
+    """`<id>` da rodada (§3) e o rótulo dos achados (§3.6): mesmo padrão e mesmas flags."""
+    _, rodar = _cron()
+    c, w = getattr(rodar, cron_nome), getattr(web_app.visitas, web_nome)
+    assert (c.pattern, c.flags) == (w.pattern, w.flags)
+    for s in ("R20261127T060012", "R2026112T060012", "r20261127T060012", "R20261127T060012\n", "KM DIST",
+              "% VISITAS", "CELULA", "km dist", "A" * 41, ""):
+        assert bool(c.match(s)) == bool(w.match(s)), s
+
+
+def test_RN_VIS_005_saida_do_cron_segue_o_status_da_web(web_app):
+    """§5: saída 0 para `ok` e `parcial`, 1 para `erro`. Todo código que sai com 0 existe no `CODIGOS` da web."""
+    _, rodar = _cron()
+    status = web_app.visitas.STATUS_DO_CODIGO
+    assert set(rodar.SAIDA_OK) <= set(status)
+    for codigo, st in status.items():
+        assert rodar.codigo_e_saida(codigo) == (0 if st in ("ok", "parcial") else 1), (codigo, st)
+    assert rodar.codigo_e_saida("QUALQUER_OUTRO") == 1
