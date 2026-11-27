@@ -8112,9 +8112,6 @@ CAMPOS_LUGAR_WEB = {
         "recebida_em": "data", "credito": "lista", "credito_em": "data",
         "responsavel": "livre"}}
 _RE_CHAVE_EDICAO_WEB = re.compile(r"^[\w .|/-]{1,80}$")
-_RE_PESSOAL_EDICAO_WEB = re.compile(
-    r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|@|"
-    r"\(?\d{2}\)?\s?9?\d{4}-\d{4}")
 _MAX_OPCOES_EDICAO_WEB = 400
 _MAX_CAMPOS_EDICAO_WEB = 16
 
@@ -9645,7 +9642,6 @@ def motivo_texto_web(maximo: int = MAX_TEXTO_WEB) -> str:
 MOTIVO_TEXTO_WEB = motivo_texto_web(MAX_TEXTO_WEB)
 MOTIVO_REMOVIDO_WEB = "texto com trecho removido pelo site"
 MOTIVO_TICKET_WEB = "já existe uma garantia com esse número"
-REMOVIDO_WEB = "[removido]"
 _RE_CHAVE_NOVA_WEB = re.compile(r"^NOVO-[0-9A-F]{8}$")
 _RE_TICKET_WEB = re.compile(r"^[\w.\-/ ]{1,40}$")
 _DATA_LIVRE_MIN_WEB = date(2020, 1, 1)
@@ -9813,10 +9809,9 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
         if len(v) > (40 if tipo == "ticket" else teto):
             return motivo_texto_web(teto)
         if texto_livre:
-            if REMOVIDO_WEB in v:
+            if _rn.REMOVIDO in v:
                 return MOTIVO_REMOVIDO_WEB
-            if (_rn.texto_sem_contato(v) != v
-                    or _RE_PESSOAL_EDICAO_WEB.search(v)):
+            if _rn.texto_sem_contato(v) != v:
                 return motivo_texto_web(teto)
         if tipo == "ticket" and not _RE_TICKET_WEB.match(v):
             return MOTIVO_VALOR_WEB
