@@ -6759,7 +6759,14 @@ _FONTE_BAIXADO_WEB = {
     **{r_: (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
        for r_ in RIDS_LIVRES_WEB},
     # Metas (T-0022): nasce dos mesmos Movimentos do Protheus (ftPedidos)
-    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")}
+    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    # (T-0023 v2) Devolucoes e Garantias nascem dos Movimentos; a NCC, do
+    # relatorio de NCC pendentes
+    "pl_devolucoes": (Path(BKP_BAPTOOLS),
+                      "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pl_garantias": (Path(BKP_BAPTOOLS),
+                     "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pl_ncc": (Path(BKP_BAPTOOLS), "Relatorio_NCC_Pendentes*.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
