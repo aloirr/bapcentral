@@ -1023,6 +1023,327 @@ Donos: o robô manda (modulo-robo, `bap_automation.enviar_pacote_web`). A web re
 
 A matriz robô × web está na ADR 0003, §4.7: as quatro combinações funcionam.
 
+### 10.9 Edição pela web: a `edicao` da tabela, a linha nova, o corte por coluna e a config (T-0021 v4, T-0023 v2, T-0025 v2)
+
+Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.**
+
+Fontes:
+- RN-GER-012 ("SO TEM EDIÇÃO NA WEB. NINGUEM MAIS MEXE NO PC. USUARIO QUE MEXE NISSO: ADMIN por enquanto", 25/11);
+- as decisões de 26/11, em R-20261126-171559-alexandre: o diretor vê só o Resumo nos faróis novos; o TOTAL A PAGAR das Campanhas só para admin, gerente e diretor; o `champions_config.json` editado pela web só pelo admin e gravado pelo robô;
+- a decisão 6 A do R-20261126-180314-alexandre: um "autorizo" do Alexandre por arquivo de config editado pela web;
+- ADR 0004 (config editada pela web).
+
+O que esta seção faz:
+- **registra a forma que já está no `main`** desde a T-0021 v4 (#109 a #112): `web/app/edicoes.py` (`LUGARES`, `erro_spec`, `valores_do_form`, `Fila`) e `bap_automation.py` (`EDICOES_WEB`, `edicao_web`, `validar_edicao_web`, `aplicar_edicao_web`, `gravar_edicoes_pc`). Até aqui, ela só existia no código;
+- **acrescenta** o que a T-0023 v2 e a T-0025 v2 pedem: a linha nova, o texto longo, a data livre, os lugares novos, o corte por coluna e por perfil, e a config editada pela web.
+
+**Exceção às listas "Fora, sempre" do §10.1 e do §10.7.2:** a chave `edicao` vai no pacote **só** na forma desta seção e **só** nos lugares da §10.9.3. Em qualquer outro lugar, ela continua proibida, e a web recusa o pacote. `editar`, `abrir`, `garantia`, `campanha_export`, `_champions` e qualquer callable continuam fora, sempre.
+
+Donos:
+- o núcleo do PC dá a especificação da edição de cada tabela (modulo-farois: `relatorios_nucleo`; as listas fechadas vêm dos módulos do pós-venda, de modulo-posvenda);
+- o robô traduz, confere e grava no PC pela mesma função da tela do PC (modulo-robo);
+- a web valida, desenha o formulário e guarda a fila (modulo-web).
+
+#### 10.9.1 `EdicaoWeb` (a chave `edicao` de uma `TabelaWeb7`)
+
+| Chave | Tipo | Regra |
+|---|---|---|
+| `modulo` | `str` | o módulo de gravação do PC; tem de ser o do lugar (§10.9.3) |
+| `acao` | `str \| null` | o rótulo da coluna de ação (1 a 30 caracteres; ex.: "Autorização", "Editar") |
+| `chaves` | `list[str]` | uma chave por linha de `linhas`, na mesma ordem (`^[\w .\|/-]{0,80}$`). `""` = linha sem edição (ex.: nota anterior ao controle de 01/10/2026) |
+| `campos` | `list[CampoWeb]` | de 1 a **16** campos (eram 10; a Garantia tem 14) |
+| `novo` | `{"rotulo": str} \| null` | **nova (T-0023/T-0025).** Com ela, o admin cria uma linha nova pela web (§10.9.2). `rotulo`: 1 a 30 caracteres, ex.: "Nova garantia", "Novo expositor". Só nos lugares com "linha nova" na §10.9.3 |
+
+**`CampoWeb`:**
+
+| Chave | Tipo | Regra |
+|---|---|---|
+| `campo` | `str` | `^[a-z][a-z0-9_]{0,29}$`, sem repetir na tabela; é o nome que a função do PC recebe |
+| `rotulo` | `str` | 1 a 60 caracteres |
+| `coluna` | `str \| null` | a coluna da tabela que mostra o valor de hoje (pode ser oculta). `null` = o campo não aparece na tabela |
+| `tipo` | `"lista" \| "data" \| "texto" \| "numero"` | |
+| `opcoes` | `list[str]` | até 400, de até 80 caracteres. Em `data`: `dd/mm/aaaa`. **Data com `opcoes` vazia (nova) = qualquer data que existe no calendário**; com `opcoes`, só elas (como hoje) |
+| `caixa` | `bool` | o texto mantém maiúsculas e minúsculas (senão vira maiúsculas, como no PC) |
+| `grupos`, `grupo_linhas` | listas | as opções por linha (o `opcoes_de` do PC), só em `lista`; andam juntas |
+| `linhas` | `list[int]` | as linhas onde o campo vale (o `so_se` do PC). Campo com `linhas` não aparece na linha nova |
+| `sugestoes_linhas` | `list[str]` | uma sugestão por linha, só em `texto` e `numero` |
+| `max` | `int` | **nova.** O teto do texto: de 1 a **600**; sem ela, 60 (`edicoes.MAX_TEXTO`). Só em `texto` e `numero` |
+| `multilinha` | `bool` | **nova.** Caixa de várias linhas (`textarea`); aceita quebra de linha (`\n`). Só em `texto` |
+| `padrao` | `str` | **nova.** O valor inicial do campo na linha nova (até 80 caracteres). `"@hoje"` = a data de hoje em Manaus, no momento em que o formulário abre. Ignorada na edição de linha que já existe |
+
+Regras do texto livre (como na T-0021 v4, agora com o `max` do campo):
+- depois do `strip`, até `max` caracteres; a web recusa CPF, CNPJ, telefone e e-mail (`edicoes.RE_PESSOAL`, RN-GER-011), com a frase "<rótulo>: sem CPF, CNPJ, telefone ou e-mail.";
+- caractere de controle: recusado. Na `multilinha`, só a quebra de linha passa (`\r\n` e `\r` viram `\n`);
+- o corpo do formulário vai até **32 KB** (`main.FORM_MAX`; eram 16 KB).
+
+**O robô confere de novo** (`validar_edicao_web`) contra a tabela dele, por (módulo, campo): o tipo, a lista fechada do PC, a data, o valor e o teto do texto. O teto do robô é a fonte: se o `max` do pacote for maior que o do robô, a edição é recusada com `MOTIVO_TEXTO_WEB`. O núcleo manda o mesmo número, e um teste do `testes` confere os dois.
+
+#### 10.9.2 A linha nova (`novo`)
+
+- **Quem:** só o admin (`edicoes.EDITA`, RN-GER-012). O botão (o `rotulo` do `novo`) fica na barra das ações da aba (tela-bc3 §5 e §11). Ele é o botão principal da aba e só é desenhado para o admin: o corte é no servidor.
+- **Formulário:** `GET /farol/<rid>/editar?tab=<título>&novo=1`. Mostra os campos sem `linhas`, cada um com o `padrao` dele. Sem linha de origem, não há resumo nem "Ver pedido".
+- **Envio:** `POST /farol/<rid>/editar` com `novo=1`. Vai só o que mudou em relação ao `padrao`, mais os campos obrigatórios do lugar (§10.9.3). Sem nenhum campo diferente do padrão, a resposta é 400 com "Preencha pelo menos um campo além dos padrões.".
+- **Na fila** (`<dados>/edicoes/EDICOES_WEB_<AAAA-MM>.jsonl`, só acréscimo): uma linha `edicao` como as outras, com 2 diferenças:
+  - `chave` = `"NOVO-"` + 8 dígitos hexadecimais maiúsculos, gerados pela web (`uuid4`). Ex.: `NOVO-3F9A01C2`;
+  - `"novo": true`; `antes` = `{}`.
+- **API do robô:** `GET /api/edicoes` passa o `novo` sem mudança. O robô antigo não conhece os lugares novos e devolve `erro` com `MOTIVO_LUGAR_WEB`; nada é gravado.
+- **No robô:** a chave tem de casar com `^NOVO-[0-9A-F]{8}$`, e o lugar tem de aceitar linha nova. A gravação é idempotente pelo `id` (`APLICADAS_WEB_<máquina>.jsonl`, que já existe): a linha nova nunca é criada duas vezes.
+- **Na tela:** ao lado do botão, a marca "N nova(s) aguardando o PC" (`edicoes.MSG_AGUARDA`), até chegar um farol com `recebido_em` depois da confirmação (a mesma regra da `edicoes.marca`). Depois disso, a linha nova já está na tabela, com a chave que o PC deu.
+
+#### 10.9.3 Os lugares
+
+A web aceita `edicao` só nestes pares (`edicoes.LUGARES`), e o robô só grava nestes (`EDICOES_WEB`). Fora deles, a web recusa o pacote, e o robô recusa a edição.
+
+| `(rid, tabela)` | `modulo` | Onde grava no PC | Campos (tipo no robô) | Linha nova | Função do PC | Como escreve |
+|---|---|---|---|---|---|---|
+| `("pv_pedidos", "Pedidos")` | `autorizacoes` | `RELATORIOS/_AUTORIZACOES` | `codigo` (livre), `por` (lista) | não | `autorizacoes.gravar` | diário, só acrescenta (T-0021 v4) |
+| `("pl_entregas", "Entregas")` e `("pl_entregas", "Pendências dos meses anteriores")` | `pos_venda` | `ACOMPANHAMENTO_POS_VENDA.xlsx`, aba `ENTREGAS` | `etapa`, `transportadora` (lista), `prevista_manual`, `entregue_em` (data), `responsavel` (livre), `frete_real` (valor) | não | `pos_venda.gravar_edicoes` | primeiro o diário `_EDICOES_POS_VENDA`, depois as colunas da assistente da linha (T-0021 v4) |
+| `("pl_ncc", "NCC pendentes")` | `ncc` | `RELATORIOS/_NCC` | `status` (lista do PC, a do `edicao` do núcleo), `dt_mov` (data livre) | não | `ncc_controle.gravar` | diário, só acrescenta |
+| `("pl_devolucoes", "Devoluções")` | `pos_venda` | `ACOMPANHAMENTO_POS_VENDA.xlsx`, aba `DEVOLUCOES` | `etapa` (lista `pos_venda.ETAPAS_DEVOLUCAO`), `motivo` (lista do PC), `autorizado_por` (livre), `recebida_em` (data), `credito` (lista do PC), `credito_em` (data), `responsavel` (livre) | não | `pos_venda.gravar_edicoes` | como as Entregas: primeiro o diário, depois as colunas da assistente |
+| `("pl_garantias", "Garantias")` | `garantias` | `RELATORIOS/_GARANTIAS` | `ticket` (ticket), `dt_solicitacao`, `dt_prazo`, `dt_retorno` (data livre), `status` (lista `garantias.STATUS`), `resultado` (lista `garantias.RESULTADOS`), `cod_cliente`, `cod_produto`, `descricao`, `qtd` (livre), `reclamacao`, `pendencias`, `retorno_cliente`, `observacao` (longo, até 600, `multilinha`) | **sim**: `ticket` obrigatório, com o `padrao` = o próximo número do PC (`garantias.novo_ticket`); `dt_solicitacao` com `"@hoje"`; `status` `ABERTO`; `resultado` `PENDENTE` | `garantias.gravar`, `garantias.renomear` (troca e conferência do ticket) e `garantias.prazo_padrao` | diário, só acrescenta. O prazo igual ao padrão (solicitação + 15 dias úteis) fica em branco, como no PC |
+| `("farol_pv" \| "farol_vc" \| "farol_pl", "Hoje" \| "Pendentes de marcação" \| "Até hoje")` (9 pares) | `farol` | `RELATORIOS/FAROL_DDR_BAP_<AAAA-MM>.xlsx`, a aba da pessoa | `status` (lista `farol_ddr.STATUS`), `motivo` (lista do PC) | não | `farol_ddr.gravar_marcacoes` | as células STATUS e MOTIVO da linha da atividade, **com cópia antes** |
+| `("tm_expositores", "Expositores")` | `expositores` | `ACOMPANHAMENTO_EXPOSITORES.xlsx`, aba `EXPOSITORES` | `status`, `categoria`, `uf`, `qtd` (lista do PC), `data`, `data_assinatura` (data), `cliente`, `descricao`, `cidade` (livre, até 80), `observacoes` (livre, até 200) | **sim**: o PC dá a chave `EXPnnnn` e a data de hoje; `status` `Solicitado` e `qtd` 1 por padrão (`expositores.gravar_edicoes`) | `expositores.gravar_edicoes` | a linha nova entra no fim; a edição muda as células da linha, **com cópia antes** |
+| `("vc_champions", "Parâmetros das campanhas")` | `champions` | `champions_config.json` (raiz da pasta de produção) | as seções da §10.9.5 | — | `bap_champions.validar` e `bap_champions.gravar` | o arquivo inteiro, pela troca atômica do PC, **com cópia antes**. Esta é a config; não é tabela (§10.9.5) |
+
+**Chaves por lugar** (o robô confere o formato antes de gravar):
+- NCC: a chave do `ncc_controle.chave` (filial, prefixo, número e parcela);
+- Devoluções: a `CHAVE` da linha da aba `DEVOLUCOES`;
+- Garantias: o ticket; na linha nova, `NOVO-xxxxxxxx`;
+- Farol DDR: `"AAAA-MM|<aba>|<linha>"`. O robô tira o arquivo do mês (`FAROL_DDR_BAP_<AAAA-MM>.xlsx`) da chave, **nunca de texto vindo da web**, e confere que a aba é a que o núcleo dá àquele `rid` naquele mês;
+- Expositores: `EXPnnnn`; na linha nova, `NOVO-xxxxxxxx`.
+
+**Cópia antes** (arquivo que o PC edita no lugar, e não por diário):
+- vale para o `FAROL_DDR_BAP_<AAAA-MM>.xlsx`, o `ACOMPANHAMENTO_EXPOSITORES.xlsx` e o `champions_config.json`;
+- antes da **primeira** gravação do dia naquele arquivo, o robô copia o arquivo, byte a byte, para `RELATORIOS/_EDICOES_WEB/ANTES/<AAAA-MM-DD>_<nome do arquivo>`. Se a cópia do dia já existe, ela não é refeita;
+- se a cópia falha, nada é gravado (a edição fica `pendente`, com "falha de disco");
+- a cópia nunca é apagada pelo robô. A troca a troca fica no diário `APLICADAS_WEB_<máquina>.jsonl`, que já existe e só acrescenta;
+- [SUPOSIÇÃO] medido nas bases: 150 KB (DDR), 10 KB (Expositores) e menos de 10 KB (champions) por dia com edição. São menos de 60 MB por ano.
+
+**Regra 7 e RN-GER-012:**
+- `_NCC`, `_GARANTIAS`, `_AUTORIZACOES` e `_EDICOES_POS_VENDA` só recebem linha nova, sempre pela função do PC;
+- o robô nunca reescreve nem apaga linha de diário;
+- a planilha de acompanhamento ganha linha só pela linha nova; a edição muda só as colunas da assistente, como a tela do PC fazia;
+- a tela do PC fica só leitura em cada lugar desta tabela: `bap_relatorios.EDICAO_SO_WEB`, com a frase `MSG_EDICAO_SO_WEB` = "A edição agora é só pela BAP Central web.".
+
+#### 10.9.4 Corte por coluna e por perfil (`tabelas.RESTRITAS`)
+
+Novo mecanismo da web (T-0025), para o "TOTAL A PAGAR só para admin, gerente e diretor". O `VE_TABELAS` decide por aba; este decide por coluna, dentro de uma aba que o perfil já vê.
+
+```python
+# web/app/tabelas.py
+RESTRITAS = {
+    # (rid, título da tabela): {nome da coluna: perfis que veem}
+    ("vc_champions", "Vendedores"): {"TOTAL A PAGAR": ("admin", "gerente", "diretor")},
+    ("vc_champions", "Supervisores"): {"TOTAL A PAGAR": ("admin", "gerente", "diretor")},
+}
+```
+
+**Para o perfil fora da lista, a coluna some antes do HTML, em todo lugar:**
+- na grade, no popup da linha e na linha fechada do M3 (tela-bc3 §6);
+- na busca: o texto da coluna não é buscado;
+- no Exportar (Excel e PDF);
+- na linha de total: a célula sai junto com a coluna;
+- nos filtros: o filtro sobre a coluna sai;
+- nos cartões da aba (`kpis_padrao`): sai o cartão que tem a chave `coluna` (nova no `Kpi`, abaixo) com o nome dela;
+- na ordenação pela coluna: a ordem pedida é ignorada.
+
+Esconder com CSS não basta. O teste pede a página, o Excel e o PDF como `vendas` e confere que o texto "TOTAL A PAGAR" e os valores da coluna não aparecem.
+
+**`Kpi.coluna`** (nova, opcional): `str`, o nome da coluna que o cartão soma.
+- Só serve ao corte: o cartão com `coluna` restrita sai para quem não vê a coluna.
+- Quem põe é o robô, por uma tabela fixa: `bap_automation._KPIS_DA_COLUNA_WEB = {("vc_champions", "Vendedores"): {"Total a pagar": "TOTAL A PAGAR"}, ("vc_champions", "Supervisores"): {"Total a pagar": "TOTAL A PAGAR"}}`.
+- Um teste do `testes` confere que o rótulo existe no `kpis_de` do núcleo (`relatorios_nucleo.bap_champions`, `cartoes_de`). Se o núcleo trocar o rótulo, o teste falha antes de o cartão vazar.
+
+**O diretor:** pelas decisões de 26/11, ele vê só o Resumo dos faróis novos. Por isso, ele não vê a aba Vendedores nem a Supervisores. Hoje, o Resumo das Campanhas não tem o TOTAL A PAGAR: os `kpis` do topo vêm de `cartoes_de(...)[:1]`, sem o índice do pagamento. **Pergunta P1 ao Alexandre** (`docs/desenho/T-0025.md`). Até a resposta, o diretor não vê o TOTAL A PAGAR em lugar nenhum.
+
+#### 10.9.5 Parâmetros das campanhas: a config editada pela web (`vc_champions`; ADR 0004)
+
+**Autorização:** R-20261126-171559-alexandre: "Autorizo editar pela web os parâmetros das campanhas (champions_config.json), só admin, gravados pelo robô". Pela decisão 6 A, este "autorizo" vale **só** para este arquivo. Outra config (transportadoras, metas, Planner, kits; T-0042) pede o "autorizo" dela.
+
+**No pacote:** a chave nova `parametros_edicao` no farol `vc_champions`.
+- O robô só a manda se `bap_champions.ler` funcionar.
+- A web a lê só para o admin. Ela nunca vai para o HTML de outro perfil, nem para o Exportar.
+
+```python
+relatorios["vc_champions"]["parametros_edicao"] = {
+    "modulo": "champions",
+    "rotulo": "Parâmetros das campanhas",
+    "alterado_em": "AAAA-MM-DD HH:MM",          # do arquivo; "" se nunca gravado
+    "secoes": [Secao, ...],                     # na ordem das abas do bap_relatorios.DialogoChampions
+}
+```
+
+**`Secao`:**
+
+| Chave | Tipo | Regra |
+|---|---|---|
+| `secao` | `str` | uma das 6, na ordem do PC: `pontos` (Pontos e trava: `pontos_por_mil`, `bonus_confronto`, `acel_vendedor`, `acel_supervisor`, `acel_aux`, `trava_pct`, `sla_faturamento_dias`, `sla_faturamento_meta_pct`, `sla_entrega_meta_pct`, `categoria_pecas`) · `aux` (Aux. Técnico) · `jogos` (Confrontos) · `fora` (Fora do jogo) · `relampago` (Campanha relâmpago) · `equipe_mes` (Equipe do mês) |
+| `rotulo` | `str` | o nome da aba no PC |
+| `sha` | `str` | 16 dígitos hexadecimais: o SHA-256 do JSON canônico da seção, como o PC a leu (`json.dumps(valor, sort_keys=True, ensure_ascii=False)`) |
+| `valor` | `dict \| list` | a seção como está no arquivo, sem `alterado_em` e sem `alterado_por` |
+| `opcoes` | `dict[str, list]` | as listas da tela do PC: `jogadores` (`[código, nome]` dos vendedores e supervisores do mês, do `_champions`), `supervisores` (`[código, nome]`) e `semanas` (as segundas-feiras do mês e as 4 seguintes, em ISO). Só as que a seção usa |
+
+**Tetos:**
+- o `parametros_edicao` inteiro vai até 256 KB;
+- uma seção enviada pela web vai até 32 KB;
+- lista com até 300 itens (jogos, relâmpago, pessoas da equipe do mês);
+- texto com até 80 caracteres, sem CPF, CNPJ, telefone ou e-mail (`RE_PESSOAL`).
+
+O arquivo de hoje não tem CPF nem e-mail: tem nomes da equipe, códigos e metas de faturamento (o desafio comercial, RN-GER-001) [SUPOSIÇÃO: a `meta` da `equipe_mes` é o desafio comercial, a mesma que a trava compara].
+
+**Tela:** `GET /farol/vc_champions/parametros`, só para o admin (403 para os outros). As 6 seções viram as abas da página, com o mesmo layout do Editar (tela-bc3), e "Salvar" grava uma seção por vez.
+
+**Na fila:** uma linha `edicao` com:
+- `rid` `vc_champions`;
+- `tabela` `"Parâmetros das campanhas"`;
+- `modulo` `champions`;
+- `chave` = o nome da seção;
+- `valores` = `{"valor": "<JSON da seção nova, em texto>"}`;
+- `antes` = `{"sha": "<o sha da seção no pacote>"}`.
+
+**No robô** (`aplicar_edicao_web`, ramo `champions`), em 7 passos:
+1. lê o `champions_config.json` atual;
+2. se o SHA da seção no PC for outro que o `antes.sha`, para: `erro`, "os parâmetros mudaram depois que a tela abriu; abra de novo". Assim, duas edições da mesma seção na mesma rodada não se apagam;
+3. confere a forma da seção (as chaves e os tipos do `bap_champions.PADRAO`);
+4. troca **só** aquela seção;
+5. roda o `bap_champions.validar`. Erro de validação vira `erro`, com a primeira mensagem do PC (frase sem dado pessoal);
+6. faz a cópia antes (§10.9.3);
+7. grava com `bap_champions.gravar(raiz, cfg, por="web:<login>")`.
+
+**Na tela do PC:** o `DialogoChampions` fica só leitura (o "Salvar" mostra `MSG_EDICAO_SO_WEB`), como manda a RN-GER-012. O "Exportar campanha" (premiação, com CPF, CNPJ e e-mail) fica só no PC (item 5 do R-20261126-175814-gerente-projetos).
+
+#### 10.9.6 Ordem de publicação (vale para cada lote da T-0023 e da T-0025)
+
+1. **Este contrato** (a §10.9 e a §10.10) e a ADR 0004.
+2. **Testes que destravam o CI** (testes): as travas de escopo (`tests/escopo_farois_web.py`) passam a aceitar os `rid` novos como **opcionais**, como o `FAROIS_LOTE2`. Assim, o PR do robô não fica vermelho.
+3. **Web antes** (modulo-web): aceita e desenha os faróis novos, os lugares novos, o `novo`, o `max`, a `multilinha`, o `padrao`, a data livre, `RESTRITAS`, `Kpi.coluna` e `parametros_edicao`. A `VERSAO` nova vai no `/saude`. Sem o robô novo, nada muda na tela.
+4. **Núcleo e PC só leitura** (modulo-farois, mais modulo-posvenda se precisar de função nova), seguidos do **robô** (modulo-robo), **no mesmo dia**. Os dois chegam ao PC na mesma rotina diária das 06h30 (ADR 0002). Assim, não há manhã em que o PC já está só leitura e a web ainda não grava. Nenhum dos dois entra no `main` sem a web nova no `/saude`.
+5. **Testes finais** (testes): os critérios das tarefas, com valor × regra.
+
+### 10.10 Os faróis novos no site: Garantias, Devoluções, NCC, DDR, Campanhas e Expositores (T-0023 v2, T-0025 v2)
+
+Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.**
+- Cada farol desta seção segue o §10.1 (forma "farol") e o §10.7 (abas de tabela, `TabelaWeb7`, conferência, defesa da web e período), com as diferenças abaixo.
+- O transporte é o formato 2 (§10.8): um arquivo por farol.
+
+#### 10.10.1 Os faróis, as abas e quem vê
+
+| `rid` | Nome (faixa) | Grupo da lateral | Veem o farol | Veem as abas de tabela | Editam (admin) | Estado (RN-GER-006) |
+|---|---|---|---|---|---|---|
+| `pl_garantias` | Farol de Garantias | Pós-venda | admin, diretor, gerente, pos_venda | admin, gerente, pos_venda | Garantias (+ linha nova) | sem estado: a tabela não tem a filial nem a UF da nota. Leva o aviso "Sem filtro por estado" |
+| `pl_devolucoes` | Farol de Devolução e Reembolsos | Pós-venda | idem | idem | Devoluções | **P3 ao Alexandre.** Recomendação: `FILIAL` (filial da nota, como o faturamento) |
+| `pl_ncc` | Farol de NCC | Pós-venda | idem | idem | NCC pendentes | **P3.** Recomendação: `FILIAL` (filial da nota) nas abas "NCC pendentes" e "Por cliente" |
+| `farol_pv` | Farol DDR (o título do PC, com a assistente) | Pré-venda | admin, diretor, gerente, pre_venda | admin, gerente, pre_venda | as 3 abas | sem estado |
+| `farol_vc` | idem | Vendas | admin, diretor, gerente, vendas | admin, gerente, vendas | as 3 abas | sem estado |
+| `farol_pl` | idem | Pós-venda | admin, diretor, gerente, pos_venda | admin, gerente, pos_venda | as 3 abas | sem estado |
+| `vc_champions` | Campanhas BAP | Vendas | admin, diretor, gerente, vendas | admin, gerente, vendas (sem o TOTAL A PAGAR para `vendas`, §10.9.4) | Parâmetros (§10.9.5) | sem estado |
+| `tm_expositores` | Farol de Expositores | Trade (grupo novo) | admin, diretor, gerente [SUPOSIÇÃO: o perfil `trade` entra na T-0036, decisão 3 A] | admin, gerente | Expositores (+ linha nova) | `UF` (UF do cliente, RN-GER-006) |
+
+- **O diretor vê só o Resumo** (cartões e gráficos) nos 8 faróis: decisão de 26/11. Aba de tabela pedida por ele = 403.
+- Os nomes curtos da lateral e as abas curtas entram na tela-bc3 §13 no PR da web, com a simulação (regra 10).
+
+**Abas, na ordem do PC** (chave → título do pacote):
+- `pl_garantias`: `garantias` → "Garantias" · `historico` → "Histórico de compra" · `produto` → "Por produto" · `status` → "Status x resultado";
+- `pl_devolucoes`: `devolucoes` → "Devoluções" · `motivo` → "Por motivo" · `vendedor` → "Por vendedor (12 meses)" · `cliente` → "Por cliente (12 meses)" · `produto` → "Por produto (12 meses)";
+- `pl_ncc`: `pendentes` → "NCC pendentes" · `cliente` → "Por cliente" · `filial` → "Por filial" · `vendedor` → "Por vendedor" · `supervisor` → "Por supervisor";
+- `farol_pv`, `farol_vc`, `farol_pl`: `hoje` → "Hoje" · `pendentes` → "Pendentes de marcação" · `ate_hoje` → "Até hoje";
+- `vc_champions`: `vendedores` → "Vendedores" · `supervisores` → "Supervisores" · `aux` → "Aux. Técnico" · `confrontos` → "Confrontos" · `semanas` → "Pts por semana" · `relampago` → "Campanha relâmpago" · `regras` → "Regras";
+- `tm_expositores`: `expositores` → "Expositores" · `estado` → "Por estado" · `status` → "Por status" · `cadastro` → "Cadastro de expositores".
+
+**Resumo sem painel no PC:** o `pl_ncc` e o `vc_champions` não têm o "Resumo gerencial". Os `graficos` deles viram blocos `barras` do painel, na ordem do PC (`bap_automation._GRAFICOS_NO_PAINEL_WEB`). O robô monta; a web não calcula.
+
+**Colunas por `(rid, título)`, nunca só pelo título:**
+- "Por vendedor" e "Por supervisor" existem no Visita e na NCC; "Por cliente" existe na Inadimplência e na NCC; "Hoje" e "Até hoje" são genéricos;
+- na web, as colunas dos faróis desta seção ficam em `tabelas.COLUNAS_RID[(rid, título)]`, que vale antes do `COLUNAS[título]` de hoje;
+- no robô, ficam em `_COLUNAS_TABELAS_WEB[rid][título]` (já é assim).
+
+#### 10.10.2 Colunas por tabela
+
+**Como foi medido:**
+- bases do repositório, `main` em `a32b610`, `montar(rid, raiz, hoje=24/11/2026, params={"ANO": "2026", "MÊS": "11"})`;
+- o DDR com `hoje=20/10/2026`, porque a única planilha do DDR nas bases é a de out/2026;
+- (o) = oculta. Os selos seguem o §10.7.2, e a cor vem do PC.
+
+**Garantias:**
+- **"Garantias"** (23):
+  - `STATUS` texto [chip] · `RESULTADO ANÁLISE` texto · `TICKET` texto · `DT. SOLICITAÇÃO` data · `DT. FECHAMENTO` data · `SLA ATUAL` int [`chip_tom` = `"TOM SLA"`] · `PRAZO` texto [chip] · `CÓD. CLIENTE` texto · `CLIENTE` texto (limpa) · `CIDADE` texto · `CÓD. PRODUTO` texto · `DESCRIÇÃO PRODUTO` texto (o) · `QTD` num · `PENDÊNCIAS` texto (o) [livre] · `RETORNO DO CLIENTE` texto (o) [livre] · `VENDEDOR` texto (o) · `SUPERVISOR` texto (o) · `SITUAÇÃO DO PRAZO` texto (o) · `TOM SLA` texto (o) · `DT. FECHOU` data (o) · `RECLAMAÇÃO` texto (o) [livre] · `OBSERVAÇÃO` texto (o) [livre] · `DT. RETORNO` data (o);
+  - **`CONTATO CLIENTE` nunca vai** (nome e telefone do contato; regra 6): o robô corta, e a web recusa;
+  - as 3 últimas (`RECLAMAÇÃO`, `OBSERVAÇÃO`, `DT. RETORNO`) são **novas no núcleo** (modulo-farois), ocultas, para a web mostrar o valor de hoje no formulário. A tela do PC não muda.
+- **"Histórico de compra"** (19; 4.949 linhas, 1,25 MB): `CÓD. CLIENTE` texto · `RAZÃO SOCIAL` texto (limpa) · `FANTASIA` texto (limpa) · `CIDADE` texto · `PEDIDO` texto · `PED. MÁXIMA` texto · `NF` texto · `PRAZO` texto · `DT. PEDIDO` dia · `DT. NF` dia · `DT. ENTREGA` dia · `TRANSPORTADORA` texto · `RESPONSÁVEL` texto · `CÓD. PRODUTO` texto · `DESCRIÇÃO` texto · `QTD` num · `VALOR` moeda · `VENDEDOR` texto · `FILIAL` texto. Com `total`.
+- **"Por produto"** (6): `CÓD. PRODUTO` texto · `DESCRIÇÃO` texto · `GARANTIAS` int · `EM ABERTO` int · `PROCEDENTES` int · `IMPROCEDENTES` int.
+- **"Status x resultado"** (5): `STATUS` texto [chip] · `PENDENTE` int · `PROCEDENTE` int · `IMPROCEDENTE` int · `TOTAL` int.
+
+**Devoluções:**
+- **"Devoluções"** (18; com `edicao`): `MÊS` texto · `DATA` data · `NF DEV.` texto · `FILIAL` texto · `CLIENTE` texto (limpa, código e nome) · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `VALOR` moeda · `ITENS` int · `PRODUTOS` texto · `ETAPA` texto · `MOTIVO` texto [livre] · `AUTORIZADO POR` texto · `RECEBIDA EM` data · `CRÉDITO` texto · `CRÉDITO EM` data · `RESPONSÁVEL` texto. Filtros: `MÊS`, `FILIAL`, `VENDEDOR`, `MOTIVO`, `ETAPA`.
+- **"Por motivo"** (4): `MÊS` texto · `MOTIVO` texto · `DEVOLUÇÕES` int · `VALOR` moeda.
+- **"Por vendedor (12 meses)"** (5): `VENDEDOR` texto · `DEVOLUÇÕES` int · `VALOR` moeda · `FATURADO 12M` moeda · `% DEVOLVIDO` pct.
+- **"Por cliente (12 meses)"** (3): `CLIENTE` texto (limpa, código e nome) · `DEVOLUÇÕES` int · `VALOR` moeda.
+- **"Por produto (12 meses)"** (4): `PRODUTO` texto · `DESCRIÇÃO` texto · `QTD` num · `VALOR` moeda.
+
+**NCC:**
+- **"NCC pendentes"** (22 de 23; com `edicao`; sai `TELEFONE`): `A COMPENSAR` texto · `SLA NCC` texto [chip] · `DT. ÚLT. MOV.` data · `D.U. S/ MOV.` int · `IDADE` texto · `FILIAL` texto · `NCC` texto · `PARC.` texto · `EMISSÃO` data · `DIAS` int · `CLIENTE` texto · `NOME` texto (limpa) · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto (o) · `VALOR NCC` moeda · `JÁ ABATIDO` moeda · `SALDO` moeda · `TÍTULOS EM ABERTO` moeda · `PEDIDO EM ABERTO` moeda · `ÚLTIMA COMPRA` data.
+- **"Por cliente"** (14 de 15; sai `TELEFONE`; com `total`): `A COMPENSAR` texto · `IDADE` texto · `CLIENTE` texto · `NOME` texto (limpa) · `CIDADE` texto · `UF` texto · `VENDEDOR` texto · `SUPERVISOR` texto (o) · `NCC` int · `SALDO` moeda · `NCC MAIS ANTIGA (DIAS)` int · `TÍTULOS EM ABERTO` moeda · `PEDIDO EM ABERTO` moeda · `ÚLTIMA COMPRA` data.
+- **"Por filial"**, **"Por vendedor"**, **"Por supervisor"** (9 cada; com `total`): a coluna do agrupamento (`FILIAL`, `VENDEDOR` ou `SUPERVISOR`, texto) · `NCC` int · `CLIENTES` int · `0-30 DIAS` moeda · `31-90 DIAS` moeda · `91-180 DIAS` moeda · `+180 DIAS` moeda · `SALDO` moeda · `COMPENSAR JÁ` moeda.
+
+**Farol DDR** (as 3 áreas, com as mesmas colunas; todas as abas com `edicao`):
+- **"Hoje"** (7): `HORÁRIO` texto · `ATIVIDADE` texto · `PRIORIDADE` texto · `PONTOS` int · `STATUS` texto · `MOTIVO` texto · `FERRAMENTA BAP` texto.
+- **"Pendentes de marcação"** (9): `DATA` data · `DIA` texto · as 7 do "Hoje".
+- **"Até hoje"** (10): `DATA` data · `DIA` texto · `HORÁRIO` texto · `ATIVIDADE` texto · `PRIORIDADE` texto · `PONTOS` int · `STATUS` texto · `MOTIVO` texto · `PONTOS GANHOS` num · `FERRAMENTA BAP` texto. Filtros: `STATUS`, `PRIORIDADE`.
+- Sem a planilha do mês, o farol vai só com o Resumo e o aviso do PC.
+
+**Campanhas BAP:**
+- **"Vendedores"** (20; com `total`): `POS.` int · `VENDEDOR` texto · `SUPERVISOR` texto · `FAT. BRUTO` moeda · `DEVOLUÇÕES` moeda · `FAT. LÍQUIDO` moeda · `DESAFIO` moeda · `% DESAFIO` pct · `SITUAÇÃO` texto [chip] · `PTS FATUR.` int · `PEÇAS (UN.)` int · `PTS PEÇAS` int · `CLI. NOVOS` int · `PTS CLI. NOVO` int · `VITÓRIAS` int · `PTS BÔNUS` int · `PTS` int · `PTS VÁLIDOS` int · `PTS RELÂMPAGO` int · `TOTAL A PAGAR` int [restrita, §10.9.4].
+- **"Supervisores"** (20; com `total`): `POS.` int · `SUPERVISOR` texto · `VENDEDORES` int · `FAT. BRUTO` moeda · `DEVOLUÇÕES` moeda · `FAT. LÍQUIDO` moeda · `DESAFIO` moeda · `% DESAFIO` pct · `SITUAÇÃO` texto [chip] · `PTS FATUR.` int · `SKU NOVOS` int · `PTS SKU NOVO` int · `POSITIVADOS` int · `PTS POSIT.` int · `VITÓRIAS` int · `PTS BÔNUS` int · `PTS` int · `PTS VÁLIDOS` int · `PTS RELÂMPAGO` int · `TOTAL A PAGAR` int [restrita].
+- **"Aux. Técnico"** (16): `POS.` int · `AUX. TÉCNICO` texto · `APOIA (SUPERVISOR)` texto · `FAT. BRUTO` moeda · `DEVOLUÇÕES` moeda · `FAT. LÍQUIDO` moeda · `DESAFIO` moeda · `% DESAFIO` pct · `SITUAÇÃO` texto [chip] · `PTS FATUR.` int · `SLA FATUR. %` pct · `PTS SLA FATUR.` int · `SLA ENTREGA %` pct · `PTS SLA ENTREGA` int · `PTS` int · `PTS VÁLIDOS` int.
+- **"Confrontos"** (7): `SEMANA` texto · `TIPO` texto · `JOGADOR A` texto · `PTS A` int · `JOGADOR B` texto · `PTS B` int · `RESULTADO` texto.
+- **"Pts por semana"** (2 + N + 1; as colunas mudam com o mês): `TIPO` texto · `JOGADOR` texto · N colunas `SEM. dd/mm` int (de 1 a 6) · `SOMA DAS SEMANAS` int. A web confere pelo padrão `^SEM\. \d{2}/\d{2}$`, como na "Aderência dia a dia".
+- **"Campanha relâmpago"** (14): `DIA` data · `CAMPANHA` texto · `TIPO` texto · `NOME` texto · `SUPERVISOR` texto · `PEDIDOS NO DIA` moeda · `BLOCOS` int · `PTS PEDIDOS` int · `VENDEU NO DIA` texto · `BAP NO DIA` moeda · `META BAP` moeda · `DESAFIO` texto [chip] · `PTS DESAFIO` int · `PTS` int.
+- **"Regras"** (3): `GRUPO` texto · `REGRA` texto · `PTS` int.
+
+**Expositores:**
+- **"Expositores"** (14; com `edicao` e `novo`): `STATUS` texto · `MÊS` texto (o) · `SOLICITAÇÃO` dia · `ASSINATURA` dia · `DIAS` int · `CÓD. CLIENTE` texto · `CLIENTE` texto (limpa) · `DESCRIÇÃO DO EXPOSITOR` texto · `CATEGORIA` texto · `QTD` int · `CIDADE` texto · `UF` texto · `OBSERVAÇÕES` texto [livre] · `ATUALIZADO` dia. Filtros: `MÊS`, `STATUS`, `CATEGORIA`, `UF`.
+- **"Por estado"** (9; com `total`): `UF` texto · `EXPOSITORES` int · `ENTREGUES` int · `CONTRATO ASSINADO` int · `SOLICITADOS` int · `CANCELADOS` int · `DEVOLVIDOS` int · `CLIENTES` int · `CIDADES` int.
+- **"Por status"** (3; com `total`): `STATUS` texto · `REGISTROS` int · `EXPOSITORES` int.
+- **"Cadastro de expositores"** (6): `EXPOSITOR` texto · `CATEGORIA FOCO` texto · `FILIAIS` texto · `CADASTRADOS` int · `EM USO` int · `SALDO` int.
+
+**Antes de cada PR:** o robô confere estas listas no `main` do dia, e o `testes` compara cada lista com o `montar`. Lista diferente do `montar` = a seção muda antes do código.
+
+**Grade:** tabela com mais de 10 colunas visíveis ganha a entrada dela na `GRADE` (tela-bc3 §6.2), no PR da web, com a simulação. São elas: Garantias · Histórico de compra · Devoluções · NCC pendentes · Por cliente (NCC) · Vendedores · Supervisores · Aux. Técnico · Campanha relâmpago · Expositores. A chave sugerida é `TICKET`, `NF`, `NF DEV.`, `NCC`, `NOME`, `VENDEDOR`, `SUPERVISOR`, `AUX. TÉCNICO`, `NOME` e `CLIENTE`, nesta ordem. Quem decide a chave é o designer-ux.
+
+#### 10.10.3 Dado pessoal (regra 6, RN-GER-011)
+
+- **Saem sempre:**
+  - as colunas da lista `colunas-fora` (§10.7.4), como o `TELEFONE` da NCC;
+  - o `CONTATO CLIENTE` das Garantias. Ele é uma coluna a mais, própria desta tabela: `bap_automation._COLUNAS_FORA_TABELA_WEB` e `web/app/tabelas.FORA_POR_TABELA`. A lista `colunas-fora` do §10.7.4 **não muda** nesta entrega, porque o teste dela compara as duas cópias do código.
+- **Nome de cliente** (as colunas "limpa"):
+  - `sem_documento`: `NOME` da NCC; `RAZÃO SOCIAL` e `FANTASIA` do Histórico de compra; `CLIENTE` dos Expositores;
+  - `cliente_sem_documento`: `CLIENTE` das Devoluções e do "Por cliente (12 meses)";
+  - `nome_sem_contato`: `CLIENTE` das Garantias, que é digitado.
+- **Texto livre** (`texto_sem_contato`, D6 A do §10.7.9): `MOTIVO`, `PENDÊNCIAS`, `RETORNO DO CLIENTE`, `RECLAMAÇÃO`, `OBSERVAÇÃO` e `OBSERVAÇÕES`.
+- **Nunca vão** (chave de topo do farol):
+  - `garantia` (o diálogo da garantia, com o cadastro do cliente);
+  - `campanha_export` (premiação, com CPF, CNPJ e e-mail);
+  - `_champions`;
+  - `editar` e `detalhe_pedido`.
+  O robô monta o farol só com as chaves do §10.1 (lista branca), e o `testes` procura essas chaves e os padrões de CPF, CNPJ, telefone e e-mail no JSON de cada farol.
+- **Nome da equipe:** `VENDEDOR`, `SUPERVISOR`, `AUX. TÉCNICO`, `JOGADOR`, o nome da assistente no título do DDR e os nomes da config das Campanhas vão ("2 A").
+
+#### 10.10.4 Tamanho e cortes (§10.8.7)
+
+| `rid` | Maior parte, medida | Teto do farol | Cortes, nesta ordem | Aviso |
+|---|---|---|---|---|
+| `pl_garantias` | "Histórico de compra", 1,25 MB (4.949 linhas) | 8 MB (robô) / 10 MB (web) | 1. "Histórico de compra" sai · 2. todas as `tabelas` saem | 1. `AVISO_ABAS_FORA` (com "Histórico de compra") · 2. `AVISO_ABAS_FORA` |
+| `pl_devolucoes` | menos de 60 KB | idem | todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+| `pl_ncc` | menos de 5 KB | idem | idem | idem |
+| `farol_pv`, `farol_vc`, `farol_pl` | menos de 40 KB cada | idem | idem | idem |
+| `vc_champions` | menos de 5 KB, mais o `parametros_edicao` (até 256 KB) | idem | 1. `parametros_edicao` sai (com o aviso `AVISO_PARAMETROS_FORA`) · 2. todas as `tabelas` saem | `AVISO_PARAMETROS_FORA` = "Os parâmetros das campanhas ficaram fora desta atualização. Veja no PC." · `AVISO_ABAS_FORA` |
+| `tm_expositores` | menos de 10 KB | idem | todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+
+- Os 8 faróis somam cerca de 1,5 MB no disco do Render (formato 2, gzip menor ainda).
+- A memória da web segue a ADR 0003: só o índice fica na memória, e cada página lê só o farol dela.
+- `AVISO_PARAMETROS_FORA` tem o texto fonte única nesta tabela, como os do §10.7.6. O robô e o teste o citam daqui.
+- O aviso do PC "Exportar campanha: ... sem e-mail" não vai ao site, porque o Exportar fica no PC. Ele entra no filtro `_AVISO_SO_PC_WEB` do robô.
+
 ## 11. Parte ação: os callables e a web v1
 
 Regras gerais:
