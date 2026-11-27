@@ -244,7 +244,8 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
         soma = defaultdict(float)
         for it in itens:
             d = it.get("dt_nf")
-            if d and d.year == a and d.month == m and d <= ate:
+            if d and d.year == a and d.month == m and d <= ate \
+                    and rn._conta_valida(it):           # RN-GER-005
                 v = rn._liquido(it)
                 if v is not None:
                     soma[it["cliente"]] += v
@@ -459,7 +460,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     # (05/11) os farois de markup e saldo trazem o mes inteiro (com hoje):
     # a parte ate ontem = o valor x faturamento ate ontem / do mes
     fat_mes = fat_e_pos(ano, mes, fim_mes)[0]
-    f_ont = (fat / fat_mes) if fat_mes else None
+    f_ont = (fat_e_pos(ano, mes, corte)[0] / fat_mes) if fat_mes else None
     mg = mg * f_ont if mg is not None and f_ont is not None else None
     card(1, "markup", "Markup", mk, mk, f_pct1, "vc_markup",
          "Farol de Markup", "venda ÷ custo (P. PEDIDO + sucata) − 1; meta = "
@@ -666,7 +667,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
                 and (c.get("atraso") or 0) <= 0:
             if not rn.positivou(ctx, c["cod"], comp):
                 compr.append(c)
-            elif c["cod"] in pos:       # (05/11) comprou ate ontem
+            elif c["cod"] in pos:       # comprou ate hoje (grupo A, decisao 43)
                 ja += 1
     a_, m3_ = ant_e_m3("compraveis")
     # (05/11) quantos dos compraveis compraram por DU (ate a ultima NF) e a
@@ -901,8 +902,8 @@ def imagem(dados, destino_png=None, destino_pdf=None, rodape=""):
     t1 = f"PAINEL DO DIRETOR · {dados['mes_nome']} {dados['ano']}"
     d.text((W - P(40) - d.textlength(t1, font=F(26, "bold")), P(14)), t1,
            font=F(26, "bold"), fill=BRANCO_I)
-    da = dados.get("dados_ate_a") or dados["dados_ate"]
-    t2 = (f"BAP AUTOPARTS · dados até {da:%d/%m} · {dados.get('ndp_a', dados['ndp'])} de "
+    da = dados["dados_ate_a"]
+    t2 = (f"BAP AUTOPARTS · dados até {da:%d/%m} · {dados['ndp_a']} de "
           f"{dados['ndm']} dias úteis")
     d.text((W - P(40) - d.textlength(t2, font=F(14)), P(52)), t2,
            font=F(14), fill=(189, 189, 189))
@@ -1179,8 +1180,8 @@ def tela(pai, dados, abrir=None, ao_editar=None, exportar=None):
                      ("PNG (WhatsApp)", exportar and (lambda: exportar("png")))):
         if cmd:
             ttk.Button(bts, text=txt, command=cmd).pack(fill="x", pady=2)
-    tk.Label(dir_, text=f"dados até {dados.get('dados_ate_a') or dados['dados_ate']:%d/%m}"
-             f" · {dados.get('ndp_a', dados['ndp'])} de {dados['ndm']} dias úteis",
+    tk.Label(dir_, text=f"dados até {dados['dados_ate_a']:%d/%m}"
+             f" · {dados['ndp_a']} de {dados['ndm']} dias úteis",
              background=bv.CARTAO, foreground=bv.SUAVE,
              font=bv.fonte(7)).pack(fill="x", **pad)
     return raiz_f

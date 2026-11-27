@@ -2830,7 +2830,7 @@ SUFIXO_PERIODO = " · até {:%d/%m}"
 GRUPO_B_CARTOES = frozenset({
     "visitas", "conv_visitados", "primeira_visita", "aderencia", "jornada",
     "pecas", "cad", "vis", "convv", "prim", "fora", "jorn", "ini", "ult",
-    "alm", "tma", "tmd"})
+    "alm", "tma", "tmd", "ader"})
 
 
 def sufixo_periodo(d) -> str:
@@ -3266,8 +3266,8 @@ def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
     meta, real = meta or 0.0, real or 0.0
     at = pct_de(real, meta)
     corrido = (esperado or 0.0) / 100.0
-    # (05/11) real_proj: o realizado SEM O DIA DE HOJE (hoje nao conta nos
-    # DU corridos, entao a venda/visita de hoje tambem sai da projecao)
+    # real_proj: o realizado da projecao (a visita usa o seu); sem ele, o real
+    # (decisao 43: hoje conta no real e nos DU corridos)
     rp_ = real if real_proj is None else max(0.0, real_proj)
     proj = projecao_ritmo(rp_, corrido)
     pp = pct_de(proj, meta) if proj is not None else None
@@ -3289,117 +3289,34 @@ def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
     linhas += [("Projeção do mês", fmt(proj) + (f" ({p(pp)})" if pp
                                                  is not None else ""),
                 _tom_ating(pp)),
-               ("Nec./dia", f"último dia: faltam {fmt(max(0.0, meta - real))}"
-                if ultimo_dia else nec_txt if resta else "mês fechado", "")]
+               ("Falta hoje", fmt(max(0.0, meta - real)), "") if ultimo_dia
+               else ("Nec./dia", nec_txt if resta else "mês fechado", "")]
     return kpi(nome, fmt(real), {"ok": "ok", "atencao": "atencao",
                                  "alerta": "alerta"}.get(tom, "neutro"),
                f"real {rot_ate if not fechado else 'do mês'} · {rot_meta} "
                f"do mês {fmt(meta)}", linhas)
 
 
-def _hoje_do_farol(ctx, ac, comp) -> dict:
-    """(05/11, Alexandre: "tirar a venda de hoje da conta do DU") O QUE E DE
-    HOJE (o dia aberto) no Farol de Metas, para sair da PROJECAO (os DU
-    corridos ja nao contam hoje): {nivel: {chave/nome: {"FAT.", "POSIT.",
-    "VISITA", "PEÇAS"}}, "_bap": {...}}. Faturamento e pecas = liquido das
-    notas de hoje por quem vendeu (C5_VEND1, a regra da RV); positivacao =
-    cliente que so ficou positivo com a nota de hoje; visita = Espelho de
-    hoje. Mes que nao e o corrente: {} (nada muda)."""
-    hoje = getattr(ctx, "hoje", None)
-    if not comp or not hoje or mes_de(hoje) != comp:
-        return {}
-    memo = getattr(ctx, "_hoje_farol", None)
-    if memo is None:
-        memo = ctx._hoje_farol = {}
-    if comp in memo:
-        return memo[comp]
-    por_v = defaultdict(lambda: defaultdict(float))
-    bap = defaultdict(float)
-    liq_t, liq_o = defaultdict(float), defaultdict(float)
-    cli_t, cli_o = defaultdict(float), defaultdict(float)
-    for it in ctx.tabela["itens"]:
-        d = it.get("dt_nf")
-        if not d or mes_de(d) != comp:
-            continue
-        v = _liquido(it)
-        if v is None:
-            continue
-        cv = _cod6(it.get("vend"))
-        liq_t[(cv, it["cliente"])] += v
-        cli_t[it["cliente"]] += v
-        if d >= hoje:
-            por_v[cv]["FAT."] += v
-            bap["FAT."] += v
-            if ctx.categoria_bap(it.get("cod")) in LINHAS_PECAS:
-                por_v[cv]["PEÇAS"] += v
-                bap["PEÇAS"] += v
-        else:
-            liq_o[(cv, it["cliente"])] += v
-            cli_o[it["cliente"]] += v
-    for (cv, c), v in liq_t.items():
-        if v > 0.005 and liq_o.get((cv, c), 0.0) <= 0.005:
-            por_v[cv]["POSIT."] += 1
-    bap["POSIT."] = sum(1 for c, v in cli_t.items()
-                        if v > 0.005 and cli_o.get(c, 0.0) <= 0.005)
-    try:
-        import visitas_nucleo as vn                     # noqa: PLC0415
-        for r_ in vn.registros(ctx.raiz):
-            if r_["data"] >= hoje and mes_de(r_["data"]) == comp \
-                    and r_.get("ativo") and r_.get("cod_protheus"):
-                n_ = r_.get("visitas") or 0
-                por_v[_cod6(r_["cod_protheus"])]["VISITA"] += n_
-                bap["VISITA"] += n_
-    except Exception:                                   # noqa: BLE001
-        pass
-    equipe = ac.get("equipe_vend") or {}
-    nome_v = {_cod6(l.get("chave")): l.get("nome") or l.get("rotulo")
-              for l in (ac.get("recortes") or {}).get("vendedor") or []
-              if l.get("chave")}
-    out = {"vendedor": {}, "supervisor": {}, "gerente": {}, "_bap": dict(bap)}
-
-    def somar(nivel, chave, vals):
-        if not texto(chave):
-            return
-        alvo = out[nivel].setdefault(norm_nome(chave), defaultdict(float))
-        for a, b in vals.items():
-            alvo[a] += b
-    for cv, vals in por_v.items():
-        somar("vendedor", cv, vals)
-        if nome_v.get(cv):
-            somar("vendedor", nome_v[cv], vals)
-        f_ = equipe.get(cv) or {}
-        somar("supervisor", f_.get("supervisor"), vals)
-        somar("gerente", f_.get("gerente"), vals)
-    memo[comp] = out
-    return out
-
-
-def _cartoes_farol(ls, cols, resta, esperado, hoje_de=None, hoje_total=None,
-                   ultimo_dia=False):
+def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
+                   resta_b=None):
     """Os cartoes de cima de uma vista (pelos nomes das colunas dela): um
     por indicador - faturamento (meta comercial e meta RH), positivacao,
-    visita, pecas e cadastro com compra. (05/11) hoje_de {nome da linha:
-    o que e de hoje} ou hoje_total (a BAP inteira): sai da PROJECAO."""
+    visita, pecas e cadastro com compra (hoje conta na projecao, decisao
+    43)."""
     idx = {c["nome"]: i for i, c in enumerate(cols)}
 
     def soma(nome):
         return sum(l[idx[nome]] or 0 for l in ls) if nome in idx else None
 
-    # decisoes 43/48: a projecao conta hoje (o real ja inclui hoje); o corte
-    # em ontem de visitas, pecas e cadastros e do lote 2.
-    def proj_de(real_, ind):
-        return real_
     real = soma("FAT. REAL")
     saida = [_cartao_indicador("Faturamento · desafio comercial",
                                soma("FAT. META"), real, resta, esperado,
                                True, rot_meta="desafio",
-                               real_proj=proj_de(real, "FAT."),
                                ultimo_dia=ultimo_dia)]
     if "FAT. META RH" in idx:       # so no RH / parcial de RV (_COM_RH)
         saida.append(_cartao_indicador("Faturamento · meta RH",
                                        soma("FAT. META RH"), real, resta,
                                        esperado, True,
-                                       real_proj=proj_de(real, "FAT."),
                                        ultimo_dia=ultimo_dia))
     for nome, rot, din in (("POSIT.", "Positivação", False),
                            ("VISITA", "Visitas", False),
@@ -3407,10 +3324,11 @@ def _cartoes_farol(ls, cols, resta, esperado, hoje_de=None, hoje_total=None,
                            ("CAD.", "Cad. com compra", False)):
         if f"{nome} META" in idx:
             r_ = soma(f"{nome} REAL")
+            # a visita e do grupo B: o Nec./dia usa os DU do B (como a tabela)
             saida.append(_cartao_indicador(
-                rot, soma(f"{nome} META"), r_, resta,
-                esperado, din,
-                real_proj=proj_de(r_, nome), ultimo_dia=ultimo_dia))
+                rot, soma(f"{nome} META"), r_,
+                resta_b if nome == "VISITA" and resta_b is not None
+                else resta, esperado, din, ultimo_dia=ultimo_dia))
     if "CID. META" in idx and soma("CID. META"):
         # (15/10) e estoque, nao ritmo: sem projecao nem nec./dia
         m_, r_ = soma("CID. META"), soma("CID. REAL")
@@ -3435,7 +3353,6 @@ def _tom_farol(at, esperado):
 
 
 def _tabela_farol(titulo, cab, itens, total, resta, esperado, tipo="pessoa",
-                  hoje_de=None,
                   **kw):
     """itens: [(valores do cabecalho, d, mix)]; total: o mesmo, ou None."""
     cols_i, grupos_i = _cols_farol(tipo)
@@ -3454,8 +3371,7 @@ def _tabela_farol(titulo, cab, itens, total, resta, esperado, tipo="pessoa",
     i_at = next(i for i, c_ in enumerate(cols) if c_["nome"] == "FAT. % ATING.")
     t_ = tabela(titulo, cols, linhas,
                 [_tom_farol(l[i_at], esperado) for l in linhas], total=tl,
-                kpis_de=lambda xs: _cartoes_farol(xs, cols, resta, esperado,
-                                                  hoje_de),
+                kpis_de=lambda xs: _cartoes_farol(xs, cols, resta, esperado),
                 **kw)
     t_["grupos"] = [("", k)] + grupos_i
     t_["compacta"] = True
@@ -3659,11 +3575,10 @@ def acompanhamento_meta(ctx):
         r["tabelas"] = vistas_do_farol(ctx, ac, comp)
     ger = next((t for t in r["tabelas"] if t["titulo"] == "Por gerente"), None)
     if ger:
-        hj_b = _hoje_do_farol(ctx, ac, comp).get("_bap")
         cart_ger = _cartoes_farol(ger["linhas"], ger["colunas"],
                                   ac.get("dias_restantes") or 0, _esperado(ac),
-                                  hoje_total=hj_b,
-                                  ultimo_dia=_ultimo_dia(ac))
+                                  ultimo_dia=_ultimo_dia(ac),
+                                  resta_b=_resta_b(ac))
         # (14/10) AUDITORIA: o cartao de POSITIVACAO e o numero de clientes
         # DISTINTOS que compraram no mes (= Painel, Farol de Clientes e
         # Indicadores Executivos). A soma das linhas contava duas vezes o
@@ -3677,7 +3592,7 @@ def acompanhamento_meta(ctx):
                 if "POSIT. META" in idx else 0.0
             cart_ger = [_cartao_indicador(
                 "Positivação", meta_p, n_pos, ac.get("dias_restantes") or 0,
-                _esperado(ac), real_proj=n_pos, ultimo_dia=_ultimo_dia(ac))
+                _esperado(ac), ultimo_dia=_ultimo_dia(ac))
                 if k.get("rotulo") == "Positivação" else k
                 for k in cart_ger]
         r["kpis"] = cart_ger
@@ -3832,8 +3747,7 @@ def _juntar_equipe(r, ctx, ac, comp, txt, V, T, sup):
         ger_rh = next((t for t in rh_tabs if t["titulo"] == "Por gerente"),
                       None)
         cart_rh = (_cartoes_farol(ger_rh["linhas"], ger_rh["colunas"], resta,
-                                  _esperado(ac), hoje_total=_hoje_do_farol(
-                                      ctx, ac, comp).get("_bap"))
+                                  _esperado(ac))
                    if ger_rh else None)
         if cart_rh:      # o cartao do desafio fica na aba Equipe
             cart_rh = [k for k in cart_rh
@@ -4036,8 +3950,6 @@ def vistas_do_farol(ctx, ac, comp, corte=None, sem=()):
             titulo, cab_cols, itens, (["TOTAL"] + [""] * (len(cab_cols) - 1),
                                       tot_d, tot_m),
             resta, esperado, tipo="pessoa" if pessoa else "territorio",
-            hoje_de=(_hoje_do_farol(ctx, ac, comp).get(chave)
-                     if pessoa else None),
             filtros=("SUPERVISOR",) if chave == "vendedor" else ()))
         if chave == "vendedor":          # o TOP 30 clientes vem logo depois
             tabelas.append(_top_clientes_tabela(
@@ -4207,9 +4119,7 @@ def vistas_escopo(ctx, ac, comp, V=None, T=None, sup=None, corte=None,
                _mix_total([m for _c, _d, m in itens])) \
             if len(itens) > 1 else None
         tabs.append(_tabela_farol(f"Por {nivel}", [col("NOME", "texto", 190)],
-                                  itens, tot, resta, esperado,
-                                  hoje_de=_hoje_do_farol(ctx, ac, comp).get(
-                                      nivel)))
+                                  itens, tot, resta, esperado))
     com_cod = bool(corte)               # parcial: o codigo de venda
     itens_v = sorted([(([c_] if com_cod else [])
                        + [nomes.get(c_, c_), _nome_curto(sup_de[c_])], d,
@@ -4222,9 +4132,7 @@ def vistas_escopo(ctx, ac, comp, V=None, T=None, sup=None, corte=None,
         if len(itens_v) > 1 else None
     tabs.append(_tabela_farol("Por vendedor", _cab_vendedor(com_cod), itens_v,
                               tot_v,
-                              resta, esperado, filtros=("SUPERVISOR",),
-                              hoje_de=_hoje_do_farol(ctx, ac, comp).get(
-                                  "vendedor")))
+                              resta, esperado, filtros=("SUPERVISOR",)))
     tabs.append(_top_clientes_tabela(ctx, comp, cli, mix, resta, esperado))
     # ---- os territorios
     for recorte, titulo in (("uf", "Por UF"), ("cidade", "Por cidade"),
@@ -10364,7 +10272,7 @@ def _painel_grupos(ctx, no_periodo, custo, fator, ano, mes, ac, slim,
                 "ped": 0.0, "saldo": 0.0}
 
     def linha(nome, x, m_, cart=()):
-        # pedido: inteiro; (06/11) a nota de hoje: fora da projecao
+        # pedido: inteiro; a nota de hoje conta (decisao 43)
         pr = (x["real"] - x["ped"]) * fator + x["ped"]
         nfs = x["nf"]
         return [nome, m_, x["real"], pr,
@@ -11438,8 +11346,7 @@ def _exportar_rh(ctx, parcial=None):
                 ls_p = ls_p[:1] if chave_p == "supervisor" else ls_p
             r["kpis"] = _cartoes_farol(ls_p, tab_p["colunas"],
                                        ac.get("dias_restantes") or 0,
-                                       _esperado(ac), _hoje_do_farol(
-                                           ctx, ac, comp).get(chave_p))
+                                       _esperado(ac))
         # (10/10) o resumo dos PEDIDOS EM ABERTO na 1a pagina
         r["kpis"].append(_kpi_abertos_da_parcial(
             ctx, _escopo_da_parcial(ac, parcial)[1]))

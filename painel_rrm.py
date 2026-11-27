@@ -213,8 +213,7 @@ def _da_tabela_uf(ctx, ano, mes, ate, top):
     do cliente no mes [SUPOSICAO]) e o TOP 30 (UF do cliente)."""
     import relatorios_nucleo as rn                      # noqa: PLC0415
     fat, pecas = defaultdict(float), defaultdict(float)
-    cli = defaultdict(lambda: defaultdict(float))
-    ped, prim = defaultdict(set), {}
+    por_uf, prim = defaultdict(list), {}
     tot_cli = defaultdict(float)
     for it in ctx.tabela["itens"]:
         d = it.get("dt_nf")
@@ -225,12 +224,11 @@ def _da_tabela_uf(ctx, ano, mes, ate, top):
             continue
         uf = rn.uf_da_filial(it.get("filial")) or "?"
         fat[uf] += v
-        cli[uf][it["cliente"]] += v
         tot_cli[it["cliente"]] += v
+        por_uf[uf].append(it)
         if rn._eh_pecas(ctx, it["cod"]):
             pecas[uf] += v
         if it["tipo"] == "VND":
-            ped[uf].add((it["filial"], it["pedido"]))
             if it["cliente"] not in prim or d < prim[it["cliente"]][0]:
                 prim[it["cliente"]] = (d, uf)
     cad = defaultdict(int)
@@ -242,8 +240,11 @@ def _da_tabela_uf(ctx, ano, mes, ate, top):
         if dc and dc.year == ano and dc.month == mes and dc <= ate \
                 and cod in prim and cod in posit:
             cad[prim[cod][1]] += 1
-    pos = {u: sum(1 for v in cs.values() if v > 0.005)
-           for u, cs in cli.items()}
+    # RN-GER-002, 003 e 005: positivados e pedidos por UF pelas funcoes puras
+    pos = {u: len(rn.clientes_positivados_ate(its, ate))
+           for u, its in por_uf.items()}
+    ped = {u: len(rn.pedidos_faturados_ate(its, ate))
+           for u, its in por_uf.items()}
     t30, n30 = defaultdict(int), defaultdict(int)
     for c in top or []:
         u = str((ctx.cliente(c) or {}).get("uf") or "").upper()
@@ -252,7 +253,7 @@ def _da_tabela_uf(ctx, ano, mes, ate, top):
             t30[u] += 1
     tk = {u: fat[u] / pos[u] for u in fat if pos.get(u)}
     out = {"fat": dict(fat), "pos": pos,
-           "ped": {u: len(s) for u, s in ped.items()},
+           "ped": ped,
            "pecas": dict(pecas), "cad": dict(cad), "ticket": tk,
            "top30": {u: t30.get(u, 0) for u in n30}, "top30_n": dict(n30)}
     # (10/11) estado da BAP (filial) sem nota no mes = 0, nao em branco
@@ -377,7 +378,8 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
         m_ = metas.get(k)
         if not m_ or real is None:
             return []
-        ma = meta_ate if meta_ate else m_ * ndp / ndm if ndm else None
+        n_ = ndp if k in _rn().GRUPO_B_CARTOES else ndp_a    # A: hoje conta
+        ma = meta_ate if meta_ate else m_ * n_ / ndm if ndm else None
         out = []
         if ma:
             out.append(("MTD", real / ma * 100, compacto(ma, dinheiro)))
@@ -592,7 +594,8 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
 
     # ============================== POR DIA UTIL
     def du_card(k, titulo, fmt, vals_uf, com_meta=True, n_=None):
-        n_ = n_ or ndp
+        n_ = n_ or (ndp if k in _rn().GRUPO_B_CARTOES else ndp_a)
+        rest = max(0, ndm - n_)         # A: ndm - ndp_a; B: ndm - ndp
         v = V[k][at]
         r_ = v / n_ if (v is not None and n_) else None
         fx = []

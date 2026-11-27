@@ -38,7 +38,6 @@ MESES_L = ["", "janeiro", "fevereiro", "março", "abril", "maio", "junho",
 DIST = (1, 2, 4)                    # os meses de comparacao: -1, -2 e -4
 UFS_TOP30 = {"AM", "RR", "PA", "MA"}
 M = "−"
-GRUPO_A = ("fat", "pos", "ped", "ticket", "itens")   # hoje conta (decisao 43)
 VOL = ("fat", "pos", "ped", "pecas", "vis", "cad")
 SEM_VISITA_ANTES = date(2026, 8, 27)     # o Espelho da Maxima comeca aqui
 # (09/11, recado 20261109-1100) o registro cliente a cliente (conversao e
@@ -77,6 +76,11 @@ def hm(h):
         return "—"
     t = int(round(h * 60))
     return f"{t // 60}h{t % 60:02d}"
+
+
+def _rn():
+    import relatorios_nucleo as rn                      # noqa: PLC0415
+    return rn
 
 
 def _mes_ant(ano, mes, n=1):
@@ -316,7 +320,7 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
         pj = (cards_m[at].get(c) or {}).get("projecao") if c else None
         if pj is not None:
             return pj
-        n_ = ndp_a if k in GRUPO_A else ndp
+        n_ = ndp_a if k not in _rn().GRUPO_B_CARTOES else ndp
         return v / n_ * ndm if n_ else None
 
     proj_mes = corre                 # mes em curso: ha projecao
@@ -334,7 +338,7 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
                 out.append((r, None, vazio, am == at))
                 continue
             if por_du:
-                n = (ndp_a if k in GRUPO_A else ndp) if am == at \
+                n = (ndp_a if k not in _rn().GRUPO_B_CARTOES else ndp) if am == at \
                     else du_m.get(am)
                 v = v / n if n else None
                 if v is None:
@@ -511,7 +515,8 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
 
     def du_card(k, titulo, fmt, com_meta, extra=None, regra=""):
         v = V[k][at]
-        n_ = ndp_a if k in GRUPO_A else ndp
+        n_ = ndp_a if k not in _rn().GRUPO_B_CARTOES else ndp
+        rest = max(0, ndm - n_)         # A: ndm - ndp_a; B: ndm - ndp
         r_ = v / n_ if (v is not None and n_) else None
         vars_ = []
         for am, r in zip(meses[1:], rot[1:]):
