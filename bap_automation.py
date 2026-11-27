@@ -7004,10 +7004,11 @@ def blocos_resumo_fretes_web(r: dict):
     # so as frases que os cartoes nao dizem (a web tira a que repete cartao)
     frases = []
     ufs = agreg.get("Por UF") or []
-    if len(ufs) > 1:
+    ufs_ok = [x for x in ufs if x[0] != "Sem UF"]
+    if len(ufs) > 1 and ufs_ok:
         n_ = sum(x[1] for x in ufs)
         v_ = sum(x[2] for x in ufs)
-        topo = max(ufs, key=lambda x: x[2])
+        topo = max(ufs_ok, key=lambda x: x[2])
         frases.append(("info", f"{topo[0]} tem {_rn.br(topo[1])} das "
                        f"{_rn.br(n_)} notas com frete e "
                        f"{_rn.p(_rn.pct_de(topo[2], v_))} do valor "
