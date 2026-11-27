@@ -6949,7 +6949,7 @@ def _rotulo_sem_fretes_web(rot: str, v):
 
 
 def blocos_resumo_fretes_web(r: dict):
-    """Funcao pura (T-0037, contrato 10.8): o Resumo do Farol de Fretes, que no
+    """Funcao pura (T-0037, contrato §10.12.2): o Resumo do Farol de Fretes, que no
     PC nao tem painel proprio (so `graficos` e `tabelas`). Devolve
     (blocos, frases): o grafico dos 12 meses como `barras`; as tabelas Por UF,
     Por cidade e Por transportadora, do mes padrao do filtro MES, como `tabela`
