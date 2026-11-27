@@ -6096,7 +6096,7 @@ CARD_HTML = """<!doctype html><html lang="pt-br"><meta charset="utf-8">
 </style>
 <body>
   <div class="topo">
-    <div class="marca">BAP AUTO PARTS &middot; TRADE</div>
+    <div class="marca">BAP AUTOPARTS &middot; TRADE</div>
     <h1>Alterações de preço</h1>
     <div class="quando">{periodo}</div>
   </div>
