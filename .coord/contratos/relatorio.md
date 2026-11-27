@@ -1554,9 +1554,9 @@ Conferidas no `main` em `a32b610`, com `montar(rid, raiz)` nas bases do reposit�
 
 Saída da web, não entrada: o pacote não muda e o robô não muda. O desenho completo está em `docs/desenho/T-0055.md`.
 
-- Rotas: `GET /api/leitura/painel` e `GET /api/leitura/resumo/{rid}`, com `Authorization: Bearer` igual a `BAP_WEB_LEITURA_TOKEN`, que é separado do `BAP_WEB_TOKEN`. Sem a variável, 404; com token ausente ou errado, 401; com outro método, 405; acima de 30/min por IP ou 120/min no total, 429.
+- Rotas: `GET /api/leitura/painel` e `GET /api/leitura/resumo/{rid}`, com `Authorization: Bearer` igual a `BAP_WEB_LEITURA_TOKEN`, que é separado do `BAP_WEB_TOKEN`. Sem a variável, 404; com token ausente ou errado, 401; com outro método, 405. Acima de 30/min por IP ou 120/min no total, 429: proteção técnica, recomendação do gerente (plano R-20261127-100915), não RN.
 - Corpo: `versao_leitura` (1), `versao_web`, `pacote` (`lote`, `gerado_em`, `dados_ate`, `du`) e, conforme a rota, `visoes` + `farois` ou `rid` + `nome` + `cartoes`. As chaves são só as da lista fechada do desenho, §4.
-- Só o que o perfil `diretor` vê (RN-GER-014). Nunca tabela, dado pessoal (RN-GER-011), meta RH (RN-GER-001) nem TOTAL A PAGAR (RN-GER-015).
+- Só o que o perfil `diretor` vê (RN-GER-014). Nunca tabela, nome, documento (CPF/CNPJ), telefone ou e-mail (RN-GER-011), meta RH (RN-GER-001) nem TOTAL A PAGAR (RN-GER-015).
 - Mudança incompatível = `versao_leitura` 2 + ADR + recado aos consumidores.
 
 ## 11. Parte ação: os callables e a web v1
