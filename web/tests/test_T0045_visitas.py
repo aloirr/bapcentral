@@ -690,3 +690,200 @@ def test_site_descompressao_e_codigo_do_contrato_v1_1():
     assert visitas.STATUS_DO_CODIGO["DESCOMPRESSAO_TETO"] == "parcial" and "DESCOMPRESSAO_TETO" not in visitas.NOVA_TENTATIVA
     assert visitas.DESCOMPRESSAO_MAX == 50 * 1024 * 1024
     assert "Excel grande demais" in visitas.texto_do_codigo("DESCOMPRESSAO_TETO", {"dias": ["20261126"]})
+
+
+# ---------------------------------------------------------------- lote 2: nenhum 2º login no dia (RN-VIS-005) e pedido parado
+def trab(v):
+    return v.get("/api/visitas/trabalho", headers=H).json()
+
+
+def fechar_no_pc(v, dias):
+    """O robô do PC confirma que fechou `dias` (cada um com a baixa na manhã seguinte)."""
+    ep = v.get("/api/visitas/lotes?desde=0", headers=HP).json()["epoca"]
+    pc = {d: f"{d[:4]}-{d[4:6]}-{int(d[6:]) + 1:02d}T07:00:00-04:00" for d in dias}
+    assert v.post("/api/visitas/lotes/confirmar", json={"epoca": ep, "fechados_pc": pc, "resultados": []},
+                  headers=HP).status_code == 200
+
+
+@pytest.mark.parametrize("codigo", ["MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA", "MAXIMA_BLOQUEIO"])
+def test_RN_VIS_005_retomar_e_diagnostico_no_mesmo_dia_nao_dao_2o_login(v, admin, relogio, codigo):
+    r = conceder(v).json()
+    fim(v, r["id"], codigo)
+    assert trab(v)["login_barrado"] == {"dia": "20261127", "codigo": codigo}
+    csrf = token_form(admin, "/visitas/atualizar")
+    txt = admin.post("/visitas/retomar", data={"csrf": csrf}, follow_redirects=True).text
+    assert "Retomado." in txt and "amanhã" not in txt.split("Sem acesso à Máxima hoje")[0]
+    assert trab(v)["pausado"] is None                                  # o Retomar continua preciso e aceito
+    txt = admin.post("/visitas/diagnostico", data={"csrf": csrf}, follow_redirects=True).text
+    assert "Diagnóstico pedido." in txt and "Sem acesso à Máxima hoje" in txt          # a faixa, não o sufixo da resposta
+    relogio["t"] += timedelta(hours=1)
+    for motivo in ("diagnostico", "agenda", "pedido", "retentativa"):
+        c = conceder(v, motivo)
+        assert c.status_code == 429 and c.json() == {"erro": "login barrado hoje", "motivo": motivo}
+    assert trab(v)["tentativas_hoje"]["total"] == 1                    # nenhuma tentativa nova foi gasta
+    relogio["t"] += timedelta(days=1)                                  # amanhã tudo volta, sem ninguém mexer
+    assert trab(v)["login_barrado"] is None
+    assert conceder(v).status_code == 201
+
+
+def test_RN_VIS_005_o_botao_do_pedido_fica_travado_e_a_tela_explica(v, admin, relogio):
+    r = conceder(v).json()
+    fim(v, r["id"], "MAXIMA_BLOQUEIO")
+    csrf = token_form(admin, "/visitas/atualizar")
+    admin.post("/visitas/retomar", data={"csrf": csrf})
+    t = visitas.Visitas(v.app_dados).tela(relogio["t"])
+    assert t["pode_apertar"] is False and t["motivo_travado"] == visitas.TRAVADO["login"]
+    pag = admin.get("/visitas/atualizar").text
+    assert "Sem acesso à Máxima hoje" in pag and "Use o Atualizar visitas do PC; amanhã o site volta sozinho." in pag
+    assert "recusou" not in pag.split("Últimas rodadas")[0]            # a faixa é neutra (vale também para a rodada parada no login)
+    assert "Use o Atualizar visitas do PC" in pag and "disabled" in pag and "RN-" not in pag
+    x = admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-26", "ate": "2026-11-27"}, follow_redirects=True)
+    assert visitas.TRAVADO["login"] in x.text and trab(v)["pedido"] is None
+    relogio["t"] += timedelta(days=1)
+    assert visitas.Visitas(v.app_dados).tela(relogio["t"])["pode_apertar"] is True
+
+
+def test_RN_VIS_005_fim_perdido_na_fase_login_vence_e_nao_ha_novo_login_as_06h30(v, relogio):
+    relogio["t"] = datetime(2026, 11, 27, 6, 0, 0, tzinfo=MANAUS)
+    r = conceder(v).json()                                             # a rodada some sem `fim`
+    relogio["t"] += timedelta(minutes=30)                              # a concessão venceu; a agenda volta às 06h30
+    c = conceder(v)
+    assert c.status_code == 429 and c.json() == {"erro": "login barrado hoje", "motivo": "agenda"}
+    assert trab(v)["login_barrado"] == {"dia": "20261127", "codigo": "RODADA_INTERROMPIDA"}
+    assert visitas_rodadas(v)[0]["id"] == r["id"] and visitas_rodadas(v)[0]["codigo"] == "RODADA_INTERROMPIDA"
+    relogio["t"] += timedelta(days=1)
+    assert conceder(v).status_code == 201
+
+
+def test_RN_VIS_005_vencida_na_fase_login_do_progresso_tambem_barra(v, relogio):
+    r = conceder(v).json()
+    assert v.post(f"/api/visitas/rodada/{r['id']}/progresso", json={"fase": "login"}, headers=H).status_code == 200
+    relogio["t"] += timedelta(minutes=11)
+    assert conceder(v).status_code == 429
+
+
+def test_RN_VIS_005_vencida_em_fase_posterior_continua_com_nova_tentativa(v, relogio):
+    r = conceder(v).json()
+    assert v.post(f"/api/visitas/rodada/{r['id']}/progresso", json={"fase": "maxgestao"}, headers=H).status_code == 200
+    relogio["t"] += timedelta(minutes=11)                              # o login foi confirmado: vale a nova tentativa
+    assert conceder(v).status_code == 201
+    assert trab(v)["login_barrado"] is None
+
+
+def test_RN_VIS_005_o_dia_do_bloqueio_e_o_do_inicio_da_concessao(v, relogio):
+    relogio["t"] = datetime(2026, 11, 27, 23, 55, 0, tzinfo=MANAUS)
+    conceder(v)
+    relogio["t"] += timedelta(minutes=10)                              # vence já em 28/11, mas a concessão é de 27/11
+    assert trab(v)["login_barrado"] is None
+    est = json.loads((v.app_dados / "visitas" / "estado.json").read_text())
+    assert est["login_barrado"]["dia"] == "20261127"
+    assert conceder(v).status_code == 201                              # 28/11 não está barrado
+
+
+def test_RN_VIS_005_codigo_comum_nao_barra_o_login(v, relogio):
+    rodada_e_fim(v, relogio, "agenda", "MAXIMA_FORA")
+    assert trab(v)["login_barrado"] is None
+    assert conceder(v).status_code == 201
+
+
+def test_RN_VIS_004_pedido_sem_dia_a_baixar_nao_entra_na_fila(v, admin, relogio):
+    fechar_no_pc(v, ["20261124", "20261125"])
+    csrf = token_form(admin, "/visitas/atualizar")
+    x = admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-24", "ate": "2026-11-25"}, follow_redirects=True)
+    assert "24/11 a 25/11 já estão em dia." in x.text and trab(v)["pedido"] is None
+    assert "nada a baixar" not in x.text                               # a mensagem já diz; a 1ª linha da lista não repete
+    ult = visitas_rodadas(v)[0]
+    assert ult["motivo"] == "pedido" and ult["codigo"] == "NADA_A_FAZER" and ult["status"] == "ok" and ult["dias"] == []
+    assert re.match(r"^P\d{8}T\d{6}$", ult["id"]) and ult["em"] == "2026-11-27T09:00:00-04:00"
+    assert "perfil" in (v.app_dados / "visitas" / "pedidos.jsonl").read_text()          # o pedido fica registrado
+    assert trab(v)["tentativas_hoje"]["total"] == 0                                      # nenhum login gasto
+    pag = admin.get("/visitas/atualizar").text
+    assert "Pedido de 24/11 a 25/11: nada a baixar." in pag and ult["de"] == "20261124" and ult["ate"] == "20261125"
+    y = admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-26", "ate": "2026-11-27"}, follow_redirects=True)
+    assert "Pedido enviado." in y.text and trab(v)["pedido"]["de"] == "20261126"        # a fila não ficou presa
+
+
+def test_RN_VIS_004_pedido_na_fila_que_ficou_sem_dia_sai_e_o_novo_e_aceito(v, admin, relogio):
+    csrf = token_form(admin, "/visitas/atualizar")
+    admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-24", "ate": "2026-11-25"})
+    pid = trab(v)["pedido"]["id"]
+    fechar_no_pc(v, ["20261124", "20261125"])                          # o PC fechou os dias depois do pedido
+    assert trab(v)["pedido"] is None
+    ult = visitas_rodadas(v)[0]
+    assert ult["id"] == pid and ult["codigo"] == "NADA_A_FAZER" and ult["motivo"] == "pedido"
+    assert trab(v)["tentativas_hoje"]["total"] == 0
+    relogio["t"] += timedelta(seconds=2)                               # o id do pedido é a hora: nunca repete
+    y = admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-26", "ate": "2026-11-27"}, follow_redirects=True)
+    assert "Pedido enviado." in y.text and trab(v)["pedido"]["id"] != pid
+
+
+def test_RN_VIS_004_pedido_com_dia_aberto_continua_na_fila(v, admin, relogio):
+    fechar_no_pc(v, ["20261124"])
+    admin.post("/visitas/atualizar", data={"csrf": token_form(admin, "/visitas/atualizar"),
+                                           "de": "2026-11-24", "ate": "2026-11-25"})
+    assert trab(v)["pedido"]["de"] == "20261124"
+    assert not (v.app_dados / "visitas" / "rodadas.jsonl").exists()
+
+
+def test_RN_VIS_004_pedido_refazer_sai_quando_a_nuvem_refez_os_dias_depois_do_pedido(v, admin, relogio):
+    fechar_no_pc(v, ["20261124", "20261125"])
+    relogio["t"] = datetime(2026, 11, 27, 6, 0, 0, tzinfo=MANAUS)
+    admin.post("/visitas/refazer", data={"csrf": token_form(admin, "/visitas/atualizar"),
+                                         "de": "2026-11-24", "ate": "2026-11-25"})
+    assert trab(v)["pedido"]["refazer"] is True                        # `refazer` ignora o dia fechado: fica na fila
+    relogio["t"] = datetime(2026, 11, 27, 9, 0, 0, tzinfo=MANAUS)
+    r = conceder(v, "pedido", ("20261124", "20261125")).json()
+    assert enviar(v, r["id"], lote(r["id"], dia="20261124"), dia="20261124").status_code == 200      # baixado_em 06h07, depois do pedido
+    assert enviar(v, r["id"], lote(r["id"], dia="20261125"), dia="20261125").status_code == 200
+    fim(v, r["id"], "PARCIAL_TEMPO")                                   # este código manteria o pedido na fila
+    assert trab(v)["pedido"] is None                                   # mas os dois dias já foram refeitos: não repete
+    ult = visitas_rodadas(v)[0]
+    assert ult["codigo"] == "NADA_A_FAZER" and ult["id"].startswith("P")
+
+
+
+def test_RN_VIS_004_situacao_e_saude_ignoram_o_pedido_sem_dia(v, admin, relogio):
+    fechar_no_pc(v, ["20261124"])
+    csrf = token_form(admin, "/visitas/atualizar")
+    assert "Em dia" not in admin.get("/visitas/atualizar").text.split("Últimas rodadas")[0]       # sem rodada real: "—"
+    admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-24", "ate": "2026-11-24"})
+    pag = admin.get("/visitas/atualizar").text
+    assert "Pedido de 24/11: nada a baixar." in pag and "Em dia" not in pag.split("Últimas rodadas")[0]
+    assert visitas.Visitas(v.app_dados).saude(relogio["t"])["codigo"] is None
+    relogio["t"] += timedelta(seconds=2)
+    rodada_e_fim(v, relogio, "agenda", "MAXIMA_FORA")
+    relogio["t"] += timedelta(seconds=2)
+    admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-24", "ate": "2026-11-24"})   # outro pedido sem dia
+    sa = visitas.Visitas(v.app_dados).saude(relogio["t"])
+    assert sa["codigo"] == "MAXIMA_FORA"                                # a última rodada REAL, não a do pedido
+    assert "Erro" in admin.get("/visitas/atualizar").text.split("Últimas rodadas")[0]
+
+
+def test_RN_VIS_005_primeira_linha_da_lista_nao_repete_o_texto_do_login_barrado(v, admin, relogio):
+    r = conceder(v).json()
+    fim(v, r["id"], "MAXIMA_BLOQUEIO")
+    admin.post("/visitas/retomar", data={"csrf": token_form(admin, "/visitas/atualizar")})
+    pag = admin.get("/visitas/atualizar").text
+    lista = pag.split("Últimas rodadas")[1]
+    assert "Código para o suporte: MAXIMA_BLOQUEIO" in lista and "A Máxima bloqueou o acesso do site" not in lista
+    assert visitas.Visitas(v.app_dados).tela(relogio["t"])["login_barrado"] == {"dia": "20261127", "codigo": "MAXIMA_BLOQUEIO"}
+
+
+def test_RN_VIS_005_a_marca_vai_para_a_primeira_rodada_real_mesmo_com_pedido_sem_dia_no_topo(v, admin, relogio):
+    csrf = token_form(admin, "/visitas/atualizar")
+    admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-24", "ate": "2026-11-25"})   # fica na fila
+    r = conceder(v, "agenda").json()
+    fim(v, r["id"], "MAXIMA_BLOQUEIO")
+    admin.post("/visitas/retomar", data={"csrf": csrf})
+    fechar_no_pc(v, ["20261124", "20261125"])                          # o pedido sai da fila: a linha dele fica no topo
+    lista = admin.get("/visitas/atualizar").text.split("Últimas rodadas")[1]
+    assert lista.index("nada a baixar") < lista.index("MAXIMA_BLOQUEIO")
+    assert "A Máxima bloqueou o acesso do site" not in lista
+
+
+def test_RN_VIS_004_mensagem_de_outra_acao_nao_apaga_o_texto_do_pedido_sem_dia(v, admin, relogio):
+    fechar_no_pc(v, ["20261124", "20261125"])
+    csrf = token_form(admin, "/visitas/atualizar")
+    admin.post("/visitas/atualizar", data={"csrf": csrf, "de": "2026-11-24", "ate": "2026-11-25"})
+    outra = admin.post("/visitas/diagnostico", data={"csrf": csrf}, follow_redirects=True).text
+    assert "Diagnóstico pedido." in outra and "Pedido de 24/11 a 25/11: nada a baixar." in outra

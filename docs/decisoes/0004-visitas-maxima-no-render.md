@@ -1,9 +1,9 @@
 # ADR 0004 — "Atualizar visitas" da Máxima no Render: o navegador roda num cron job à parte, e a senha fica só nele
 
-- **Status:** **aceita** em 27/11/2026 (decisões D1 a D5, §0). O código ainda não existe. O `render.yaml` muda num PR de governança à parte (§9). **Adendo 1** (27/11): a D4 foi revista (o mesmo login do notebook) e a governança 2 vem antes do código.
+- **Status:** **aceita** em 27/11/2026 (decisões D1 a D5, §0). O código está em construção pelos lotes da T-0045 (§9). O `render.yaml` muda num PR de governança à parte (§9). **Adendo 1** (27/11): a D4 foi revista (o mesmo login do notebook) e a governança 2 vem antes do código.
 - **Data:** 2026-11-27 (proposta, versão final e revisão do PR #137)
 - **Tarefa:** T-0045 · **Autor:** engenheiro-software
-- **Contrato:** `.coord/contratos/visitas-nuvem.md` **v1**. Esta ADR diz **o porquê e as decisões**; o contrato diz **o como** (rotas, corpos, constantes, códigos e textos). Quando os dois parecerem dizer a mesma coisa, vale o contrato.
+- **Contrato:** `.coord/contratos/visitas-nuvem.md` **v1.2** (lote 2 da T-0045). Esta ADR diz **o porquê e as decisões**; o contrato diz **o como** (rotas, corpos, constantes, códigos e textos). Quando os dois parecerem dizer a mesma coisa, vale o contrato.
 - **Depende de:**
   - ADR 0001: web no Render, modelo M2, perfis (§4.5), adendos 2, 4 e 5;
   - ADR 0002: rotina diária (regra 11) e o limite 3 (`/saude`);
@@ -151,7 +151,7 @@ O site guarda uma **concessão** (lease): só uma rodada ativa por vez, gravada 
 | Botão apertado durante uma rodada | o pedido entra na fila (no máximo 1 pendente). Apertar de novo mostra "Já pedido às HHhMM". Ele é atendido na volta seguinte ao fim da rodada |
 | Agenda das 06h00 e um pedido juntos | uma rodada só, com os dias dos dois |
 | Duas execuções do cron ao mesmo tempo (atraso do Render) | a segunda recebe 409 ao pedir a concessão e sai |
-| Rodada morta (memória, tempo) | a concessão vence, e o site grava `RODADA_INTERROMPIDA`. Os dias já enviados ficam, e a nova tentativa baixa só o que falta |
+| Rodada morta (memória, tempo) | a concessão vence, e o site grava `RODADA_INTERROMPIDA`. Os dias já enviados ficam, e a nova tentativa baixa só o que falta. Morta na fase `login` ou sem fase, não há nova tentativa no dia (adendo 1, RN-VIS-005) |
 | Pedido maior que uma rodada (45 min, §4) | a rodada para no fim de um dia, e o pedido continua na volta seguinte, até 3 rodadas |
 | "Atualizar visitas" do PC durante a rodada do site | o PC consulta o estado do site e pede confirmação (texto no contrato, §4.5). Se a pessoa seguir, os dois gravam com nomes diferentes, e vale o Excel mais novo por vendedor e dia (`espelhos_do_periodo`, regra de hoje). [SUPOSIÇÃO: a Máxima pode aceitar uma sessão só por usuário; com o usuário próprio do robô (D4), o PC usa outro login e o risco cai. Revista no adendo 1: com o mesmo login, o risco volta] |
 
@@ -192,14 +192,7 @@ robô do PC --pacote por farol (§10.8, com o vc_visitas novo)--> site --> Farol
 
 ### 5.2 Regras novas
 
-O po registra no `docs/produto/03-regras.md`; os testes citam. Quando estiverem lá, a fonte passa a ser o `03-regras.md`.
-- **RN-VIS-002:** o dia está fechado quando foi baixado num dia depois dele, **pela hora da baixa** (nuvem ou PC), em Manaus. A importação não fecha o dia. Entre a hora do PC e a da nuvem, vale a maior (`juntar_baixado`, função pura), e o PC e o site usam o mesmo resultado (§5.1, item 4).
-- **RN-VIS-003:** a importação só acrescenta. Ela nunca sobrescreve nem apaga Excel do `ANALITICO`, e o acompanhamento só ganha linha de dia fechado (regra 7).
-- **RN-VIS-004:** uma rodada da nuvem por vez (concessão de 10 min). O pedido do botão espera na fila.
-- **RN-VIS-005:** senha recusada, confirmação, captcha ou bloqueio pedidos pela Máxima **pausam** as rodadas da nuvem até o "Retomar" do admin. Não há segunda tentativa de login.
-- **RN-VIS-006:** dia com vendedor que falhou é baixado de novo **uma vez**, com sucesso ou falha. Depois disso, ele fica como está ("Baixar de novo" pelo admin ou pelo PC).
-- **RN-VIS-007:** do Espelho, só as colunas da lista de permitidas saem do contêiner, e o nome do cliente e o texto livre saem limpos pela RN-GER-011. CNPJ, CPF, telefone, e-mail ou valor fora do formato que sobrarem **não sobem** e pausam a agenda e o botão. O "Retomar" fica registrado com o id da decisão do Alexandre e volta ao diagnóstico.
-- **RN-VIS-008:** no máximo 8 logins da nuvem na Máxima por dia de Manaus, com teto por motivo; chegou ao teto, a nuvem para até o dia seguinte, e o botão do PC continua.
+As RN-VIS-002 a 008 estão no `docs/produto/03-regras.md` (fonte desde o lote 2 da T-0045; os testes citam): 002 (dia fechado pela hora da baixa) · 003 (importação só acrescenta) · 004 (uma rodada por vez) · 005 (sem 2º login no dia) · 006 (retentativa única) · 007 (Espelho sem dado pessoal) · 008 (teto de logins).
 
 ### 5.3 Por que um lote próprio, e não o pacote por farol do §10.8
 
@@ -317,4 +310,8 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
   - contrato, §5: `MAXIMA_SENHA`, `MAXIMA_CONFIRMACAO`, `MAXIMA_CAPTCHA` e `MAXIMA_BLOQUEIO` **pausam**, e no diagnóstico não há nova tentativa;
   - contrato, §3.1, passo 1: pausado → o cron não pede trabalho;
   - código: `web/app/visitas.py`, `PAUSAM` e o `fim` (o código pausa a nuvem), a concessão recusada com 423 enquanto pausado, e o `diagnostico.estado = "falhou"`, que só volta a `pendente` pelo "Pedir diagnóstico" do admin; testes `test_RN_VIS_005_*` em `web/tests/test_T0045_visitas.py`.
-- **A brecha que fica:** o `TENTATIVAS_DIA["diagnostico"]` é 2, e o "Retomar" de um `MAXIMA_*` não pede recado. Um segundo login no mesmo dia só acontece com 2 cliques do admin ("Retomar" e "Pedir diagnóstico"). **Regra até a mudança:** depois de um `MAXIMA_*`, o time não aperta nenhum dos dois sem o "ok" do Alexandre e avisa o po na hora. **Proposta** (pendência, ao gerente): o "Retomar" dos `MAXIMA_*` passa a pedir o recado do Alexandre, como o `DADO_PESSOAL` (RN-VIS-005; contrato §4 e `web/app/visitas.retomar`, modulo-web).
+- **A brecha foi fechada no lote 2 da T-0045.** Havia dois caminhos para um 2º login no mesmo dia depois de um login recusado: os 2 cliques do admin ("Retomar" e "Pedir diagnóstico", com o `TENTATIVAS_DIA["diagnostico"]` em 2) depois de um `MAXIMA_*`; e o `fim` de um `MAXIMA_*` perdido, que o site gravava como `RODADA_INTERROMPIDA` (código de `NOVA_TENTATIVA`) e levava a novo login às 06h30. Os dois somem com uma marca só no site, o `login_barrado` (contrato v1.2, §3.1, §3.2, §4.5, §5 e §7):
+  - o que a marca faz (quando é gravada, o 429 da concessão, o 409 do botão): contrato v1.2, §3.1, §3.2 e §4.5;
+  - **por que uma marca do dia e não o recado no "Retomar":** a regra é "nunca um 2º login no mesmo dia, sem exceção", e um recado digitado não é controle (o site não confere o recado, §6). A marca vale para os dois caminhos, inclusive o que não passa por clique nenhum (o `fim` perdido). Por isso a proposta antiga (o "Retomar" dos `MAXIMA_*` pedir o recado do Alexandre) não foi adotada;
+  - **o custo:** uma rodada que cai na fase `login` por outro motivo (o Chromium caiu, o processo foi morto, o site ficou fora do ar ou reiniciou durante o login) também fica sem nova tentativa no dia. É aceito: sem a confirmação do login, não dá para saber se a Máxima recusou, e o botão do PC continua.
+- **Também no lote 2 (contrato v1.2, §2 e §4.5):** a `JANELA` inclui o minuto 21h59 inteiro; e o pedido do botão sem dia a baixar sai da fila com `NADA_A_FAZER`, sem login, em vez de ficar parado e barrar o pedido novo com 409.

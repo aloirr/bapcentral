@@ -1,4 +1,4 @@
-# Contrato das visitas na nuvem — v1 (T-0045, ADR 0004)
+# Contrato das visitas na nuvem — v1.2 (T-0045, ADR 0004)
 
 - **Dono:** engenheiro-software. **Escrito em:** 27/11/2026; revisado no PR #137, antes do merge e de qualquer consumidor.
 - **Papel:** este contrato diz **como** (rotas, corpos, constantes, códigos, textos). O **porquê** e as decisões D1 a D5 estão na ADR 0004 (§0). A ordem de publicação está na ADR 0004, §9.
@@ -9,6 +9,10 @@
   - o `visitas_nucleo` (modulo-rota: as funções puras citadas aqui);
   - os testes (agente testes).
 - **Versão:** renomear ou tirar chave, rota, código de erro, coluna permitida ou variável deste contrato = v2, com ADR e recado aos consumidores. Acrescentar chave opcional ou código novo = v1 (aviso aos consumidores). **Acrescentar coluna à lista de permitidas (§3.6) = v2**, porque é decisão de dado pessoal do Alexandre.
+- **Histórico:**
+  - v1 (27/11/2026, PR #137): primeira versão;
+  - v1.1 (PR #149): empate da nuvem, conferência no site, códigos e formatos;
+  - v1.2 (lote 2 da T-0045): `JANELA` até 21h59 inclusive (§2); `login_barrado`, sem 2º login no mesmo dia depois de login recusado (RN-VIS-005: §3.1, §3.2, §4.5, §5, §7); pedido sem dia a baixar sai da fila com `NADA_A_FAZER` (§3.1, §4.5, §5, §7), que passa a aparecer na lista de rodadas (§5). Só chave, resposta e linha novas: pede aviso aos consumidores (pelo gerente-projetos).
 
 ## 1. Variáveis de ambiente (só os nomes; nenhum valor aqui)
 
@@ -37,7 +41,7 @@
 | `NOVA_TENTATIVA` | `MAXIMA_FORA`, `TELA_MUDOU`, `NAVEGADOR_FALHOU`, `SITE_RECUSOU`, `RODADA_INTERROMPIDA`, `PARCIAL_TEMPO`, `ERRO_INTERNO` | idem | os códigos que deixam tentar de novo, dentro do teto do dia |
 | `TENTATIVAS_DIA` | `agenda` 4, `pedido` 3, `retentativa` 1, `diagnostico` 2 | `web/app/visitas.py` e `agenda.py` | teto por motivo no dia de Manaus (RN-VIS-008) |
 | `LOGINS_DIA_MAX` | 8 | idem | teto da soma dos motivos no dia: o que vier primeiro trava (RN-VIS-008) |
-| `JANELA` | 06h00 a 21h59 (Manaus) | `agenda.py` | fora dela o cron sai sem falar com a Máxima. O pedido do botão feito fora da janela espera as 06h00 |
+| `JANELA` | 06h00 a 21h59 (Manaus) | `agenda.py` | o minuto 21h59 inteiro: dentro se `06:00:00 <= hora < 22:00:00`. Fora dela o cron sai sem falar com a Máxima. O pedido do botão feito fora da janela espera as 06h00. O `schedule` do `render.yaml` (última volta às 21h50) não muda |
 | `CONCESSAO_MIN` | 10 | `web/app/visitas.py` | a concessão vence sem `progresso` em 10 min (RN-VIS-004) |
 | `RODADA_MAX_MIN` | 45 | `nuvem/visitas/rodar.py` | conferido **no fim de cada dia**: passou, a rodada fecha com `PARCIAL_TEMPO` |
 | `RODADA_TETO_MIN` | 55 | idem | vigia (thread): liga o `parar` do `Robo` |
@@ -80,6 +84,7 @@ Regras comuns:
  "agenda": "desligada",
  "diagnostico": {"estado": "pendente", "em": null, "codigo": null},
  "pausado": null,
+ "login_barrado": null,
  "pedido": {"id": "P20261127T091503", "de": "20261124", "ate": "20261127", "refazer": false,
             "pedido_em": "2026-11-27T09:15:03-04:00", "perfil": "gerente", "rodadas": 0},
  "indice": {"20261126": {"baixado_em": "2026-11-27T06:07:41-04:00", "origem": "nuvem",
@@ -97,20 +102,21 @@ Regras comuns:
 | `agenda` | `"desligada"` ou `"ligada"` | começa `desligada`. Só o admin liga, e só com diagnóstico `ok` (§6) **e** `fechados_pc_em` nas últimas 24 h (o robô do PC novo no ar, §4.3) |
 | `diagnostico.estado` | `"pendente"`, `"ok"` ou `"falhou"` | começa `pendente`. O admin pode pedir de novo (volta a `pendente`) |
 | `pausado` | `null` ou `{"codigo": str, "desde": iso}` | RN-VIS-005 e RN-VIS-007. Com pausa, o cron só sai |
-| `pedido` | `null` ou objeto | no máximo **1** pendente (o botão). `perfil` é só o perfil, nunca o usuário |
+| `login_barrado` | `null` ou `{"dia": "AAAAMMDD", "codigo": str}` | RN-VIS-005: login recusado, sem 2º login no mesmo dia de Manaus. O site grava quando o `fim` traz `MAXIMA_SENHA`, `MAXIMA_CONFIRMACAO`, `MAXIMA_CAPTCHA` ou `MAXIMA_BLOQUEIO`, ou quando a concessão vence (`RODADA_INTERROMPIDA`) com a fase da rodada `null` ou `login` (login não confirmado). `dia` = o dia de Manaus do início da concessão; `codigo` = o do `fim` ou `RODADA_INTERROMPIDA`. Vale só enquanto `dia == hoje`: no dia seguinte volta sozinho, sem clique |
+| `pedido` | `null` ou objeto | no máximo **1** pendente (o botão). `perfil` é só o perfil, nunca o usuário. Pedido sem dia a baixar não fica na fila: sai com `NADA_A_FAZER` (§4.5) |
 | `indice` | `{AAAAMMDD: {...}}` | **o índice único** dos dias baixados nos últimos `FECHADOS_PC_DIAS` dias, pela nuvem (lote importado) ou pelo PC (`fechados_pc`, §4.3). `baixado_em` = o maior dos dois (`visitas_nucleo.juntar_baixado`, RN-VIS-002); `origem` = de quem é esse maior. **No empate de hora, vale a nuvem** (`origem: "nuvem"`). A web tem um espelho mínimo dessa função (`web/app/visitas.juntar_baixado`), porque o Render publica só `web/`; um teste de paridade na raiz (`tests/`) confere que as duas dão o mesmo resultado, com empate incluído. `erros_vendedor` e `refeito` só valem para `origem: "nuvem"` |
 | `tentativas_hoje` | objeto | as concessões dadas hoje (Manaus), por motivo: `n`, `ultima_em` e o `codigo` do `fim` (ou `RODADA_INTERROMPIDA`). O site zera quando o `dia` muda (RN-VIS-008) |
 | `falhas_seguidas` | objeto | as rodadas seguidas que terminaram em `TELA_MUDOU` na mesma fase |
 | `fechados_pc_em` | `null` ou iso | o último `fechados_pc` recebido do robô do PC |
-| `rodada_ativa` | `null` ou `{"id", "vence_em"}` | a concessão em vigor |
+| `rodada_ativa` | `null` ou `{"id", "vence_em"}` | a concessão em vigor. No disco (§7), o site guarda também `inicio` (a hora da concessão) e `fase` (a do último `progresso`); é deles que saem o `login_barrado.dia` e a regra da `RODADA_INTERROMPIDA` na fase `login` |
 
 O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None` (`nuvem/visitas/agenda.py`), nesta ordem:
-1. `pausado` → `None`;
-2. fora da `JANELA` → `None`;
+1. `pausado` **ou** `login_barrado.dia == hoje` → `None` (RN-VIS-005);
+2. fora da `JANELA` (`06:00:00 <= hora < 22:00:00`) → `None`;
 3. `tentativas_hoje.total >= LOGINS_DIA_MAX` → `None` (a tela mostra `TETO_DIA`);
 4. `diagnostico.estado == "pendente"` e `diagnostico` abaixo do teto → `"diagnostico"`;
 5. `agenda == "desligada"` ou `diagnostico.estado != "ok"` → `None` (o pedido do botão também espera; a agenda ligada só volta a rodar com o diagnóstico limpo);
-6. `pedido`, com `pedido.rodadas < PEDIDO_MAX_RODADAS` e `pedido` abaixo do teto → `"pedido"`;
+6. `pedido`, com `pedido.rodadas < PEDIDO_MAX_RODADAS`, `pedido` abaixo do teto e dia a baixar (`agenda.dias_da_rodada("pedido", ...)` não vazio) → `"pedido"`;
 7. ontem não fechado no `indice` e `agenda` abaixo do teto:
    - `n == 0` e `agora >= AGENDA_HORA` → `"agenda"`;
    - `n` de 1 a 3, `codigo` em `NOVA_TENTATIVA` e `agora >= RETENTATIVAS_AGENDA[n - 1]` → `"agenda"`;
@@ -133,8 +139,11 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 | 201 `{"id": "R20261127T060012", "vence_em": iso}` | concessão dada (RN-VIS-004) |
 | 409 `{"erro": "rodada ativa", "id": str}` | já há concessão em vigor. O cron sai sem erro |
 | 423 `{"erro": "pausado", "codigo": str}` | pausa gravada depois do `trabalho` |
+| 429 `{"erro": "login barrado hoje", "motivo": str}` | `login_barrado.dia == hoje` (RN-VIS-005). O cron sai sem erro |
 | 429 `{"erro": "teto do dia", "motivo": str}` | o motivo ou a soma chegou ao teto (RN-VIS-008). O cron sai sem erro |
 | 400 | corpo fora do formato, `motivo` fora da lista, `dias` vazio, mais de `PEDIDO_MAX_DIAS` dias (o diagnóstico leva 1) |
+
+Ordem das conferências na concessão (depois do 400 de formato): rodada ativa (409) → pausa (423) → login barrado (429) → teto do dia (429).
 
 ### 3.3 `POST /api/visitas/rodada/<id>/progresso`
 
@@ -279,13 +288,19 @@ O Excel que a Máxima entrega **nunca sai do contêiner**. Para cada Excel, o cr
 | Rota | Perfis | O quê |
 |---|---|---|
 | `GET /visitas/atualizar` | todos os que veem o Farol de Visita | estado (agenda, pausa, rodada em andamento, `TETO_DIA`), lotes à espera do PC ("Baixado às HHhMM · esperando o PC importar") e as 10 últimas rodadas (código e texto do §5; a mais recente em destaque, no topo) |
-| `POST /visitas/atualizar` `{de, ate}` | `admin`, `gerente` (D3) | grava o pedido. Padrão: os dias abertos no `indice` até hoje; no máximo 7 |
+| `POST /visitas/atualizar` `{de, ate}` | `admin`, `gerente` (D3) | grava o pedido. Padrão: os dias abertos no `indice` até hoje; no máximo 7. Ordem: pedido já na fila (409) → pausa (409) → login barrado hoje (409, `TRAVADO["login"]`) → sem dia a baixar. **Sem dia a baixar** (todos fechados): o pedido não entra na fila; o site registra o pedido no `pedidos.jsonl`, grava a linha `NADA_A_FAZER` (com `de` e `ate`) no `rodadas.jsonl` (§7) e responde `pedido_em_dia(de, ate)` |
 | `POST /visitas/refazer` `{de, ate}` | `admin` | o mesmo, com `refazer: true` (baixa de novo dia fechado) |
 | `POST /visitas/retomar` `{recado?}` | `admin` | tira a pausa (RN-VIS-005). Com `pausado.codigo == "DADO_PESSOAL"` (RN-VIS-007): pede `recado` (`^R-\d{8}-\d{6}-alexandre$`; sem ele, 400), grava no `pedidos.jsonl` e volta o `diagnostico` a `pendente`. O site não confere o recado (ADR 0004, §6) |
-| `POST /visitas/diagnostico` | `admin` | volta o diagnóstico a `pendente` |
+| `POST /visitas/diagnostico` | `admin` | volta o diagnóstico a `pendente`. Com `login_barrado.dia == hoje`, continua aceito, com a mesma resposta |
 | `POST /visitas/agenda` `{ligar}` | `admin` | liga ou desliga a agenda. Ligar só nas condições do §3.1 |
 
 - Os outros perfis recebem 403, com teste por perfil.
+- **Login barrado hoje (RN-VIS-005, §3.1):** com `login_barrado.dia == hoje`, o "Retomar" e o "Pedir diagnóstico" continuam aceitos (a pausa e o "Retomar" não mudam). O que trava na tela naquele dia é o botão do pedido (409 acima). Com pausa e login barrado ao mesmo tempo, a tela mostra a pausa; a faixa do login barrado aparece depois do "Retomar". Os textos são constantes de `web/app/visitas.py` (a fonte única; aqui só os nomes):
+  - faixa da tela: `LOGIN_BARRADO_TEXTO`;
+  - botão do pedido travado e o 409: `TRAVADO["login"]`;
+  - pedido sem dia, com o período: `pedido_em_dia(de, ate)`.
+- **"Situação" da tela e `/saude`:** a linha `NADA_A_FAZER` do pedido sem dia não conta; vale a última rodada real.
+- **Pedido sem dia a baixar:** a regra dos dias é a do cron, `agenda.dias_da_rodada("pedido", ...)` (com `refazer` e `PEDIDO_MAX_DIAS`), espelhada na web como o `juntar_baixado` (§3.1), com teste de paridade na raiz (`tests/`). Além do `POST` acima, **na leitura do estado, sem `rodada_ativa`**, o pedido da fila que ficou sem dia (ex.: o PC fechou os dias depois do pedido) sai do mesmo jeito, com a linha `NADA_A_FAZER` (com `de` e `ate`). Nenhum dos dois gasta login nem conta em `tentativas_hoje`.
 - `/saude` ganha `visitas: {"agenda", "diagnostico", "ultima_rodada", "codigo", "pausado", "rodada_ativa", "fase", "lotes_a_importar", "tentativas_hoje"}` (`tentativas_hoje` = só o `total`), sem dado pessoal. É a única rota de estado: o PC também lê aqui.
 - **Aviso do botão do PC**, quando `/saude.visitas.rodada_ativa`: "O site está baixando agora; baixar aqui também pode derrubar a sessão da Máxima. Continuar?"
 
@@ -296,13 +311,13 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 | Código | `status` | Quando | Depois (quem decide: o site, no `fim`) |
 |---|---|---|---|
 | `OK` | ok | todos os dias e vendedores vieram | — |
-| `NADA_A_FAZER` | ok | a concessão veio, mas os dias ficaram fechados no meio-tempo | — |
+| `NADA_A_FAZER` | ok | a concessão veio, mas os dias ficaram fechados no meio-tempo; ou **gravado pelo site**: o pedido do botão ficou sem dia a baixar (§4.5) | o pedido sai da fila; sem login |
 | `PARCIAL_VENDEDOR` | parcial | algum vendedor falhou; os outros vieram | `retentativa` uma vez (RN-VIS-006). O nome do vendedor só aparece na tela, para admin e gerente, a partir do lote |
 | `PARCIAL_TEMPO` | parcial | passou de `RODADA_MAX_MIN` no fim de um dia | nova tentativa (§3.1); o pedido continua até `PEDIDO_MAX_RODADAS` |
-| `MAXIMA_SENHA` | erro | a Máxima recusou usuário ou senha | **pausa** (RN-VIS-005), sem segunda tentativa |
-| `MAXIMA_CONFIRMACAO` | erro | a Máxima pediu código por SMS ou e-mail, confirmação de novo dispositivo, aceite de termo ou troca de senha | **pausa** |
-| `MAXIMA_CAPTCHA` | erro | apareceu captcha (iframe ou elemento conhecido) | **pausa** |
-| `MAXIMA_BLOQUEIO` | erro | conta bloqueada, acesso negado ou HTTP 403 na página de login | **pausa** |
+| `MAXIMA_SENHA` | erro | a Máxima recusou usuário ou senha | **pausa** e `login_barrado` (RN-VIS-005) |
+| `MAXIMA_CONFIRMACAO` | erro | a Máxima pediu código por SMS ou e-mail, confirmação de novo dispositivo, aceite de termo ou troca de senha | **pausa** e `login_barrado` (RN-VIS-005) |
+| `MAXIMA_CAPTCHA` | erro | apareceu captcha (iframe ou elemento conhecido) | **pausa** e `login_barrado` (RN-VIS-005) |
+| `MAXIMA_BLOQUEIO` | erro | conta bloqueada, acesso negado ou HTTP 403 na página de login | **pausa** e `login_barrado` (RN-VIS-005) |
 | `DADO_PESSOAL` | erro | o filtro do §3.6 achou CNPJ, CPF, telefone, e-mail ou valor fora do formato; ou o site recusou o lote com 422 de dado pessoal ou coluna fora da lista (§3.4) | **pausa** (RN-VIS-007); o lote do dia não sobe; "Retomar" no §4.5 |
 | `MAXIMA_FORA` | erro | tempo esgotado no `goto` do login, ou HTTP 5xx | agenda: nova tentativa (§3.1); botão: o pedido sai da fila |
 | `TELA_MUDOU` | erro | `ErroRobo` numa fase (`fase` obrigatória) | nova tentativa (§3.1); 2 rodadas seguidas na mesma fase **pausam a agenda** |
@@ -310,7 +325,7 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 | `SITE_RECUSOU` | parcial | o site respondeu 413 ou 422 a um lote, fora o 413 com `codigo` `DESCOMPRESSAO_TETO` (que é `DESCOMPRESSAO_TETO`) e o 422 de dado pessoal (que é `DADO_PESSOAL`) | nova tentativa (§3.1) do dia recusado |
 | `DESCOMPRESSAO_TETO` | parcial | o site respondeu 413 com esse `codigo`: a conferência passou de `DESCOMPRESSAO_MAX` ou de `ZIP_MEMBROS_MAX` (§3.4) | **sem** nova tentativa no dia: o mesmo Excel daria o mesmo erro e gastaria logins da Máxima. Fica fora de `NOVA_TENTATIVA`. O cron fecha o dia com este código |
 | `SITE_FORA` | erro | o cron não fala com o site depois de `HTTP_TENTATIVAS` | só no log do Render; o site vê `RODADA_INTERROMPIDA` |
-| `RODADA_INTERROMPIDA` | erro | **gravado pelo site**: a concessão venceu sem `fim` | nova tentativa (§3.1) do que falta |
+| `RODADA_INTERROMPIDA` | erro | **gravado pelo site**: a concessão venceu sem `fim` | nova tentativa (§3.1) do que falta. **Interrompida na fase `login` ou sem fase** (login não confirmado): `login_barrado`, sem nova tentativa no dia (RN-VIS-005) |
 | `TETO_DIA` | — | **estado do site, não rodada**: `tentativas_hoje` chegou ao teto (RN-VIS-008) | nada até o dia seguinte |
 | `CONFIG_FALTANDO` | erro | falta `BAP_MAXIMA_USUARIO`, `BAP_MAXIMA_SENHA`, `BAP_VISITAS_TOKEN` ou `BAP_WEB_HOSTPORT` | sai sem abrir o navegador; cada volta repete (custa segundos). O nome da variável só no log do Render |
 | `CONFIG_INSEGURA` | erro | `DEBUG` com `pw`, `PWDEBUG` ou trace ligado | sai sem abrir o navegador |
@@ -329,9 +344,10 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 - **"Situação"**, a palavra que a tela mostra no lugar do código: `SITUACAO` (`ok` → "Em dia", `parcial` → "Parcial", `erro` → "Erro"), com a cor de `SITUACAO_COR`. Com `pausado`, a situação é "Pausado"; durante a rodada, "Baixando".
 - **O código** (e a `fase`, quando houver) aparece pequeno, "para o suporte". É a decisão 6 B: o código no lugar do print.
 - **`TETO_DIA`:** `TETO_DIA_TEXTO`.
-- O `NADA_A_FAZER` não aparece na lista de rodadas.
+- O `NADA_A_FAZER` aparece na lista de rodadas (texto em `CODIGOS`; no pedido sem dia, com o período): é assim que o pedido sem dia mostra por que saiu da fila.
 
 - **Pausa** = `pausado` gravado; o cron sai sem tocar na Máxima até o "Retomar" do admin. O botão do PC continua funcionando.
+- **Login barrado** = `login_barrado.dia == hoje` (§3.1); o cron sai sem tocar na Máxima até o dia seguinte, mesmo depois do "Retomar" (RN-VIS-005).
 - **Nova tentativa (§3.1)** = o próximo horário do motivo, dentro do teto do dia: na agenda, os `RETENTATIVAS_AGENDA`; no pedido, a volta seguinte, até `PEDIDO_MAX_RODADAS`; na retentativa e no diagnóstico, nenhuma.
 - **Saída do processo:** 0 para `ok`, `parcial`, sem trabalho, pausado, 409 e 429; 1 para `erro` e para o vigia (`RODADA_MATA_MIN`). Não há outra saída. Assim o painel do Render marca a execução falhada.
 - **Log do cron** (o único lugar visível no Render): uma linha por evento, `evento=<nome> fase=<fase> dia=<AAAAMMDD> n=<int> codigo=<CÓDIGO>`. Sem nome de vendedor ou cliente, sem valor de célula, sem usuário, sem senha, sem URL com `PWE=`. Um filtro final troca o usuário e a senha por `***` se aparecerem.
@@ -344,7 +360,7 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
   - continua no `/login`, ou foi para uma página de verificação, com texto de código, confirmação, dispositivo, termo ou troca de senha → `MAXIMA_CONFIRMACAO`;
   - texto de bloqueio ou HTTP 403 → `MAXIMA_BLOQUEIO`;
   - saiu do `/login` → `None` (segue).
-- **Nunca** tenta resolver captcha, nunca repete o login, nunca espera um humano. Fecha o navegador, manda o `fim` e sai.
+- **Nunca** tenta resolver captcha, nunca repete o login, nunca espera um humano. Fecha o navegador, manda o `fim` e sai. O site grava o `login_barrado` (§3.1): nenhum outro login da nuvem no mesmo dia de Manaus.
 - Se o diagnóstico (§6) der `MAXIMA_CONFIRMACAO`, `MAXIMA_CAPTCHA`, `MAXIMA_BLOQUEIO` ou `DADO_PESSOAL`, a agenda não é ligada (as saídas estão na ADR 0004, §6).
 
 ## 6. Diagnóstico (antes de ligar a agenda)
@@ -368,9 +384,9 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 
 | Arquivo | Regra |
 |---|---|
-| `estado.json` | `agenda`, `diagnostico`, `pausado`, `pedido`, `rodada_ativa`, `falhas_seguidas`, `indice`, `tentativas_hoje`, `fechados_pc_em`. Gravação atômica |
+| `estado.json` | `agenda`, `diagnostico`, `pausado`, `login_barrado` (no disco `{"dia", "codigo", "em"}`; o `trabalho` leva só `dia` e `codigo`), `pedido`, `rodada_ativa`, `falhas_seguidas`, `indice`, `tentativas_hoje`, `fechados_pc_em`. Gravação atômica |
 | `lotes/` | o armazém da `edicoes.Fila` (`epoca`, `seq`, linhas só de acréscimo) e os corpos `<seq>.json.gz` do §3.4. Os corpos saem pela `LOTE_GUARDA_DIAS`; o não confirmado sai com aviso no `/saude` |
 | `pedidos.jsonl` | só acréscimo: `{id, de, ate, refazer, perfil, em}` e os "Retomar" (`{retomar, codigo, recado, perfil, em}`); perfil, nunca o usuário |
-| `rodadas.jsonl` | só acréscimo: o `fim` de cada rodada, mais `RODADA_INTERROMPIDA` |
+| `rodadas.jsonl` | só acréscimo: o `fim` de cada rodada, mais `RODADA_INTERROMPIDA` e o `NADA_A_FAZER` do pedido sem dia (§4.5: `codigo: "NADA_A_FAZER"`, `motivo: "pedido"`, `dias: []`, `de`, `ate`, o id `P...` do pedido) |
 
 Cerca de 15 MB por mês, dentro do disco de 1 GB.
