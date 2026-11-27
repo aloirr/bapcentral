@@ -8097,13 +8097,18 @@ CAMPOS_EDICAO_WEB = {
                   "prevista_manual": "data", "entregue_em": "data",
                   "responsavel": "livre", "frete_real": "valor"},
     "ncc": {"status": "lista", "dt_mov": "data_livre"},
-    "garantias": {
-        "ticket": "ticket", "dt_solicitacao": "data_livre",
-        "dt_prazo": "data_livre", "dt_retorno": "data_livre",
-        "status": "lista", "resultado": "lista", "cod_cliente": "livre",
-        "cod_produto": "livre", "descricao": "livre", "qtd": "livre",
-        "reclamacao": "longo", "pendencias": "longo",
-        "retorno_cliente": "longo", "observacao": "longo"}}
+}
+# (RD-0134) os campos da Garantia vem do nucleo (CAMPOS_EDICAO_GARANTIA): so
+# se traduz o tipo do nucleo para o da conferencia do robo
+_TIPO_GARANTIA_WEB = {"texto": "livre", "data": "data_livre",
+                      "lista": "lista", "longo": "longo"}
+
+
+def _campos_garantia_web() -> dict:
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    return {campo: ("ticket" if campo == "ticket"
+                    else _TIPO_GARANTIA_WEB[tipo])
+            for campo, _rot, tipo, _col in _rn.CAMPOS_EDICAO_GARANTIA}
 # (T-0023 v2) o modulo `pos_venda` serve a Entrega e a Devolucao, com campos
 # diferentes: o que o lugar tem de proprio vale antes do do modulo
 CAMPOS_LUGAR_WEB = {
@@ -8120,6 +8125,8 @@ def campos_do_lugar_web(rid: str, titulo: str) -> dict:
     """{campo: tipo de conferencia} do lugar: o proprio (CAMPOS_LUGAR_WEB) ou
     o do modulo."""
     lugar = EDICOES_WEB[(rid, titulo)]
+    if lugar["modulo"] == "garantias":
+        return _campos_garantia_web()
     return CAMPOS_LUGAR_WEB.get((rid, titulo)) or CAMPOS_EDICAO_WEB[
         lugar["modulo"]]
 
@@ -8182,9 +8189,9 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
             # o teto vem do nucleo (MAX_TEXTO_EDICAO); o `max` da spec do PC
             # diferente dele = a edicao nao vai (10.9.1)
             teto = _rn2.max_texto_edicao(lugar["modulo"], c["campo"])
-            if int(c.get("max") or MAX_TEXTO_WEB) != teto:
+            if int(c.get("max") or _rn2.MAX_TEXTO_PADRAO) != teto:
                 raise ValueError("max da edicao diferente do nucleo")
-            if teto != MAX_TEXTO_WEB:
+            if teto != _rn2.MAX_TEXTO_PADRAO:
                 item["max"] = teto
             if c.get("multilinha"):
                 item["multilinha"] = True
@@ -9630,16 +9637,24 @@ MOTIVO_CHAVE_WEB = "chave da linha inválida"
 MOTIVO_OPCAO_WEB = "valor fora das opções do PC"
 MOTIVO_DATA_WEB = "data inválida"
 MOTIVO_VALOR_WEB = "valor inválido"
-MAX_TEXTO_WEB = 60       # o padrao da web (edicoes.MAX_TEXTO)
 
 
-def motivo_texto_web(maximo: int = MAX_TEXTO_WEB) -> str:
-    """A frase fixa do texto recusado, com o teto do campo (10.9.1)."""
+def motivo_texto_web(maximo=None) -> str:
+    """A frase fixa do texto recusado, com o teto do campo (10.9.1); sem
+    `maximo`, o padrao do nucleo (MAX_TEXTO_PADRAO)."""
+    if maximo is None:
+        import relatorios_nucleo as _rn                 # noqa: PLC0415
+        maximo = _rn.MAX_TEXTO_PADRAO
     return (f"texto inválido (até {int(maximo)} caracteres, sem CPF, CNPJ, "
             "telefone ou e-mail)")
 
 
-MOTIVO_TEXTO_WEB = motivo_texto_web(MAX_TEXTO_WEB)
+def __getattr__(nome):          # MOTIVO_TEXTO_WEB: a frase com o teto padrao
+    if nome == "MOTIVO_TEXTO_WEB":
+        return motivo_texto_web()
+    raise AttributeError(nome)
+
+
 MOTIVO_REMOVIDO_WEB = "texto com trecho removido pelo site"
 MOTIVO_TICKET_WEB = "já existe uma garantia com esse número"
 _RE_CHAVE_NOVA_WEB = re.compile(r"^NOVO-[0-9A-F]{8}$")
@@ -9798,7 +9813,8 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
         tipo = campos[campo]
         texto_livre = tipo in ("livre", "longo")
         teto = (_rn.max_texto_edicao(lugar["modulo"], campo)
-                if texto_livre else MAX_TEXTO_WEB)
+                if texto_livre or tipo == "ticket"
+                else _rn.MAX_TEXTO_PADRAO)
         if not isinstance(v, str):
             return motivo_texto_web(teto)
         if texto_livre:
@@ -9806,7 +9822,7 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
         if re.search(r"[\x00-\x09\x0b-\x1f\x7f]" if tipo == "longo"
                      else r"[\x00-\x1f\x7f]", v):
             return motivo_texto_web(teto)
-        if len(v) > (40 if tipo == "ticket" else teto):
+        if len(v) > teto:
             return motivo_texto_web(teto)
         if texto_livre:
             if _rn.REMOVIDO in v:
@@ -9837,14 +9853,14 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
 
 
 def plano_garantia_web(reg: dict, valores: dict, existentes: dict,
-                       novo_ticket: str, hoje: date,
-                       prazo_padrao=None) -> tuple:
+                       novo_ticket: str, hoje: date, fer=()) -> tuple:
     """Funcao pura (T-0023 v2, 10.9.2): (plano, motivo). `plano` = {"atual":
     ticket que ja existe ("" = garantia nova), "campos": {...}, "ticket":
     numero final}; sem plano, o motivo e a frase fixa. `existentes` = {ticket:
     cadastro} (garantias.ler); `novo_ticket` = o garantias.novo_ticket da
-    hora; `prazo_padrao(dt_solicitacao_texto)` = a DT. FECHAMENTO padrao
-    ("dd/mm/aaaa" ou ""): a igual a ele fica em branco, como no PC.
+    hora; `fer` = os feriados. A regra do prazo e da origem e a do nucleo
+    (`campos_garantia_a_gravar`, RN-POS-005): o prazo igual ao padrao fica em
+    branco, como no PC.
     - Linha nova: o ticket enviado igual ao `antes.ticket` que o formulario
       mostrou e que ja existe no PC vira o `novo_ticket` da hora; o digitado
       diferente do padrao que ja existe e recusado. Status ABERTO, resultado
@@ -9862,10 +9878,10 @@ def plano_garantia_web(reg: dict, valores: dict, existentes: dict,
             t = novo_ticket
         elif t in existentes:
             return None, MOTIVO_TICKET_WEB
-        base = {"status": "ABERTO", "resultado": "PENDENTE",
+        import relatorios_nucleo as _rn                 # noqa: PLC0415
+        base = {**_rn.PADRAO_NOVA_GARANTIA,
                 "dt_solicitacao": f"{hoje:%d/%m/%Y}"}
         base.update(campos)
-        base["origem"] = "FAROL DE GARANTIAS"
         atual, campos = "", base
     else:
         atual = str(reg.get("chave") or "")
@@ -9878,11 +9894,12 @@ def plano_garantia_web(reg: dict, valores: dict, existentes: dict,
                 return None, MOTIVO_VALOR_WEB
             if t != atual and t in existentes:
                 return None, MOTIVO_TICKET_WEB
-    if "dt_prazo" in campos and callable(prazo_padrao):
-        sol = campos.get("dt_solicitacao") or (
-            existentes.get(atual) or {}).get("dt_solicitacao") or ""
-        if campos["dt_prazo"] and campos["dt_prazo"] == prazo_padrao(sol):
-            campos["dt_prazo"] = ""     # igual ao padrao: acompanha (RN-POS-005)
+    import relatorios_nucleo as _rn2                    # noqa: PLC0415
+    sol = campos.get("dt_solicitacao") or (
+        existentes.get(atual) or {}).get("dt_solicitacao") or ""
+    campos = {k: v for k, v in _rn2.campos_garantia_a_gravar(
+        {**campos, "dt_solicitacao": sol}, fer, novo=not atual).items()
+        if k != "dt_solicitacao" or "dt_solicitacao" in campos or not atual}
     if t != atual:
         campos["ticket"] = t
     return {"atual": atual, "campos": campos, "ticket": t}, ""
@@ -9907,13 +9924,8 @@ def aplicar_edicao_web(raiz, reg: dict, opcoes: dict,
                 fer = _importar_do_pc("bap_dados", raiz).feriados(raiz)
             except Exception:                           # noqa: BLE001
                 fer = set()
-
-            def _padrao(sol):
-                d = gm.prazo_padrao(gm.data(sol), fer)
-                return f"{d:%d/%m/%Y}" if d else ""
             plano, motivo = plano_garantia_web(
-                reg, valores, gm.ler(raiz), gm.novo_ticket(raiz), hoje,
-                _padrao)
+                reg, valores, gm.ler(raiz), gm.novo_ticket(raiz), hoje, fer)
             if not plano:
                 return "erro", motivo
             edicoes = {plano["atual"]: plano["campos"]}
