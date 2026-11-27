@@ -147,11 +147,11 @@ COR_FUNDO = "#F3F4F2"        # o fundo da janela
 COR_PAPEL = "#FFFFFF"        # o fundo dos paineis e das tabelas
 COR_TITULO = "#2F7D32"       # texto de titulo
 COR_TEXTO = "#1E2722"        # texto normal
-COR_SUAVE = "#69736D"        # texto secundario
+COR_SUAVE = "#5E6B63"        # texto secundario
 COR_ACENTO = "#4FA236"       # o verde BAP do programa
 COR_ACENTO_ESC = "#3F8C2E"   # o mesmo verde, apertado
-COR_LINHA = "#D5DAD4"        # divisorias
-COR_ALERTA = "#B3261E"
+COR_LINHA = "#E3E8E4"        # divisorias
+COR_ALERTA = "#B42318"
 COR_OK = "#1E7A46"
 COR_ZEBRA = "#F7F8F6"
 COR_AVISO = "#FFF4D6"        # zona sem vendedor
@@ -830,7 +830,7 @@ class App(pb.base_da_janela()):
                     background="#E9ECE8", foreground=COR_TITULO,
                     borderwidth=0, relief="flat")
         s.map("TButton",
-              background=[("pressed", "#D5DAD4"), ("active", "#DFE3DE"),
+              background=[("pressed", "#E3E8E4"), ("active", "#DFE3DE"),
                           ("disabled", "#F0F1EF")],
               foreground=[("disabled", "#A7B0AA")])
         s.configure("Big.TButton", font=(familia, 9, "bold"), padding=(18, 9),
@@ -1018,7 +1018,7 @@ class App(pb.base_da_janela()):
         # cortavam o botao do mes e o titulo - a faixa cresce com a fonte
         topo = tk.Frame(self, background=COR_CABECALHO)
         topo.pack(fill="x")
-        tk.Frame(self, background="#62BB47", height=3).pack(fill="x")
+        tk.Frame(self, background="#59BA61", height=3).pack(fill="x")
         dentro = tk.Frame(topo, background=COR_CABECALHO)
         dentro.pack(fill="both", expand=True, padx=20)
         tk.Label(dentro, text="Planner BAP", background=COR_CABECALHO,
@@ -4674,7 +4674,7 @@ class App(pb.base_da_janela()):
                   ("cli", "CLI.", 42, "center", False),
                   ("dias", "DIAS", 84, "center", False)], horizontal=False)
         q.pack(fill="both", expand=True)
-        self.tab_rc_cid.tag_configure("semdia", background="#FFF8E6",
+        self.tab_rc_cid.tag_configure("semdia", background="#FFF4D6",
                                       foreground="#8A5A00")
         self.tab_rc_cid.tag_configure("fora", background="#F1F2F0",
                                       foreground="#A0A8A2")
@@ -4881,7 +4881,7 @@ class App(pb.base_da_janela()):
             cel.grid(row=i, column=j, sticky="nsew", padx=(1, 0), pady=(0, 1))
             return
         feriado = d in fer
-        fundo = "#FCEFEE" if feriado else COR_PAPEL
+        fundo = "#FDECEA" if feriado else COR_PAPEL
         cel = tk.Frame(q, background=fundo)
         cel.grid(row=i, column=j, sticky="nsew", padx=(1, 0), pady=(0, 1))
         cel._rc_iso = iso if (d in rota) else None

@@ -16,6 +16,7 @@ from datetime import date, datetime
 from io import BytesIO
 from xml.sax.saxutils import escape
 
+from . import marca
 from .render import RE_DATA
 
 MAX_LINHAS_PDF = 3000                      # a tabela é para olhar; o resto vai no Excel
@@ -43,7 +44,8 @@ def tabela_plana(tela: dict, bruta: dict, centavos: bool = False) -> dict:
     vista = [c["i"] for c in tela["cols"]]
     cols = [(bruta["colunas"][i]["nome"], bruta["colunas"][i]["tipo"]) for i in vista]
     linhas = [[bruta["linhas"][k][i] for i in vista] for k in tela["idxs"]]
-    textos = [[c["t"] for c in ln["cel"]] for ln in tela["linhas"]]      # com pagina_tam enorme: todas as linhas
+    # com pagina_tam enorme: todas as linhas; o código do cliente que a tela tirou da grade volta no arquivo
+    textos = [[(c["cod"] + " - " + c["t"]) if c.get("cod") else c["t"] for c in ln["cel"]] for ln in tela["linhas"]]
     tot = bruta.get("total")
     total = [tot[i] for i in vista] if tot and len(tot) == len(bruta["colunas"]) else None
     return {"titulo": tela.get("titulo") or bruta.get("titulo", ""), "cols": cols, "linhas": linhas,
@@ -122,7 +124,7 @@ _ESTILOS = (
     '<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
     '<font><b/><sz val="10"/><name val="Calibri"/></font></fonts>'
     '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
-    '<fill><patternFill patternType="solid"><fgColor rgb="FF2F5D3A"/></patternFill></fill></fills>'
+    f'<fill><patternFill patternType="solid"><fgColor rgb="{marca.argb_xlsx(marca.VERDE_ESCURO)}"/></patternFill></fill></fills>'
     '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
     '<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
@@ -150,12 +152,18 @@ def xlsx(tabelas: list[dict]) -> bytes:
                    '<Default Extension="xml" ContentType="application/xml"/>'
                    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
                    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+                   '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'
                    + "".join(f'<Override PartName="/xl/worksheets/sheet{k + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
                              for k in range(len(tabelas))) + '</Types>')
         z.writestr("_rels/.rels",
                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+                   '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>')
+        z.writestr("docProps/app.xml",       # MC-0003: o arquivo sai com o nome da empresa
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'
+                   f'<Application>BAP Central</Application><Company>{marca.EMPRESA}</Company></Properties>')
         z.writestr("xl/workbook.xml",
                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
@@ -236,11 +244,11 @@ def pdf_tabela(t: dict, rodape: str) -> bytes:
 
     conteudos = []
     for k, pag in enumerate(paginas, 1):
-        c = [f"BT /F2 11 Tf {M} {H - M - 10} Td ({_txt_pdf(t['titulo']).decode('latin-1')}) Tj ET"]
+        c = [f"BT /F2 11 Tf {M} {H - M - 10} Td ({_txt_pdf(marca.EMPRESA + ' · ' + t['titulo']).decode('latin-1')}) Tj ET"]
         c.append(f"BT /F1 7 Tf {M} {H - M - 22} Td ({_txt_pdf(rodape).decode('latin-1')}) Tj ET")
         y = H - M - 40
         x = M
-        c.append(f"0.18 0.36 0.23 rg {M} {y - 2.5} {sum(larg)} {linha_h} re f 1 g")
+        c.append(f"{marca.rgb_pdf(marca.VERDE_ESCURO)} rg {M} {y - 2.5} {sum(larg)} {linha_h} re f 1 g")
         for j, nome in enumerate(cols):
             c.append(f"BT /F2 {tam} Tf {x + 2} {y + 1} Td ({_txt_pdf(corta(nome, larg[j])).decode('latin-1')}) Tj ET")
             x += larg[j]
@@ -249,7 +257,7 @@ def pdf_tabela(t: dict, rodape: str) -> bytes:
         for i, ln in enumerate(pag):
             ultimo_total = bool(extra) and k == len(paginas) and i == len(pag) - 1
             if i % 2:
-                c.append(f"0.95 0.96 0.95 rg {M} {y - 2.5} {sum(larg)} {linha_h} re f 0 g")
+                c.append(f"{marca.rgb_pdf(marca.LINHA_ZEBRA)} rg {M} {y - 2.5} {sum(larg)} {linha_h} re f 0 g")
             x = M
             for j, txt in enumerate(ln):
                 s = corta(txt, larg[j])
