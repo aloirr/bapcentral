@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "_faixa.html" import faixa_simples %}
+{% block titulo %}Atualizar visitas{% endblock %}
+{# T-0045 (ADR 0004, contrato visitas-nuvem §4.5): o estado da baixa das visitas pelo site, a fila para o PC e as últimas
+   rodadas. Perfil e botões vêm do servidor (`pode_pedir`: admin e gerente; `admin`: refazer, diagnóstico, agenda, Retomar).
+   Sem print de tela da Máxima (D5): só o código e o texto. Nenhum nome de vendedor ou de cliente. #}
+{% block faixa %}{% set e = v.e %}{% set ul = v.ultima %}{{ faixa_simples("Atualizar visitas", [
+  {"rot": "Agenda 06h00", "valor": "Ligada" if e.agenda == "ligada" else "Desligada", "cor": "ok" if e.agenda == "ligada" else ""},
+  {"rot": "Última rodada", "valor": (ul.hora ~ " · " ~ ul.dia_br) if ul else "—"},
+  {"rot": "Código", "valor": ul.codigo if ul else "—", "cor": ("ok" if ul.status == "ok" else ("atencao" if ul.status == "parcial" else "alerta")) if ul else ""},
+  {"rot": "Entradas hoje", "valor": v.logins ~ " de " ~ v.logins_max, "cor": "alerta" if v.teto_dia else ""}]) }}{% endblock %}
+{% block corpo %}
+{% set e = v.e %}
+<div class="vz">
+{% if msg %}<p class="ok" role="status">{{ msg }}</p>{% endif %}
+{% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
+
+{% if e.pausado %}
+<section class="vz-faixa vz-pausa" role="alert">
+  <div><b>Pausado desde {{ e.pausado.desde|manaus }}</b><span>{{ v.pausa_texto }}</span></div>
+  {% if admin %}
+  <form method="post" action="/visitas/retomar" class="vz-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% if e.pausado.codigo == "DADO_PESSOAL" %}<input name="recado" placeholder="R-AAAAMMDD-HHMMSS-alexandre" aria-label="Recado do Alexandre que autoriza" maxlength="40" required>{% endif %}
+    <button type="submit" class="bt-principal">Retomar</button>
+  </form>
+  {% endif %}
+</section>
+{% elif v.teto_dia %}
+<section class="vz-faixa vz-teto" role="status"><div><b>Limite de hoje</b><span>{{ v.teto_texto }}</span></div></section>
+{% elif e.rodada_ativa %}
+<section class="vz-faixa" role="status"><div><b>Baixando agora</b><span>O site está na Máxima{% if e.rodada_ativa.fase %} (etapa: {{ e.rodada_ativa.fase }}{% if e.rodada_ativa.total %}, {{ e.rodada_ativa.feitos or 0 }} de {{ e.rodada_ativa.total }}{% endif %}){% endif %}.</span></div></section>
+{% endif %}
+
+{% if pode_pedir %}
+<section class="vz-cx">
+  <h2>Atualizar visitas</h2>
+  <form method="post" action="/visitas/atualizar" class="vz-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>De <input type="date" name="de" value="{{ v.de_iso }}" max="{{ v.hoje_iso }}" required></label>
+    <label>Até <input type="date" name="ate" value="{{ v.ate_iso }}" max="{{ v.hoje_iso }}" required></label>
+    <button type="submit" class="bt-principal"{{ ' disabled title="Já há um pedido na fila"'|safe if e.pedido }}>Atualizar visitas</button>
+  </form>
+  {% if e.pedido %}<p class="vz-nota">Pedido na fila: {{ e.pedido.de[6:] }}/{{ e.pedido.de[4:6] }} a {{ e.pedido.ate[6:] }}/{{ e.pedido.ate[4:6] }}{{ ' (baixar de novo)' if e.pedido.refazer }}.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if admin %}
+<section class="vz-cx vz-admin">
+  <h2>Admin</h2>
+  <div class="vz-linha">
+    <form method="post" action="/visitas/agenda">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="ligar" value="{{ '0' if e.agenda == 'ligada' else '1' }}">
+      <button type="submit" class="bt-neutro">{{ "Desligar a agenda" if e.agenda == "ligada" else "Ligar a agenda" }}</button>
+    </form>
+    <form method="post" action="/visitas/diagnostico">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit" class="bt-neutro"{{ ' disabled'|safe if e.diagnostico.estado == "pendente" }}>Rodar diagnóstico</button>
+    </form>
+    <form method="post" action="/visitas/refazer" class="vz-linha">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>De <input type="date" name="de" value="{{ v.ate_iso }}" max="{{ v.hoje_iso }}" required></label>
+      <label>Até <input type="date" name="ate" value="{{ v.ate_iso }}" max="{{ v.hoje_iso }}" required></label>
+      <button type="submit" class="bt-neutro"{{ ' disabled title="Já há um pedido na fila"'|safe if e.pedido }}>Baixar de novo</button>
+    </form>
+  </div>
+  <p class="vz-nota">Diagnóstico: <b>{{ e.diagnostico.estado }}</b>{% if e.diagnostico.codigo %} · {{ e.diagnostico.codigo }}{% endif %}{% if e.diagnostico.em %} · {{ e.diagnostico.em|manaus }}{% endif %}</p>
+</section>
+{% endif %}
+
+{% if v.a_importar %}
+<section class="vz-cx">
+  <h2>Esperando o PC importar</h2>
+  <ul class="vz-lista">{% for x in v.a_importar %}<li>Baixado às {{ x.hora }} · dia {{ x.dia_br }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<section class="vz-cx">
+  <h2>Últimas rodadas</h2>
+  {% if v.rodadas %}
+  <ul class="vz-lista">
+    {% for r in v.rodadas %}
+    <li class="{{ 'vz-topo' if loop.first }}">
+      <span class="vz-quando">{{ r.dia_br }} {{ r.hora }}</span>
+      <span class="selo {{ 'selo-ok' if r.status == 'ok' else ('selo-atencao' if r.status == 'parcial' else 'selo-erro') }}">{{ r.codigo }}</span>
+      <span class="vz-texto">{{ r.texto }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="vz-nota">Nenhuma rodada ainda.</p>{% endif %}
+</section>
+</div>
+{% endblock %}

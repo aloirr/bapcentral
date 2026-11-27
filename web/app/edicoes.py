@@ -270,8 +270,10 @@ class Fila:
     """Só acréscimo, fsync. Linha `edicao` (seq novo) ou `status` (ref = seq da edição).
     `estado.json` (gravação atômica): {epoca, ultimo_seq}. O seq nunca é reaproveitado."""
 
-    def __init__(self, dados: Path):
-        self.pasta = Path(dados) / "edicoes"
+    def __init__(self, dados: Path, subpasta: str = "edicoes", prefixo: str = "EDICOES_WEB"):
+        # T-0045: a mesma fila serve às edições e aos lotes de visitas (pasta e prefixo do arquivo mudam)
+        self.pasta = Path(dados) / subpasta
+        self.prefixo = prefixo
         self._trinco = threading.Lock()
 
     def _tranca(self):
@@ -279,7 +281,7 @@ class Fila:
         return Diario._Tranca(self)
 
     def _arquivos(self) -> list[Path]:
-        return sorted(self.pasta.glob("EDICOES_WEB_????-??.jsonl")) if self.pasta.is_dir() else []
+        return sorted(self.pasta.glob(f"{self.prefixo}_????-??.jsonl")) if self.pasta.is_dir() else []
 
     def _ler(self) -> tuple[list[dict], dict]:
         """(edições por seq, {seq: último status})."""
@@ -313,7 +315,7 @@ class Fila:
 
     def _acrescentar(self, reg: dict, quando: str) -> None:
         self.pasta.mkdir(parents=True, exist_ok=True)
-        with open(self.pasta / f"EDICOES_WEB_{quando[:7]}.jsonl", "a", encoding="utf-8") as f:
+        with open(self.pasta / f"{self.prefixo}_{quando[:7]}.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(reg, ensure_ascii=False) + "\n")
             f.flush()
             os.fsync(f.fileno())
@@ -330,6 +332,31 @@ class Fila:
                    "valores": valores, "antes": antes}
             self._acrescentar(reg, quando)
             return reg
+
+    def registrar_item(self, campos: dict, antes_de_gravar=None, agora_=None) -> dict:
+        """T-0045: acrescenta um item genérico (lote de visitas). `antes_de_gravar(seq)` roda com o seq já
+        reservado e antes da linha (o corpo do lote vai ao disco primeiro: linha sem corpo nunca existe)."""
+        quando = (agora_ or agora()).astimezone(MANAUS).strftime("%Y-%m-%d %H:%M:%S")
+        with self._tranca():
+            e = self._estado()
+            e["ultimo_seq"] += 1
+            gravar_json(self.pasta / "estado.json", e)
+            if antes_de_gravar:
+                antes_de_gravar(e["ultimo_seq"])
+            reg = {"tipo": "edicao", "seq": e["ultimo_seq"], "quando": quando, **campos}
+            self._acrescentar(reg, quando)
+            return reg
+
+    def itens(self) -> list[dict]:
+        """T-0045: todos os itens com o status de agora (a tela e a retenção)."""
+        with self._tranca():
+            eds, st = self._ler()
+        return [dict(r, status=(st.get(r["seq"]) or {}).get("status", "pendente"),
+                     confirmado_em=(st.get(r["seq"]) or {}).get("quando", "")) for r in eds]
+
+    def epoca_atual(self) -> str:
+        with self._tranca():
+            return self._estado()["epoca"]
 
     # -- API do robô
     def desde(self, desde: int, limite: int = 500) -> dict:
