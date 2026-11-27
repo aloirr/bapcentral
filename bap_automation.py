@@ -7946,7 +7946,9 @@ _COLUNAS_FORA_TABELA_WEB = {
     ("an_divergencias", "Clientes divergentes"): frozenset({"CLIENTE"}),
     ("an_divergencias", "Sem coordenada / endereço"): frozenset({
         "RAZÃO SOCIAL", "NOME FANTASIA", "BAIRRO", "ENDEREÇO", "Nº",
-        "CONTATO (TELEFONE)"})}
+        "CONTATO (TELEFONE)"}),
+    # (T-0023 v2, 10.10.3, RN-GER-011) o contato do cliente da garantia
+    ("pl_garantias", "Garantias"): frozenset({"CONTATO CLIENTE"})}
 # "PONTO" e a categoria da precisao; numero de coordenada nele = aba fora
 _RE_COORDENADA_WEB = re.compile(r"-?\d+\.\d{3,}")
 # (T-0023 v2, 10.10.2) as colunas dos 3 farois novos, depois do corte (sem o
@@ -8092,10 +8094,6 @@ _COLUNAS_TEXTO_LIVRE_WEB = frozenset({
     "MOTIVO",
     # (T-0023 v2, 10.10.3) Garantias e Expositores
     "PENDÊNCIAS", "RETORNO DO CLIENTE", "RECLAMAÇÃO", "OBSERVAÇÕES"})
-# (T-0023 v2, 10.10.3, RN-GER-011) colunas que nunca vao em UMA tabela (a
-# fonte unica da web e `tabelas.FORA_POR_TABELA`): o contato do cliente
-_COLUNAS_FORA_TABELA_WEB = {
-    ("pl_garantias", "Garantias"): frozenset({"CONTATO CLIENTE"})}
 _COLUNAS_LARGAS_SOLICITACAO_WEB = ("ID_PRODUTO", "CHAVE", "MOTIVO", "PEDIDOS")
 
 
@@ -8487,7 +8485,6 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     col_cod = _CLIENTE_POR_CODIGO_WEB.get((rid, titulo))
     if col_cod:               # cliente so pelo codigo (10.11.2)
         t = _cliente_por_codigo_web(t, col_cod)
-    fora_tab = _COLUNAS_FORA_TABELA_WEB.get((rid, titulo), ())
     pc = [c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
           for c in t.get("colunas") or []]
     nomes_pc = [c.get("nome") for c in pc]
