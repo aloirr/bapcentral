@@ -1,10 +1,12 @@
 """T-0058 (RN-GER-002): estado = filial da nota, também na devolução.
 
 De ponta a ponta, nas bases congeladas (20/11/2026): o Farol de Pedidos
-(pv_pedidos) no recorte por estado desconta TODA a devolução da filial,
-inclusive a de vendedor que só devolveu (sem venda no mês), e bate com o
-Painel (`por_filial_da_nota`). O filtro de vendedor continua por par
-(filial, vendedor). Sem dado pessoal: o teste só cita UF, filial e totais.
+(pv_pedidos) e o Farol de Saldo (vc_saldo), no PC (kpis_de com o filtro da
+tela) e na web (bap_automation._recortes_do_farol_web), no recorte por
+estado descontam TODA a devolução da filial, inclusive a de vendedor que só
+devolveu (sem venda no mês), e batem com o Painel (`por_filial_da_nota`).
+O filtro de vendedor ou supervisor continua por par (filial, vendedor).
+Sem dado pessoal: o teste só cita UF, filial e totais.
 """
 from datetime import date
 from pathlib import Path
@@ -35,6 +37,12 @@ def _faturado(t, ls, filtro=None):
     return {k["rotulo"]: k for k in ks}["Faturado"]["valor"]
 
 
+def _fat_por_uf(rec):
+    """{UF: valor do cartao Faturado} de um recorte por estado."""
+    return {uf: {k["rotulo"]: k for k in x["kpis"]}["Faturado"]["valor"]
+            for uf, x in rec.items()}
+
+
 def _estados(t, mes):
     """De ponta a ponta: os cartoes por estado como o recorte de UF da web
     (bap_automation.recortes_farol_por_uf, filtro_uf=True), no mes `mes`
@@ -42,8 +50,7 @@ def _estados(t, mes):
     tab = dict(t, filtros=[{"coluna": "MÊS", "padrao": mes}])
     rec = ba.recortes_farol_por_uf({"tabelas": [tab]}, t["titulo"],
                                    filtro_uf=True)
-    return {uf: {k["rotulo"]: k for k in x["kpis"]}["Faturado"]["valor"]
-            for uf, x in rec.items()}
+    return _fat_por_uf(rec)
 
 
 def _do_mes(t, ix, mes):
@@ -72,8 +79,8 @@ def test_RN_GER_002_soma_dos_estados_igual_ao_total_e_ao_painel(farol):
         assert est.get(uf, rn.moeda(0.0)) == rn.moeda(valor), uf
     assert set(est) <= set(pf)
     # o total do farol (mês inteiro) = a soma dos estados do Painel
-    assert _faturado(t, _do_mes(t, ix, "AGO/26"), {ix["MÊS"]: "AGO/26"}) \
-        == rn.moeda(sum(pf.values()))
+    total = _faturado(t, _do_mes(t, ix, "AGO/26"), {ix["MÊS"]: "AGO/26"})
+    assert total == rn.moeda(sum(pf.values()))
 
 
 def test_RN_GER_002_filtro_de_vendedor_continua_por_par(farol):
@@ -96,7 +103,8 @@ def test_RN_GER_002_filtro_de_vendedor_continua_por_par(farol):
     esperado = venda - dev.get(("SET/26", "MATOGROSSO", vend), 0.0)
     filtro = {ix["MÊS"]: "SET/26", ix["FILIAL"]: ["MATOGROSSO"],
               ix["VENDEDOR"]: vend}
-    assert _faturado(t, ls, filtro) == rn.moeda(esperado)
+    fat = _faturado(t, ls, filtro)
+    assert fat == rn.moeda(esperado)
 
 
 def test_RN_GER_002_filiais_do_recorte_uf_do_saldo_e_filial_inteira():
@@ -128,8 +136,9 @@ def test_RN_GER_002_saldo_filtro_uf_pa_ago26_desconta_toda_a_filial():
                    if m == "AGO/26" and f in fils)
     venda = sum(l[ix["VLR VENDA"]] for l in ls)
     pf = rn.por_filial_da_nota(ctx, "2026-08")["fat"]
-    assert _faturado(t, ls, {ix["MÊS"]: "AGO/26", ix["UF"]: "PA"}) \
-        == rn.moeda(venda - toda_dev) == rn.moeda(pf["PA"]) == "R$ 33.834"
+    fat = _faturado(t, ls, {ix["MÊS"]: "AGO/26", ix["UF"]: "PA"})
+    assert fat == rn.moeda(venda - toda_dev) == rn.moeda(pf["PA"]) \
+        == "R$ 33.834"
 
 
 @pytest.mark.parametrize("rid", ["pv_pedidos", "vc_saldo"])
@@ -138,10 +147,8 @@ def test_RN_GER_002_recorte_por_estado_na_web_ago26_pa_igual_painel(rid):
     em AGO/26 = por_filial_da_nota = "R$ 33.834", como no PC."""
     r = rn.montar(rid, RAIZ, hoje=HOJE, params={"ANO": "2026", "MÊS": "08"})
     rec = ba._recortes_do_farol_web(rid, r)
-    fat = {uf: {k["rotulo"]: k for k in x["kpis"]}["Faturado"]["valor"]
-           for uf, x in rec.items()}
+    fat = _fat_por_uf(rec)
     pf = rn.por_filial_da_nota(rn.Contexto(RAIZ), "2026-08")["fat"]
-    assert pf["PA"] == pytest.approx(33833.74, abs=0.005)
-    assert fat["PA"] == rn.moeda(pf["PA"]) == "R$ 33.834"
+    assert fat["PA"] == "R$ 33.834"
     for uf, valor in fat.items():
         assert valor == rn.moeda(pf[uf]), uf
