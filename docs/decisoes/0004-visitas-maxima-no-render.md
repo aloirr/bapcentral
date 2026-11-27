@@ -1,6 +1,6 @@
 # ADR 0004 — "Atualizar visitas" da Máxima no Render: o navegador roda num cron job à parte, e a senha fica só nele
 
-- **Status:** **aceita** em 27/11/2026 (decisões D1 a D5, §0). O código ainda não existe. O `render.yaml` muda num PR de governança à parte (§9).
+- **Status:** **aceita** em 27/11/2026 (decisões D1 a D5, §0). O código ainda não existe. O `render.yaml` muda num PR de governança à parte (§9). **Adendo 1** (27/11): a D4 foi revista (o mesmo login do notebook) e a governança 2 vem antes do código.
 - **Data:** 2026-11-27 (proposta, versão final e revisão do PR #137)
 - **Tarefa:** T-0045 · **Autor:** engenheiro-software
 - **Contrato:** `.coord/contratos/visitas-nuvem.md` **v1**. Esta ADR diz **o porquê e as decisões**; o contrato diz **o como** (rotas, corpos, constantes, códigos e textos). Quando os dois parecerem dizer a mesma coisa, vale o contrato.
@@ -103,7 +103,7 @@ As características do Render que a W3 usa, todas [SUPOSIÇÃO] e conferidas no 
 
 ### 2.4 O `render.yaml` e a imagem (proposta de governança)
 
-O texto exato está em `docs/desenho/T-0045-render-yaml.diff`, explicado no `docs/desenho/T-0045-render-yaml.md` (os dois neste PR). As decisões por trás:
+O texto exato está em `docs/desenho/T-0045-governanca.diff` (adendo 1; substituiu o `T-0045-render-yaml.diff` do PR #137), explicado no `docs/desenho/T-0045-render-yaml.md`. As decisões por trás:
 - **um serviço novo só para o navegador**, e **os 2 segredos da Máxima só nele** (`sync: false`): o `bap-central`, que atende a internet, nunca os recebe;
 - **o token do cron sorteado pelo Render** no site e copiado pelo Blueprint: ninguém do time vê o valor, e o Alexandre não tem um terceiro segredo para criar;
 - **imagem com lista fechada de arquivos** (proibido `COPY . .`): as bases (`RELATORIOS/`, com dado de cliente) nunca entram na imagem;
@@ -294,3 +294,27 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 - **Rede privada sem TLS:** o Bearer do cron trafega em claro dentro da rede privada do Render. É a rede da própria conta [SUPOSIÇÃO]; se o diagnóstico mostrar que o cron não alcança o `hostport`, a troca é para a URL pública com HTTPS (PR de governança).
 - **Preços do Render não conferidos:** todos os valores em dólar são [SUPOSIÇÃO] e são confirmados no painel antes do "autorizo".
 - **`bap_dados.VERSAO` fica em 27:** nada aqui toca o cache dos núcleos.
+
+## Adendo 1 (27/11/2026): a nuvem com um passo só do Alexandre, o `render.yaml` antes do código e a D4 revista
+
+- **Recados:** R-20261127-094157-alexandre (a nuvem, opção B, com um passo de governança só) e R-20261127-094656-alexandre (o mesmo login do notebook, "1 B").
+
+**1. Ordem do §9 (corrige o item 10).**
+- As governanças 1 e 2 vão **juntas**, num PR só do Alexandre (`alexandre/T-0045-governanca`), aplicando o `docs/desenho/T-0045-governanca.diff`. Frase e passos: `docs/desenho/T-0045-governanca.md`.
+- O item 10 deixa de depender dos itens 5, 7, 8 e 9: ele depende **só do item 1** e entra junto com o item 2. A ordem passa a ser 1 → (2 + 10) → 8 → 7 → 9 → 11. O item 11 depende de 7, 8 e 9 no `main` e dos 2 segredos preenchidos.
+- **O primeiro build do cron falha** (falta o `nuvem/visitas/Dockerfile`). É aceito: build falho não gera imagem, nada roda e não há execução a cobrar [SUPOSIÇÃO: o Render cobra o cron pelo tempo rodado]. O site não cai: ele só faz um deploy pela variável nova `BAP_VISITAS_TOKEN`. Com `autoDeploy: true` e o `buildFilter` (`nuvem/visitas/**`), o Render refaz o build sozinho quando o código entra.
+
+**2. Nenhuma imagem roda sem o código.**
+- O PR do modulo-robo com o `nuvem/visitas/` (`rodar.py`, `agenda.py`, `__init__.py`) entra **antes** do PR do `Dockerfile` e do `.dockerignore`. O `Dockerfile` é a chave que liga o build.
+- **Trava no `Dockerfile`** (desenho, §3): `RUN python -c "import nuvem.visitas.rodar, nuvem.visitas.agenda"`. Se o `Dockerfile` chegar antes do código, o build falha de novo e nada roda. Importar o `rodar.py` não pode fazer nada (nem rede, nem navegador, nem segredo); o agente testes confere.
+
+**3. D4 revista: o cron usa o mesmo login da Máxima do notebook.**
+- O Alexandre preenche `BAP_MAXIMA_USUARIO` e `BAP_MAXIMA_SENHA` com o usuário e a senha que o robô do notebook já usa. Nenhum agente, recado ou chat vê os dois.
+- **Risco aceito pelo Alexandre:** se a Máxima bloquear o acesso vindo do Render, o notebook pode ser bloqueado também. Um vazamento do painel do Render expõe esse login, e a troca da senha na Máxima vale para os dois lugares: no notebook e no Render (sem isso, a nuvem para com `MAXIMA_SENHA`).
+- **Sessão única na Máxima** [SUPOSIÇÃO]: com o mesmo login, uma rodada da nuvem pode derrubar a sessão do notebook, e vice-versa. O aviso do §3.4 vale sempre.
+- **Uma tentativa só, sem insistir.** O que já garante:
+  - contrato `visitas-nuvem.md`, §5.1: o `classificar_login` (`visitas_maxima.py`) nunca resolve captcha, nunca repete o login e nunca espera um humano;
+  - contrato, §5: `MAXIMA_SENHA`, `MAXIMA_CONFIRMACAO`, `MAXIMA_CAPTCHA` e `MAXIMA_BLOQUEIO` **pausam**, e no diagnóstico não há nova tentativa;
+  - contrato, §3.1, passo 1: pausado → o cron não pede trabalho;
+  - código: `web/app/visitas.py`, `PAUSAM` e o `fim` (o código pausa a nuvem), a concessão recusada com 423 enquanto pausado, e o `diagnostico.estado = "falhou"`, que só volta a `pendente` pelo "Pedir diagnóstico" do admin; testes `test_RN_VIS_005_*` em `web/tests/test_T0045_visitas.py`.
+- **A brecha que fica:** o `TENTATIVAS_DIA["diagnostico"]` é 2, e o "Retomar" de um `MAXIMA_*` não pede recado. Um segundo login no mesmo dia só acontece com 2 cliques do admin ("Retomar" e "Pedir diagnóstico"). **Regra até a mudança:** depois de um `MAXIMA_*`, o time não aperta nenhum dos dois sem o "ok" do Alexandre e avisa o po na hora. **Proposta** (pendência, ao gerente): o "Retomar" dos `MAXIMA_*` passa a pedir o recado do Alexandre, como o `DADO_PESSOAL` (RN-VIS-005; contrato §4 e `web/app/visitas.retomar`, modulo-web).
