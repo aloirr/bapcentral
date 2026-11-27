@@ -656,3 +656,32 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
   .bc3 .graf .hb-l{grid-template-columns:minmax(60px,46%) 1fr auto}
 }
 .rolagem-dados.sem-rolagem .tab-dados tfoot td:first-child{position:sticky;bottom:0;left:auto}
+
+/* T-0045: Atualizar visitas (tela-bc3: cartões brancos; o botão verde é o único principal de cada cartão) */
+.vz{display:grid;gap:12px;max-width:980px}
+.vz-cx{background:var(--cartao);border:1px solid var(--borda);border-radius:12px;padding:12px 16px;display:grid;gap:10px}
+.vz-cx h2{margin:0;font-size:var(--t-corpo);color:var(--suave);text-transform:uppercase;letter-spacing:.04em}
+.vz-linha{display:flex;gap:10px 14px;align-items:flex-end;flex-wrap:wrap;margin:0}
+.vz-linha label{display:grid;gap:3px;font-size:12px;color:var(--suave)}
+.vz-linha input{min-height:36px}
+.vz-faixa{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-radius:12px;padding:10px 16px;background:var(--c-eef4ec);border:1px solid var(--borda)}
+.vz-faixa div{display:grid;gap:2px}.vz-faixa b{font-size:var(--t-corpo)}
+.vz-pausa{background:var(--alerta-claro);border-color:var(--alerta)}.vz-teto{background:var(--atencao-claro)}
+.vz-nota{margin:0;font-size:13px;color:var(--suave)}
+.vz-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.vz-lista li{display:grid;grid-template-columns:96px max-content minmax(0,1fr);gap:4px 12px;align-items:center;padding:6px 0;border-top:1px solid var(--borda)}
+.vz-lista li:first-child{border-top:0}.vz-lista li.vz-topo{font-weight:600}
+.vz-quando{color:var(--suave);font-size:13px;font-variant-numeric:tabular-nums}.vz-texto{overflow-wrap:anywhere}
+button:disabled{opacity:.5;cursor:not-allowed}
+.bc3-faixa.simples .bc3-k{min-width:0}.bc3-faixa.simples .bc3-k b{overflow-wrap:anywhere;white-space:normal}
+@media(max-width:700px){
+  .vz-lista li{grid-template-columns:minmax(0,1fr) max-content}.vz-texto{grid-column:1 / -1}
+  .vz-linha{align-items:stretch}.vz-linha>form,.vz-linha .bt-principal,.vz-linha .bt-neutro{flex:1 1 100%}
+  .vz-linha input,.vz-linha button{min-height:var(--alvo)}
+}
+.vz-cod{display:block;font-size:12px;font-weight:400;color:var(--suave);margin-top:2px}
+.vz-diag{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:6px 12px;margin:0}
+.vz-diag div{display:grid;gap:1px}.vz-diag dt{font-size:12px;color:var(--suave)}.vz-diag dd{margin:0;font-weight:600}
+@media(min-width:701px){.vz-adm:has(.vz-det[open]) .vz-lista{max-height:max(150px,calc(100vh - 620px));overflow:auto}}   /* a tela do admin não rola: o que sobra rola dentro da caixa */
+.vz-det>summary{cursor:pointer;font-size:13px;color:var(--suave);margin-bottom:8px}
+@media(max-width:700px){.vz-admin .vz-linha>form,.vz-admin .vz-linha button{flex:1 1 100%;width:100%}}
