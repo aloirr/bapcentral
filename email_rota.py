@@ -288,7 +288,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
         cv.rect(0, pag[1] - 4, pag[0], 4, stroke=0, fill=1)
         cv.setFont("Helvetica", 6.5)
         cv.setFillColor(SUA)
-        cv.drawString(mg, 7 * mm, f"BAP Auto Parts · {titulo_pdf} · "
+        cv.drawString(mg, 7 * mm, f"BAP AUTOPARTS · {titulo_pdf} · "
                                   f"{rotulo_semana(segunda)}")
         cv.drawRightString(pag[0] - mg, 7 * mm,
                            f"gerado em {gerado:%d/%m/%Y %H:%M} · página "
@@ -298,7 +298,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
     doc = SimpleDocTemplate(str(caminho), pagesize=pag, leftMargin=mg,
                             rightMargin=mg, topMargin=11 * mm,
                             bottomMargin=13 * mm, title=titulo_pdf,
-                            author="BAP Auto Parts")
+                            author="BAP AUTOPARTS")
     est = {
         "marca": ParagraphStyle("m", fontName="Helvetica-Bold", fontSize=7,
                                 leading=9, textColor=VERDE_T),
@@ -327,7 +327,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
             ("CIDADES", rn.br(len(cidades)), TXT),
             ("EM ATRASO", bv.moeda(atraso) if atraso else "—",
              VERM if atraso else TXT)]
-    esq = [Paragraph("BAP AUTO PARTS · ROTA DA SEMANA", est["marca"]),
+    esq = [Paragraph("BAP AUTOPARTS · ROTA DA SEMANA", est["marca"]),
            Paragraph(html.escape(ep.nome_bonito(nome)), est["nome"]),
            Paragraph(html.escape(
                f"{rotulo_semana(segunda)} · {ate_quando(segunda)}"
@@ -530,7 +530,7 @@ def corpo(pessoa, linhas_de, nomes, segunda) -> tuple:
                  f"{'da sua equipe' if pessoa['cargo'] == 'SUPERVISOR' else 'do time'}.")
         fim = ("Em anexo, um PDF por vendedor, com os clientes de cada dia na "
                "ordem da visita.")
-    rodape = ("BAP Auto Parts · Farol Roteirização (Gerado automaticamente)<br>"
+    rodape = ("BAP AUTOPARTS · Farol Roteirização (Gerado automaticamente)<br>"
               f"Rota do Planner · semana de {sem}")
     h = (f"<div style='font-family:Segoe UI,Arial,sans-serif;color:{TEXTO};"
          f"font-size:14px'><p>Olá, {html.escape(primeiro)}.</p>"
