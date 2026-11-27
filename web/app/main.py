@@ -18,14 +18,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, cobranca, config, edicoes, exportar, pacotes, render, tabelas
+from . import VERSAO, cobranca, config, edicoes, exportar, marca, pacotes, render, tabelas
 from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 
 log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
 MANAUS = ZoneInfo("America/Manaus")
-VERES = ("admin", "diretor", "gerente")          # [SUPOSIÇÃO] os 3 veem o painel
-RELATORIO = ("vc_painel", "Painel Executivo")
+VERES = render.VEEM_PAINEL          # [SUPOSIÇÃO] os 3 veem o painel
+PAINEL_RID = "vc_painel"
 FORM_MAX = 16 * 1024
 FECHAR_MAX = 256 * 1024
 ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca", "/api/edicoes")   # saúde e robô seguem; as telas param
@@ -60,10 +60,16 @@ def fmt_manaus(iso: str | None) -> str:
     return d.astimezone(MANAUS).strftime("%d/%m/%Y %H:%M")
 
 
+def fmt_manaus_curto(iso: str | None) -> str:
+    """"dd/mm hh:mm", a data da faixa no celular (contrato tela-bc3 §8)."""
+    f = fmt_manaus(iso)
+    return f[:5] + " " + f[-5:] if len(f) >= 16 else f
+
+
 def hhmm(iso: str | None) -> str:
     """"hh:mm" se for de hoje (Manaus); senão "dd/mm hh:mm"."""
     f = fmt_manaus(iso)
-    return f[-5:] if f[:10] == cobranca.agora().strftime("%d/%m/%Y") else f[:5] + " " + f[-5:]
+    return f[-5:] if f[:10] == cobranca.agora().strftime("%d/%m/%Y") else fmt_manaus_curto(iso)
 
 
 def criar_app() -> FastAPI:
@@ -83,12 +89,13 @@ def criar_app() -> FastAPI:
     modelos.env.filters["manaus"] = fmt_manaus
     modelos.env.filters["hhmm"] = hhmm
     modelos.env.filters["fone"] = cobranca.fone_bonito
-    modelos.env.globals["ocultas"] = tabelas.colunas_ocultas      # T-0020: coluna que só repete outra
-    modelos.env.globals["no_popup"] = tabelas.colunas_no_popup    # T-0028: colunas que só aparecem no popup
+    modelos.env.filters["aba_curta"] = tabelas.aba_curta           # T-0033: nomes curtos nas abas (cabem a 1366)
     modelos.env.globals["dados_popup"] = tabelas.dados_do_popup
+    modelos.env.filters["manaus_curto"] = fmt_manaus_curto
+    modelos.env.globals["kpis_da_faixa"] = render.kpis_da_faixa    # RD-0065: a regra "comum na faixa, rico no corpo" é uma só
+    modelos.env.globals["kpis_do_corpo"] = render.kpis_do_corpo
+    modelos.env.globals["abas_no_celular"] = render.abas_no_celular   # RD-0065: a regra das 3 abas + "Mais" é uma só
     modelos.env.globals["livres"] = tabelas.FAROIS_LIVRES          # T-0024: faróis de abas livres (lote 2)
-    modelos.env.globals["fora_da_junta"] = tabelas.colunas_fora_da_junta
-    modelos.env.globals["cols_celular"] = tabelas.colunas_do_celular
     modelos.env.globals["datas_proximas"] = render.datas_proximas  # T-0020: uma data só
     diario = cobranca.Diario(cfg.dados)
     diario.limpar()                                   # §10.6.5: também quando o app sobe
@@ -113,6 +120,8 @@ def criar_app() -> FastAPI:
         r.headers["X-Frame-Options"] = "DENY"
         r.headers["Referrer-Policy"] = "same-origin"
         r.headers["Cache-Control"] = "no-store"
+        if request.url.path.startswith("/static/fontes/"):
+            r.headers["Cache-Control"] = "public, max-age=31536000, immutable"      # a Inter hospedada (MC-0020) não muda
         r.headers["Content-Security-Policy"] = (
             "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'")
         return r
@@ -149,22 +158,26 @@ def criar_app() -> FastAPI:
             u = usuarios.obter(request.session.get("u", ""))
         info = ind.indice()
         # T-0035 (ADR 0003, §4.4): a faixa mostra a data do farol; passou de 26 h = selo "Desatualizado"
-        rid_pg = ctx.get("rid") or ("vc_painel" if request.url.path == "/painel" else None)
+        no_painel = request.url.path == "/painel"
+        rid_pg = ctx.get("rid") or (PAINEL_RID if no_painel else None)
         ent = ind.entrada(rid_pg) if rid_pg else None
         gerado_farol = (ent or {}).get("gerado_em") or (info["gerado_em"] if info else None)
         try:
             velho = bool(ent) and (cobranca.agora() - pacotes._como_manaus(gerado_farol)).total_seconds() > pacotes.HERDA_HORAS * 3600
         except (TypeError, ValueError):
             velho = False
-        ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, indisponivel=render.INDISPONIVEL,
+        ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, empresa=marca.EMPRESA, indisponivel=render.INDISPONIVEL,
                    gerado_em=gerado_farol, desatualizado=velho)
-        # T-0030 (Alexandre, 26/11: "BC3 para o pc e celular", "M3 aprovado"): barra lateral + faixa verde;
-        # liga por farol (render.BC3) até todos passarem para o padrão novo
-        ctx.setdefault("bc3", bool(u) and ctx.get("rid") in render.BC3)
-        if ctx["bc3"]:
+        # T-0034 (RD-0043): uma casca só (barra lateral + faixa) para toda tela com usuário; o item ativo é o farol
+        # ou, no Painel Executivo, "painel". Sem usuário (login, acesso negado): a mesma casca, sem lateral.
+        if u:
             no_pacote = (info or {}).get("farois") or {}
-            ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ctx.get("rid"),
+            # o item da lateral marcado: o farol, o painel ou, na conta, "usuarios" e "senha" (contrato §3)
+            ativo = ctx.get("rid") or {"/painel": "painel", "/usuarios": "usuarios", "/senha": "senha"}.get(request.url.path)
+            ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ativo,
                                              painel=u["perfil"] in VERES, admin=u["perfil"] == "admin")
+            if u["trocar_senha"]:
+                ctx["nav"] = []             # troca obrigatória: só a casca (marca e Sair), sem links que não levam a lugar nenhum
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
 
     async def formulario(request: Request) -> dict:
@@ -261,28 +274,25 @@ def criar_app() -> FastAPI:
         return RedirectResponse("/", status_code=303)
 
     # ------------------------------------------------------------ home e relatórios
-    @app.get("/", response_class=HTMLResponse)
+    @app.get("/")
     async def home(request: Request):
+        """T-0034: não há mais grade de quadrados. Cada perfil cai na tela dele (a lateral é o menu)."""
         u = usuario(request)
-        menu = [{"href": "/painel", "nome": RELATORIO[1]}] if u["perfil"] in VERES else []
-        no_pacote = (ind.indice() or {}).get("farois") or {}
-        for rid, nome in render.farois_do_perfil(u["perfil"]):
-            menu.append({"href": f"/farol/{rid}" if rid in no_pacote else "", "nome": nome})
-        if u["perfil"] == "admin":
-            menu.append({"href": "/usuarios", "nome": "Usuários"})
-        menu.append({"href": "/senha", "nome": "Trocar senha"})
-        return pagina(request, "home.html", menu=menu)
+        return RedirectResponse(render.pagina_inicial(u["perfil"]), status_code=302)
 
     @app.get("/painel", response_class=HTMLResponse)
     async def painel(request: Request, aba: str = "resultado", uf: str = ""):
         usuario(request, VERES)
-        rel = ind.farol(RELATORIO[0])
+        rel = ind.farol(PAINEL_RID)
         abas = render.localizar_abas(rel) if rel else []
         paineis = render.localizar_paineis(rel) if rel else []     # T-0022: as outras 9 abas do PC
         if not abas and not paineis:
-            return pagina(request, "painel.html", abas=[], tela=None, aba=aba)
-        nav = [{"chave": a["chave"], "titulo": a["titulo"]} for a in abas] + \
-              [{"chave": p["chave"], "titulo": p["titulo"]} for p in paineis]
+            return pagina(request, "painel.html", abas=[], tela=None, tela_f=None, aba=aba)
+        du = render.du_do_painel(abas)                      # U8: os dias úteis ficam na faixa de todas as abas
+        nav = [{"chave": a["chave"], "curta": render.PAINEL_CURTO.get(a["chave"], a["titulo"]), "so_bap": False}
+               for a in abas] + \
+              [{"chave": p["chave"], "curta": render.PAINEL_CURTO.get(p["chave"], p["titulo"]), "so_bap": p["so_bap"]}
+               for p in paineis]
         p_atual = next((p for p in paineis if p["chave"] == aba), None)
         if p_atual:
             dados = rel["paineis"][p_atual["chave"]]
@@ -290,16 +300,20 @@ def criar_app() -> FastAPI:
             escolhido = uf.upper()[:2] if (not p_atual["so_bap"] and uf.upper()[:2] in p_atual["ufs"]) else ""
             tela_f = render.farol_para_tela(dados, escolhido or None)
             return pagina(request, "painel.html", abas=nav, aba=p_atual["chave"], tela=None, tela_f=tela_f,
-                          filtros={"ufs": p_atual["ufs"]}, uf=escolhido,
-                          aviso_bap=render.AVISO_SO_BAP if (p_atual["so_bap"] and uf) else "")
+                          faixa_ks=render.faixa_painel(None, tela_f), uf=escolhido, du=du,
+                          filtros=None if p_atual["so_bap"] else {"ufs": p_atual["ufs"]},
+                          # aba só da BAP: o seletor fica no lugar, desligado, com os estados das outras abas (contrato §4.2)
+                          ufs_off=(p_atual["ufs"] or sorted({u for q in paineis for u in q["ufs"]})) if p_atual["so_bap"] else [])
         if not abas:
-            return pagina(request, "painel.html", abas=nav, aba=nav[0]["chave"], tela=None,
-                          tela_f=render.farol_para_tela(rel["paineis"][nav[0]["chave"]], None), filtros=None, uf="")
+            tela_f = render.farol_para_tela(rel["paineis"][nav[0]["chave"]], None)
+            return pagina(request, "painel.html", abas=nav, aba=nav[0]["chave"], tela=None, tela_f=tela_f,
+                          faixa_ks=render.faixa_painel(None, tela_f), filtros=None, uf="", du=du)
         atual = next((a for a in abas if a["chave"] == aba), abas[0])
         # T-0014: o filtro só escolhe a visão pronta do PC (por estado)
         escolhido = render.escolher_uf(atual, uf[:4] or None)
-        return pagina(request, "painel.html", abas=nav, aba=atual["chave"],
-                      tela=render.aba_para_tela(atual, escolhido),
+        tela = render.aba_para_tela(atual, escolhido)
+        return pagina(request, "painel.html", abas=nav, aba=atual["chave"], tela=tela, tela_f=None,
+                      faixa_ks=render.faixa_painel(tela, None), sub_painel=tela["sub"], du=du,
                       filtros=render.filtros(atual), uf=escolhido or "")
 
     def rel_do(rid):
@@ -312,7 +326,20 @@ def criar_app() -> FastAPI:
             c.setdefault(k, []).append(v[:80])
         return c
 
-    def farol_abas(request: Request, u: dict, rid: str, aba: str, uf: str):
+    def urls_tabela(request: Request, rid: str, aba: str, tab: dict, sub, uf: str, fora: bool) -> dict:
+        """T-0033: os endereços da tabela (ordenação, filtros, recorte) e o do "carregar mais" (500 em 500 linhas)."""
+        base0 = f"/farol/{rid}?aba={aba}"
+        base = base0 + (f"&sub={sub}" if sub is not None else "") + (f"&uf={uf}" if uf else "") + ("&fora=1" if fora else "")
+        sem_rec = "".join(f"&{f['chave']}={quote(str(v))}" for f in tab["filtros"] for v in f["sel"])
+        sem_rec += f"&busca={quote(tab['busca'])}" if tab["busca"] else ""
+        fq = sem_rec + (f"&rec={tab['rec']}" if tab["rec"] is not None else "")
+        mais = ""
+        if tab["pag"] < tab["paginas"]:
+            q = urlencode([(k, v) for k, v in request.query_params.multi_items() if k != "pag"])
+            mais = f"/farol/{rid}/linhas?{q}&pag={tab['pag'] + 1}"
+        return {"base0": base0, "base": base, "sem_rec": sem_rec, "fq": fq, "mais": mais}
+
+    def farol_abas(request: Request, u: dict, rid: str, aba: str, uf: str, linhas: bool = False):
         """Pedidos, Entregas e Visita (§10.7): Resumo e abas de tabela. Perfil e aba conferidos aqui."""
         perfil = u["perfil"]
         rel = rel_do(rid)
@@ -341,7 +368,7 @@ def criar_app() -> FastAPI:
         com_aba = [(c, tit) for c, tit in abas_rid if por_chave[c] and tabelas.ve_aba(rid, c, perfil)]
         # T-0024 (R1): rótulo curto na barra; o título do PC segue sendo a chave da tabela
         barra = [tabelas.RESUMO] + [(c, tabelas.rotulo_aba(rid, tit)) for c, tit in com_aba] if com_aba else []
-        ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo",
+        ctx = dict(farol_nome=nome, rid=rid, abas=barra, aba=aba, noindex=aba != "resumo", ufs_off=ufs,
                    # T-0032 (Alexandre, 26/11: "assim como tem no bap central do python"): o botão aparece sempre
                    # para quem pode; sem imagem no pacote, a página da parcial diz que ainda não chegou
                    parcial=perfil in PERFIS_PARCIAL.get(rid, ()),
@@ -357,6 +384,7 @@ def criar_app() -> FastAPI:
         subnomes, sub, juntas = [], None, []
         if solicitacao:                                 # Solicitação BAP: sem estado, sem cartões do Resumo (D5)
             ufs, uf_ok = [], ""
+            topo = render.farol_para_tela(rel, None, rid)   # sem estado, os cartões de cima são os da BAP inteira (D5)
             try:
                 sub = int(consulta.get("sub", ["0"])[0])
             except ValueError:
@@ -367,13 +395,12 @@ def criar_app() -> FastAPI:
             fora_base = tabelas.linhas_fora_da_base(t) if rid == "pv_pedidos" else frozenset()
             mostrar_fora = consulta.get("fora") == ["1"]
             tab = tabelas.tabela_para_tela(t, consulta, uf=uf_ok or None,
-                                           excluir=frozenset() if mostrar_fora else fora_base)
+                                           excluir=frozenset() if mostrar_fora else fora_base, rid=rid)
             tab["fora_base"] = {"qtd": len(fora_base), "mostrar": mostrar_fora} if fora_base else None
-            # T-0024 (R3, R4): grade × popup e a dica da busca dos faróis do lote 2 (GRADE, contrato tela-bc3 §6.2)
-            tab["grade"] = tabelas.GRADE.get((rid, t["titulo"]))
+            # T-0024 (R4): a dica da busca dos faróis do lote 2 (GRADE, contrato tela-bc3 §6.2)
             tab["dica_busca"] = tabelas.dica_busca(rid, t["titulo"], len(t["linhas"]))
             sel = selecao(t, tab, consulta)              # um clique no pedido: as de baixo só com ele (PC)
-            juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None)
+            juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None, rid=rid)
             volta = request.url.path + "?" + request.url.query
             sit = fila.situacao(rid)
             recebido = ind.recebido_em(rid)               # T-0035: o do farol, não o do lote
@@ -381,22 +408,33 @@ def criar_app() -> FastAPI:
             for j in juntas:
                 jt = next((x["tabela"] for x in t.get("juntas") or [] if x["tabela"]["titulo"] == j["tabela"]), None)
                 j["edicao"] = edicao_tela(rid, j["tabela"], jt, j["linhas"], u, volta, sit, recebido)
-        # cada aba do Visita é uma página sem seletor de estado: o aviso fica em cada uma (RD-0023)
-        aviso_uf = tabelas.AVISO_SEM_ESTADO if rid == "vc_visitas" else aviso_tabs_uf
+        # RD-0023 (decisão do gerente, 26/11): o aviso "Sem filtro por estado" do Visita é um só, na faixa (`_bc3_cab.html`)
+        aviso_uf = aviso_tabs_uf
+        # §10.7.2 (`kpis_padrao`), §10.7.6 e D5: os cartões da aba só valem no padrão; com filtro, recorte ou estado
+        # eles saem e entra o AVISO_CARTOES. Os de cima (`topo["kpis"]`) seguem a RN-GER-006 e vêm prontos do núcleo.
         aviso_kpis = ""
-        if solicitacao:
-            kpis = []
-        elif tab["filtrado"] or (uf_ok and rid != "vc_meta"):   # filtro, recorte ou estado (meta: o estado já traz os cartões): os cartões da aba saem (§10.7.2)
-            kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
-        elif t.get("kpis_padrao") is not None and rid not in tabelas.FAROIS_LIVRES:   # T-0024: a mesma faixa em todas as abas
-            kpis = render.kpis_para_tela(t["kpis_padrao"])
+        kpis_da_aba = False                             # A1 (revisão): só o `kpis_padrao` leva o cartão inteiro à faixa
+        if rid in tabelas.FAROIS_LIVRES:                # T-0024: a mesma faixa (a do Resumo) em todas as abas do lote 2
+            if tab["filtrado"] or uf_ok:                # filtro ou estado: os cartões da aba saem (§10.7.2)
+                kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
+            else:
+                kpis = topo["kpis"]
+        elif t.get("kpis_padrao") is not None and not solicitacao:
+            if tab["filtrado"] or (uf_ok and rid != "vc_meta"):
+                kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
+            else:
+                kpis = render.kpis_para_tela(t["kpis_padrao"])
+                kpis_da_aba = True
         else:
             kpis = topo["kpis"]
         uf = uf_ok
-        return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis,
+        urls = urls_tabela(request, rid, aba, tab, sub, uf, bool(tab.get("fora_base") and tab["fora_base"]["mostrar"]))
+        if linhas:                                      # "carregar mais": só as linhas da página pedida (mesmo corte de perfil)
+            return pagina(request, "_linhas.html", tabela=tab, **urls, **ctx)
+        return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis, **urls,
                       faixa=True, ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
                       ed_enviada=edicoes.MSG_ENVIADA if consulta.get("ed") == ["1"] else "",
-                      aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, titulo_aba=t["titulo"], **ctx)
+                      aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, kpis_da_aba=kpis_da_aba, titulo_aba=t["titulo"], **ctx)
 
     # ------------------------------------------------------------ T-0026: parcial em imagem e exportação
     QUANDOS = (("acum", "Acumulado"), ("d1", "D-1"), ("hoje", "Hoje"))
@@ -461,7 +499,7 @@ def criar_app() -> FastAPI:
         u = usuario(request)
         par = parciais_de(rid, u["perfil"]).get(q)
         raw = par["arquivo"].read_bytes() if isinstance(par, dict) else None
-        pdf = exportar.pdf_imagem(raw, f"{render.FAROIS[rid][0]} · {par.get('rotulo', '')}") if raw else None
+        pdf = exportar.pdf_imagem(raw, f"{marca.EMPRESA} · {render.FAROIS[rid][0]} · {par.get('rotulo', '')}") if raw else None
         if pdf is None:
             return JSONResponse({"erro": "parcial indisponível"}, status_code=404)
         cobranca.registrar_acesso(cfg.dados, u["login"], rid, "parcial-" + q, "pdf")
@@ -526,7 +564,7 @@ def criar_app() -> FastAPI:
             return baixar(exportar.xlsx(tabs), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                           nome + ".xlsx")
         t = tabs[0]
-        rod = f"{render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(ind.gerado_em(rid))}"
+        rod = f"{marca.EMPRESA} · {render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(ind.gerado_em(rid))}"
         return baixar(exportar.pdf_tabela(t, rod), "application/pdf", nome + ".pdf")
 
     # ------------------------------------------------------------ T-0021: edição (só admin)
@@ -661,14 +699,16 @@ def criar_app() -> FastAPI:
         cobranca.registrar_acesso(cfg.dados, u["login"], rid, aba or "-", "editar")
         return RedirectResponse(volta + ("&" if "?" in volta else "?") + "ed=1", status_code=303)
 
+    @app.get("/farol/{rid}/linhas", response_class=HTMLResponse)
     @app.get("/farol/{rid}", response_class=HTMLResponse)
     async def farol(request: Request, rid: str, uf: str = "", aba: str = "resumo"):
+        linhas = request.url.path.endswith("/linhas")   # T-0033: a mesma regra de perfil, só as linhas
         u = usuario(request)
         if rid not in render.FAROIS or u["perfil"] not in render.FAROIS[rid][1]:
             raise PermissionError                       # perfil conferido no servidor
         perfil = u["perfil"]
         if rid in tabelas.RIDS:
-            return farol_abas(request, u, rid, aba, uf)
+            return farol_abas(request, u, rid, aba, uf, linhas=linhas)
         chaves = [c for c, _ in cobranca.ABAS]
         if aba in chaves[1:]:                           # aba de tabela ou de fila: 403 fora do perfil
             if (rid != cobranca.RID or (aba in cobranca.ABA_TABELA and perfil not in cobranca.VE_TABELAS)
@@ -688,7 +728,8 @@ def criar_app() -> FastAPI:
                     if c == "resumo" or (c in cobranca.ABA_TABELA and perfil in cobranca.VE_TABELAS
                                          and cobranca.ABA_TABELA[c] in tem)
                     or (c == "cobrar" and perfil in cobranca.COBRA)]
-        ctx = dict(farol_nome=nome, rid=rid, abas=abas if len(abas) > 1 else [], aba=aba, noindex=aba != "resumo")
+        ctx = dict(farol_nome=nome, rid=rid, abas=abas if len(abas) > 1 else [], aba=aba, noindex=aba != "resumo",
+               ufs_off=render.recortes_farol(rel))
         if aba == "resumo":
             return pagina(request, "farol.html", tela=render.farol_para_tela(rel, uf[:4] or None, rid), **ctx)
         if "tabelas" not in rel:                        # robô antigo: sem as abas novas
@@ -698,9 +739,12 @@ def criar_app() -> FastAPI:
             t = next((x for x in rel["tabelas"] if x["titulo"] == titulo), None)
             if t is None:                               # aba de resumo que o robô ainda não manda
                 return pagina(request, "farol.html", tela=None, **ctx)
-            return pagina(request, "farol.html", tela=None,
-                          tabela=cobranca.tabela_para_tela(t, titulo, consulta_de(request)),
-                          **ctx)
+            tab = cobranca.tabela_para_tela(t, titulo, consulta_de(request))
+            urls = urls_tabela(request, rid, aba, tab, None, "", False)
+            if linhas:
+                return pagina(request, "_linhas.html", tabela=tab, **urls, **ctx)
+            return pagina(request, "farol.html", tela=None, kpis=render.farol_para_tela(rel, None, rid)["kpis"],
+                          tabela=tab, **urls, **ctx)
         cob = rel["cobranca"]
         extras = diario.pendentes(cob["web_epoca"], cob["web_ate_seq"])
         hoje = cobranca.agora().date()
@@ -717,7 +761,8 @@ def criar_app() -> FastAPI:
         paginas = max(1, -(-len(pendentes) // cobranca.FILA_POR_PAGINA))
         pag = min(pag, paginas)
         ini = (pag - 1) * cobranca.FILA_POR_PAGINA
-        return pagina(request, "farol.html", tela=None, fila=pendentes[ini:ini + cobranca.FILA_POR_PAGINA],
+        return pagina(request, "farol.html", tela=None, kpis=render.farol_para_tela(rel, None, rid)["kpis"],
+                      fila=pendentes[ini:ini + cobranca.FILA_POR_PAGINA],
                       tratados=tratados if pag == paginas else [], n_fila=len(pendentes), n_tratados=len(tratados),
                       pag=pag, paginas=paginas, pc_ate=cob["gerado_em"], pacote_sha=ind.sha(cobranca.RID), **ctx)
 
