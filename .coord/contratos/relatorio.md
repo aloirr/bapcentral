@@ -1079,8 +1079,8 @@ Donos:
 **Teto do texto, um lugar só:** `relatorios_nucleo.MAX_TEXTO_EDICAO`, `{(módulo, campo): int}` (modulo-farois).
 - O núcleo põe esse número no `max` da `edicao`.
 - O robô confere a edição contra o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`).
-- `max` do pacote diferente do número do núcleo = edição recusada, com `MOTIVO_TEXTO_WEB`.
-- A frase passa a ser "texto inválido (até {max} caracteres, sem CPF, CNPJ, telefone ou e-mail)", com o `max` do campo.
+- `max` do pacote diferente do número do núcleo = edição recusada, com o motivo de `bap_automation.motivo_texto_web(maximo)`.
+- A frase é "texto inválido (até {maximo} caracteres, sem CPF, CNPJ, telefone ou e-mail)", com o `max` do campo; sem `maximo` (`None`), o teto é 60 (`edicoes.MAX_TEXTO`).
 - A web corta o valor bruto em `max` + 100 caracteres (hoje, 200 fixos).
 
 **Regras do texto livre**, na web e no robô:

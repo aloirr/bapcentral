@@ -21,3 +21,4 @@
 - 2026-11-27 — T-0045 — RD-0098: biblioteca padrão só no desenho, tini/SIGTERM/dev-shm só no contrato, pior mês só no §4 da ADR (cerca de US$ 7, com a conta)
 - 2026-11-27 — T-0023 — 🟡 do revisor: a garantia nova leva antes.ticket (o padrão mostrado); padrão repetido em qualquer rodada vira o garantias.novo_ticket da hora; regra só no contrato §10.9.2, critério 5 com o pacote atrasado
 - 2026-11-27 — T-0023 — §10.10.3: onde o testes procura dado pessoal (padrões em toda string, código de produto só com dígitos fora, inteiro solto de 11 ou 14 dígitos reprova, FONE só no texto livre e nas colunas limpa), a pedido dos testes
+- 2026-11-27 — T-0023 — §10.9.1: MOTIVO_TEXTO_WEB trocado por bap_automation.motivo_texto_web(maximo=None), teto padrão 60, como o robô
