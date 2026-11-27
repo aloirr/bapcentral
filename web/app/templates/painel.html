@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block titulo %}Painel Executivo{% endblock %}
 {% from "_estados.html" import barras_estados %}
-{# T-0034: o Painel Executivo no BC3 (RD-0038: "Painel Executivo" é o nome único). A faixa leva os números; o corpo, os cartões ricos e os gráficos #}
+{# T-0034: o Painel Executivo no BC3 (RD-0038: "Painel Executivo" é o nome único). A faixa leva só quando/DU/filtro (T-0052); o corpo, os cartões ricos e os gráficos #}
 {% from "_faixa.html" import faixa_simples %}
 {# PC: a página não rola (§7.1); gráfico e tabelas ficam lado a lado, cada caixa rola por dentro (classe `painel-corpo`, bc3.js) #}
 {% block mainclass2 %} painel-corpo{% endblock %}
@@ -24,8 +24,9 @@
   <div class="rc-topo">
     <div class="rc-id">
       <div class="rc-rot">{{ c.titulo }}</div>
-      {# os 3 primeiros têm o número na faixa (RD-0063); do 4º em diante o número e a legenda ficam aqui #}
-      {% if not c.na_faixa %}<div class="rc-valor">{{ c.valor }}</div>{% if c.legenda %}<div class="rc-leg">{{ c.legenda }}</div>{% endif %}{% endif %}
+      {# T-0052: todo cartão tem a mesma estrutura: título, valor, legenda (linha sempre reservada), faixa e gráfico #}
+      <div class="rc-valor">{{ c.valor }}</div>
+      <div class="rc-leg"{% if c.legenda %} title="{{ c.legenda }}"{% endif %}>{{ c.legenda }}</div>
     </div>
     {% if c.aneis %}
     <div class="rc-aneis">
@@ -49,6 +50,7 @@
     <div><span class="fr">{{ f.rot }}</span> <b class="t-{{ f.tom }}">{{ f.var }}</b><div class="fv">{{ f.real }}</div></div>
     {% endfor %}
   </div>
+  {% elif not tela.uf %}<div class="rc-faixa vazia" aria-hidden="true"></div>
   {% endif %}
   {% if not tela.uf %}<div class="rc-filete"></div>{% endif %}
   {{ barras_estados(c.estados) }}

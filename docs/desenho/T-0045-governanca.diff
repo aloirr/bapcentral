@@ -1,5 +1,41 @@
+diff --git a/.claude/agents/revisor-ux.md b/.claude/agents/revisor-ux.md
+index 3eab825..853a519 100644
+--- a/.claude/agents/revisor-ux.md
++++ b/.claude/agents/revisor-ux.md
+@@ -37,7 +37,7 @@ Você revisa a **tela** de todo PR que mexe em tela (web/**, templates, CSS, PDF
+ 
+ ## Checklist de redundância
+ - O mesmo número não aparece duas vezes na mesma tela (cartão e resumo gerencial, por exemplo).
+-- Um só carimbo de hora por tela ("Dados de … (Manaus)"), não dois.
++- Um só carimbo de hora por tela, não dois. Na faixa, só a data e a hora ("24/11/2026 08:30" no PC, "24/11 08:30" no celular); o "Dados de …, horário de Manaus" fica só no `title`, ao parar o mouse (R-20261127-054626-po).
+ - O título não repete o nome da aba; o rótulo não repete o que o filtro já diz.
+ - Tabela sem colunas iguais (ex.: PEDIDO e PED. MÁX. com o mesmo valor) e sem colunas que só repetem outra.
+ - Unidade ("R$", "un.") no título ou no número, não nos dois.
+diff --git a/.coord/donos.json b/.coord/donos.json
+index c590d6f..1ae7476 100644
+--- a/.coord/donos.json
++++ b/.coord/donos.json
+@@ -507,6 +507,18 @@
+       "padrao": "atualizar_do_github.py",
+       "dono": "engenheiro-software"
+     },
++    {
++      "padrao": "nuvem/visitas/Dockerfile",
++      "dono": "engenheiro-software"
++    },
++    {
++      "padrao": ".dockerignore",
++      "dono": "engenheiro-software"
++    },
++    {
++      "padrao": "nuvem/**",
++      "dono": "modulo-robo"
++    },
+     {
+       "padrao": "web/**",
+       "dono": "modulo-web"
 diff --git a/render.yaml b/render.yaml
-index fc19792..c4675e0 100644
+index fc19792..add1772 100644
 --- a/render.yaml
 +++ b/render.yaml
 @@ -1,6 +1,7 @@
@@ -25,7 +61,7 @@ index fc19792..c4675e0 100644
 +  # T-0045 (ADR 0004; contrato .coord/contratos/visitas-nuvem.md v1): visitas da Máxima.
 +  # Cron job à parte (D1 da ADR 0004): acorda de 10 em 10 min,
 +  # pergunta ao site se há trabalho (agenda das 06h00, botão, diagnóstico, teto do dia) e sai.
-+  # A senha da Máxima fica SÓ aqui, nunca no bap-central.
++  # No Render, a senha da Máxima fica SÓ aqui, nunca no bap-central.
 +  - type: cron
 +    name: bap-visitas-maxima
 +    runtime: docker
@@ -60,6 +96,6 @@ index fc19792..c4675e0 100644
 +          name: bap-central
 +          envVarKey: BAP_VISITAS_TOKEN
 +      - key: BAP_MAXIMA_USUARIO
-+        sync: false          # o Alexandre cria no painel (usuário próprio do robô, D4); preencher no mesmo sync
++        sync: false          # o mesmo usuário da Máxima do notebook (D4 revista); o Alexandre preenche no painel
 +      - key: BAP_MAXIMA_SENHA
-+        sync: false          # o Alexandre cria no painel; só neste serviço
++        sync: false          # a mesma senha do notebook; o Alexandre preenche no painel; só neste serviço
