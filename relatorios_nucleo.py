@@ -663,8 +663,9 @@ def com_status(ctx, t, pos=None, i_cli=None, chaves=None, planner=True,
     if f:
         def kp_sem_novas(ls, filtro=None, f=f):
             # o filtro vem com os indices da tela (com as colunas novas)
-            fo = {(j if j < k else j - n): v for j, v in (filtro or {}).items()
-                  if not k <= j < k + n}
+            fo = {(j if not isinstance(j, int) or j < k else j - n): v
+                  for j, v in (filtro or {}).items()
+                  if not (isinstance(j, int) and k <= j < k + n)}
             return chamar_kpis_de(f, tira(ls), fo or None)
         t["kpis_de"] = kp_sem_novas
     ed = t.get("edicao")                # (13/10) a edicao segue a coluna
@@ -11767,11 +11768,17 @@ def devolucoes_da_vista(ctx, chaves, todas, filiais_inteiras=None) -> float:
 def filiais_do_recorte(linhas, filtro, i_fil, i_pessoa=()) -> frozenset:
     """Funcao pura (T-0058): as filiais das linhas SE o filtro tem a coluna
     FILIAL (recorte por estado ou filial da nota) e nenhuma coluna de
-    pessoa (i_pessoa: vendedor, supervisor); senao, vazio (por par)."""
-    if not filtro or i_fil not in filtro or \
+    pessoa (i_pessoa: vendedor, supervisor); senao, vazio (por par).
+    i_fil: indice da coluna FILIAL ou tupla (FILIAL, outras colunas que
+    tambem recortam por filial da nota, ex.: a UF do Farol de Saldo); as
+    filiais vem do primeiro indice. [SUPOSICAO: FILIAL junto com outro
+    filtro que nao e de pessoa (cliente, situacao) desconta a filial
+    inteira.]"""
+    cols = tuple(i_fil) if isinstance(i_fil, (tuple, list)) else (i_fil,)
+    if not filtro or not any(filtro.get(j) for j in cols) or \
             any(filtro.get(j) for j in i_pessoa):
         return frozenset()
-    return frozenset(l[i_fil] for l in linhas)
+    return frozenset(l[cols[0]] for l in linhas)
 
 
 def saldo_desconto(ctx):
@@ -11892,7 +11899,7 @@ def saldo_desconto(ctx):
         mt = meta_de(ls)
         dev = devolucoes_da_vista(
             ctx, {(l[I_MES], l[I_FIL], l[I_VEND]) for l in ls}, todas_k,
-            filiais_do_recorte(ls, filtro, I_FIL, (I_VEND, I_SUP)))
+            filiais_do_recorte(ls, filtro, (I_FIL, I_UF), (I_VEND, I_SUP)))
         cs = [
             # (22/10, Alexandre) FATURADO = o real, ja sem as devolucoes
             kpi("Faturado", moeda(x["venda"] - dev), "neutro",
