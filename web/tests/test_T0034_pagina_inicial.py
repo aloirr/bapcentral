@@ -209,3 +209,11 @@ def test_cada_cartao_traz_a_comparacao_do_proprio_indicador(admin):
     fat, pos, ped = cartoes
     assert "R$ 626 mil" in fat and "R$ 626 mil" not in pos and "R$ 626 mil" not in ped
     assert ">126<" in pos and ">168<" in ped and "R$" not in pos.split('class="rc-faixa"')[1].split("</div></div>")[0]
+
+
+def test_lateral_com_lista_que_rola_e_pe_sempre_visivel(admin):
+    # a lista de itens fica numa <nav> que rola por dentro; "usuário · Sair" fica fora dela, no pé da lateral
+    lado = admin.get("/senha").text.split('class="bc3-lado"')[1].split("</aside>")[0]
+    assert lado.index('class="bc3-nav"') < lado.index("</nav>") < lado.index('class="bc3-eu"')
+    css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
+    assert ".bc3-nav{flex:1 1 auto;min-height:0;overflow-y:auto" in css and ".rc-faixa b{font-weight:700;white-space:nowrap}" in css

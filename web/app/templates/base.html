@@ -15,11 +15,13 @@
   {% if usuario %}
   <aside class="bc3-lado" id="bc3-lado" aria-label="Menu">
     <a class="bc3-marca" href="/"><i aria-hidden="true"></i><span>BAP Central<small>{{ empresa }}</small></span></a>
+    <nav class="bc3-nav" aria-label="Seções">
     {% for g in nav %}
     <div class="bc3-grupo"><small>{{ g.nome }}</small>
       {% for i in g.itens %}{% if i.href %}<a href="{{ i.href }}" class="{{ 'on' if i.ativo }}"{{ ' aria-current="page"'|safe if i.ativo }}>{{ i.nome }}</a>{% else %}<span class="indisp">{{ i.nome }}<small>Sem dados hoje</small></span>{% endif %}{% endfor %}
     </div>
     {% endfor %}
+    </nav>
     <form method="post" action="/sair" class="bc3-eu">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <i aria-hidden="true">{{ usuario.login[:2]|upper }}</i><span>{{ usuario.login }}</span>
