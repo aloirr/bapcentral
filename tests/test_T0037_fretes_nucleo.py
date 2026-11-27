@@ -148,6 +148,26 @@ def test_RN_POS_009_pct_faturado_no_recorte_usa_a_uf_com_devolucao(farol):
     assert _k(t["kpis_de"](ma, {"UF": "MA"}))["% do faturado"][0] == "100%"
 
 
+def test_RN_POS_009_pct_faturado_com_conjunto_de_ufs_soma_o_liquido(farol):
+    """Filtro com vários estados: o denominador soma o líquido de cada UF."""
+    _r, t = farol
+    ls = [l for l in t["linhas"] if l[7] in ("PA", "MA")]
+    k = _k(t["kpis_de"](ls, {"UF": {"PA", "MA"}}))
+    # (1.000 + 2.800) ÷ (3.500 PA + 2.800 MA) = 3.800 ÷ 6.300 = 60,3% → 60%
+    assert k["% do faturado"][0] == "60%"
+    # o texto e o conjunto de 1 UF dão o mesmo
+    pa = [l for l in ls if l[7] == "PA"]
+    assert t["kpis_de"](pa, {"UF": {"PA"}}) == t["kpis_de"](pa, {"UF": "PA"})
+    # conjunto com todas as UFs que faturaram (AM, PA, MA) = a BAP inteira
+    assert t["kpis_de"](ls, {"UF": {"AM", "PA", "MA"}}) == t["kpis_de"](ls)
+    # na função pura: lista ou frozenset valem como conjunto
+    fat = {(NOV, "PA"): 3500.0, (NOV, "MA"): 2800.0, (NOV, "AM"): 6000.0}
+    assert rn.kpis_fretes(ls, fat, ["PA", "MA"]) == rn.kpis_fretes(
+        ls, fat, frozenset({"MA", "PA"}))
+    assert _k(rn.kpis_fretes(ls, fat, frozenset({"PA", "MA"})))[
+        "% do faturado"][0] == "60%"
+
+
 def test_RN_POS_010_fretes_sem_frete_real_no_pc(farol):
     """P2 A: a edição do PC no Fretes não oferece o frete_real."""
     _r, t = farol
