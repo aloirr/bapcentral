@@ -25,6 +25,7 @@ from .render import COLUNAS_FORA, RE_DATA, coluna_fora, fmt_celula   # a lista e
 VE_TABELAS = {
     "pv_pedidos": ("admin", "gerente", "pre_venda"),
     "pl_entregas": ("admin", "gerente", "pos_venda"),
+    "pl_fretes": ("admin", "gerente", "pos_venda"),      # T-0037, P4 A (provisória): o pós-venda vê as 4 abas
     "vc_visitas": ("admin", "gerente", "vendas"),
     # T-0022: o Farol de Metas Equipe segue a mesma regra (D1 A): o diretor vê o Resumo; mude aqui se a D1 mudar
     "vc_meta": ("admin", "gerente", "vendas"),
@@ -38,6 +39,8 @@ RESUMO = ("resumo", "Resumo")
 ABAS = {
     "pv_pedidos": (("pedidos", "Pedidos"), ("solicitacao", "Solicitação BAP")),
     "pl_entregas": (("entregas", "Entregas"),),
+    "pl_fretes": (("notas", "Notas com frete"), ("uf", "Por UF"), ("cidade", "Por cidade"),
+                  ("transportadora", "Por transportadora")),
     "vc_meta": (("equipe", "Equipe"), ("top30", "Top 30 clientes"), ("uf", "Por UF"), ("cidade", "Por cidade"),
                 ("bairro", "Por bairro"), ("segmento", "Por segmento"), ("zona", "Por zona"),
                 ("categoria", "Por categoria"), ("familia", "Por família da peça")),
@@ -116,6 +119,10 @@ COLUNAS: dict[str, list] = {
                           _c("PEDIDOS ANTES", "num"), _c("DISP. P/ ESTE", "num"), _c("ATENDIDO", "num"),
                           _c("FALTA", "num"), _c("CLIENTE"), _c("FILIAL BAP", "texto", True),
                           _c("VALOR FALTANTE", "moeda")],
+    "Notas com frete": [_c("MÊS", "texto", True), _c("DATA PED.", "dia"), _c("DATA NF", "dia"), _c("NF"),
+                        _c("FILIAL"), _c("CLIENTE"), _c("CIDADE"), _c("UF"), _c("VLR NF", "moeda"),
+                        _c("VLR FRETE", "moeda"), _c("ETAPA"), _c("TRANSPORTADORA"), _c("ENTREGAR ATÉ", "dia"),
+                        _c("ENTREGUE", "dia"), _c("SLA ENTREGA", "int"), _c("RESPONSÁVEL")],
     "Entregas": _entregas(True),
     "Pendências dos meses anteriores": _entregas(False),
     "Por supervisor": [_c("SUPERVISOR"), _c("REPRES.", "int")] + _METRICAS + [_c("CHAVE", "texto", True)],
@@ -136,6 +143,13 @@ COLUNAS: dict[str, list] = {
                   _c("CÓD. QUEM INDICOU"), _c("CLIENTE QUE INDICOU"), _c("INDICADO"), _c("CIDADE"),
                   _c("BAIRRO"), _c("SEGMENTO"), _c("VISITADA EM", "data"), _c("OBSERVAÇÃO"),
                   _c("REGISTRADO EM")],
+}
+# T-0037: títulos que se repetem em outro farol: a lista é por (rid, título)
+_RESUMO_FRETES = [_c("NOTAS", "int"), _c("VLR NF", "moeda"), _c("VLR FRETE", "moeda")]
+COLUNAS_RID = {
+    ("pl_fretes", "Por UF"): [_c("MÊS"), _c("UF")] + _RESUMO_FRETES,
+    ("pl_fretes", "Por cidade"): [_c("MÊS"), _c("CIDADE")] + _RESUMO_FRETES,
+    ("pl_fretes", "Por transportadora"): [_c("MÊS"), _c("TRANSPORTADORA")] + _RESUMO_FRETES,
 }
 # "Aderência dia a dia": 2 + N + 1 colunas, conferidas por padrão de nome (§10.7.3)
 ADERENCIA = "Aderência dia a dia"
@@ -244,8 +258,10 @@ def _total_ok(tot, tipos) -> bool:
             and all(v is None or (_celula_ok(v, tp) and v != "") for v, tp in zip(tot, tipos)))
 
 
-def _cols_esperadas(titulo: str, cols) -> list | None:
+def _cols_esperadas(titulo: str, cols, rid: str = "") -> list | None:
     """A lista do §10.7.3; na "Aderência dia a dia" ela sai dos nomes (padrão), None se não bate."""
+    if (rid, titulo) in COLUNAS_RID:
+        return COLUNAS_RID[(rid, titulo)]
     if titulo != ADERENCIA:
         return COLUNAS.get(titulo)
     nomes = [c.get("nome") if isinstance(c, dict) else None for c in cols]
@@ -312,7 +328,7 @@ def _cols_meta(cols) -> list | None:
 
 def _colunas_erro(titulo, cols, rid="") -> tuple[str | None, list]:
     esperado = (_cols_meta(cols) if rid == "vc_meta"
-                else _cols_esperadas(titulo, cols if isinstance(cols, list) else []))
+                else _cols_esperadas(titulo, cols if isinstance(cols, list) else [], rid))
     if esperado is None:
         return "colunas diferentes da lista do contrato", []
     if not (isinstance(cols, list) and len(cols) == len(esperado)):
@@ -528,7 +544,7 @@ def validar(rid: str, r: dict) -> list[str]:
     if "tabelas" not in r:
         return []
     if rid not in RIDS:
-        return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas e vc_visitas"]
+        return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas, pl_fretes e vc_visitas"]
     ts = r["tabelas"]
     if not isinstance(ts, list) or len(ts) > len(ABAS[rid]):
         return [f"{rid}: tabelas precisa ser lista de até {len(ABAS[rid])} abas"]

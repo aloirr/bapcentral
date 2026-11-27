@@ -555,7 +555,8 @@ def criar_app() -> FastAPI:
             m = edicoes.marca(s, recebido)
             url = (f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "chave": ch, "volta": volta})
                    if admin and ch else "")
-            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, admin), "sem_chave": admin and not ch}
+            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, admin), "sem_chave": admin and not ch,
+                          "msg_sem_chave": edicoes.msg_sem_chave(rid, titulo)}
             algum = algum or bool(m)
         if not admin and not algum:
             return None

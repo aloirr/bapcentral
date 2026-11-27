@@ -151,6 +151,8 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
     "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
     "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
+    # T-0037: Farol de Fretes (contrato §10.11); no fim do grupo Pós-venda
+    "pl_fretes": ("Farol de Fretes", ("admin", "diretor", "gerente", "pos_venda")),
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
     "vc_meta": ("Farol de Metas Equipe", ("admin", "diretor", "gerente", "vendas")),
 }
@@ -165,7 +167,7 @@ _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 # T-0030: faróis que já usam o visual BC3 (barra lateral + faixa verde, uma tela só no PC, lista que abre no
 # celular). O Farol de Pedidos vai primeiro; os outros entram na mesma lista.
 BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
-GRUPOS_MENU = (("Pré-venda", ("pv_pedidos",)), ("Pós-venda", ("pl_entregas", "pl_inadimplencia")),
+GRUPOS_MENU = (("Pré-venda", ("pv_pedidos",)), ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_fretes")),
                ("Vendas", ("vc_visitas", "vc_meta")))
 
 

@@ -36,13 +36,24 @@ LUGARES = {
     ("pv_pedidos", "Pedidos"): "autorizacoes",
     ("pl_entregas", "Entregas"): "pos_venda",
     ("pl_entregas", "Pendências dos meses anteriores"): "pos_venda",
+    ("pl_fretes", "Notas com frete"): "pos_venda",       # T-0037: a mesma linha da aba ENTREGAS (RN-POS-010)
 }
+# T-0037: lugares que editam a mesma linha do PC: a marca "Aguardando o PC" vale nos dois faróis
+IRMAOS = (frozenset({("pl_fretes", "Notas com frete"), ("pl_entregas", "Entregas"),
+                     ("pl_entregas", "Pendências dos meses anteriores")}),)
 TIPOS = ("lista", "data", "texto", "numero")
 STATUS = ("pendente", "aplicada", "erro")
 MSG_ENVIADA = "Edição enviada. Ela chega ao PC na próxima rodada do robô (a cada 30 min)."
 MSG_AGUARDA = "Aguardando o PC"
 MSG_ERRO = "O PC recusou"
 MSG_SEM_CHAVE = "Nota concluída (anterior ao controle de 01/10/2026)."
+MSG_SEM_CHAVE_POR_LUGAR = {
+    ("pl_fretes", "Notas com frete"): "Nota sem linha no acompanhamento de entregas: não edita na web.",
+}
+
+
+def msg_sem_chave(rid: str, tabela: str) -> str:
+    return MSG_SEM_CHAVE_POR_LUGAR.get((rid, tabela), MSG_SEM_CHAVE)
 ERRO_VISIVEL_DIAS = 3                       # a marca "O PC recusou" fica 3 dias (ou até nova edição)
 MAX_CAMPOS = 10
 MAX_OPCOES = 400
@@ -377,17 +388,35 @@ class Fila:
             eds, st = self._ler()
         out: dict = {}
         for r in eds:
-            if r.get("rid") != rid:
+            alvos = self._alvos(rid, r)
+            if not alvos:
                 continue
             s = st.get(r["seq"]) or {}
-            k = (r.get("tabela"), r.get("chave"))
-            ant = out.get(k)
-            status = s.get("status", "pendente")
-            valores = dict(ant["valores"]) if ant and ant["status"] == "pendente" and status == "pendente" else {}
-            valores.update(r.get("valores") or {})
-            out[k] = {"status": status, "valores": valores, "quando": r.get("quando", ""),
-                      "usuario": r.get("usuario", ""), "motivo": s.get("motivo", ""), "em": s.get("quando", "")}
+            for k in alvos:
+                self._junta(out, k, r, s)
         return out
+
+    @staticmethod
+    def _alvos(rid: str, r: dict) -> list:
+        """Chaves (tabela, chave) em que a edição `r` aparece no farol `rid`: a própria e as dos lugares irmãos."""
+        ch, origem = r.get("chave"), (r.get("rid"), r.get("tabela"))
+        if r.get("rid") == rid:
+            alvos = [(r.get("tabela"), ch)]
+        else:
+            alvos = []
+        for g in IRMAOS:
+            if origem in g:
+                alvos += [(t, ch) for (rd, t) in g if rd == rid and (t, ch) not in alvos]
+        return alvos
+
+    @staticmethod
+    def _junta(out: dict, k, r: dict, s: dict) -> None:
+        ant = out.get(k)
+        status = s.get("status", "pendente")
+        valores = dict(ant["valores"]) if ant and ant["status"] == "pendente" and status == "pendente" else {}
+        valores.update(r.get("valores") or {})
+        out[k] = {"status": status, "valores": valores, "quando": r.get("quando", ""),
+                  "usuario": r.get("usuario", ""), "motivo": s.get("motivo", ""), "em": s.get("quando", "")}
 
 
 def marca(sit: dict | None, recebido_em: str | None, agora_=None) -> str:
