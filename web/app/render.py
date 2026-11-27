@@ -510,6 +510,12 @@ def coluna_fora(nome) -> bool:
     return _sem_acento(nome).strip() in COLUNAS_FORA
 
 
+def texto_proibido(t) -> bool:
+    """RD-0251: alguma palavra do texto é de COLUNAS_FORA (`coluna_fora`, sem acento, com o hífen: "E-MAIL"), ou há
+    cliente/razão/fantasia (`_CLIENTE_NO_BLOCO`). Uma lista só: a porta de leitura usa esta."""
+    return any(coluna_fora(w) for w in re.findall(r"[\w-]+", _sem_acento(t))) or bool(_CLIENTE_NO_BLOCO.search(str(t or "")))
+
+
 def coluna_proibida(nome) -> bool:
     """Bloco tabela do painel: a lista do contrato mais coluna de cliente (regra 6 do CLAUDE.md)."""
     return coluna_fora(nome) or bool(_CLIENTE_NO_BLOCO.search(str(nome or "")))
