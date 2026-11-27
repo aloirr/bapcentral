@@ -52,7 +52,7 @@ MSG_AGUARDA = "Aguardando o PC"
 MSG_ERRO = "O PC recusou"
 MSG_SEM_CHAVE = "Nota concluída (anterior ao controle de 01/10/2026)."
 MSG_SEM_CHAVE_POR_LUGAR = {
-    ("pl_fretes", "Notas com frete"): "Nota sem linha no acompanhamento de entregas: não edita na web.",
+    ("pl_fretes", "Notas com frete"): "Não edita na web.",
 }
 
 

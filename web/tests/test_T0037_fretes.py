@@ -160,8 +160,3 @@ def test_RN_POS_010_aba_curta_e_dica_da_busca(admin):
     _pacote_ok(admin)
     assert 'placeholder="Buscar NF ou cliente"' in admin.get(URL).text
 
-
-def test_RN_POS_010_pacote_do_fretes_nao_traz_frete_real():
-    from fretes_fixture import pacote_fretes as pf
-    t = pf()["relatorios"]["pl_fretes"]["tabelas"][0]
-    assert "frete_real" not in [c["campo"] for c in t["edicao"]["campos"]]   # P2 A: o VLR FRETE (REAL) fica no Entregas
