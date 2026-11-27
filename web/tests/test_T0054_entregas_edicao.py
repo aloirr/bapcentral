@@ -124,7 +124,6 @@ def test_RN_GER_018_farol_liberado_nao_da_edicao(ped, amb):
     assert not (amb / "edicoes").exists() or _fila(amb) == []
 
 
-
 def test_RN_POS_011_formulario_diz_a_nota_e_o_cliente(ped):
     c = _usuario(ped, "t54.posvenda", "pos_venda")
     html = c.get(_link(c.get(URL_ENT).text)).text
@@ -162,3 +161,13 @@ def test_RN_POS_010_notas_com_frete_pos_venda_edita_gerente_nao():
 def test_RN_POS_010_lugar_ainda_fora_de_LUGARES_nao_quebra(ped):
     c = _usuario(ped, "t54.posvenda", "pos_venda")        # no main o Fretes não tem edição: 403/404, nunca 500
     assert c.get("/farol/pl_fretes/editar?tab=Notas+com+frete&chave=x").status_code in (403, 404)
+
+
+def test_RN_POS_011_linha_nova_so_do_admin(ped, amb):
+    c = _usuario(ped, "t54.posvenda", "pos_venda")
+    url = "/farol/pl_entregas/editar?tab=Entregas&novo=1"
+    assert c.get(url).status_code == 403
+    assert ped.get(url).status_code == 404                # o admin passa do perfil; sem `edicao.novo` no pacote, 404
+    r = c.post("/farol/pl_entregas/editar", data={"csrf": token_form(c, "/senha"), "tab": "Entregas", "novo": "1"})
+    assert r.status_code == 403
+    assert not (amb / "edicoes").exists() or _fila(amb) == []

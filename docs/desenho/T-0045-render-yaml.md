@@ -2,14 +2,14 @@
 
 - **Autor:** engenheiro-software · **Data:** 27/11/2026 (revisado no PR #137)
 - **Base:** ADR 0004 (aceita) e o contrato `.coord/contratos/visitas-nuvem.md` v1, neste PR.
-- **Decisões:** D1 (cron job à parte, plano de 2 GB pago pelo tempo rodado) e D4 (usuário próprio da Máxima, só como variável secreta), ADR 0004, §0.
-- **Texto exato do `render.yaml`:** `docs/desenho/T-0045-render-yaml.diff` (aplica com `git apply` sobre o `origin/main` a32b610). Este arquivo explica o diff sem repetir o YAML.
+- **Decisões:** D1 (cron job à parte, plano de 2 GB pago pelo tempo rodado) e D4 revista (o mesmo login da Máxima do notebook, só como variável secreta), ADR 0004, §0 e adendo 1.
+- **Texto exato do `render.yaml` e das linhas do `.coord/donos.json`:** `docs/desenho/T-0045-governanca.diff` (um diff só, que substitui o antigo `T-0045-render-yaml.diff`; frase e ordem no `docs/desenho/T-0045-governanca.md`). Este arquivo explica o diff sem repetir o YAML.
 
 ## 1. Por que esta proposta é um diff, e não o `render.yaml` alterado
 
 - O `render.yaml` e o `.coord/donos.json` são do **alexandre** (`.coord/donos.json`). O guardião bloqueia o engenheiro-software nesses arquivos, e o protocolo manda não contornar.
 - Por isso, este PR leva **só arquivos do engenheiro-software**: este desenho e o `.diff` ao lado.
-- O `render.yaml` entra **num PR próprio do Alexandre** (`alexandre/T-0045-render-yaml`), como no PR #57, só no passo da ADR 0004, §9 (item 10). O merge segue com o "autorizo o merge do PR #N no commit <sha>" do po, por delegação.
+- O `render.yaml` entra **num PR próprio do Alexandre** (`alexandre/T-0045-governanca`, junto com as linhas do `donos.json`), como no PR #57, **antes** do `Dockerfile` e do `nuvem/visitas/` (ADR 0004, adendo 1). O merge segue com o "autorizo o merge do PR #N no commit <sha>" do po, por delegação.
 
 ## 2. O que o diff muda no `render.yaml`
 
@@ -45,13 +45,7 @@ A documentação do Render (`render.com/docs`) não abriu desta sessão (o proxy
 
 **Dono proposto:** **engenheiro-software**, como base técnica (a imagem, a versão do Playwright, o `requirements-visitas.txt`). O código que roda dentro (`nuvem/visitas/rodar.py`, `agenda.py`, `__init__.py`) é do **modulo-robo**. Não é do modulo-web: o cron não é o site e não fica em `web/` (o site tem `rootDir: web`, e código do cron ali faria o site refazer deploy a cada mudança do cron).
 
-Hoje `nuvem/**` e `.dockerignore` são "sem-dono", e o guardião bloqueia. **As linhas para o `.coord/donos.json`** (a única cópia; governança, antes das regras gerais; a primeira que casa vence):
-
-```json
-{ "padrao": "nuvem/visitas/Dockerfile", "dono": "engenheiro-software" },
-{ "padrao": ".dockerignore", "dono": "engenheiro-software" },
-{ "padrao": "nuvem/**", "dono": "modulo-robo" },
-```
+Hoje `nuvem/**` e `.dockerignore` são "sem-dono", e o guardião bloqueia. **As 3 linhas do `.coord/donos.json`** (`nuvem/visitas/Dockerfile` e `.dockerignore` → engenheiro-software; `nuvem/**` → modulo-robo, nessa ordem, porque a primeira que casa vence) estão só no `docs/desenho/T-0045-governanca.diff`.
 
 Texto do `nuvem/visitas/Dockerfile`:
 
@@ -83,6 +77,10 @@ RUN pip install --break-system-packages -r requirements-visitas.txt
 COPY visitas_maxima.py visitas_nucleo.py relatorios_nucleo.py bap_dados.py ./
 COPY nuvem/visitas/ ./nuvem/visitas/
 
+# Trava da ordem (ADR 0004, adendo 1): sem o rodar.py no main, o BUILD falha e nenhuma imagem roda sem o código.
+# Exige do modulo-robo: importar o rodar.py não faz nada (nem rede, nem navegador, nem leitura de segredo).
+RUN python -c "import nuvem.visitas.rodar, nuvem.visitas.agenda"
+
 # Usuário sem privilégio que a imagem do Playwright já traz.
 USER pwuser
 
@@ -106,7 +104,7 @@ tests/
 ```
 
 - O `visitas_nucleo.py` importa o `xlsx_rapido`, o `meta_nucleo` e o `pastas_bap` só dentro de funções de montagem, que a nuvem não chama. O `ler_espelho` cai no `openpyxl` quando não acha o `xlsx_rapido` (por isso ele está no `requirements-visitas.txt`). O `relatorios_nucleo.py` e o `bap_dados.py` só importam a biblioteca padrão no topo (conferido: importar os dois não carrega `pandas`, `openpyxl`, `meta_nucleo` nem `pastas_bap`). Se o `rodar.py` precisar de outro arquivo, ele entra na lista do `COPY` e no `buildFilter`, e nunca uma pasta inteira.
-- Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`; a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`; todo arquivo do `COPY` está no `buildFilter`.
+- Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`; tem o `RUN python -c "import nuvem.visitas.rodar, ..."` antes do `USER`; importar o `nuvem.visitas.rodar` não chama rede nem lê `BAP_MAXIMA_*`; não existe `*.dockerignore` nem fixture com dado em `nuvem/visitas/` (a pasta entra inteira na imagem); a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`; todo arquivo do `COPY` está no `buildFilter`.
 
 ## 4. Ordem do merge
 
