@@ -740,6 +740,26 @@ def _periodo(txt) -> tuple:
     return tuple(out) if len(out) == 2 else (None, None)
 
 
+def _abrir_excel(caminho):
+    """O Excel do Espelho, so leitura (o leitor rapido do BAP, se houver)."""
+    try:
+        from xlsx_rapido import load_workbook             # noqa: PLC0415
+    except Exception:                                     # noqa: BLE001
+        from openpyxl import load_workbook                # noqa: PLC0415
+    return load_workbook(caminho, read_only=True, data_only=True)
+
+
+_RX_CODIGO_CLIENTE = re.compile(r"^\d{6,8}$")
+
+
+def _linha_de_cliente(reg: dict) -> bool:
+    """A UNICA regra do que e linha de cliente da lista (ler_espelho e
+    filtrar_espelho): data valida ou codigo de 6 a 8 digitos. Rodape e
+    total no meio da lista nao entram."""
+    return bool(_data_espelho(reg.get("data"))
+                or _RX_CODIGO_CLIENTE.fullmatch(_texto(reg.get("codigo"))))
+
+
 def _eventos_espelho(linhas):
     """O laco UNICO de leitura do Espelho (ler_espelho e filtrar_espelho).
     Por linha nao vazia, gera:
@@ -767,7 +787,8 @@ def _eventos_espelho(linhas):
         if colunas:
             reg = {campo: r[i] if i < len(r) else None
                    for i, campo in colunas.items()}
-            yield ("cliente", ri, cel, reg, colunas)
+            if _linha_de_cliente(reg):
+                yield ("cliente", ri, cel, reg, colunas)
             continue
         # cabecalho: "Rotulo:" e o valor nas celulas seguintes
         k = 0
@@ -794,12 +815,8 @@ def _eventos_espelho(linhas):
 def ler_espelho(caminho) -> dict | None:
     """O Excel do Espelho de Rotas (Analitico) de UM representante: o
     cabecalho (os numeros do GridRca) e a lista de clientes."""
-    try:                     # (18/10) o leitor rapido do BAP (mesmo valor)
-        from xlsx_rapido import load_workbook             # noqa: PLC0415
-    except Exception:                                     # noqa: BLE001
-        from openpyxl import load_workbook                # noqa: PLC0415
     try:
-        wb = load_workbook(caminho, read_only=True, data_only=True)
+        wb = _abrir_excel(caminho)
     except Exception:                                     # noqa: BLE001
         return None
     cab, linhas = {}, []
@@ -807,9 +824,7 @@ def ler_espelho(caminho) -> dict | None:
         for ws in wb.worksheets:
             for ev in _eventos_espelho(ws.iter_rows(values_only=True)):
                 if ev[0] == "cliente":
-                    reg = ev[3]
-                    if _texto(reg.get("codigo")) or _texto(reg.get("cliente")):
-                        linhas.append(reg)
+                    linhas.append(ev[3])
                 elif ev[0] == "rotulo" and ev[3]:
                     cab[ev[3]] = ev[4]
     finally:
@@ -1499,12 +1514,12 @@ def dias_a_baixar(indice: dict | None, de: date, ate: date, hoje: date,
 
 
 # --- lista de permitidas do Espelho (RN-VIS-007, contrato 3.6) -----------
-# o que NAO sobe do Espelho (o resto das tabelas do ler_espelho sobe)
-_COLUNAS_FORA_DA_NUVEM = ("KM DIST", "BONIF", "OBSERVACAO")
+# as colunas que NUNCA saem do Espelho (o site espelha esta lista) (o resto das tabelas do ler_espelho sobe)
+_FORA_DO_ESPELHO = ("KM DIST", "BONIF", "OBSERVACAO")
 ESPELHO_PERMITIDAS = {
     "cabecalho": tuple(_ROTULOS_ESPELHO),
     "colunas": tuple(c for c in _COLUNAS_ESPELHO
-                     if c not in _COLUNAS_FORA_DA_NUVEM),
+                     if c not in _FORA_DO_ESPELHO),
 }
 
 # formato conferido por coluna (o resto e texto)
@@ -1529,7 +1544,7 @@ _RX_CPF = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}|(?<!\d)\d{11}(?!\d)")
 _RX_FONE = re.compile(r"\(?\d{2}\)?\s?9?\d{4}-\d{4}|\(\d{2}\)\s?\d{8,9}")
 _RX_FORMATO = {
     "ord": re.compile(r"^\d{1,3}$"),
-    "codigo": re.compile(r"^\d{6,8}$"),
+    "codigo": _RX_CODIGO_CLIENTE,
     "n_pedido": re.compile(r"^\d{1,10}$"),
     "sn": re.compile(r"^[SN]$", re.I),
     "hora": re.compile(r"^\d{1,3}:\d{2}(:\d{2})?$"),
@@ -1540,10 +1555,15 @@ _RX_FORMATO = {
 }
 
 
-def _varrer_digitos(s: str) -> str | None:
-    for tipo, rx in (("cnpj", _RX_CNPJ), ("cpf", _RX_CPF),
-                     ("telefone", _RX_FONE)):
-        if rx.search(s):
+_REDE = (("email", _RX_EMAIL), ("cnpj", _RX_CNPJ), ("cpf", _RX_CPF),
+         ("telefone", _RX_FONE))
+# os tipos de achado (o site espelha); "formato" vem da conferencia da coluna
+TIPOS_ACHADO = tuple(t for t, _ in _REDE) + ("formato",)
+
+
+def _na_rede(s: str, tipos=None) -> str | None:
+    for tipo, rx in _REDE:
+        if (tipos is None or tipo in tipos) and rx.search(s):
             return tipo
     return None
 
@@ -1559,7 +1579,7 @@ def achar_dado_pessoal(valor, formato: str = "texto") -> str | None:
     if isinstance(valor, (int, float)):
         s = str(int(valor)) if float(valor).is_integer() else str(valor)
         if formato == "texto":
-            return _varrer_digitos(s)
+            return _na_rede(s, ("cnpj", "cpf", "telefone"))
         if formato in ("hora", "data", "sn"):
             return "formato"
         if formato in ("ord", "codigo", "n_pedido"):
@@ -1568,10 +1588,9 @@ def achar_dado_pessoal(valor, formato: str = "texto") -> str | None:
     s = str(valor).strip()
     if not s:
         return None
-    for tipo, rx in (("email", _RX_EMAIL), ("cnpj", _RX_CNPJ),
-                     ("cpf", _RX_CPF), ("telefone", _RX_FONE)):
-        if rx.search(s):
-            return tipo
+    achado = _na_rede(s)
+    if achado:
+        return achado
     rx = _RX_FORMATO.get(formato)
     if rx is not None and not rx.match(s):
         return "formato"
@@ -1596,10 +1615,6 @@ def filtrar_espelho(origem, destino, limpar_cliente=None,
     (nunca valor de celula); nenhum valor de celula na saida. Com achado,
     quem chama NAO deve mandar o destino. Usa o mesmo laco do ler_espelho."""
     from openpyxl import Workbook                         # noqa: PLC0415
-    try:
-        from xlsx_rapido import load_workbook             # noqa: PLC0415
-    except Exception:                                     # noqa: BLE001
-        from openpyxl import load_workbook                # noqa: PLC0415
     if limpar_cliente is None or limpar_texto is None:
         import relatorios_nucleo as _rn                   # noqa: PLC0415
         limpar_cliente = limpar_cliente or _rn.cliente_sem_documento
@@ -1622,7 +1637,7 @@ def filtrar_espelho(origem, destino, limpar_cliente=None,
         if t:
             achados[(col[:40], t)] = achados.get((col[:40], t), 0) + 1
 
-    wb = load_workbook(origem, read_only=True, data_only=True)
+    wb = _abrir_excel(origem)
     saida = Workbook()
     saida.remove(saida.active)
     try:
@@ -1632,19 +1647,12 @@ def filtrar_espelho(origem, destino, limpar_cliente=None,
                 tipo, ri = ev[0], ev[1]
                 if tipo == "titulo":
                     for i, v in ev[2]:
-                        campo = _COLUNAS_ESPELHO.get(_rotulo(v))
-                        if campo in perm_col:
+                        if ev[3].get(i) in perm_col:
                             wo.cell(ri, i + 1, v)
                         else:
                             _fora(_rotulo(v))
                 elif tipo == "cliente":
                     cel, reg, colunas = ev[2], ev[3], ev[4]
-                    # rodape/total no meio da lista: sem data valida nem codigo,
-                    # nao e linha de cliente (o ler_espelho tambem ignora)
-                    if not (_data_espelho(reg.get("data"))
-                            or re.fullmatch(r"\d{6,8}",
-                                            _texto(reg.get("codigo")))):
-                        continue
                     for i, v in cel:
                         campo = colunas.get(i)
                         if campo not in perm_col:
