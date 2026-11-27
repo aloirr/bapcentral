@@ -4,6 +4,12 @@ montado com as BASES CONGELADAS do repositório (NOV/2026, hoje = 24/11/2026).
 
 - Tamanho: abaixo do teto do robô (WEB_PACOTE_TETO_MB = 20), com margem de 20%
   (o robô mediu 13,68 MiB; aqui o alarme toca antes de chegar perto do teto).
+  Medido como o robô manda o corpo (`_json_farol_web`, JSON compacto com
+  `separators=(",", ":")`), decisão do gerente-projetos na T-0036: com os 4 do
+  Analista e os 3 da T-0023, o pacote real dá 15,02 MiB compacto (75% do teto;
+  16,46 MiB com os espaços do `json.dumps` padrão). A margem de 80% fica.
+- Formato 2 (T-0035, §10.8.7): cada farol, sem os anexos, abaixo de 80% do teto
+  por farol (WEB_FAROL_TETO_MB = 8).
 - Corte (contrato 10.7.8): quando precisa, o passo 3 tira as tabelas dos
   faróis do lote 2 também, com um aviso só por farol; cartões e recortes ficam.
 - Valor x regra: o número do farol na web é o do PC (sem recalcular) e, no
@@ -38,7 +44,14 @@ if not (hasattr(ba, "params_farol_web") and set(LOTE2) <= set(ba.FAROIS_WEB)):
 
 
 def _tam(p):
+    """Como o `_tamanho_pacote_web` do robô mede para o corte (com espaços)."""
     return len(json.dumps(p, ensure_ascii=False).encode("utf-8"))
+
+
+def _tam_corpo(p):
+    """Como o robô manda o corpo (`_json_farol_web`: JSON compacto)."""
+    return len(json.dumps(p, ensure_ascii=False, allow_nan=False,
+                          separators=(",", ":")).encode("utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -65,13 +78,26 @@ def test_T0024_pacote_real_com_os_10_farois_cabe_no_teto_com_margem(real):
     _rels, p = real
     assert ba.WEB_PACOTE_TETO_MB == TETO_MB
     assert set(LOTE2) <= set(p["relatorios"])
-    tam = _tam(p)
-    assert tam < TETO_MB * MB
+    assert _tam(p) < TETO_MB * MB          # o corte do robô não dispara
+    tam = _tam_corpo(p)
     assert tam < MARGEM * TETO_MB * MB, f"{tam / MB:.2f} MiB"
     # cabe: o corte devolve o mesmo pacote, sem aviso de corte
     assert ba._cortar_pacote_web(p) is p
     assert not [a for r in p["relatorios"].values()
                 for a in r.get("avisos") or [] if "caber no pacote" in a]
+
+
+def test_T0024_formato2_maior_farol_abaixo_de_80_pct_do_teto_por_farol(real):
+    """Formato 2 (T-0035, §10.8.7): o teto é por farol (WEB_FAROL_TETO_MB), medido
+    como o robô (JSON compacto, sem os anexos). O maior farol real fica abaixo
+    de 80% dele (o alarme toca antes do corte por farol)."""
+    _rels, p = real
+    teto = ba.WEB_FAROL_TETO_MB * MB
+    tams = {rid: len(ba._json_farol_web({k: v for k, v in f.items()
+                                         if k not in ba._ANEXOS_FAROL_WEB}))
+            for rid, f in p["relatorios"].items()}
+    rid, maior = max(tams.items(), key=lambda x: x[1])
+    assert maior < MARGEM * teto, f"{rid}: {maior / MB:.2f} MiB"
 
 
 # --------------------------------------------------------------------- corte
