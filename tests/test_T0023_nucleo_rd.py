@@ -6,20 +6,12 @@ num lugar só.
   leva os padrões;
 - RN-GER-002: os eventos de faturamento líquido (VND − DEV).
 
-Trazido do modulo-farois (f0af112) e revisto pelo testes. Pulado, com motivo,
-sem o núcleo novo. Dados fictícios.
+Trazido do modulo-farois (f0af112) e revisto pelo testes. Dados fictícios.
 """
 from datetime import date
 
-import pytest
-
 import relatorios_nucleo as rn
 
-_NOMES = ("prazo_padrao_txt", "campos_garantia_a_gravar", "PADRAO_NOVA_GARANTIA",
-          "CAMPOS_EDICAO_GARANTIA", "_eventos_faturamento")
-if not all(hasattr(rn, n) for n in _NOMES):
-    pytest.skip("núcleo da T-0023 v2 com os RD-0132/0136/0139 (modulo-farois/T-0023-nucleo f0af112) "
-                "ainda não entrou", allow_module_level=True)
 
 
 def test_RN_POS_005_prazo_padrao_txt_15_du_hoje_fora():
