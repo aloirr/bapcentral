@@ -1,6 +1,6 @@
 """T-0036: os 4 faróis do Analista Comercial no pacote web (robô × PC × web).
 
-Contrato `.coord/contratos/relatorio.md` §10.9 (branch do desenho T-0036) e
+Contrato `.coord/contratos/relatorio.md` §10.11 (branch do desenho T-0036) e
 `docs/desenho/T-0036.md` §3. Regras citadas:
 - RN-GER-011: no site, cliente só pelo código; sem nome, endereço, telefone,
   e-mail ou documento; texto livre limpo ("[removido]");
@@ -39,7 +39,7 @@ AVISO_MARKUP_ATIVOS = ("A aba Todos os produtos ficou só com os produtos com "
                        "no PC.")
 AVISO_CORRECAO_FORA = ("O Excel de correção ficou fora desta atualização "
                        "(arquivo grande). Gere no PC.")
-# §10.9.1, ordem do PC
+# §10.11.1, ordem do PC
 ABAS = {
     "vc_saldo": ["Pedido a pedido", "Por vendedor", "Por supervisor",
                  "Por UF"],
@@ -53,7 +53,7 @@ ABAS = {
                         "Sem coordenada / endereço"]}
 
 
-# ============================== lista positiva do §10.9.3, escrita à mão
+# ============================== lista positiva do §10.11.3, escrita à mão
 def _l(spec):
     """"NOME:tipo:o|..." -> [(nome, tipo, oculta)]; sem tipo = texto."""
     out = []
@@ -146,7 +146,7 @@ LISTA_1093 = {
         "CÓD.|LOJA|O QUE FALTA|NA ROTA DO MÊS|UF|CIDADE|VENDEDOR PLANNER|"
         "SUPERVISOR PLANNER|SEGMENTO|CURVA|SITUAÇÃO|PONTO"),
 }
-# o número de colunas que o §10.9.3 escreve ao lado de cada aba
+# o número de colunas que o §10.11.3 escreve ao lado de cada aba
 N_1093 = {("vc_saldo", "Pedido a pedido"): 18, ("vc_saldo", "Por vendedor"): 12,
           ("vc_saldo", "Por supervisor"): 11, ("vc_saldo", "Por UF"): 11,
           ("vc_markup", "Por pedido"): 27, ("vc_markup", "Por produto"): 20,
@@ -156,7 +156,7 @@ N_1093 = {("vc_saldo", "Pedido a pedido"): 18, ("vc_saldo", "Por vendedor"): 12,
           ("an_divergencias", "Por vendedor"): 10,
           ("an_divergencias", "Clientes divergentes"): 11,
           ("an_divergencias", "Sem coordenada / endereço"): 12}
-# colunas de cliente que nunca vão nestes 4 (§10.9.2), sem acento
+# colunas de cliente que nunca vão nestes 4 (§10.11.2), sem acento
 NOMES_FORA = ("CLIENTE", "RAZAO", "FANTASIA", "ENDERECO", "BAIRRO", "Nº",
               "TELEFONE", "CELULAR", "WHATSAPP", "E-MAIL", "EMAIL", "CNPJ",
               "CPF", "CONTATO")
@@ -229,23 +229,19 @@ def _textos(obj):
     ("", ""),
     (None, ""),
 ])
-def test_RN_GER_011_codigo_do_cliente_com_e_sem_loja_e_sem_codigo(texto,
-                                                                  codigo):
+def test_RN_GER_011_codigo_do_cliente_sem_nome(texto,
+                                                codigo):
     saida = rn.codigo_do_cliente(texto)
     assert saida == codigo
     assert "FICTICIO" not in saida and not RE_DOC.search(saida)
 
 
-@pytest.mark.xfail(strict=True, reason="DEFEITO T-0036 (modulo-farois): "
-                   "codigo_do_cliente devolve CNPJ/CPF só com dígitos quando "
-                   "o texto começa por ele; o robô e a web só barram o "
-                   "documento formatado")
 @pytest.mark.parametrize("texto", ["12345678000190 - CLIENTE FICTICIO",
                                    "12345678909 CLIENTE FICTICIO"])
 def test_RN_GER_011_codigo_do_cliente_documento_no_comeco_nao_vira_codigo(
         texto):
     """RN-GER-011: sem CPF/CNPJ "no começo, no meio ou no fim". O código do
-    PC tem 6 dígitos (§10.9.2: `^\\d{6}(-\\d{2})? - `)."""
+    PC tem 6 dígitos (§10.11.2: `^\\d{6}(-\\d{2})? - `)."""
     assert rn.codigo_do_cliente(texto) == ""
 
 
@@ -271,7 +267,7 @@ def test_RN_GER_011_cliente_por_codigo_web_troca_a_coluna_e_nao_muda_a_entrada()
 
 def test_RN_GER_011_analista_sem_coluna_de_nome_endereco_telefone(real):
     """Em nenhuma aba dos 4 faróis vai coluna de nome, endereço, telefone,
-    e-mail ou documento do cliente (§10.9.2). O cliente fica pelo código."""
+    e-mail ou documento do cliente (§10.11.2). O cliente fica pelo código."""
     _rels, pac = real
     achados = []
     for rid in RIDS:
@@ -411,13 +407,13 @@ def test_RN_GER_006_uf_linhas_pela_filial_e_pela_uf_do_cliente(real):
         t = _tab(pac[rid], titulo)
         assert t["uf_linhas"] == [str(u or "").strip().upper()
                                   for u in _col(t, "UF")], (rid, titulo)
-    # Preço e Divergências sem cartões por estado (§10.9.1)
+    # Preço e Divergências sem cartões por estado (§10.11.1)
     for rid in ("vc_preco", "an_divergencias"):
         assert not pac[rid].get("recortes"), rid
 
 
 # ======================================================= lista positiva
-def test_T0036_colunas_positivas_lista_do_robo_igual_ao_contrato():
+def test_RN_GER_011_colunas_positivas_lista_do_robo_igual_ao_contrato():
     robo = {(rid, titulo): [(n, tp, bool(o)) for n, tp, o, _s in cols]
             for rid, tabs in ba._COLUNAS_TABELAS_WEB.items() if rid in RIDS
             for titulo, cols in tabs.items()}
@@ -430,9 +426,9 @@ def test_T0036_colunas_positivas_lista_do_robo_igual_ao_contrato():
         assert list(ba._ABAS_TABELAS_WEB[rid]) == ABAS[rid], rid
 
 
-def test_T0036_colunas_positivas_pacote_real_com_todas_as_abas(real):
+def test_RN_GER_011_colunas_positivas_pacote_real_com_todas_as_abas(real):
     """Nas bases congeladas nenhuma aba cai: os 4 faróis vão com as abas na
-    ordem do PC e as colunas exatas do §10.9.3."""
+    ordem do PC e as colunas exatas do §10.11.3."""
     _rels, pac = real
     for rid in RIDS:
         tabs = pac[rid].get("tabelas") or []
@@ -444,8 +440,8 @@ def test_T0036_colunas_positivas_pacote_real_com_todas_as_abas(real):
             assert all(len(ln) == len(got) for ln in t["linhas"])
 
 
-def test_T0036_colunas_positivas_coluna_a_mais_no_pc_tira_a_aba():
-    """Coluna nova no PC (fora do §10.9.3): o robô tira a aba, com o aviso
+def test_RN_GER_011_colunas_positivas_coluna_a_mais_no_pc_tira_a_aba():
+    """Coluna nova no PC (fora do §10.11.3): o robô tira a aba, com o aviso
     único de abas fora; as outras abas e os cartões seguem."""
     rels = _montar(("vc_saldo",))
     t = _tab(rels["vc_saldo"], "Por UF")
@@ -482,10 +478,10 @@ def _web_tem_t0036():
 @pytest.mark.xfail(not _web_tem_t0036(), strict=True,
                    reason="a web deste checkout ainda não tem a T-0036 "
                    "(merge do modulo-web/T-0036-analista pendente)")
-def test_T0036_colunas_positivas_web_aceita_o_robo_e_recusa_coluna_a_mais(
+def test_RN_GER_011_colunas_positivas_web_aceita_o_robo_e_recusa_coluna_a_mais(
         real, web_app):
     """O pacote real do robô passa na validação da web; a mesma aba com uma
-    coluna a mais é recusada (§10.9.2, lista positiva)."""
+    coluna a mais é recusada (§10.11.2, lista positiva)."""
     _rels, pac = real
     tb = web_app.tabelas
     for rid in RIDS:
@@ -507,7 +503,7 @@ def _tam(f):
 
 
 def test_T0036_markup_cortes_quatro_passos_em_ordem(real):
-    """§10.9.5: acima do teto, o Markup corta (1) Todos os produtos só com
+    """§10.11.5: acima do teto, o Markup corta (1) Todos os produtos só com
     estoque ou venda, (2) Todos os produtos sai, (3) Por produto sai, (4) as
     tabelas saem; cada passo com o seu aviso; cartões intactos."""
     _rels, pac = real
@@ -722,7 +718,7 @@ def _desc_do_mes(t, filtro=None):
     return dc / tb * 100 if tb else None, dc
 
 
-def test_T0036_numero_do_diretor_desconto_comercial_bate_com_o_saldo(
+def test_RN_GER_006_numero_do_diretor_desconto_comercial_bate_com_o_saldo(
         com_diretor):
     """Valor × regra: o cartão "Desconto comercial" do vc_saldo, a coluna
     % DESC. COM. do Por UF, o cartão de cada estado (recortes) e as barras
@@ -758,7 +754,7 @@ def test_T0036_numero_do_diretor_desconto_comercial_bate_com_o_saldo(
                    "cartão do Saldo ('15%') e mostra '15,0%' com 1 casa; a "
                    "regra dá 15,1% (e a barra do estado já usa o número "
                    "cheio)")
-def test_T0036_numero_do_diretor_desconto_comercial_total_com_uma_casa(
+def test_RN_GER_006_numero_do_diretor_desconto_comercial_total_com_uma_casa(
         com_diretor):
     _rels, pac = com_diretor
     total, _dc = _desc_do_mes(_tab(pac["vc_saldo"], "Pedido a pedido"))

@@ -9,7 +9,7 @@ Vale com e sem o lote 2 da T-0024 (PR #91):
   aqui, à mão;
 - um farol a mais da T-0036 (FAROIS_T0036, os 4 do Analista Comercial) só
   passa com a regra de UF dos cartões e a das linhas de cada aba
-  (UF_LINHAS_T0036), escritas aqui à mão a partir do contrato §10.9.1/§10.9.3;
+  (UF_LINHAS_T0036), escritas aqui à mão a partir do contrato §10.11.1/§10.11.3;
 - um farol fora da lista PERMITIDA reprova.
 
 Regra citada: RN-GER-006 (estado do faturamento e do estoque = filial da
@@ -26,7 +26,7 @@ Formas da regra de UF (o 1º item diz qual):
 - ("sem_estado",): sem recorte; o farol leva o aviso "Sem filtro por estado".
 - ("tabela_conferida", título, coluna, modo): como "tabela", e o rid está em
   RIDS_RECORTE_CONFERIDO_WEB (o recorte só vai se o kpis_de da tabela
-  reproduzir os cartões da BAP inteira, §10.9.1; T-0036).
+  reproduzir os cartões da BAP inteira, §10.11.1; T-0036).
 
 Para pôr um farol novo no site: acrescente-o aqui, com a regra, no mesmo PR.
 """
@@ -50,7 +50,7 @@ FAROIS_LOTE2 = {
     "pl_giro": ("tabela", "Todos os produtos", "FILIAL", "filial"),
     "pl_frw": ("tabela", "Estoque FRW", "FILIAL", "filial"),
 }
-# T-0036 (contrato §10.9.1): os 4 do Analista Comercial. Cartões por estado
+# T-0036 (contrato §10.11.1): os 4 do Analista Comercial. Cartões por estado
 # só no Saldo e no Markup (filial da nota, com a conferência do kpis_de);
 # Preço e Divergências sem recortes (aviso "Sem filtro por estado")
 FAROIS_T0036 = {
@@ -59,7 +59,7 @@ FAROIS_T0036 = {
     "vc_preco": ("sem_estado",),
     "an_divergencias": ("sem_estado",),
 }
-# T-0036 (§10.9.3, RN-GER-006): o estado das linhas de cada aba. Faturamento
+# T-0036 (§10.11.3, RN-GER-006): o estado das linhas de cada aba. Faturamento
 # e preço praticado pela filial da nota; Pesquisa e Divergências pela UF do
 # cliente. Aba fora desta lista não tem filtro de estado nas linhas.
 UF_LINHAS_T0036 = {
@@ -71,12 +71,9 @@ UF_LINHAS_T0036 = {
     ("an_divergencias", "Clientes divergentes"): ("UF", "uf"),
     ("an_divergencias", "Sem coordenada / endereço"): ("UF", "uf"),
 }
-# DEFEITO aberto (T-0036, modulo-robo): os 4 do Analista não têm a fonte do
-# "baixado em" em _FONTE_BAIXADO_WEB (o site mostra "não sei"). A trava
-# aceita a falta só destes 4; o teste
-# test_T0036_farois_do_analista_tem_fonte_do_baixado_em (xfail estrito)
-# vira verde quando o robô puser a fonte: aí esvazie este conjunto.
-FONTE_PENDENTE = frozenset(FAROIS_T0036)
+# Faróis cuja falta da fonte do "baixado em" é defeito já registrado.
+# Vazio: o defeito dos 4 do Analista (T-0036, modulo-robo) foi corrigido.
+FONTE_PENDENTE = frozenset()
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
 REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_LOTE2,
                        **FAROIS_T0036}

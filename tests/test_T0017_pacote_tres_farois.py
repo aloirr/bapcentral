@@ -752,7 +752,7 @@ def _contrato_1073():
 
 
 # T-0036: os 4 do Analista têm títulos repetidos ("Por vendedor", "Por
-# supervisor"...) e a lista própria (§10.9.3, por rid e título): conferidos em
+# supervisor"...) e a lista própria (§10.11.3, por rid e título): conferidos em
 # tests/test_T0036_analista_robo.py; aqui ficam as do §10.7.3, por título
 RIDS_LISTA_1093 = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 

@@ -37,7 +37,7 @@ def test_RN_GER_006_trava_lista_permitida_e_os_cinco_do_lote2():
                                    "pl_entregas", "vc_visitas", "vc_meta"}
     assert set(FAROIS_LOTE2) == {"pv_indicadores", "vc_base", "vc_planner",
                                  "pl_giro", "pl_frw"}
-    # T-0036: + os 4 do Analista Comercial (contrato §10.9.1)
+    # T-0036: + os 4 do Analista Comercial (contrato §10.11.1)
     assert set(FAROIS_T0036) == {"vc_saldo", "vc_markup", "vc_preco",
                                  "an_divergencias"}
     assert FAROIS_PERMITIDOS == (FAROIS_OBRIGATORIOS | set(FAROIS_LOTE2)
@@ -103,14 +103,14 @@ def test_RN_GER_006_trava_reprova_tabela_de_recorte_sem_regra():
 
 # ------------------------------------------------------------------ T-0036
 def test_RN_GER_006_trava_reprova_saldo_sem_conferencia_do_kpis_de():
-    """Saldo com cartão por estado sem a conferência do kpis_de (§10.9.1):
+    """Saldo com cartão por estado sem a conferência do kpis_de (§10.11.1):
     o número do estado pode sair errado; a trava reprova."""
     p = problemas_escopo(_robo(RIDS_RECORTE_CONFERIDO_WEB=("vc_markup",)))
     assert p == ["vc_saldo: fora de RIDS_RECORTE_CONFERIDO_WEB"]
 
 
 def test_RN_GER_006_trava_reprova_pesquisa_pela_filial():
-    """Pesquisa de mercado é da UF do cliente (§10.9.3), não da filial."""
+    """Pesquisa de mercado é da UF do cliente (§10.11.3), não da filial."""
     uf = dict(ba._UF_LINHAS_WEB)
     uf[("vc_preco", "Pesquisa de mercado")] = ("FILIAL", "filial")
     assert problemas_escopo(_robo(_UF_LINHAS_WEB=uf)) == [
@@ -119,7 +119,7 @@ def test_RN_GER_006_trava_reprova_pesquisa_pela_filial():
 
 
 def test_RN_GER_006_trava_reprova_recorte_no_preco():
-    """Preço sem cartões por estado (§10.9.1): tabela de recorte reprova."""
+    """Preço sem cartões por estado (§10.11.1): tabela de recorte reprova."""
     tab = dict(ba._TABELA_RECORTE_WEB, vc_preco="Reajustes por produto")
     p = problemas_escopo(_robo(_TABELA_RECORTE_WEB=tab))
     assert "vc_preco: sem_estado não leva recorte" in p
@@ -133,8 +133,7 @@ def test_RN_GER_006_trava_cobra_fonte_fora_da_folga():
         _robo(_FONTE_BAIXADO_WEB=fontes))
 
 
-@pytest.mark.xfail(strict=True, reason="DEFEITO T-0036 (modulo-robo): os 4 "
-                   "faróis do Analista sem _FONTE_BAIXADO_WEB; o site mostra "
-                   "'baixado em' vazio")
 def test_T0036_farois_do_analista_tem_fonte_do_baixado_em():
+    """RN-GER-006 + §10.11.1: os 4 do Analista com a fonte do "baixado em"
+    (o defeito do modulo-robo foi corrigido em 9d886fa)."""
     assert problemas_escopo(ba, fonte_pendente=frozenset()) == []
