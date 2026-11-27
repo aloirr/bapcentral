@@ -10,7 +10,14 @@
   (bap_visual.py) têm o hex do manual (4.2); as cores que o manual tira
   ("sai"/"saem") não aparecem no site.
 """
+import ast
+import importlib.util
+import io
 import re
+import sys
+import time
+import zipfile
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -141,17 +148,223 @@ SAEM_DO_SITE = ["#0B3A6B", "#E8590C", "#D0EBFF", "#A5D8FF", "#E7EDF5",
                 "#F5F6F4", "#B3261E", "#FBE3E1", "#62BB47", "#D2E7D3"]
 
 
-def test_RN_GER_009_site_sem_as_cores_que_o_manual_tira():
+# ------------------------------------------- exceção: as chaves do COR_PC
+# Aval do design-de-marca (T-0037, UX A8): o `web/app/marca.py` traz em
+# `COR_PC` a tabela de tradução "cor antiga do PC -> token do mesmo papel".
+# As CHAVES são a entrada do PC (o hex que chega no pacote) e nunca vão à
+# tela. A exceção vale só para elas, com 3 conferências: (1) só as chaves
+# (nenhum outro lugar do marca.py nem da web traz o hex); (2) todo valor do
+# COR_PC está em `marca.TOKENS`; (3) nenhum desses hex sai no HTML, no PDF
+# ou no Excel do site (farol renderizado com as cores do PC nas barras).
+MARCA_WEB = RAIZ / "web" / "app" / "marca.py"
+
+
+def _no_cor_pc(src):
+    """O nó Dict do `COR_PC = {...}` do marca.py (None se não existe)."""
+    for no in ast.parse(src).body:
+        if (isinstance(no, ast.Assign) and isinstance(no.value, ast.Dict)
+                and any(isinstance(t, ast.Name) and t.id == "COR_PC"
+                        for t in no.targets)):
+            return no.value
+    return None
+
+
+def _col_char(linha, col_bytes):
+    """col_offset do ast é em bytes UTF-8; o índice do texto, em caracteres."""
+    return len(linha.encode("utf-8")[:col_bytes].decode("utf-8"))
+
+
+def _sem_as_chaves_do_cor_pc(src):
+    """O texto do marca.py com as CHAVES do COR_PC apagadas (só elas; o
+    resto do arquivo segue na varredura)."""
+    d = _no_cor_pc(src)
+    if d is None:
+        return src
+    linhas = src.splitlines()
+    for k in d.keys:
+        assert isinstance(k, ast.Constant) and isinstance(k.value, str), \
+            "chave do COR_PC que não é um hex literal"
+        assert k.lineno == k.end_lineno
+        ln = linhas[k.lineno - 1]
+        a, b = _col_char(ln, k.col_offset), _col_char(ln, k.end_col_offset)
+        linhas[k.lineno - 1] = ln[:a] + " " * (b - a) + ln[b:]
+    return "\n".join(linhas)
+
+
+def _marca_web():
+    if not MARCA_WEB.is_file():
+        pytest.skip("web/app/marca.py ausente")
+    spec = importlib.util.spec_from_file_location("_marca_web_t0033",
+                                                  MARCA_WEB)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _cor_pc():
+    cor = getattr(_marca_web(), "COR_PC", None)
+    if not cor:
+        pytest.skip("sem marca.COR_PC na web (UX A8 da T-0037)")
+    return cor
+
+
+def _varrer_web(padrao, exts):
+    """[arquivo:linha: achado] do padrão em web/app, com a exceção (as
+    chaves do COR_PC) e só ela."""
     achados = []
-    web = RAIZ / "web" / "app"
+    for ext in exts:
+        for p in sorted((RAIZ / "web" / "app").rglob(ext)):
+            txt = p.read_text(encoding="utf-8")
+            if p == MARCA_WEB:
+                txt = _sem_as_chaves_do_cor_pc(txt)
+            for n, linha in enumerate(txt.splitlines(), 1):
+                achados += [f"{p.relative_to(RAIZ)}:{n}: #{m.group(0)}"
+                            for m in padrao.finditer(linha)]
+    return achados
+
+
+def test_RN_GER_009_site_sem_as_cores_que_o_manual_tira():
     padrao = re.compile("|".join(h[1:] for h in SAEM_DO_SITE), re.I)
-    for ext in ("*.py", "*.html", "*.js", "*.css"):
-        for p in sorted(web.rglob(ext)):
-            for n, linha in enumerate(
-                    p.read_text(encoding="utf-8").splitlines(), 1):
-                for m in padrao.finditer(linha):
-                    achados.append(f"{p.relative_to(RAIZ)}:{n}: #{m.group(0)}")
+    achados = _varrer_web(padrao, ("*.py", "*.html", "*.js", "*.css"))
     assert not achados, "cor que o manual tira:\n" + "\n".join(achados)
+
+
+def test_RN_GER_009_excecao_so_nas_chaves_do_cor_pc():
+    """(1) Os hex das chaves do COR_PC não aparecem em nenhum outro lugar do
+    marca.py nem da web/app (nem sem o "#", nem em outra caixa)."""
+    cor = _cor_pc()
+    assert all(re.fullmatch(r"#[0-9a-fA-F]{6}", k) for k in cor), cor
+    padrao = re.compile("|".join(k[1:] for k in cor), re.I)
+    achados = _varrer_web(padrao, ("*.py", "*.html", "*.js", "*.css",
+                                   "*.j2", "*.txt"))
+    assert not achados, "hex do COR_PC fora das chaves:\n" + "\n".join(
+        achados)
+
+
+def test_RN_GER_009_todo_valor_do_cor_pc_e_token():
+    """(2) Todo valor do COR_PC é um valor de marca.TOKENS (o PC entra com a
+    cor antiga e sai com o token do mesmo papel); nenhuma chave é token."""
+    mod, cor = _marca_web(), _cor_pc()
+    tokens = {v.upper() for v in mod.TOKENS.values() if isinstance(v, str)}
+    fora = {k: v for k, v in cor.items() if str(v).upper() not in tokens}
+    assert not fora, f"valor do COR_PC fora do marca.TOKENS: {fora}"
+    assert not {k.upper() for k in cor} & tokens
+
+
+# (3) o farol renderizado: o pacote real do Fretes (bases congeladas, robô
+# e faróis da T-0037) com as cores do PC nas barras dos meses e numa barra
+# por estado (UF); a web recebe, desenha o HTML e exporta o PDF e o Excel
+TOKEN_WEB = "t" * 43
+ADMIN, SENHA0, SENHA1 = ("admin.teste", "senha-inicial-123",
+                         "nova-senha-forte-1")
+UFS_TESTE = ("AM", "PA", "RR", "AP", "MA", "AC", "RO", "PI")
+
+
+def _pacote_fretes_com_cores_do_pc(cor):
+    import bap_automation as ba                         # noqa: PLC0415
+    import relatorios_nucleo as rn                      # noqa: PLC0415
+    if not (hasattr(rn, "kpis_fretes")
+            and "pl_fretes" in getattr(ba, "FAROIS_WEB", ())):
+        pytest.skip("robô/faróis da T-0037 ainda não entraram")
+    r = rn.montar("pl_fretes", RAIZ, hoje=date(2026, 11, 24),
+                  params=ba.params_farol_web("pl_fretes", 2026, 11))
+    pac = ba.montar_pacote_web({"pl_fretes": r}, 2026, 11, raiz=RAIZ)
+    f = pac["relatorios"]["pl_fretes"]
+    # as duas caixas: o PC manda maiúsculas (relatorios_nucleo) e minúsculas
+    cores = [k.upper() if i % 2 else k for i, k in enumerate(sorted(cor))]
+    barras = [b for b in f["painel"]["blocos"] if b["tipo"] == "barras"]
+    assert barras, "o Resumo do Fretes sem as barras dos meses"
+    for i, s in enumerate(barras[0]["grafico"]["series"]):
+        s["cor"] = cores[i % len(cores)]
+        s["cor_negativo"] = cores[(i + 1) % len(cores)]
+    ufs = list(UFS_TESTE[:len(cores)])
+    f["painel"]["blocos"].append({
+        "tipo": "hbarras", "row": 99, "col": 0, "colspan": 3,
+        "titulo": "Notas por estado", "rotulos": ufs,
+        "valores": [float(10 + i) for i in range(len(ufs))],
+        "cores": cores[:len(ufs)], "formato": "num"})
+    return pac
+
+
+def _limpar_app(monkeypatch):
+    for m in [m for m in sys.modules if m == "app" or m.startswith("app.")]:
+        monkeypatch.delitem(sys.modules, m)
+
+
+@pytest.fixture
+def web_fretes(tmp_path, monkeypatch):
+    for m in ("fastapi", "httpx", "jinja2"):
+        pytest.importorskip(m)
+    cor = _cor_pc()
+    pac = _pacote_fretes_com_cores_do_pc(cor)
+    _limpar_app(monkeypatch)
+    monkeypatch.syspath_prepend(str(RAIZ / "web"))
+    for k, val in (("SESSION_SECRET", "segredo-de-teste-0123456789abcdef"),
+                   ("BAP_WEB_DADOS", str(tmp_path / "dados")),
+                   ("BAP_WEB_TOKEN", TOKEN_WEB), ("BAP_ADMIN_USUARIO", ADMIN),
+                   ("BAP_ADMIN_SENHA_INICIAL", SENHA0),
+                   ("BAP_WEB_PACOTE_MAX_MB", "25"), ("TZ", "America/Manaus")):
+        monkeypatch.setenv(k, val)
+    time.tzset()
+    from fastapi.testclient import TestClient           # noqa: PLC0415
+
+    from app.main import criar_app                      # noqa: PLC0415
+    cli = TestClient(criar_app(), base_url="https://testserver")
+    cli.__enter__()
+
+    def tok(url):
+        return re.search(r'name="csrf" value="([^"]+)"',
+                         cli.get(url).text).group(1)
+    assert cli.post("/login", data={"usuario": ADMIN, "senha": SENHA0,
+                                    "csrf": tok("/login")},
+                    follow_redirects=False).status_code == 303
+    assert cli.post("/senha", data={"atual": SENHA0, "nova": SENHA1,
+                                    "confirma": SENHA1, "csrf": tok("/senha")},
+                    follow_redirects=False).status_code == 303
+    r = cli.post("/api/pacote", json=pac,
+                 headers={"Authorization": f"Bearer {TOKEN_WEB}"})
+    assert r.status_code == 200, r.text[:300]
+    yield cli, cor
+    cli.__exit__(None, None, None)
+    _limpar_app(monkeypatch)
+    monkeypatch.undo()
+    time.tzset()
+
+
+def test_RN_GER_009_hex_do_cor_pc_nao_sai_no_html_pdf_nem_excel(web_fretes):
+    """(3) As formas de cada hex do COR_PC: o texto (HTML e XML do Excel, sem
+    o "#" e em qualquer caixa), o ARGB do Excel e o operando `rg` do PDF."""
+    cli, cor = web_fretes
+    mod = _marca_web()
+    saidas = {}
+    for aba in ("resumo", "notas", "uf", "cidade", "transportadora"):
+        r = cli.get(f"/farol/pl_fretes?aba={aba}")
+        assert r.status_code == 200, aba
+        saidas[f"html:{aba}"] = r.text
+    h = saidas["html:resumo"]
+    # o farol desenhou as barras, e a cor do PC entrou como o token
+    assert "Notas por estado" in h
+    assert any(v.lower() in h.lower() for v in cor.values())
+    for aba in ("notas", "uf", "cidade", "transportadora"):
+        for fmt in ("xlsx", "pdf"):
+            r = cli.get(f"/farol/pl_fretes/exportar?aba={aba}&formato={fmt}")
+            assert r.status_code == 200, (aba, fmt)
+            if fmt == "pdf":
+                assert r.content[:5] == b"%PDF-"
+                saidas[f"pdf:{aba}"] = r.content.decode("latin-1")
+            else:
+                z = zipfile.ZipFile(io.BytesIO(r.content))
+                saidas[f"xlsx:{aba}"] = "".join(
+                    z.read(n).decode("utf-8", "replace")
+                    for n in z.namelist())
+    achados = []
+    for k in cor:
+        texto, argb, rg = (re.compile(k[1:], re.I), mod.argb_xlsx(k),
+                           mod.rgb_pdf(k))
+        achados += [f"{k} em {nome}" for nome, s in saidas.items()
+                    if texto.search(s) or argb in s
+                    or (nome.startswith("pdf") and rg in s)]
+    assert not achados, "\n".join(achados)
 
 
 # a constante do PC (bap_visual.py) -> o token do manual (4.2: "Os nomes
