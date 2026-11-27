@@ -341,7 +341,7 @@ def test_T0036_correcao_herdada_junto_do_farol(admin, amb):
 
 # ------------------------------------------------------------------ versão
 def test_T0036_versao_nova_no_saude(cli):
-    assert VERSAO == "0.6.0" and cli.get("/saude").json()["versao"] == VERSAO
+    assert VERSAO == "0.9.0" and cli.get("/saude").json()["versao"] == VERSAO
 
 
 def test_T0036_tabela_fixture_confere_com_a_lista():
