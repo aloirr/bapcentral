@@ -7881,11 +7881,11 @@ def devolucoes(ctx):
 def kpis_fretes(ls, fat_por_mes_uf, uf=None) -> list:
     """Os 6 cartoes do Fretes (RN-POS-009). ls = linhas de "Notas com frete"
     (MES=0, CIDADE=6, UF=7, VLR NF=8, VLR FRETE=9, ETAPA=10, TRANSP.=11,
-    ENTREGAR ATE=12, ENTREGUE=13, CHAVE=16). fat_por_mes_uf = {(mes, uf): VND}
-    de todas as notas do cliente. Denominador: meses visiveis; com `uf` (o
-    recorte, informado por quem chama) so o faturado dessa UF; uf=None soma
-    todas as UFs (BAP inteira, nunca adivinhada pelas linhas). Denominador bruto (P3 A); se a
-    P3 for B, montar fat somando _liquido(it) por (mes da NF, UF)."""
+    ENTREGAR ATE=12, ENTREGUE=13, CHAVE=16). fat_por_mes_uf = {(mes, uf):
+    faturado LIQUIDO de devolucao (RN-GER-002, pela data da NF; P3 B)} de
+    todas as notas, por UF do cliente. Denominador: meses visiveis; com `uf`
+    (o recorte, informado por quem chama) so o faturado dessa UF; uf=None
+    soma todas as UFs (BAP inteira, nunca adivinhada pelas linhas)."""
     meses_vis = {l[0] for l in ls}
     fat = sum(v for (m, u), v in fat_por_mes_uf.items()
               if m in meses_vis and (uf is None or u == uf))
@@ -7917,7 +7917,14 @@ def fretes(ctx):
     meses = ultimos_meses(hoje, 12)
     ent = _entregas_por_nf(ctx)
     por_mes = defaultdict(int)          # notas com frete por mes
-    fat = defaultdict(float)          # {(mes, UF do cliente): faturado}
+    # {(mes, UF do cliente): faturado liquido de devolucao} (RN-GER-002, P3 B)
+    fat = defaultdict(float)
+    for it in ctx.tabela["itens"]:
+        v = _liquido(it) if it["dt_nf"] else None
+        if v is None or mes_de(it["dt_nf"]) not in meses:
+            continue
+        fat[(rotulo_mes(mes_de(it["dt_nf"])),
+             ctx.cliente(it["cliente"]).get("uf", ""))] += v
     linhas, tons = [], []
     for (fil, nf, serie), itens in _pedidos(ctx, "VND").items():
         i0 = itens[0]
@@ -7926,7 +7933,6 @@ def fretes(ctx):
             continue
         cli = ctx.cliente(i0["cliente"])
         valor = sum(i["valor"] for i in itens)
-        fat[(rotulo_mes(m), cli.get("uf", ""))] += valor
         if not bd.e_frete(cli.get("cidade")):
             continue
         por_mes[rotulo_mes(m)] += 1
