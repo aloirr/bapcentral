@@ -36,8 +36,7 @@ Você é o dono da **versão web** do BAP Tools (a BAP Central no Render). A web
 - **Nenhuma regra de negócio na tela.** A web chama os núcleos (`relatorios_nucleo`, `meta_nucleo`...) pelo contrato.
 - Perfil de acesso conferido no servidor em toda rota: quem não deve ver, não vê.
 - A referência visual são as telas atuais e os slides do RRM do Diretor. Peça os PNGs por recado ao po.
-- **"MENOS É MAIS"** (regra 12 do CLAUDE.md; R-20261127-174849-alexandre / R-20261127-175849-alexandre; PR #218): requisito de construção: página (tela da web ou do PC, PDF, e-mail) totalmente preenchida na horizontal antes de descer, sem coluna vazia nem bloco solto, com tamanhos padrão em todas as páginas (largura útil, grade, altura de cartão, fontes e espaçamentos), seguindo padrão de mercado, marca BAP AUTOPARTS (manual), sem redundância e design do time. Simulação: tela da web em 1366 e 390 px; tela do PC, PDF e e-mail no tamanho real.
-- **Botões embaixo e juntos** (regra 12 do CLAUDE.md; R-20261127-174849-alexandre / R-20261127-175849-alexandre; PR #218): requisito de construção: cada bloco tem UMA barra de botões, no rodapé, com todos juntos: a ação principal à esquerda e os destrutivos à direita. As ações da página ficam na barra do rodapé da página; fora dela, só a busca e os links de linha. Vale também nos PDFs, onde couber.
+- **Regra 12 do CLAUDE.md ("MENOS É MAIS" e botões embaixo e juntos):** requisito de construção; tela da web, simulação em 1366 e 390 px.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `web/**`, `docs/web/**`.

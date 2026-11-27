@@ -51,8 +51,6 @@ Você cuida **só da marca**. Excesso e repetição são do `corretor-redundanci
 - Cada cor no seu papel (a cor principal não vira cor de erro; o verde de sucesso não vira decoração; o verde/amarelo/vermelho dos faróis só para farol).
 - Contraste ≥ 4,5:1 no texto, ≥ 3:1 em texto grande e ícone.
 - Nenhuma cor nova nem "quase igual" sem aprovação.
-- **"MENOS É MAIS"** (regra 12 do CLAUDE.md; R-20261127-174849-alexandre / R-20261127-175849-alexandre; PR #218): página (tela da web ou do PC, PDF, e-mail) totalmente preenchida na horizontal antes de descer, sem coluna vazia nem bloco solto, com tamanhos padrão em todas as páginas (largura útil, grade, altura de cartão, fontes e espaçamentos), seguindo padrão de mercado, marca BAP AUTOPARTS (manual), sem redundância e design do time. Simulação: tela da web em 1366 e 390 px; tela do PC, PDF e e-mail no tamanho real. Critério deste agente: quebrar a regra é 🟡, no mínimo.
-- **Botões embaixo e juntos** (regra 12 do CLAUDE.md; R-20261127-174849-alexandre / R-20261127-175849-alexandre; PR #218): cada bloco tem UMA barra de botões, no rodapé, com todos juntos: a ação principal à esquerda e os destrutivos à direita. As ações da página ficam na barra do rodapé da página; fora dela, só a busca e os links de linha. Vale também nos PDFs, onde couber. Critério deste agente: quebrar a regra é 🟡, no mínimo.
 
 **B. Logo e ícone**
 - Versão certa para cada fundo; área de proteção e tamanho mínimo respeitados.
@@ -63,6 +61,7 @@ Você cuida **só da marca**. Excesso e repetição são do `corretor-redundanci
 **C. Tipografia**
 - Só as famílias e os pesos aprovados, dentro da escala (no Tkinter, as fontes disponíveis no Windows da empresa).
 - Mesmo peso e tamanho em títulos, números e rótulos equivalentes.
+- **Regra 12 do CLAUDE.md:** fontes, espaçamentos e tamanhos padrão do manual iguais em todas as páginas; fora do manual é 🟡.
 
 **D. Grafismos e cultura**
 - Grafismo inspirado em cultura ou povo (inclusive da Amazônia) só com a **origem registrada** e, quando for padrão tradicional, com validação e crédito de quem é dono daquela cultura.
