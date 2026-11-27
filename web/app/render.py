@@ -1,4 +1,4 @@
-"""Renderizador do cartão RRM (Painel · resultado e Painel · produtividade).
+"""Renderizador do Painel Executivo (cartões RRM e abas de painel).
 
 A web só mostra os números que o PC mandou prontos (painel_rrm.calcular):
 nada é recalculado. O que sobra aqui é apresentação: formato do percentual,
@@ -15,9 +15,6 @@ from . import marca
 
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
-TITULOS = {"res": "Painel Executivo · resultado",
-           "prod": "Painel Executivo · produtividade",
-           "du": "Painel Executivo · por dia útil"}
 
 
 def br(v, d=0) -> str:
@@ -83,17 +80,71 @@ def cartao(c: dict) -> dict:
 CHAVES_ABAS = (("resultado", "res"), ("produtividade", "prod"), ("por_dia_util", "du"))   # = painel_rrm.VISOES; fonte única (pacotes.ABAS usa esta)
 ABAS_OPCIONAIS = ("por_dia_util",)         # T-0022: robô antigo manda só as duas primeiras
 # T-0022: as outras 9 abas do Painel Executivo (forma farol, em `paineis` do pacote), na ordem do PC
-PAINEIS = (("resumo", "Resumo gerencial"), ("faturamento", "Faturamento"), ("volume", "Volume"),
-           ("visitas", "Produtividade"), ("positivacao", "Positivação"), ("itens", "Itens por pedido"),
+# nomes curtos (cabem numa linha a 1366, contrato tela-bc3 §13); o nome "Painel Executivo" é o da tela (RD-0038)
+PAINEIS = (("resumo", "Resumo"), ("faturamento", "Faturamento"), ("volume", "Volume"),
+           ("visitas", "Visitas"), ("positivacao", "Positivação"), ("itens", "Itens"),
            ("markup", "Markup"), ("preco", "Preço"), ("inadimplencia", "Inadimplência"))
-AVISO_SO_BAP = "Esta aba é da BAP inteira, como no PC: o filtro de estado não vale nela."
+PAINEL_CURTO = {"resultado": "Resultado", "produtividade": "Produtividade", "por_dia_util": "Por DU"}   # as 3 abas RRM
+
+
+_DU = re.compile(r"\((\d+) de (\d+) dias úteis\)")
+_DU_FECHADO = re.compile(r"fechado \((\d+) dias úteis\)")
+
+
+def du_do_painel(abas: list[dict]) -> str:
+    """U8/U11: os dias úteis da faixa, lidos do `sub` que o PC mandou nas abas RRM (nada é recalculado). Mês aberto:
+    "13 de 19 DU"; mês fechado ("outubro fechado (22 dias úteis)"): "22 DU · mês fechado". Vazio se o PC não mandou."""
+    for a in abas or []:
+        sub = str((a.get("dados") or {}).get("sub", {}).get(a["visao"], ""))
+        m = _DU.search(sub)
+        if m:
+            return f"{m.group(1)} de {m.group(2)} DU"
+        m = _DU_FECHADO.search(sub)
+        if m:
+            return f"{m.group(1)} DU · mês fechado"
+    return ""
+
+
+def kpis_da_faixa(kpis: list[dict]) -> list[dict]:
+    """RD-0065: os cartões comuns vão para a faixa; o que tem barras por estado ou linhas de detalhe fica no corpo (`_resumo.html`)."""
+    return [k for k in (kpis or []) if not k.get("estados") and not k.get("linhas")]
+
+
+def kpis_do_corpo(kpis: list[dict]) -> list[dict]:
+    """RD-0065: o complemento de `kpis_da_faixa`: primeiro os com barras por estado, depois os com linhas."""
+    ks = kpis or []
+    return [k for k in ks if k.get("estados")] + [k for k in ks if not k.get("estados") and k.get("linhas")]
+
+
+def abas_no_celular(chaves: list, atual) -> list[int]:
+    """RD-0065 (b): no celular a barra mostra 3 abas (as duas primeiras e a aberta) e "Mais" leva as outras (contrato §5.3).
+    Aba desconhecida = a página caiu na 1ª aba: aparecem as 3 primeiras."""
+    pos = list(chaves).index(atual) if atual in chaves else 0
+    return [0, 1, pos] if pos > 1 else [0, 1, 2]
+
+
+NA_FAIXA = 3          # os 3 primeiros cartões RRM levam o número à faixa; os outros (o PC manda 10, 10 e 6) mantêm o deles no cartão
+
+
+def faixa_painel(tela: dict | None, tela_f: dict | None) -> list[dict]:
+    """T-0034: os números da faixa do Painel Executivo, prontos do pacote (nada é recalculado). Aba RRM: os 3 cartões de
+    cabeça (os anéis MTD e MÊS ficam só no cartão, RD-0063); aba de painel: os cartões comuns (os ricos ficam no corpo)."""
+    if tela_f:
+        return kpis_da_faixa(tela_f["kpis"])
+    out = []
+    for c in ((tela or {}).get("cartoes") or [])[:NA_FAIXA]:
+        aneis = [a for a in c["aneis"] if a["tem"]]
+        det = c["legenda"] if any(ch.isdigit() for ch in c["legenda"]) else ""     # sem número próprio, o rótulo já diz
+        out.append({"rot": c["titulo"], "valor": c["valor"], "detalhe": det,
+                    "cor": aneis[-1]["tom"] if aneis else ""})
+    return out
 
 
 def localizar_paineis(rel: dict) -> list[dict]:
     """T-0022: as abas de painel (forma farol) que o PC mandou, na ordem do PC."""
     ps = (rel or {}).get("paineis")
     ps = ps if isinstance(ps, dict) else {}
-    return [{"chave": c, "titulo": str(ps[c].get("titulo") or t), "so_bap": bool(ps[c].get("so_bap")),
+    return [{"chave": c, "titulo": t, "so_bap": bool(ps[c].get("so_bap")),
              "ufs": sorted((ps[c].get("recortes") or {}))} for c, t in PAINEIS
             if isinstance(ps.get(c), dict)]
 
@@ -140,8 +191,8 @@ def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
         como_ler = COMO_LER_ESTADO
         cartoes = ((aba.get("recortes") or {}).get("uf") or {}).get(uf, {}).get("cartoes") or []
         sub = f"{uf} · estado = filial da nota · {sub}" if sub else f"{uf} · estado = filial da nota"
-    return {"titulo": TITULOS[v], "sub": sub, "uf": uf,
-            "cartoes": [cartao(c) for c in cartoes],
+    return {"sub": sub, "uf": uf,
+            "cartoes": [{**cartao(c), "na_faixa": i < NA_FAIXA} for i, c in enumerate(cartoes)],
             "como_ler": como_ler, "avisos": d.get("avisos") or []}
 
 
@@ -172,6 +223,7 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_preco": ("Farol de Preço", LEITURA_GERAL + ("diretor",)),
     "an_divergencias": ("Divergências de clientes Planner × Protheus", LEITURA_GERAL + ("diretor",)),
 }
+VEEM_PAINEL = LEITURA_GERAL + ("diretor",)      # T-0036 (P1 = A, RD-0003): o analista vê como o gerente. Quem vê o Painel Executivo: a `/`, a lateral e a rota usam esta tupla só
 TONS = ("ok", "atencao", "alerta", "info")
 LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")    # T-0024: faróis de abas livres
 # T-0024 (R4 do parecer de UX): nome curto na barra lateral; o nome completo do PC fica no título da faixa
@@ -185,9 +237,6 @@ INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
-# T-0030: faróis que já usam o visual BC3 (barra lateral + faixa verde, uma tela só no PC, lista que abre no
-# celular). O Farol de Pedidos vai primeiro; os outros entram na mesma lista.
-BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
                ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_frw")),
                ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")),   # T-0024: lote 2 no menu
@@ -205,7 +254,7 @@ def grupos_na_ordem(perfil: str) -> tuple:
 
 def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
                  admin: bool = False) -> list[dict]:
-    """T-0030: os grupos da barra lateral, só com o que o perfil vê (mesma regra do menu da página inicial)."""
+    """T-0030: os grupos da barra lateral, só com o que o perfil vê (fonte única do menu; a página inicial usa `pagina_inicial`)."""
     meus = dict(farois_do_perfil(perfil))
     grupos = []
     if painel:
@@ -217,11 +266,30 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
                  for r in rids if r in meus]
         if itens:
             grupos.append({"nome": nome, "itens": itens})
-    conta = [{"href": "/senha", "nome": "Trocar senha", "ativo": False}]
+    conta = [{"href": "/senha", "nome": "Trocar senha", "ativo": ativo == "senha"}]
     if admin:
-        conta.insert(0, {"href": "/usuarios", "nome": "Usuários", "ativo": False})
+        conta.insert(0, {"href": "/usuarios", "nome": "Usuários", "ativo": ativo == "usuarios"})
     grupos.append({"nome": "Conta", "itens": conta})
     return grupos
+
+
+def pagina_inicial(perfil: str) -> str:
+    """T-0034 (Alexandre, 26/11, decisão 2 A): admin, diretor e gerente abrem no Painel Executivo; os outros, no primeiro
+    farol da área, pela ordem do menu lateral (GRUPOS_MENU). T-0036 (UX 8): o perfil com grupo próprio (analista) abre
+    no 1º farol do grupo, antes do Painel."""
+    meus = dict(farois_do_perfil(perfil))
+    for nome, rids in GRUPOS_MENU:
+        if nome == GRUPO_DO_PERFIL.get(perfil):
+            for r in rids:
+                if r in meus:
+                    return f"/farol/{r}"
+    if perfil in VEEM_PAINEL:
+        return "/painel"
+    for _, rids in GRUPOS_MENU:
+        for r in rids:
+            if r in meus:
+                return f"/farol/{r}"
+    return "/senha"
 
 
 def farois_do_perfil(perfil: str) -> list[tuple[str, str]]:

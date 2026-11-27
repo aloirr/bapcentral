@@ -1,0 +1,37 @@
+{# T-0034 (RD-0065): as peças da faixa verde, escritas uma vez só e usadas pelo cabeçalho do farol (_bc3_cab.html), pelo do
+   Painel Executivo (_painel_cab.html) e pelas telas sem farol (`faixa_simples`). Contrato tela-bc3 §4. #}
+
+{# A data da faixa: só a data (24/11/2026 08:30; no celular 24/11 08:30); o texto inteiro vai no `title` (§4.1).
+   `dica` = o que mais explicar no `title`; o bloco `call` leva o que vem depois da data. #}
+{% macro quando(gerado_em, dica="") %}{% if gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}, horário de Manaus{{ ' · ' ~ dica if dica }}"><span class="d-pc">{{ gerado_em|manaus }}</span><span class="d-cel">{{ gerado_em|manaus_curto }}</span>{% if caller %}{{ caller() }}{% endif %}</span>{% endif %}{% endmacro %}
+
+{% macro selo_velho(desatualizado) %}{% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}{% endmacro %}
+
+{# O seletor de estado: `base` é a URL da aba, já com o "?"; o estado entra com "&uf=" #}
+{% macro filtro_uf(base, ufs, uf_at) %}
+<nav class="bc3-uf" aria-label="Filtro por estado">
+  <a href="{{ base }}" class="{{ 'on' if not uf_at }}">BAP</a>
+  {% for u in ufs %}<a href="{{ base }}&amp;uf={{ u }}" class="{{ 'on' if u == uf_at }}">{{ u }}</a>{% endfor %}
+</nav>
+{% endmacro %}
+
+{# aba só da BAP: o seletor fica no mesmo lugar, desligado (a faixa não muda de altura entre as abas, §4.2) #}
+{% macro filtro_uf_off(ufs_off) %}
+<nav class="bc3-uf bc3-uf-off" aria-label="Filtro por estado (esta aba é da BAP inteira)" aria-disabled="true" title="Esta aba mostra a BAP inteira"><a class="on">BAP</a>{% for u in ufs_off %}<span>{{ u }}</span>{% endfor %}</nav>
+{% endmacro %}
+
+{# T-0036: `curto` = rótulo curto no celular (o inteiro no `title`) e valor longo em fonte menor (faróis do Analista) #}
+{% macro numeros(ks, curto=false) %}{% if ks %}
+<div class="bc3-ks">
+  {% for k in ks %}<div class="bc3-k{{ ' t-' ~ k.cor if k.cor }}">{% set c = kpi_curto(k.rot) if curto else k.rot %}{% if c != k.rot %}<small title="{{ k.rot }}"><span class="r-pc">{{ k.rot }}</span><span class="r-cel">{{ c }}</span></small>{% else %}<small>{{ k.rot }}</small>{% endif %}<b{{ ' class="longo"'|safe if curto and (k.valor|string|length) > 9 }}>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
+</div>
+{% endif %}{% endmacro %}
+
+{# a faixa das telas sem farol (Usuários, Trocar senha, Parcial, Editar, Painel sem dados): título e, se houver, números.
+   Mesma altura da faixa dos faróis (§4.2). `ks` = [{rot, valor}] #}
+{% macro faixa_simples(titulo, ks=[]) %}
+<header class="bc3-faixa simples">
+  <div class="bc3-tt"><h1>{{ titulo }}</h1></div>
+  {{ numeros(ks) }}
+</header>
+{% endmacro %}

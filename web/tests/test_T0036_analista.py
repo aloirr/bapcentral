@@ -110,13 +110,14 @@ def test_RN_GER_017_pagina_inicial_do_trade_sem_farol(admin, usu):
     assert r.status_code == 200 and "Os faróis do Trade Marketing ainda não estão no site." in r.text
     assert "bc3-lado" in r.text and "BAP AUTOPARTS" in r.text            # casca BC3 com a marca (UX 9, 5)
     assert "/farol/" not in r.text and "/painel" not in r.text and "/senha" in r.text
-    assert "Dados de" not in r.text and "v0.5" not in r.text and "aviso atencao" not in r.text
+    assert "Dados de" not in r.text and "v0.6" not in r.text and "aviso atencao" not in r.text
 
 
 def test_RN_GER_017_inicio_do_analista_abre_no_farol_de_saldo(admin, usu):
     r = usu("analista").get("/", follow_redirects=False)
     assert r.status_code == 302 and r.headers["location"] == "/farol/vc_saldo"
-    assert usu("gerente").get("/", follow_redirects=False).status_code == 200
+    r = usu("gerente").get("/", follow_redirects=False)          # T-0034: o gerente abre no Painel Executivo
+    assert r.status_code == 302 and r.headers["location"] == "/painel"
 
 
 def test_RN_GER_017_analista_abre_o_painel_como_o_gerente(usu):
@@ -340,7 +341,7 @@ def test_T0036_correcao_herdada_junto_do_farol(admin, amb):
 
 # ------------------------------------------------------------------ versão
 def test_T0036_versao_nova_no_saude(cli):
-    assert VERSAO == "0.5.0" and cli.get("/saude").json()["versao"] == VERSAO
+    assert VERSAO == "0.6.0" and cli.get("/saude").json()["versao"] == VERSAO
 
 
 def test_T0036_tabela_fixture_confere_com_a_lista():
@@ -379,7 +380,7 @@ def test_T0036_abas_curtas_e_dica_da_busca_por_farol(com_analista):
 def test_T0036_faixa_com_no_maximo_seis_numeros(com_analista):
     for rid, n7 in (("an_divergencias", 7), ("vc_markup", 7)):
         h = com_analista.get(f"/farol/{rid}?aba={tabelas.ABAS[rid][0][0]}").text
-        assert h.count('class="bc3-k ') == 6, rid
+        assert len(re.findall(r'class="bc3-k[" ]', h)) == 6, rid
 
 
 def test_T0036_faixa_com_a_data_do_cabecalho_comum(com_analista):

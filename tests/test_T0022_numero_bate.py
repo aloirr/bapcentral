@@ -22,6 +22,12 @@ PARAMS = {"ANO": "2026", "MÊS": "11"}
 def mundo(tmp_path_factory):
     mp = pytest.MonkeyPatch()
     mp.setattr(ba, "_ufs_do_parametro_web", lambda r: ["AM"])          # um estado basta para conferir o recorte
+    # T-0033: RELATORIOS/ é congelado; o montar do Painel do Diretor grava o
+    # histórico do mês. Lê e grava numa cópia temporária (mesmos números).
+    import painel_diretor as pdr                                        # noqa: PLC0415
+    hist = tmp_path_factory.mktemp("hist") / pdr.ARQ_HIST
+    hist.write_bytes(pdr._hist_path(RAIZ).read_bytes())
+    mp.setattr(pdr, "_hist_path", lambda raiz: hist)
     rels = {"vc_painel": rn.montar("vc_painel", RAIZ, hoje=HOJE, params=PARAMS),
             "vc_meta": rn.montar("vc_meta", RAIZ, hoje=HOJE, params=PARAMS, tela=True)}
     for rid in ("vc_painel", "vc_meta"):

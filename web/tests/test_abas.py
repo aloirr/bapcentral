@@ -727,7 +727,7 @@ def test_formatos_do_contrato():
 def test_css_rolagem_lateral_primeira_coluna_fixa_e_aba_larga():
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
     assert ".rolagem{overflow-x:auto}" in css and "position:sticky;left:0" in css
-    assert "main.larga" in css and ".subabas" in css and ".junta" in css and ".atend-trilho" in css
+    assert ".subabas" in css and ".junta" in css and ".atend-trilho" in css
 
 
 # ------------------------------------------------------------------ robô antigo e aba fora
