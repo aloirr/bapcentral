@@ -7878,6 +7878,40 @@ def devolucoes(ctx):
     return r
 
 
+# (T-0037, P3) Denominador do "% do faturado" do Fretes: False = VND bruto
+# (como sempre foi, pendente de resposta); True = liquido de devolucao.
+FRETES_FATURADO_LIQUIDO = False
+
+
+def kpis_fretes(ls, fat_por_mes_uf) -> list:
+    """Os 6 cartoes do Fretes (RN-POS-009). ls = linhas de "Notas com frete"
+    (MES=0, CIDADE=6, UF=7, VLR NF=8, VLR FRETE=9, ETAPA=10, TRANSP.=11,
+    ENTREGAR ATE=12, ENTREGUE=13, CHAVE=16). fat_por_mes_uf = {(mes, uf): VND}
+    de todas as notas do cliente. Denominador: meses visiveis; se as linhas
+    sao de uma UF so, so o faturado dessa UF."""
+    meses_vis = {l[0] for l in ls}
+    ufs = {l[7] for l in ls}
+    uf_unica = next(iter(ufs)) if len(ufs) == 1 else None
+    fat = sum(v for (m, u), v in fat_por_mes_uf.items()
+              if m in meses_vis and (uf_unica is None or u == uf_unica))
+    val = sum(l[8] for l in ls)
+    entregues = [l for l in ls if l[13] or l[10] in ("ENTREGUE", CONCLUIDA)]
+    com_data = [l for l in ls if l[13]]
+    no_prazo = [l for l in com_data if l[12] and l[13] <= l[12]]
+    return [
+        kpi("Notas com frete", br(len(ls)), "neutro", moeda(val)),
+        kpi("% do faturado", p(pct_de(val, fat)), "info"),
+        kpi("Frete estimado", moeda(sum(l[9] or 0 for l in ls)), "neutro",
+            p(pct_de(sum(l[9] or 0 for l in ls), val)) + " do valor"),
+        kpi("Cidades atendidas", br(len({l[6] for l in ls})), "neutro"),
+        kpi("Entregues", br(len(entregues)), "ok",
+            f"{p(pct_de(len(no_prazo), len(com_data)))} no prazo"
+            if com_data else ""),
+        kpi("Sem transportadora", br(sum(
+            1 for l in ls if l[16] and not l[11])), "atencao"),
+    ]
+
+
 def fretes(ctx):
     import transportadoras as tr                         # noqa: PLC0415
     hoje = ctx.hoje
@@ -7888,6 +7922,7 @@ def fretes(ctx):
     meses = ultimos_meses(hoje, 12)
     ent = _entregas_por_nf(ctx)
     por_mes = defaultdict(lambda: [0, 0.0, 0.0])
+    fat = defaultdict(float)          # {(mes, UF do cliente): faturado}
     linhas, tons = [], []
     for (fil, nf, serie), itens in _pedidos(ctx, "VND").items():
         i0 = itens[0]
@@ -7897,6 +7932,7 @@ def fretes(ctx):
         cli = ctx.cliente(i0["cliente"])
         valor = sum(i["valor"] for i in itens)
         por_mes[rotulo_mes(m)][2] += valor
+        fat[(rotulo_mes(m), cli.get("uf", ""))] += valor
         if not bd.e_frete(cli.get("cidade")):
             continue
         por_mes[rotulo_mes(m)][0] += 1
@@ -7923,29 +7959,19 @@ def fretes(ctx):
                        texto(e.get("responsavel")), texto(e.get("chave"))])
         tons.append("alerta" if (not entregue and prazo and hoje > prazo
                                  and e) else ("ok" if entregue else ""))
+    if FRETES_FATURADO_LIQUIDO:       # P3 = B: abate as devolucoes
+        for itens in _pedidos(ctx, "DEV").values():
+            m = mes_de(itens[0]["dt_nf"])
+            if m in meses:
+                fat[(rotulo_mes(m), ctx.cliente(itens[0]["cliente"]).get(
+                    "uf", ""))] -= abs(sum(i["valor"] for i in itens))
     linhas.sort(key=lambda x: x[2] or date.min, reverse=True)
     for l in linhas:
         l[3] = l[3].lstrip("0")
 
     def cartoes(ls):
-        meses_vis = {l[0] for l in ls}
-        fat = sum(por_mes[x][2] for x in meses_vis)
-        val = sum(l[8] for l in ls)
-        entregues = [l for l in ls if l[13] or l[10] in ("ENTREGUE", CONCLUIDA)]
-        com_data = [l for l in ls if l[13]]
-        no_prazo = [l for l in com_data if l[12] and l[13] <= l[12]]
-        return [
-            kpi("Notas com frete", br(len(ls)), "neutro", moeda(val)),
-            kpi("% do faturado", p(pct_de(val, fat)), "info"),
-            kpi("Frete estimado", moeda(sum(l[9] or 0 for l in ls)), "neutro",
-                p(pct_de(sum(l[9] or 0 for l in ls), val)) + " do valor"),
-            kpi("Cidades atendidas", br(len({l[6] for l in ls})), "neutro"),
-            kpi("Entregues", br(len(entregues)), "ok",
-                f"{p(pct_de(len(no_prazo), len(com_data)))} no prazo"
-                if com_data else ""),
-            kpi("Sem transportadora", br(sum(
-                1 for l in ls if l[16] and not l[11])), "atencao"),
-        ]
+        return kpis_fretes(ls, fat)
+
     r["kpis"] = cartoes([l for l in linhas if rotulo_no_periodo(ctx, l[0])])
     r["graficos"].append({
         "titulo": "Mês a mês: notas com frete",
