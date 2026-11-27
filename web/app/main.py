@@ -335,20 +335,20 @@ def criar_app() -> FastAPI:
             escolhido = uf.upper()[:2] if (not p_atual["so_bap"] and uf.upper()[:2] in p_atual["ufs"]) else ""
             tela_f = render.farol_para_tela(dados, escolhido or None)
             return pagina(request, "painel.html", abas=nav, aba=p_atual["chave"], tela=None, tela_f=tela_f,
-                          faixa_ks=render.faixa_painel(None, tela_f), uf=escolhido, du=du,
+                          faixa_ks=render.faixa_painel(tela_f), uf=escolhido, du=du,
                           filtros=None if p_atual["so_bap"] else {"ufs": p_atual["ufs"]},
                           # aba só da BAP: o seletor fica no lugar, desligado, com os estados das outras abas (contrato §4.2)
                           ufs_off=(p_atual["ufs"] or sorted({u for q in paineis for u in q["ufs"]})) if p_atual["so_bap"] else [])
         if not abas:
             tela_f = render.farol_para_tela(rel["paineis"][nav[0]["chave"]], None)
             return pagina(request, "painel.html", abas=nav, aba=nav[0]["chave"], tela=None, tela_f=tela_f,
-                          faixa_ks=render.faixa_painel(None, tela_f), filtros=None, uf="", du=du)
+                          faixa_ks=render.faixa_painel(tela_f), filtros=None, uf="", du=du)
         atual = next((a for a in abas if a["chave"] == aba), abas[0])
         # T-0014: o filtro só escolhe a visão pronta do PC (por estado)
         escolhido = render.escolher_uf(atual, uf[:4] or None)
         tela = render.aba_para_tela(atual, escolhido)
         return pagina(request, "painel.html", abas=nav, aba=atual["chave"], tela=tela, tela_f=None,
-                      faixa_ks=render.faixa_painel(tela, None), sub_painel=tela["sub"], du=du,
+                      faixa_ks=[], sub_painel=tela["sub"], du=du,
                       filtros=render.filtros(atual), uf=escolhido or "")
 
     def rel_do(rid):
