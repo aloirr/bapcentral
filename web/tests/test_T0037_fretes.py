@@ -1,4 +1,4 @@
-"""T-0037: Farol de Fretes na web (contrato §10.12): abas, perfis, edição só do admin, linha sem chave e a marca
+"""T-0037: Farol de Fretes na web (contrato §10.13): abas, perfis, edição só do admin, linha sem chave e a marca
 "Aguardando o PC" nos dois faróis que editam a mesma linha. Dados fictícios."""
 import copy
 
@@ -45,17 +45,28 @@ def test_RN_POS_010_edicao_fora_do_lugar_recusada(admin):
     assert postar(admin, p).status_code == 422
 
 
-def test_RN_GER_012_so_o_admin_edita_e_gerente_e_posvenda_veem(admin):
+def test_RN_GER_012_admin_e_posvenda_editam_gerente_so_le(admin):
+    """T-0054 (RN-POS-011): o admin e o pós-venda editam "Notas com frete"; o gerente só lê."""
     _pacote_ok(admin)
     assert 'class="bt-ed"' in admin.get(URL).text
-    logins = [_criar(admin, perfil) for perfil in ("gerente", "pos_venda")]
-    for login in logins:
-        c = admin
-        _entrar_como(c, login)
-        pag = c.get(URL)
-        assert pag.status_code == 200 and 'class="bt-ed"' not in pag.text
-        assert c.get("/farol/pl_fretes/editar?tab=Notas%20com%20frete&chave=x").status_code == 403
-        assert c.post("/farol/pl_fretes/editar", data={}).status_code == 403
+    ger, pos = [_criar(admin, perfil) for perfil in ("gerente", "pos_venda")]
+    _entrar_como(admin, pos)
+    pag = admin.get(URL)
+    assert pag.status_code == 200 and 'class="bt-ed"' in pag.text
+    assert admin.get(_link_editar(pag.text)).status_code == 200
+    _entrar_como(admin, ger)
+    pag = admin.get(URL)
+    assert pag.status_code == 200 and 'class="bt-ed"' not in pag.text
+    assert admin.get("/farol/pl_fretes/editar?tab=Notas%20com%20frete&chave=x").status_code == 403
+    assert admin.post("/farol/pl_fretes/editar", data={}).status_code == 403
+
+
+def test_RN_POS_010_edicoes_sem_item_em_dobro():
+    """Conferência do merge com a T-0054: o lugar do Fretes entra uma vez em LUGARES/EDITA_LUGAR e a família IRMAOS é uma só."""
+    assert sum(1 for k in edicoes.LUGARES if k[0] == "pl_fretes") == 1
+    assert sum(1 for k in edicoes.EDITA_LUGAR if k[0] == "pl_fretes") == 1
+    assert len(edicoes.IRMAOS) == 1 and len(edicoes.IRMAOS[0]) == 3
+    assert not edicoes.pode_criar("pos_venda", ("pl_fretes", TIT))
 
 
 def test_RN_GER_014_diretor_so_o_resumo(admin):
@@ -131,8 +142,6 @@ def test_RN_POS_010_marca_do_fretes_vai_ao_entregas_e_nao_a_devolucao(amb, monke
     dev = ("pl_devolucoes", "Devoluções")
     monkeypatch.setitem(edicoes.LUGARES, dev, "pos_venda")        # mesmo com a Devolução no LUGARES (T-0023)
     assert not any(dev in g for g in edicoes.IRMAOS)
-    assert edicoes.IRMAOS == (frozenset({("pl_fretes", TIT), ("pl_entregas", "Entregas"),
-                                         ("pl_entregas", "Pendências dos meses anteriores")}),)
     f = edicoes.Fila(amb)
     ch = "FILIAL FICTICIA|700109|1"
     f.registrar(usuario="x", rid="pl_fretes", tabela=TIT, modulo="pos_venda", chave=ch,
@@ -156,7 +165,7 @@ def test_RN_POS_010_grade_do_fretes_ate_10_colunas_e_popup_sem_repetir():
 def test_RN_POS_010_aba_curta_e_dica_da_busca(admin):
     assert tabelas.aba_curta(TIT) == "Notas" and tabelas.aba_curta("Por transportadora") == "Transportadora"
     assert tabelas.dica_busca("pl_fretes", TIT, 50) == "Buscar NF ou cliente"
-    assert tabelas.dica_busca("pl_entregas", "Entregas", 50) is None   # os faróis antigos seguem com a dica padrão
+    assert tabelas.dica_busca("pl_entregas", "Entregas", 50) is None   # os faróis antigos seguem sem dica própria
     _pacote_ok(admin)
     assert 'placeholder="Buscar NF ou cliente"' in admin.get(URL).text
 
@@ -195,9 +204,8 @@ def test_UX_A5_popup_da_nota_diz_NF_em_maiusculas(admin):
 
 
 def test_RN_GER_017_analista_ve_o_fretes_como_o_gerente_e_nao_edita(admin):
-    """P1 = A: o analista lê como o gerente (as 4 abas e o Resumo) e não edita (só o admin edita)."""
+    """P1 = A: o analista lê como o gerente (as 4 abas e o Resumo) e não edita (edita o admin e o pós-venda)."""
     assert "analista" in render.FAROIS["pl_fretes"][1] and "analista" in tabelas.VE_TABELAS["pl_fretes"]
-    assert "analista" not in edicoes.EDITA
     _pacote_ok(admin)
     _entrar_como(admin, _criar(admin, "analista"))
     for aba in ("", "?aba=notas", "?aba=uf", "?aba=cidade", "?aba=transportadora"):
@@ -244,11 +252,9 @@ def test_UX_A8_cores_do_pc_viram_o_token_do_mesmo_papel():
     from app import marca
     t = marca.TOKENS
     h = render._bloco_hbarras({"rotulos": ["ok", "atenção", "alerta", "neutro"], "valores": [1, 2, 3, 4],
-                               "cores": ["#62BB47", "#C98A00", "#B3261E", "#A7B0AA"]})
+                               "cores": ["#59BA61", "#C98A00", "#B42318", "#A7B0AA"]})
     assert [x["cor"] for x in h["linhas"]] == [t["--verde-marca"], t["--grafico-2"], t["--alerta"], t["--grafico-3"]]
     assert len({x["cor"] for x in h["linhas"]}) == 4                  # os estados continuam distintos
-    h2 = render._bloco_hbarras({"rotulos": ["a"], "valores": [1], "cores": ["#59BA61"]})
-    assert h2["linhas"][0]["cor"] == t["--verde-marca"]
 
 
 def test_RD_0198_mes_oculto_nas_3_abas_de_resumo():

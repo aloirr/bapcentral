@@ -18,7 +18,7 @@
 | | `PYTHONUNBUFFERED` | `render.yaml`: `1` | o log aparece na hora no painel do Render |
 | | `BAP_WEB_HOSTPORT` | `render.yaml`: `fromService` do `bap-central`, `property: hostport` | o endereço do site na rede privada (`http://<hostport>`) |
 | | `BAP_VISITAS_TOKEN` | `render.yaml`: `fromService` do `bap-central`, `envVarKey: BAP_VISITAS_TOKEN` | o Bearer das rotas do cron (§3) |
-| | `BAP_MAXIMA_USUARIO` | **segredo** (`sync: false`), criado pelo Alexandre no painel | o usuário próprio do robô na Máxima (D4) |
+| | `BAP_MAXIMA_USUARIO` | **segredo** (`sync: false`), criado pelo Alexandre no painel | o mesmo usuário da Máxima que o robô do notebook usa (D4 revista, ADR 0004, adendo 1) |
 | | `BAP_MAXIMA_SENHA` | **segredo** (`sync: false`), criado pelo Alexandre no painel | a senha desse usuário. **Só neste serviço** |
 | `bap-central` (site) | `BAP_VISITAS_TOKEN` | `render.yaml`: `generateValue: true` (o Render sorteia) | confere o Bearer das rotas do cron |
 

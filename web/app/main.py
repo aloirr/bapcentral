@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, acesso, cobranca, config, edicoes, exportar, marca, pacotes, render, tabelas, visitas
+from . import VERSAO, acesso, cobranca, config, edicoes, exportar, leitura, marca, pacotes, render, tabelas, visitas
 from .usuarios import PERFIS, Erro, ErroGravacao, Usuarios, MAX_ERROS, MSG_LISTA_MUDOU
 
 log = logging.getLogger("bap_web")
@@ -49,6 +49,13 @@ def fuso_motivo() -> str | None:
 class Redireciona(Exception):
     def __init__(self, para):
         self.para = para
+
+
+def carimbo(ind, rid, ent=None, info=None):
+    """Carimbo "gerado em" do farol: o da entrada no índice, com reserva no do lote. A página e a porta de leitura usam esta."""
+    info = info or ind.indice()
+    ent = ent or (ind.entrada(rid) if rid else None)
+    return (ent or {}).get("gerado_em") or (info["gerado_em"] if info else None)
 
 
 def fmt_manaus(iso: str | None) -> str:
@@ -184,13 +191,13 @@ def criar_app() -> FastAPI:
         no_painel = request.url.path == "/painel"
         rid_pg = ctx.get("rid") or (PAINEL_RID if no_painel else None)
         ent = ind.entrada(rid_pg) if rid_pg else None
-        gerado_farol = (ent or {}).get("gerado_em") or (info["gerado_em"] if info else None)
+        gerado_farol = carimbo(ind, rid_pg, ent, info)
         try:
             velho = bool(ent) and (cobranca.agora() - pacotes._como_manaus(gerado_farol)).total_seconds() > pacotes.HERDA_HORAS * 3600
         except (TypeError, ValueError):
             velho = False
         ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, empresa=marca.EMPRESA, indisponivel=render.INDISPONIVEL,
-                   gerado_em=gerado_farol, desatualizado=velho)
+                   gerado_em=gerado_farol, desatualizado=velho, sem_calculo=edicoes.SEM_CALCULO)
         # T-0034 (RD-0043): uma casca só (barra lateral + faixa) para toda tela com usuário; o item ativo é o farol
         # ou, no Painel Executivo, "painel". Sem usuário (login, acesso negado): a mesma casca, sem lateral.
         if u:
@@ -335,20 +342,20 @@ def criar_app() -> FastAPI:
             escolhido = uf.upper()[:2] if (not p_atual["so_bap"] and uf.upper()[:2] in p_atual["ufs"]) else ""
             tela_f = render.farol_para_tela(dados, escolhido or None)
             return pagina(request, "painel.html", abas=nav, aba=p_atual["chave"], tela=None, tela_f=tela_f,
-                          faixa_ks=render.faixa_painel(None, tela_f), uf=escolhido, du=du,
+                          faixa_ks=render.faixa_painel(tela_f), uf=escolhido, du=du,
                           filtros=None if p_atual["so_bap"] else {"ufs": p_atual["ufs"]},
                           # aba só da BAP: o seletor fica no lugar, desligado, com os estados das outras abas (contrato §4.2)
                           ufs_off=(p_atual["ufs"] or sorted({u for q in paineis for u in q["ufs"]})) if p_atual["so_bap"] else [])
         if not abas:
             tela_f = render.farol_para_tela(rel["paineis"][nav[0]["chave"]], None)
             return pagina(request, "painel.html", abas=nav, aba=nav[0]["chave"], tela=None, tela_f=tela_f,
-                          faixa_ks=render.faixa_painel(None, tela_f), filtros=None, uf="", du=du)
+                          faixa_ks=render.faixa_painel(tela_f), filtros=None, uf="", du=du)
         atual = next((a for a in abas if a["chave"] == aba), abas[0])
         # T-0014: o filtro só escolhe a visão pronta do PC (por estado)
         escolhido = render.escolher_uf(atual, uf[:4] or None)
         tela = render.aba_para_tela(atual, escolhido)
         return pagina(request, "painel.html", abas=nav, aba=atual["chave"], tela=tela, tela_f=None,
-                      faixa_ks=render.faixa_painel(tela, None), sub_painel=tela["sub"], du=du,
+                      faixa_ks=[], sub_painel=tela["sub"], du=du,
                       filtros=render.filtros(atual), uf=escolhido or "")
 
     def rel_do(rid):
@@ -626,7 +633,7 @@ def criar_app() -> FastAPI:
         rod = f"{marca.EMPRESA} · {render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(ind.gerado_em(rid))}"
         return baixar(exportar.pdf_tabela(t, rod), "application/pdf", nome + ".pdf")
 
-    # ------------------------------------------------------------ T-0021: edição (só admin)
+    # ------------------------------------------------------------ T-0021: edição (admin e, nas Entregas, o pós-venda)
     def selecao(t, tab, consulta):
         """`sel` = linha (índice da tabela) escolhida com um clique; só nas tabelas com junta ligada."""
         liga = next((j["liga"][1] for j in t.get("juntas") or [] if j.get("liga")), None)
@@ -645,34 +652,35 @@ def criar_app() -> FastAPI:
         return sel
 
     def edicao_tela(rid, titulo, t_pc, linhas, u, volta, sit, recebido):
-        """Por linha da tela: botão de editar (admin com chave) e a marca "Aguardando o PC"/"O PC recusou".
+        """Por linha da tela: botão de editar (quem edita o lugar, com chave) e a marca "Aguardando o PC"/"O PC recusou".
         Sem `edicao` no pacote, ou perfil sem edição e sem marca, a coluna não aparece."""
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         if not isinstance(ed, dict):
             return None
-        admin = u["perfil"] in edicoes.EDITA
+        pode = edicoes.pode_editar(u["perfil"], (rid, titulo))
         algum = False
         for ln in linhas:
             ch = edicoes.chave_da_linha(ed, ln["k"])
             s = sit.get((titulo, ch)) if ch else None
             m = edicoes.marca(s, recebido)
             url = (f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "chave": ch, "volta": volta})
-                   if admin and ch else "")
-            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, admin), "sem_chave": admin and not ch,
+                   if pode and ch else "")
+            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, pode), "sem_chave": pode and not ch,
                           "msg_sem_chave": edicoes.msg_sem_chave(rid, titulo)}
             algum = algum or bool(m)
-        if not admin and not algum:
+        if not pode and not algum:
             return None
-        return {"cab": ed.get("acao") or "Editar", "admin": admin}
+        return {"cab": ed.get("acao") or "Editar", "pode": pode}
 
     SEM_ESTADO_AVISO = ("pl_garantias", "pl_devolucoes", "pl_ncc")
+    RESUMO_PELA_GRADE = SEM_ESTADO_AVISO + ("pl_entregas",)     # T-0054: "NF 900502 · CLIENTE ... · MA"
 
     def novo_tela(rid, titulo, t_pc, u, volta, sit, recebido):
-        """O botão da linha nova (`novo`, §10.9.2): só o admin, só onde o pacote traz `edicao.novo`. O servidor decide;
-        quem não é admin não recebe nem o botão nem a contagem."""
+        """O botão da linha nova (`novo`, §10.9.2): só o admin (RN-POS-011: o pós-venda edita a linha, não cria), só onde o pacote traz `edicao.novo`.
+        O servidor decide; quem não é admin não recebe nem o botão nem a contagem."""
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         nv = ed.get("novo") if isinstance(ed, dict) else None
-        if not nv or u["perfil"] not in edicoes.EDITA:
+        if not nv or not edicoes.pode_criar(u["perfil"], (rid, titulo)):
             return None
         n = edicoes.contagem_novas(sit, titulo, recebido)
         return {"rotulo": nv["rotulo"], "url": f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "novo": "1", "volta": volta}),
@@ -704,7 +712,7 @@ def criar_app() -> FastAPI:
     def resumo_da_linha(rid, titulo, cols, linha):
         """Qual linha se edita. Faróis do Pós-venda: a chave e o nome da GRADE, mais a UF ("NCC 901 · CLIENTE ... · PA");
         os outros: as 6 primeiras colunas, como na T-0021."""
-        g = tabelas.GRADE.get((rid, titulo)) if rid in SEM_ESTADO_AVISO else None
+        g = tabelas.GRADE.get((rid, titulo)) if rid in RESUMO_PELA_GRADE else None
         nomes = [str(c["nome"]).upper() for c in cols]
         if not g:
             return [render.fmt_celula(linha[i], c["tipo"]) for i, c in enumerate(cols)
@@ -718,8 +726,10 @@ def criar_app() -> FastAPI:
                     saida.append(f"{n} {v}" if rot else v)
         return saida
 
-    def form_ctx(rid, titulo, t, aba, k, sit_linha, volta):
+    def form_ctx(rid, titulo, t, aba, k, sit_linha, volta, digitado=None, erro=""):
+        """`digitado` (volta de um erro): o que a pessoa escreveu (`c_`) volta; só o campo recusado fica vazio e marcado."""
         ed = t["edicao"]
+        digitado = digitado or {}
         cols, linha = t["colunas"], t["linhas"][k]
         nomes = [c["nome"] for c in cols]
         pend = (sit_linha or {}).get("valores") or {} if (sit_linha or {}).get("status") == "pendente" else {}
@@ -730,7 +740,13 @@ def criar_app() -> FastAPI:
             ops = list(c["opcoes_linha"])
             if atual and atual not in ops and c["tipo"] == "lista":
                 ops = [atual] + ops                       # como o PC: o valor de hoje entra na lista
-            campos.append(edicoes.campo_tela(c, atual, ops, sugestao=c.get("sugestao", ""), pendente=pend.get(c["campo"])))
+            ruim = bool(erro) and erro.startswith(c["rotulo"] + ":")
+            if "c_" + c["campo"] in digitado:
+                atual = "" if ruim else str(digitado["c_" + c["campo"]])[:edicoes.MAX_TEXTO_TETO]
+                if atual and c["tipo"] == "lista" and atual not in ops:
+                    ops = [atual] + ops
+            campos.append(edicoes.campo_tela(c, atual, ops, sugestao=c.get("sugestao", ""), pendente=pend.get(c["campo"]),
+                                             invalido=ruim))
         liga = next((j for j in t.get("juntas") or [] if j.get("liga")), None)
         ver = f"/farol/{rid}?aba={aba}&sel={k}" if liga and aba else ""      # "Ver pedido", como no PC
         return dict(farol_nome=render.FAROIS[rid][0], rid=rid, tab=titulo, chave=ed["chaves"][k],
@@ -759,12 +775,14 @@ def criar_app() -> FastAPI:
     async def editar_get(request: Request, rid: str, tab: str = "", chave: str = "", volta: str = "", novo: str = ""):
         u = usuario(request)
         exige_farol(u, rid)
-        if u["perfil"] not in edicoes.EDITA:
-            raise PermissionError                       # só o admin edita (decisão de 25/11)
+        if not edicoes.pode_editar(u["perfil"], (rid, tab[:80])):
+            raise PermissionError                       # só quem a EDITA_LUGAR diz (RN-GER-012, RN-POS-011)
         volta = volta_ok(rid, volta)
         t, aba = tabela_editavel(rid, tab[:80])
         ed = (t or {}).get("edicao")
-        if novo == "1":                                 # linha nova (§10.9.2): só onde o pacote traz `edicao.novo`
+        if novo == "1":                                 # linha nova (§10.9.2): só o admin, só onde o pacote traz `edicao.novo`
+            if not edicoes.pode_criar(u["perfil"], (rid, tab)):
+                raise PermissionError
             if not (isinstance(ed, dict) and ed.get("novo")):
                 return pagina(request, "erro.html", status=404, titulo_erro=edicoes.TITULO_SEM_NOVO, msg=edicoes.MSG_SEM_NOVO)
             return pagina(request, "editar.html", erro="", aviso="", **novo_ctx(rid, tab, t, aba, volta))
@@ -781,10 +799,12 @@ def criar_app() -> FastAPI:
     async def editar_post(request: Request, rid: str):
         u = usuario(request)
         exige_farol(u, rid)
-        if u["perfil"] not in edicoes.EDITA:
+        if u["perfil"] not in edicoes.perfis_do_rid(rid):
             raise PermissionError                       # 403 antes de ler o formulário
         f = await formulario(request)                   # CSRF errado = 403
         tab, chave = str(f.get("tab", ""))[:80], str(f.get("chave", ""))[:80]
+        if not edicoes.pode_editar(u["perfil"], (rid, tab)):
+            raise PermissionError                       # o lugar exato (RN-POS-011)
         volta = volta_ok(rid, f.get("volta"))
         t, aba = tabela_editavel(rid, tab)
         ed = (t or {}).get("edicao")
@@ -800,10 +820,11 @@ def criar_app() -> FastAPI:
         sit = fila.situacao(rid).get((tab, chave))
         if erro or not mudou:
             return pagina(request, "editar.html", status=400 if erro else 200, erro=erro,
-                          aviso="" if erro else "Nada mudou.", **form_ctx(rid, tab, t, aba, k, sit, volta))
+                          aviso="" if erro else "Nada mudou.",
+                          **form_ctx(rid, tab, t, aba, k, sit, volta, digitado=f if erro else None, erro=erro))
         try:
             fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=chave,
-                           valores=mudou, antes=antes)
+                           valores=mudou, antes=antes, perfil=u["perfil"])
         except OSError:
             log.error("edição: falha ao gravar a fila")
             return pagina(request, "editar.html", status=503, erro=edicoes.MSG_FALHA_FILA,
@@ -812,7 +833,9 @@ def criar_app() -> FastAPI:
         return volta_ed(volta)
 
     async def editar_novo(request, u, rid, tab, t, aba, ed, f, volta):
-        """POST da linha nova (§10.9.2): vai só o que difere do `padrao`, mais o ticket; chave NOVO-xxxxxxxx; `antes.ticket`."""
+        """POST da linha nova (§10.9.2): só o admin; vai só o que difere do `padrao`, mais o ticket; chave NOVO-xxxxxxxx; `antes.ticket`."""
+        if not edicoes.pode_criar(u["perfil"], (rid, tab)):
+            raise PermissionError
         if not (isinstance(ed, dict) and ed.get("novo")):
             return pagina(request, "erro.html", status=409, titulo_erro=edicoes.TITULO_SEM_NOVO, msg=edicoes.MSG_SEM_NOVO)
         valores, antes, erro = edicoes.valores_do_novo(ed, f, edicoes.LUGARES_NOVO.get((rid, tab), ()))
@@ -821,7 +844,7 @@ def criar_app() -> FastAPI:
                           **novo_ctx(rid, tab, t, aba, volta, f))
         try:
             fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=edicoes.chave_nova(),
-                           valores=valores, antes=antes, novo=True)
+                           valores=valores, antes=antes, novo=True, perfil=u["perfil"])
         except OSError:
             log.error("edição: falha ao gravar a fila")
             return pagina(request, "editar.html", status=503, erro=edicoes.MSG_FALHA_FILA,
@@ -1015,6 +1038,76 @@ def criar_app() -> FastAPI:
 
     def sem_token(request: Request):
         return bearer(request, cfg.token)
+
+    # ------------------------------------------------------------ porta de leitura (T-0055, RN-GER-020, contrato §10.12)
+    limite = leitura.Limite()
+    METODOS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+
+    def _ip(request: Request) -> str:
+        """O último item do X-Forwarded-For é o que o proxy do Render acrescenta; sem ele, o par da conexão."""
+        xff = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
+        return xff or (request.client.host if request.client else "-")
+
+    def _muitas():
+        return JSONResponse({"erro": "muitas chamadas"}, status_code=429, headers={"Retry-After": "60"})
+
+    def _porta(request: Request):
+        """A ordem do desenho: 404 desligada, 429 (IP), 405, 401, 429 (total, só com token válido). Devolve a recusa ou None.
+        O IP só vale em memória, para o limite. As falhas não gravam em `acessos/`: viram contadores e, a cada minuto,
+        uma linha agregada no log (sem token, query nem IP)."""
+        if not cfg.leitura_token:
+            return JSONResponse({"erro": "não encontrado"}, status_code=404)
+        linha = limite.agregada()
+        if linha:
+            log.warning("porta de leitura: %s", linha)
+        if not limite.ip_ok(_ip(request)):
+            limite.falha("limite")
+            return _muitas()
+        if request.method != "GET":
+            return JSONResponse({"erro": "só leitura"}, status_code=405, headers={"Allow": "GET"})
+        negado = bearer(request, cfg.leitura_token)
+        if negado:
+            limite.falha("negado")
+            return negado
+        if not limite.total_ok():
+            limite.falha("limite")
+            return _muitas()
+        return None
+
+    def dados_ate(rel):
+        """O `baixado_em` do farol como a tela mostra (`fmt_manaus`); None se o pacote não traz."""
+        return fmt_manaus(rel["baixado_em"]) if rel.get("baixado_em") else None
+
+    def _entrega(rid: str, saida: dict):
+        saida = leitura.limpar(saida)
+        saida["versao_web"] = VERSAO
+        rid_log = rid if rid in render.FAROIS or rid == PAINEL_RID else "-"
+        cobranca.registrar_acesso(cfg.dados, "porta-leitura", rid_log, "ok", "api")
+        return JSONResponse(saida)
+
+    @app.api_route("/api/leitura/painel", methods=METODOS)
+    async def api_leitura_painel(request: Request):
+        recusa = _porta(request)
+        if recusa:
+            return recusa
+        rel = ind.farol(PAINEL_RID)
+        saida = leitura.montar_painel(rel, ind.indice(), carimbo(ind, PAINEL_RID), dados_ate(rel)) \
+            if isinstance(rel, dict) and acesso.perfil_ve(leitura.PERFIL, PAINEL_RID) else None
+        if not saida or not saida["visoes"]:
+            return JSONResponse({"erro": "sem pacote"}, status_code=503)
+        return _entrega(PAINEL_RID, saida)
+
+    @app.api_route("/api/leitura/resumo/{rid}", methods=METODOS)
+    async def api_leitura_resumo(request: Request, rid: str):
+        recusa = _porta(request)
+        if recusa:
+            return recusa
+        if rid == PAINEL_RID or not acesso.perfil_ve(leitura.PERFIL, rid):       # o que o diretor não vê: 404
+            return JSONResponse({"erro": "não encontrado"}, status_code=404)
+        rel = rel_do(rid)
+        if rel is None:
+            return JSONResponse({"erro": "sem pacote"}, status_code=503)
+        return _entrega(rid, leitura.montar_resumo(rid, rel, ind.indice(), carimbo(ind, rid), dados_ate(rel)))
 
     @app.get("/api/cobranca")
     async def api_cobranca(request: Request):

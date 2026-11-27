@@ -1284,6 +1284,32 @@ O aviso do PC "Parâmetros alterados em ... por ..." sai dos `avisos` do farol (
 
 Cada merge no `main` reinicia as 2 h do limite 1 da ADR 0002. Um merge entre 04h30 e 06h30 só adia a instalação para o dia seguinte; ele não troca nada pela metade.
 
+#### 10.9.7 Quem edita, por lugar (T-0054)
+
+Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.** Fontes: R-20261127-100158-alexandre, P1 A e P2 A do R-20261127-103925-alexandre, RN-POS-010 e RN-POS-011. Desenho: `docs/desenho/T-0054.md`.
+
+- **Padrão:** o da RN-GER-012. Só o perfil `admin` edita (`edicoes.EDITA`).
+- **Exceção por lugar:** a mesma tabela na web (`edicoes.EDITA_LUGAR`) e no robô (`bap_automation.EDITA_LUGAR_WEB`). Um teste do `testes` confere que as duas são iguais a esta.
+
+| `(rid, tabela)` | Perfis que editam |
+|---|---|
+| `("pl_entregas", "Entregas")` | `admin`, `pos_venda` |
+| `("pl_entregas", "Pendências dos meses anteriores")` | `admin`, `pos_venda` |
+| `("pl_fretes", "Notas com frete")` | `admin`, `pos_venda` (RN-POS-010; vale quando o lugar entrar em `LUGARES` e `EDICOES_WEB`) |
+
+- **Na web:** `edicoes.pode_editar(perfil, lugar)`, com `lugar = (rid, tabela)`, = `perfil in EDITA_LUGAR.get(lugar, EDITA)`. É a única pergunta, e vale para:
+  - o botão da linha e a coluna de ação;
+  - o `GET` e o `POST /farol/<rid>/editar`. É 403 para os outros perfis. O `POST` confere antes de ler o formulário se o perfil edita algum lugar do `rid`; depois, confere o lugar do `tab`;
+  - o motivo do "O PC recusou" na dica, que quem edita vê.
+- **O perfil é o do usuário**, não o do acesso por usuário (RN-GER-018). Num farol liberado a outro perfil, o usuário vê só o Resumo, sem editar. O `pos_venda` sem o `pl_entregas` na lista leva 403, como hoje.
+- **Sem mudança:** a linha nova (§10.9.2) continua só do admin. O pacote, os campos, os tetos e a gravação também não mudam (§10.9.1 e §10.9.3).
+- **Fila:** o registro `edicao` ganha a chave opcional `perfil` (`str`, um dos `usuarios.PERFIS`). A web a grava no envio, e o `GET /api/edicoes` a passa como veio.
+- **Robô** (`validar_edicao_web`):
+  - registro com `perfil` fora de `EDITA_LUGAR_WEB.get(lugar, ("admin",))`: vai a `erro`, com `MOTIVO_PERFIL_WEB` = "perfil sem edição neste farol", e nada é gravado;
+  - registro sem `perfil` (de antes da T-0054): aceito, como hoje;
+  - o `APLICADAS_WEB_<máquina>.jsonl` ganha a chave `perfil_web`.
+- **Ordem:** a web e o robô entram em qualquer ordem. O robô velho ignora o `perfil`, e a web velha não o manda.
+
 ### 10.10 Os faróis novos no site: Garantias, Devoluções, NCC, DDR, Campanhas e Expositores (T-0023 v2, T-0025 v2)
 
 Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.**
@@ -1523,6 +1549,23 @@ Conferidas no `main` em `a32b610`, com `montar(rid, raiz)` nas bases do reposit�
 2. **Núcleo** (modulo-farois): `codigo_do_cliente` e `correcao_linhas`. A tela do PC não muda.
 3. **Web antes** (modulo-web): os perfis, o menu, os quatro `rid` no `ACEITOS`, a validação do §10.11.3, o anexo e a rota do §10.11.4 e a `VERSAO` nova no `/saude`.
 4. **Robô depois** (modulo-robo): os quatro `rid` no `FAROIS_WEB`, depois da T-0024, da T-0023-v2 e da T-0025-v2 (um merge por vez no `FAROIS_WEB`). Chega ao PC pela rotina diária, só com o `/saude` na versão do `main` (ADR 0002, limite 3).
+
+### 10.12 Porta de leitura da web (leitura v1, T-0055, RN-GER-020)
+
+Saída da web, não entrada: o pacote não muda e o robô não muda. A regra é a RN-GER-020 (`docs/produto/03-regras.md`). Este parágrafo é a fonte da interface; a implementação, a lista fechada de chaves (§4) e os limites (§5) estão em `docs/desenho/T-0055.md`.
+
+- **Rotas:** `GET /api/leitura/painel` (carimbo + visões do Painel Executivo + índice dos faróis do diretor) e `GET /api/leitura/resumo/{rid}` (carimbo + cartões do Resumo do farol `rid`). Autenticação: `Authorization: Bearer` igual a `BAP_WEB_LEITURA_TOKEN`, separado do `BAP_WEB_TOKEN`, do `BAP_VISITAS_TOKEN` e do `SESSION_SECRET`.
+- **Respostas, nesta ordem** (a primeira que vale responde, em qualquer método):
+  1. **404** `{"erro":"não encontrado"}`: porta desligada (sem a variável, token curto ou repetido);
+  2. **429** `{"erro":"muitas chamadas"}` + `Retry-After: 60`: limite estourado (desenho §5);
+  3. **405** `{"erro":"só leitura"}` + `Allow: GET`: método que não seja GET;
+  4. **401** `{"erro":"não autorizado"}` + `WWW-Authenticate: Bearer`: token ausente ou errado;
+  5. **404** `{"erro":"não encontrado"}`: `rid` que o diretor não vê ou que não é farol;
+  6. **503** `{"erro":"sem pacote"}`: o lote ou o farol ainda não chegou (também com o fuso errado, como as telas);
+  7. **200** `application/json; charset=utf-8`.
+- **Corpo:** `versao_leitura` (1), `versao_web`, `pacote` (`lote`, `gerado_em`, `dados_ate`, `du`) e, conforme a rota, `visoes` + `farois` ou `rid` + `nome` + `cartoes`. `gerado_em` é o da tela; `dados_ate` é o "Baixado do ERP em" do farol lido, no formato da tela, ou `null`; `du` é o da tela do Painel no `/painel` e `null` no `/resumo`. Os números são os textos que a tela mostra, sem recálculo.
+- Só o que o diretor vê (RN-GER-014). O que nunca sai é o da RN-GER-020, pela lista fechada do desenho §4.
+- Mudança incompatível = `versao_leitura` 2 + ADR + recado aos consumidores.
 
 ## 11. Parte ação: os callables e a web v1
 

@@ -1,4 +1,4 @@
-"""T-0037: Farol de Fretes fictício (contrato §10.12). Nenhum dado real: "CLIENTE TESTE nn", cidades e
+"""T-0037: Farol de Fretes fictício (contrato §10.13). Nenhum dado real: "CLIENTE TESTE nn", cidades e
 transportadoras inventadas. ETAPA, datas, tom e cartões saem de UMA tabela de casos, coerente com o PC
 (`relatorios_nucleo.fretes`/`kpis_fretes`): entregue = ETAPA ENTREGUE ou data real; tom "alerta" = sem entrega,
 com acompanhamento e prazo vencido (hoje = 24/11/2026); "ok" = com data real; o resto sem tom."""
@@ -62,31 +62,20 @@ def tabela_notas():
     return linhas, tons, ufs, cols
 
 
-def _moeda_mil(v):
-    return f"R$ {v / 1000:.0f} mil" if v >= 10000 else f"R$ {v / 1000:.1f} mil".replace(".", ",")
+def _com_chave(ln, nb):
+    """A linha da fixture tem os índices do PC, menos a 17ª célula (CHAVE), que não vem sem acompanhamento."""
+    return list(ln) + ["" if ln[nb.index("ETAPA")] == SEM_AC else "CHAVE"]
 
 
-def _pct(a, b):
-    return f"{100 * a / b:.0f}%" if b else "0%"
-
-
-def _kp(uf=None, pct_fat="7,2%"):
-    """Os 6 cartões calculados das linhas de CASOS, como o kpis_fretes do PC."""
-    ls = [ln for ln, u in zip(*tabela_notas()[0:3:2]) if uf is None or u == uf]
-    nomes = [c[0] for c in tabelas.COLUNAS[TIT]]
-    ix = {n: nomes.index(n) for n in nomes}
-    val = sum(ln[ix["VLR NF"]] for ln in ls)
-    fr = sum(ln[ix["VLR FRETE"]] for ln in ls)
-    entregues = [ln for ln in ls if ln[ix["ENTREGUE"]] or ln[ix["ETAPA"]] == "ENTREGUE"]
-    com_data = [ln for ln in ls if ln[ix["ENTREGUE"]]]
-    no_prazo = [ln for ln in com_data if ln[ix["ENTREGUE"]] <= ln[ix["ENTREGAR ATÉ"]]]
-    sem_tr = sum(1 for ln in ls if ln[ix["ETAPA"]] != SEM_AC and not ln[ix["TRANSPORTADORA"]])
-    return [_kpi("Notas com frete", str(len(ls)), "neutro", _moeda_mil(val)), _kpi("% do faturado", pct_fat, "info"),
-            _kpi("Frete estimado", _moeda_mil(fr), "neutro", f"{100 * fr / val:.1f}% do valor".replace(".", ",")),
-            _kpi("Cidades atendidas", str(len({ln[ix['CIDADE']] for ln in ls}))),
-            _kpi("Entregues", str(len(entregues)), "ok",
-                 f"{_pct(len(no_prazo), len(com_data))} no prazo" if com_data else ""),
-            _kpi("Sem transportadora", str(sem_tr), "atencao")]
+def _kp(uf=None, pct_fat=0.072):
+    """Os 6 cartões das linhas de CASOS: o próprio `relatorios_nucleo.kpis_fretes` do PC (RN-POS-009). `pct_fat` = fração
+    do faturado líquido (inventado) que as notas da UF (ou todas) representam: sai o denominador de "% do faturado"."""
+    import relatorios_nucleo as rn
+    base, _, ufs, cols = tabela_notas()
+    nb = [c["nome"] for c in cols]
+    ls = [_com_chave(ln, nb) for ln, u in zip(base, ufs) if uf is None or u == uf]
+    fat = sum(ln[nb.index("VLR NF")] for ln in ls) / pct_fat
+    return rn.kpis_fretes(ls, {("NOV/26", uf or "PA"): fat}, uf)
 
 
 def spec_fretes(cols, linhas):
@@ -108,11 +97,9 @@ def spec_fretes(cols, linhas):
 
 
 def _rotulo_pc(col, ln, nb):
-    """O rótulo do PC (`relatorios_nucleo.rotulo_agrupa_fretes`): a linha da fixture tem os mesmos índices do PC, menos a
-    17ª célula (CHAVE), que não vem sem acompanhamento."""
+    """O rótulo do PC (`relatorios_nucleo.rotulo_agrupa_fretes`)."""
     import relatorios_nucleo as rn
-    chave = "" if ln[nb.index("ETAPA")] == SEM_AC else "CHAVE"
-    return rn.rotulo_agrupa_fretes({"UF": 7, "CIDADE": 6, "TRANSPORTADORA": 11}[col], list(ln) + [chave])
+    return rn.rotulo_agrupa_fretes({"UF": 7, "CIDADE": 6, "TRANSPORTADORA": 11}[col], _com_chave(ln, nb))
 
 
 def _resumo(titulo, col):
@@ -137,13 +124,11 @@ MESES12 = ["DEZ/25", "JAN/26", "FEV/26", "MAR/26", "ABR/26", "MAI/26", "JUN/26",
            "NOV/26"]
 NOTAS12 = [4, 5, 5, 6, 7, 6, 8, 7, 9, 8, 10]                     # dez/25 a out/26 (inventado); nov/26 vem das CASOS
 def _robo_resumo():
-    """O robô novo (T-0037, `blocos_resumo_fretes_web` e `_TABELAS_RESUMO_FRETES_WEB`) ainda pode não estar no main: sem
-    ele, o teste que depende do resumo pula com o motivo; com ele, roda."""
-    import pytest
-    ba = pytest.importorskip("bap_automation")
+    """O robô da T-0037 (`blocos_resumo_fretes_web` e `_TABELAS_RESUMO_FRETES_WEB`) entra no main antes da web: import
+    direto, sem pulo; se faltar algo, o teste reprova."""
+    import bap_automation as ba
     for nome in ("_TABELAS_RESUMO_FRETES_WEB", "blocos_resumo_fretes_web"):
-        if not hasattr(ba, nome):
-            pytest.skip(f"bap_automation sem {nome}: depende do robô da T-0037 (ainda fora do main)")
+        assert hasattr(ba, nome), f"bap_automation sem {nome}: falta o robô da T-0037"
     return ba
 
 
@@ -174,11 +159,12 @@ def farol_fretes(com_edicao=True, com_resumo=True):
                                       "ETAPA", "TRANSPORTADORA"], uf_linhas=ufs, kpis_padrao=_kp())
     if com_edicao:
         t["edicao"] = spec_fretes(cols, linhas)
-    f = _base("Farol de Fretes", _kp(), blocos_resumo()[0] if com_resumo else [])
+    bl, fr = blocos_resumo() if com_resumo else ([], [])
+    f = _base("Farol de Fretes", _kp(), bl)
     if com_resumo:                                                # o PC manda as frases também em insights_painel
-        f["insights_painel"] = blocos_resumo()[1]
+        f["insights_painel"] = fr
     f["tabelas"] = [t] + tabelas_resumo()
-    f["recortes"] = {"PA": {"kpis": _kp("PA", "7,1%")}, "MA": {"kpis": _kp("MA", "7,4%")}}
+    f["recortes"] = {"PA": {"kpis": _kp("PA", 0.071)}, "MA": {"kpis": _kp("MA", 0.074)}}
     return f
 
 
