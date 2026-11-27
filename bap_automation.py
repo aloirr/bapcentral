@@ -6620,7 +6620,7 @@ RIDS_ANALISTA_WEB = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas",
               # (T-0024) lote 2: abas de tabela com as colunas do PC (livres)
               "pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw",
-              "vc_meta",
+              "vc_meta", "pl_fretes",
               # (T-0036) faroes do Analista Comercial (cliente so pelo codigo)
               *RIDS_ANALISTA_WEB,
               # (T-0023 v2, 10.10) Garantias, Devolucoes e NCC, com as colunas
@@ -6659,12 +6659,20 @@ _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
                        "pl_frw": "Estoque FRW",
                        # (T-0036, 10.11.1) so onde o kpis_de reproduz os cartoes
                        "vc_saldo": "Pedido a pedido",
-                       "vc_markup": "Por pedido"}
+                       "vc_markup": "Por pedido",
+                       "pl_fretes": "Notas com frete"}
 # (T-0036) farois cujo recorte por estado so vai se o kpis_de de todas as
 # linhas da tabela de origem der os cartoes da BAP inteira (10.11.1)
 RIDS_RECORTE_CONFERIDO_WEB = ("vc_saldo", "vc_markup")
+# (T-0058) farois cujo cartao desconta a devolucao da filial (filtro com FILIAL)
+RIDS_DEVOLUCAO_POR_FILIAL_WEB = ("pv_pedidos", "vc_saldo")
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
-_TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
+_TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",),
+                          # (T-0037) o Resumo do Fretes: 3 tabelas de numero
+                          "pl_fretes": ("tabela",)}
+# (T-0037) as 3 abas de resumo do Fretes que viram bloco `tabela` do Resumo
+_TABELAS_RESUMO_FRETES_WEB = (("Por UF", "UF"), ("Por cidade", "CIDADE"),
+                              ("Por transportadora", "TRANSPORTADORA"))
 # bloco tabela com coluna de pessoa/cliente nunca vai (regra 6)
 _COLUNAS_PESSOA_TABELA_WEB = ("cliente", "cnpj", "cpf", "razão", "razao",
                               "fantasia", "nome", "telefone", "e-mail",
@@ -6672,6 +6680,20 @@ _COLUNAS_PESSOA_TABELA_WEB = ("cliente", "cnpj", "cpf", "razão", "razao",
 # (T-0017, entrega 5) a Prospeccao agora vai ao site; fica no PC so o aviso
 # da pasta das fotos (a coluna FOTO nunca vai)
 _AVISO_SO_PC_WEB = ("foto da fachada", "(coluna foto)")
+
+
+# (T-0037, RN-GER-009) o manual da marca tira do site o #62BB47 e o #B3261E;
+# o nucleo do PC continua com elas (Tkinter). So o pacote web traduz, para os
+# tokens --verde-marca e --alerta da web. Cor fora do mapa passa como esta.
+_COR_PARA_WEB = {"#62BB47": "#59BA61", "#B3261E": "#B42318"}
+
+
+def cor_para_web(c):
+    """Funcao pura (T-0037, RN-GER-009): traduz a cor do PC para a da web;
+    sem diferenca de maiusculas; o que nao e do mapa volta igual."""
+    if not isinstance(c, str):
+        return c
+    return _COR_PARA_WEB.get(c.strip().upper(), c)
 
 
 def _para_json(obj, _nivel: int = 0, fora=_PACOTE_WEB_CHAVES_ACAO):
@@ -6685,7 +6707,9 @@ def _para_json(obj, _nivel: int = 0, fora=_PACOTE_WEB_CHAVES_ACAO):
             else None
     if isinstance(obj, str):
         baixo = obj.lower().strip()
-        return _DESCARTAR if baixo.endswith((".pkl", ".pickle")) else obj
+        if baixo.endswith((".pkl", ".pickle")):
+            return _DESCARTAR
+        return cor_para_web(obj)    # T-0037: toda cor do pacote passa aqui
     if isinstance(obj, (bytes, bytearray, Path)) or callable(obj):
         return _DESCARTAR
     if obj is pd.NaT:
@@ -6780,7 +6804,9 @@ _FONTE_BAIXADO_WEB = {
     # relatorio de NCC pendentes
     "pl_devolucoes": _MOVIMENTOS_WEB,
     "pl_garantias": _MOVIMENTOS_WEB,
-    "pl_ncc": (Path(BKP_BAPTOOLS), "Relatorio_NCC_Pendentes*.xlsx")}
+    "pl_ncc": (Path(BKP_BAPTOOLS), "Relatorio_NCC_Pendentes*.xlsx"),
+    # Fretes (T-0037): notas VND dos mesmos Movimentos
+    "pl_fretes": _MOVIMENTOS_WEB}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
@@ -6956,6 +6982,80 @@ def _kpis_com_estados(r: dict, sem_dado_fora: bool = False) -> list:
     return saida
 
 
+def blocos_resumo_fretes_web(r: dict):
+    """Funcao pura (T-0037, contrato §10.13.2): o Resumo do Farol de Fretes, que no
+    PC nao tem painel proprio (so `graficos` e `tabelas`). Devolve
+    (blocos, frases): o grafico dos 12 meses como `barras`; as tabelas Por UF,
+    Por cidade e Por transportadora, do mes padrao do filtro MES, como `tabela`
+    (sem a coluna MES, com a linha TOTAL); e as frases do resumo gerencial, que
+    vao so em `insights_painel` (a web le dali; sem bloco `insights`).
+    Os numeros saem das proprias tabelas e dos cartoes do PC (sem recalcular
+    regra): a soma de cada tabela e o cartao Notas com frete. Sem nome de
+    cliente, CNPJ ou pessoa: so UF, cidade e transportadora (empresa)."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    r = r or {}
+    blocos, linha = [], 0
+    for g in r.get("graficos") or []:
+        if isinstance(g, dict) and g.get("rotulos"):
+            blocos.append({"tipo": "barras", "row": linha, "col": 0,
+                           "colspan": 3, "grafico": g})
+            linha += 1
+            break
+    por_titulo = {t.get("titulo"): t for t in r.get("tabelas") or []
+                  if isinstance(t, dict)}
+    agreg = {}
+    for titulo, rot in _TABELAS_RESUMO_FRETES_WEB:
+        t = por_titulo.get(titulo)
+        if not t:
+            continue
+        nomes = [c.get("nome") if isinstance(c, dict) else c
+                 for c in t.get("colunas") or []]
+        if "MÊS" not in nomes or rot not in nomes:
+            continue
+        mes = next((f.get("padrao") for f in t.get("filtros") or []
+                    if isinstance(f, dict) and f.get("coluna") == "MÊS"), None)
+        im, ir = nomes.index("MÊS"), nomes.index(rot)
+        ls = [[l[ir], l[nomes.index("NOTAS")],   # rotulo pronto do PC
+               l[nomes.index("VLR NF")] or 0,
+               l[nomes.index("VLR FRETE")] or 0]
+              for l in t.get("linhas") or []
+              if mes in (None, "(todos)") or l[im] == mes]
+        ls.sort(key=lambda x: -x[2])
+        # o total soma os valores crus e arredonda so ele: as 3 tabelas dao o mesmo
+        tot = ["TOTAL", sum(x[1] or 0 for x in ls),
+               round(sum(x[2] for x in ls), 2), round(sum(x[3] for x in ls), 2)]
+        agreg[titulo] = [list(x) for x in ls]
+        ls = [[x[0], x[1], round(x[2], 2), round(x[3], 2)] for x in ls]
+        cols = [{"nome": rot, "tipo": "texto", "largura": 140, "oculta": False},
+                {"nome": "NOTAS", "tipo": "int", "largura": 70, "oculta": False},
+                {"nome": "VLR NF", "tipo": "moeda", "largura": 100,
+                 "oculta": False},
+                {"nome": "VLR FRETE", "tipo": "moeda", "largura": 100,
+                 "oculta": False}]
+        tit = titulo + (f" ({mes})" if mes and mes != "(todos)" else "")
+        blocos.append({"tipo": "tabela", "titulo": tit, "colunas": cols,
+                       "linhas": ls, "total": tot, "row": linha, "col": 0})
+        linha += 1
+    # so as frases que os cartoes nao dizem (a web tira a que repete cartao)
+    frases = []
+    ufs = agreg.get("Por UF") or []
+    ufs_ok = [x for x in ufs if x[0] != _rn.SEM_UF]
+    if len(ufs) > 1 and ufs_ok:
+        v_ = sum(x[2] for x in ufs)
+        topo = max(ufs_ok, key=lambda x: x[2])
+        frases.append(("info", f"{topo[0]} concentra "
+                       f"{_rn.p(_rn.pct_de(topo[2], v_))} do valor das notas "
+                       "com frete."))
+    trs = agreg.get("Por transportadora") or []
+    tr = [x for x in trs if x[0] not in (_rn.SEM_TRANSP, _rn.SEM_ACOMP)]
+    if tr:
+        v_ = sum(x[2] for x in trs)
+        t0 = max(tr, key=lambda x: x[2])
+        frases.append(("info", f"{t0[0]} leva "
+                       f"{_rn.p(_rn.pct_de(t0[2], v_))} do valor."))
+    return blocos, frases
+
+
 def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
                          grafico_com_nome=None, cobranca=None,
                          raiz=None, por_uf=None) -> dict:
@@ -6983,6 +7083,12 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     blocos, titulos_fora, avisos_extra = [], [], []
     tipos = _TIPOS_BLOCO_FAROL_WEB + _TIPOS_BLOCO_EXTRA_WEB.get(rid, ())
     brutos = list((r.get("painel") or {}).get("blocos") or [])
+    if not brutos and rid == "pl_fretes":
+        # (T-0037) o Fretes nao tem painel no PC: o Resumo sai dos graficos e
+        # das tabelas de resumo, com as frases do resumo gerencial
+        brutos, frases = blocos_resumo_fretes_web(r)
+        if frases and not r.get("insights_painel"):
+            r = dict(r, insights_painel=frases)
     if not brutos and (rid in RIDS_LIVRES_WEB
                        or rid in _GRAFICOS_NO_PAINEL_WEB):
         # (T-0024) farol sem painel (Painel de indicadores): os graficos do PC
@@ -7122,7 +7228,7 @@ _ABAS_META_WEB = ("Equipe", "Top 30 clientes", "Por UF", "Por cidade",
                   "Por família da peça")
 # a aba Acomp. RH tem a META RH: nunca vai (regra 8 do CLAUDE.md)
 _ABAS_META_FORA_WEB = ("Acomp. RH",)
-_FAIXA_ATING_WEB = [[79.9999, "#FBDDDA", "#B3261E"],
+_FAIXA_ATING_WEB = [[79.9999, "#FBDDDA", "#B42318"],   # T-0037
                     [99.9999, "#FFF1C7", "#8A5A00"],
                     [None, "#E5F3DF", "#2F7D32"]]      # = FAIXA_PCT_META
 
@@ -7597,7 +7703,8 @@ _CORTES_FAROL_WEB = {
 # sair inteira. [SUPOSICAO] colunas nao sao cortadas: o `tons`, os recortes e
 # a edicao apontam para o indice delas.
 _FRACOES_ENTREGAS_WEB = (0.75, 0.5, 0.25)
-RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas") \
+RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas",
+                    "pl_fretes") \
     + RIDS_LIVRES_WEB + RIDS_ANALISTA_WEB \
     + ("pl_garantias", "pl_devolucoes", "pl_ncc")
 # (T-0023 v2, 10.10.1) o NCC nao tem painel no PC: os `graficos` viram blocos
@@ -7614,6 +7721,8 @@ _ABAS_TABELAS_WEB = {
     "vc_visitas": ("Por supervisor", "Por vendedor", "Dia a dia",
                    "Aderência dia a dia", "Cliente a cliente", "Prospecção",
                    "Indicação"),
+    "pl_fretes": ("Notas com frete",
+                  *(t for t, _ in _TABELAS_RESUMO_FRETES_WEB)),
     # (T-0036, 10.11.1) ordem do PC
     "vc_saldo": ("Pedido a pedido", "Por vendedor", "Por supervisor",
                  "Por UF"),
@@ -7634,7 +7743,15 @@ _ABAS_TABELAS_WEB = {
                "Por supervisor")}
 TITULO_SOLICITACAO_WEB = "Solicitação BAP"
 # tabelas que o PC carrega com 12 meses e a web recebe so do mes (D2 A)
-_TABELAS_SO_MES_WEB = ("Pedidos", "Entregas")
+# (titulo generico, como "Por UF", entra por par (rid, titulo): T-0037 P1 A)
+_TABELAS_SO_MES_WEB = ("Pedidos", "Entregas",
+                       *(("pl_fretes", t) for t in _ABAS_TABELAS_WEB["pl_fretes"]))
+
+
+def _so_mes_web(rid, titulo) -> bool:
+    return titulo in _TABELAS_SO_MES_WEB or (rid, titulo) in _TABELAS_SO_MES_WEB
+
+
 # UF de cada linha (RN-GER-006): (coluna, "filial" = filial da nota |
 # "uf" = UF do cliente)
 _UF_LINHAS_WEB = {
@@ -7646,6 +7763,8 @@ _UF_LINHAS_WEB = {
     # com UF (RIDS_POR_UF_WEB); Planner nao tem filtro UF: sem recorte
     ("pl_giro", "Todos os produtos"): ("FILIAL", "filial"),
     ("pl_frw", "Estoque FRW"): ("FILIAL", "filial"),
+    ("pl_fretes", "Notas com frete"): ("UF", "uf"),
+    ("pl_fretes", "Por UF"): ("UF", "uf"),
     # (T-0036, 10.11.3) faturamento pela filial da nota; Pesquisa e
     # Divergencias pela UF do cliente (RN-GER-006)
     ("vc_saldo", "Pedido a pedido"): ("FILIAL", "filial"),
@@ -7693,6 +7812,9 @@ _METRICAS_VISITA_WEB = (
     _c("TMA", "hora"), _c("TMD", "hora"), _c("KM", "num"),
     _c("KM/CLIENTE", "num1"))
 
+# Fretes: as 3 colunas de numero das abas de resumo
+_RESUMO_FRETES_WEB = (_c("NOTAS", "int"), _c("VLR NF", "moeda"),
+                      _c("VLR FRETE", "moeda"))
 # contrato 10.7.3: {rid: {titulo da tabela: colunas depois do corte}}
 _COLUNAS_TABELAS_WEB = {
     "pv_pedidos": {
@@ -8044,6 +8166,24 @@ _COLUNAS_TABELAS_WEB.update({
         "Por filial": _AGRUPA_NCC_WEB("FILIAL"),
         "Por vendedor": _AGRUPA_NCC_WEB("VENDEDOR"),
         "Por supervisor": _AGRUPA_NCC_WEB("SUPERVISOR")}})
+# (T-0037) Fretes: o MÊS fica oculto nas 3 abas de resumo (contrato, RD-0198)
+_COLUNAS_TABELAS_WEB["pl_fretes"] = {
+    "Notas com frete": (
+        _c("MÊS", "texto", True), _c("DATA PED.", "dia"),
+        _c("DATA NF", "dia"), _c("NF", "texto"), _c("FILIAL", "texto"),
+        _c("CLIENTE", "texto"), _c("CIDADE", "texto"),
+        _c("UF", "texto"), _c("VLR NF", "moeda"),
+        _c("VLR FRETE", "moeda"), _c("ETAPA", "texto"),
+        _c("TRANSPORTADORA", "texto"), _c("ENTREGAR ATÉ", "dia"),
+        _c("ENTREGUE", "dia"), _c("SLA ENTREGA", "int"),
+        _c("RESPONSÁVEL", "texto")),
+    "Por UF": (_c("MÊS", "texto", True), _c("UF", "texto"))
+    + _RESUMO_FRETES_WEB,
+    "Por cidade": (_c("MÊS", "texto", True), _c("CIDADE", "texto"))
+    + _RESUMO_FRETES_WEB,
+    "Por transportadora": (_c("MÊS", "texto", True),
+                           _c("TRANSPORTADORA", "texto"))
+    + _RESUMO_FRETES_WEB}
 # "Aderência dia a dia": as colunas dos dias mudam com o mes (padrao de nome)
 _ADERENCIA_WEB = ("Aderência dia a dia",
                   r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$",
@@ -8069,6 +8209,7 @@ _COLUNAS_LIMPAS_WEB = {
     ("pv_pedidos", "Analítico produto"): {
         "CLIENTE": "cliente_sem_documento"},
     ("pl_entregas", "Entregas"): {"CLIENTE": "cliente_sem_documento"},
+    ("pl_fretes", "Notas com frete"): {"CLIENTE": "cliente_sem_documento"},
     ("pl_entregas", "Pendências dos meses anteriores"): {
         "CLIENTE": "cliente_sem_documento"},
     ("vc_visitas", "Cliente a cliente"): {
@@ -8288,16 +8429,15 @@ def _conferir_tabela_web(t: dict) -> None:
 # e confirma. Generico por (rid, tabela, modulo): NCC, Garantias, DDR e
 # Expositores entram acrescentando o lugar aqui e na web (edicoes.LUGARES).
 _ARQ_POS_VENDA_WEB = "RELATORIOS/ACOMPANHAMENTO_POS_VENDA.xlsx"
+_ED_ENTREGAS_WEB = {"modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
+                    "aba": "ENTREGAS", "acao": "Editar"}
 EDICOES_WEB = {
     ("pv_pedidos", "Pedidos"): {
         "modulo": "autorizacoes", "arquivo": "RELATORIOS/_AUTORIZACOES",
         "aba": "", "acao": "Autorização"},
-    ("pl_entregas", "Entregas"): {
-        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
-        "aba": "ENTREGAS", "acao": "Editar"},
-    ("pl_entregas", "Pendências dos meses anteriores"): {
-        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
-        "aba": "ENTREGAS", "acao": "Editar"},
+    ("pl_entregas", "Entregas"): _ED_ENTREGAS_WEB,
+    ("pl_entregas", "Pendências dos meses anteriores"): _ED_ENTREGAS_WEB,
+    ("pl_fretes", "Notas com frete"): _ED_ENTREGAS_WEB,
     # (T-0023 v2, 10.9.3) NCC, Devolucoes e Garantias. `pref` = o prefixo das
     # listas fechadas em `opcoes_edicao_web` (o `etapa` da Devolucao nao e o
     # da Entrega); `novo` = aceita linha nova (so a Garantia)
@@ -8316,8 +8456,7 @@ EDITA_LUGAR_WEB = {
     ("pl_entregas", "Entregas"): ("admin", "pos_venda"),
     ("pl_entregas", "Pendências dos meses anteriores"):
         ("admin", "pos_venda"),
-    # (R-20261127-103925, P2 A) Fretes da T-0037: no main o lugar ainda nao
-    # esta em EDICOES_WEB (recusado antes), entao a linha nao muda nada
+    # (R-20261127-103925, P2 A) Fretes da T-0037: o mesmo lugar do PC que as Entregas
     ("pl_fretes", "Notas com frete"): ("admin", "pos_venda")}
 # os campos de cada modulo e o tipo de conferencia no robo: "lista" (lista
 # fechada do PC), "data" (dd/mm/aaaa), "data_livre" (uma data do calendario,
@@ -8347,6 +8486,11 @@ CAMPOS_LUGAR_WEB = {
     ("pl_devolucoes", "Devoluções"): {
         "etapa": "lista", "motivo": "lista", "autorizado_por": "livre",
         "recebida_em": "data", "credito": "lista", "credito_em": "data",
+        "responsavel": "livre"},
+    # (T-0037 P2 A) o Fretes nao edita o frete real; ele fica no Entregas
+    ("pl_fretes", "Notas com frete"): {
+        "etapa": "lista", "transportadora": "lista",
+        "prevista_manual": "data", "entregue_em": "data",
         "responsavel": "livre"}}
 _RE_CHAVE_EDICAO_WEB = re.compile(r"^[\w .|/-]{1,80}$")
 _MAX_OPCOES_EDICAO_WEB = 400
@@ -8550,7 +8694,7 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     if len(tons_pc) != len(brutas):
         tons_pc = [""] * len(brutas)
     manter = list(range(len(brutas)))
-    if titulo in _TABELAS_SO_MES_WEB and "MÊS" in nomes_pc:
+    if _so_mes_web(rid, titulo) and "MÊS" in nomes_pc:
         ix_mes = nomes_pc.index("MÊS")
         mes_rot = mes_rot or _mes_padrao(t)
         if not mes_rot:
@@ -8598,7 +8742,7 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     for f in t.get("filtros") or []:
         if (f.get("coluna") if isinstance(f, dict) else f) not in nomes:
             continue
-        if (titulo in _TABELAS_SO_MES_WEB and isinstance(f, dict)
+        if (_so_mes_web(rid, titulo) and isinstance(f, dict)
                 and f.get("coluna") == "MÊS"):
             f = dict(f, oculto=True)      # o pacote so tem o mes: sem caixa
         saida["filtros"].append(f)
@@ -8826,6 +8970,12 @@ def tabelas_farol_web(rid: str, r: dict, raiz=None):
         t = por_titulo.get(titulo)
         if not t:                    # aba que nao existe no farol: sem aviso
             continue
+        if rid == "pl_fretes" and titulo in dict(_TABELAS_RESUMO_FRETES_WEB):
+            # (T-0037, RD-0198) o MES das 3 abas de resumo vai oculto na web
+            # (contrato); no PC a coluna aparece, o robo so a esconde aqui
+            t = dict(t, colunas=[dict(c, oculta=True) if isinstance(c, dict)
+                                 and c.get("nome") == "MÊS" else c
+                                 for c in t.get("colunas") or []])
         tab = tabela_web7(rid, t)
         if tab is not None and (rid, titulo) in _JUNTAS_WEB:
             juntas = _junta_web7(rid, titulo, t.get("juntas"),
@@ -9179,6 +9329,11 @@ def _recortes_do_farol_web(rid: str, r: dict) -> dict:
     if modo == "uf":
         return recortes_farol_por_uf(r, titulo, coluna_filial=col,
                                      uf_de=_uf_valida_web, filtro_uf=True)
+    if rid in RIDS_DEVOLUCAO_POR_FILIAL_WEB:
+        # T-0058 (RN-GER-002): o filtro {FILIAL: UF} faz o kpis_de descontar
+        # toda a devolucao da filial (inclusive vendedor sem venda no mes)
+        return recortes_farol_por_uf(r, titulo, coluna_filial=col,
+                                     filtro_uf=True)
     return recortes_farol_por_uf(r, titulo, coluna_filial=col)
 
 
@@ -12479,6 +12634,50 @@ def _executar_rodada(args, armazenamento, selecionados, inicio) -> int:
         return 0 if falhas == 0 else 1
 
 
+def espelhar_linhas(entrada, saidas) -> None:
+    """Copia `entrada` (linhas em bytes) para cada fluxo de `saidas`, sem
+    transformar nada, com flush a cada linha (T-0057).
+    A linha so aparece quando chega o "\n": barra de andamento feita com "\r"
+    so aparece inteira no fim."""
+    for linha in entrada:
+        for saida in saidas:
+            saida.write(linha)
+            saida.flush()
+
+
+def rodar_com_espelho(comando, caminho_log, tela=None,
+                      popen=subprocess.Popen) -> int:
+    """Roda `comando` mostrando na janela as mesmas linhas gravadas no log
+    (aberto so para acrescentar). Devolve o codigo de saida inalterado."""
+    tela = tela if tela is not None else sys.stdout.buffer
+    with open(caminho_log, "ab") as log_arq:
+        try:
+            ambiente = dict(os.environ, PYTHONUNBUFFERED="1",
+                            PYTHONIOENCODING="utf-8")
+            proc = popen(comando, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, env=ambiente)
+        except OSError as erro:
+            msg = f"FALHA ao iniciar o robo: {erro}\r\n".encode("utf-8", "replace")
+            espelhar_linhas([msg], [tela, log_arq])
+            return 1
+        espelhar_linhas(proc.stdout, [tela, log_arq])
+        proc.wait()
+        return proc.returncode
+
+
+def _sem_espelho(argv):
+    """argv sem o par `--espelho LOG` (ou `--espelho=LOG`)."""
+    saida, pular = [], False
+    for a in argv:
+        if pular:
+            pular = False
+        elif a == "--espelho":
+            pular = True
+        elif not a.startswith("--espelho="):
+            saida.append(a)
+    return saida
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="BAP Tools -> TABELA_BAP.xlsx (SharePoint via Graph ou OneDrive local).",
@@ -12515,7 +12714,15 @@ def main() -> int:
     parser.add_argument("--salvar-senha", action="store_true",
                         help="grava a senha do BAP Tools no cofre do Windows")
     parser.add_argument("--verboso", action="store_true", help="log detalhado")
+    parser.add_argument("--espelho", metavar="LOG",
+                        help="uso do executar_bap.bat: roda o robo e mostra "
+                             "na janela as mesmas linhas gravadas no LOG")
     args = parser.parse_args()
+
+    if args.espelho:
+        comando = ([sys.executable, os.path.abspath(__file__)]
+                   + _sem_espelho(sys.argv[1:]))
+        return rodar_com_espelho(comando, args.espelho)
 
     if args.salvar_senha:
         salvar_senha_interativo()
