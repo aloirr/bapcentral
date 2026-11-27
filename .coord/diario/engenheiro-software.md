@@ -16,3 +16,4 @@
 - 2026-11-27 — T-0045 — RNs da T-0045 renumeradas +1 (RN-VIS-002 a 008), porque a RN-VIS-001 é a da Aderência (PR #135, T-0033)
 - 2026-11-27 — T-0045 — reteste do PR #137: limpeza RN-GER-011 (cliente_sem_documento no CLIENTE, texto_sem_contato na JUSTIFICATIVA) antes da varredura, relatorios_nucleo + bap_dados no COPY e no buildFilter; Retomar de DADO_PESSOAL volta ao diagnóstico e é registro, não controle; tini, SIGTERM e --disable-dev-shm-usage; pior caso ~US$ 6/mês; RD-0072 (lista proibida só no contrato), RD-0082 a RD-0084
 - 2026-11-27 — T-0045 — RD-0098: biblioteca padrão só no desenho, tini/SIGTERM/dev-shm só no contrato, pior mês só no §4 da ADR (cerca de US$ 7, com a conta)
+- 2026-11-27 — T-0023 — 🟡 do revisor: a garantia nova leva antes.ticket (o padrão mostrado); padrão repetido em qualquer rodada vira o garantias.novo_ticket da hora; regra só no contrato §10.9.2, critério 5 com o pacote atrasado

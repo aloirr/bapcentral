@@ -1109,13 +1109,14 @@ Donos:
 
 - **Quem:** só o admin (`edicoes.EDITA`, RN-GER-012). O botão (o `rotulo` do `novo`) fica na barra das ações da aba (tela-bc3 §5 e §11). Ele é o botão principal da aba e só é desenhado para o admin: o corte é no servidor.
 - **Formulário:** `GET /farol/<rid>/editar?tab=<título>&novo=1`. Mostra os campos sem `linhas`, cada um com o `padrao` dele. Sem linha de origem, não há resumo nem "Ver pedido".
-  - **Ticket da garantia:** o `padrao` do `ticket` é o `garantias.novo_ticket` do pacote. **A web não calcula número.**
-    - Se o ticket que chega é o padrão e ele já foi usado nesta rodada, o robô grava com o `garantias.novo_ticket` da hora, como o `EXPnnnn` dos Expositores. Assim, duas garantias novas na mesma rodada não ficam com o mesmo número.
-    - O ticket digitado diferente do padrão segue a regra de hoje: repetido = `erro`.
+  - **Ticket da garantia** (a regra fica só aqui): o `padrao` do `ticket` é o `garantias.novo_ticket` do pacote. **A web não calcula número.**
+    - A linha nova da garantia leva na fila `antes` = `{"ticket": "<o padrão que o formulário mostrou>"}`.
+    - No robô: se o `ticket` enviado é igual ao `antes.ticket` e esse número já existe no `_GARANTIAS` (gravado nesta rodada ou em qualquer outra, por exemplo com o pacote atrasado), o robô grava com o `garantias.novo_ticket` da hora, como o `EXPnnnn` dos Expositores.
+    - O ticket digitado diferente do padrão segue a regra de hoje (`garantias.renomear`): se já existe, `erro` com "já existe uma garantia com esse número".
 - **Envio:** `POST /farol/<rid>/editar` com `novo=1`. Vai só o que mudou em relação ao `padrao`, mais os campos obrigatórios do lugar (§10.9.3). Sem nenhum campo diferente do padrão, a resposta é 400 com "Preencha pelo menos um campo além dos padrões.".
 - **Na fila** (`<dados>/edicoes/EDICOES_WEB_<AAAA-MM>.jsonl`, só acréscimo): uma linha `edicao` como as outras, com 2 diferenças:
   - `chave` = `"NOVO-"` + 8 dígitos hexadecimais maiúsculos, gerados pela web (`uuid4`). Ex.: `NOVO-3F9A01C2`;
-  - `"novo": true`; `antes` = `{}`.
+  - `"novo": true`; `antes` = `{}`, menos na garantia (`antes.ticket`, acima).
 - **API do robô:** `GET /api/edicoes` passa o `novo` sem mudança. O robô antigo não conhece os lugares novos e devolve `erro` com `MOTIVO_LUGAR_WEB`; nada é gravado.
 - **No robô:** a chave tem de casar com `^NOVO-[0-9A-F]{8}$`, e o lugar tem de aceitar linha nova. A gravação é idempotente pelo `id` (`APLICADAS_WEB_<máquina>.jsonl`, que já existe): a linha nova nunca é criada duas vezes.
 - **Na tela:** ao lado do botão, a contagem das novas pendentes com a marca `edicoes.MSG_AGUARDA` ("2 · Aguardando o PC"), até chegar um farol com `recebido_em` depois da confirmação (a mesma regra da `edicoes.marca`). Depois disso, a linha nova já está na tabela, com a chave que o PC deu.
