@@ -6938,6 +6938,16 @@ def _kpis_com_estados(r: dict, sem_dado_fora: bool = False) -> list:
     return saida
 
 
+def _rotulo_sem_fretes_web(rot: str, v):
+    """(T-0037) o "(sem)" do PC vira texto de gente nas tabelas do Resumo."""
+    v = str(v if v is not None else "(sem)")
+    if not v.startswith("(sem)"):
+        return v
+    resto = v[len("(sem)"):]
+    return {"UF": "Sem UF", "CIDADE": "Sem cidade",
+            "TRANSPORTADORA": "Sem transportadora"}.get(rot, v) + resto
+
+
 def blocos_resumo_fretes_web(r: dict):
     """Funcao pura (T-0037, contrato 10.8): o Resumo do Farol de Fretes, que no
     PC nao tem painel proprio (so `graficos` e `tabelas`). Devolve
@@ -6970,54 +6980,46 @@ def blocos_resumo_fretes_web(r: dict):
         mes = next((f.get("padrao") for f in t.get("filtros") or []
                     if isinstance(f, dict) and f.get("coluna") == "MÊS"), None)
         im, ir = nomes.index("MÊS"), nomes.index(rot)
-        ls = [[l[ir], l[nomes.index("NOTAS")],
-               round(l[nomes.index("VLR NF")] or 0, 2),
-               round(l[nomes.index("VLR FRETE")] or 0, 2)]
+        ls = [[_rotulo_sem_fretes_web(rot, l[ir]), l[nomes.index("NOTAS")],
+               l[nomes.index("VLR NF")] or 0,
+               l[nomes.index("VLR FRETE")] or 0]
               for l in t.get("linhas") or []
               if mes in (None, "(todos)") or l[im] == mes]
-        ls.sort(key=lambda x: -(x[2] or 0))
-        agreg[titulo] = ls
+        ls.sort(key=lambda x: -x[2])
+        # o total soma os valores crus e arredonda so ele: as 3 tabelas dao o mesmo
+        tot = ["TOTAL", sum(x[1] or 0 for x in ls),
+               round(sum(x[2] for x in ls), 2), round(sum(x[3] for x in ls), 2)]
+        agreg[titulo] = [list(x) for x in ls]
+        ls = [[x[0], x[1], round(x[2], 2), round(x[3], 2)] for x in ls]
         cols = [{"nome": rot, "tipo": "texto", "largura": 140, "oculta": False},
                 {"nome": "NOTAS", "tipo": "int", "largura": 70, "oculta": False},
                 {"nome": "VLR NF", "tipo": "moeda", "largura": 100,
                  "oculta": False},
                 {"nome": "VLR FRETE", "tipo": "moeda", "largura": 100,
                  "oculta": False}]
-        tot = ["TOTAL", sum(x[1] or 0 for x in ls),
-               round(sum(x[2] for x in ls), 2), round(sum(x[3] for x in ls), 2)]
-        blocos.append({"tipo": "tabela", "titulo": titulo, "colunas": cols,
+        tit = titulo + (f" ({mes})" if mes and mes != "(todos)" else "")
+        blocos.append({"tipo": "tabela", "titulo": tit, "colunas": cols,
                        "linhas": ls, "total": tot, "row": linha, "col": 0})
         linha += 1
-    kp = {k.get("rotulo"): k for k in r.get("kpis") or []
-          if isinstance(k, dict)}
-    n_ = sum(x[1] for x in agreg.get("Por UF", []))
+    # so as frases que os cartoes nao dizem (a web tira a que repete cartao)
     frases = []
-    k0 = kp.get("Notas com frete")
-    if k0 and n_:
-        pct = (kp.get("% do faturado") or {}).get("valor")
-        frases.append(("info", f"{k0.get('valor')} notas com frete "
-                       f"({k0.get('detalhe')})"
-                       + (f", {pct} do faturado líquido." if pct else ".")))
     ufs = agreg.get("Por UF") or []
-    if ufs and n_:
-        topo = max(ufs, key=lambda x: (x[1], x[2] or 0))
-        frases.append(("info", f"{topo[0]} concentra "
-                       f"{_rn.p(_rn.pct_de(topo[1], n_))} das notas com frete "
-                       f"({_rn.br(topo[1])} de {_rn.br(n_)})."))
-    k4 = kp.get("Entregues")
-    if k4 and k4.get("valor") not in (None, "0"):
-        frases.append(("ok", f"{k4['valor']} notas entregues"
-                       + (f", {k4['detalhe']}." if k4.get("detalhe") else ".")))
-    k5 = kp.get("Sem transportadora")
-    if k5 and k5.get("valor") not in (None, "0"):
-        frases.append(("atencao", f"{k5['valor']} nota(s) com acompanhamento "
-                                  "e sem transportadora."))
-    tr = [x for x in agreg.get("Por transportadora") or []
-          if x[0] and x[0] != "(sem)"]
+    if len(ufs) > 1:
+        n_ = sum(x[1] for x in ufs)
+        v_ = sum(x[2] for x in ufs)
+        topo = max(ufs, key=lambda x: x[2])
+        frases.append(("info", f"{topo[0]} tem {_rn.br(topo[1])} das "
+                       f"{_rn.br(n_)} notas com frete e "
+                       f"{_rn.p(_rn.pct_de(topo[2], v_))} do valor "
+                       f"({_rn.moeda(topo[2])})."))
+    trs = agreg.get("Por transportadora") or []
+    tr = [x for x in trs if x[0] != "Sem transportadora"]
     if tr:
-        frases.append(("info", f"{tr[0][0]} leva mais valor: "
-                               f"{_rn.moeda(tr[0][2])} em {_rn.br(tr[0][1])} "
-                               "notas."))
+        v_ = sum(x[2] for x in trs)
+        t0 = max(tr, key=lambda x: x[2])
+        frases.append(("info", f"{t0[0]} leva {_rn.p(_rn.pct_de(t0[2], v_))} "
+                       f"do valor: {_rn.moeda(t0[2])} em {_rn.br(t0[1])} "
+                       + ("nota." if t0[1] == 1 else "notas.")))
     if frases:
         blocos.append({"tipo": "insights", "titulo": "Resumo gerencial",
                        "linhas": frases, "row": linha, "col": 0})
