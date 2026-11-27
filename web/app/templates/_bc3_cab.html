@@ -26,7 +26,7 @@
   </div>
   {% elif aviso_kpis is defined and aviso_kpis %}<p class="bc3-aviso-k">{{ aviso_kpis }}</p>{% endif %}
 </header>
-<div class="bc3-sub">
+{% if abas or e_tab or (parcial is defined and parcial) %}<div class="bc3-sub">
   {% if abas %}
   <nav class="bc3-abas" aria-label="Abas do farol">{% for c, n in abas %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}" class="{{ 'on' if c == aba }}"{{ ' aria-current="page"'|safe if c == aba }}>{{ n }}{% if c == aba and e_tab and tabela.total_linhas %} <span>· {{ tabela.total_linhas }}</span>{% endif %}</a>{% endfor %}</nav>
   {% endif %}
@@ -36,7 +36,7 @@
     <a class="bc3-chk" role="checkbox" aria-checked="{{ 'false' if fb.mostrar else 'true' }}" title="Pedidos internos: cliente fora da base de clientes da BAP"
        href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}{{ '' if fb.mostrar else '&fora=1' }}"><i>{{ '' if fb.mostrar else '✓' }}</i>Ignorar fora da base ({{ fb.qtd }})</a>
     {% endif %}
-    {% if e_tab %}
+    {% if e_tab and not (tabela.dica_busca is defined and tabela.dica_busca == "") %}
     <form method="get" action="/farol/{{ rid }}" class="bc3-busca" role="search">
       <input type="hidden" name="aba" value="{{ aba }}">
       {% if sub is defined and sub is not none %}<input type="hidden" name="sub" value="{{ sub }}">{% endif %}
@@ -44,7 +44,7 @@
       {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
       {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ 'Buscar pedido, código ou produto' if rid in ('vc_saldo', 'vc_markup', 'vc_preco', 'an_divergencias') else 'Buscar pedido, cliente ou produto' }}" maxlength="60" autocomplete="off" aria-label="Buscar">
+      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ tabela.dica_busca if (tabela.dica_busca is defined and tabela.dica_busca) else 'Buscar pedido, cliente ou produto' }}" maxlength="60" autocomplete="off" aria-label="Buscar">
       {% if tabela.busca %}<a href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}" title="Limpar busca" aria-label="Limpar busca">×</a>{% endif %}
     </form>
     {% endif %}
@@ -65,4 +65,4 @@
     </details>
     {% endif %}
   </div>
-</div>
+</div>{% endif %}
