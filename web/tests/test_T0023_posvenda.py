@@ -456,7 +456,7 @@ def test_T0023_ncc_estados_do_cartao_e_cartoes_por_estado(pv):
 
 
 def test_T0023_versao_da_web(admin):
-    assert admin.get("/saude").json()["versao"] == "0.8.0"
+    assert admin.get("/saude").json()["versao"] == "0.8.1"
 
 
 def test_T0023_formulario_aceita_ate_32kb():
