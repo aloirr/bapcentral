@@ -5,12 +5,7 @@ função do robô, pulam.
 """
 from datetime import date
 
-import pytest
-
 import bap_automation as ba
-
-if not hasattr(ba, "csvs_importar_web"):
-    pytest.skip("robô dos CSVs para a web ainda não entrou", allow_module_level=True)
 
 HOJE = date(2026, 11, 24)
 CAB = "FILIAL ORIGEM;EMPRESA PADRAO;FORNECEDOR;PRODUTO;FILIAL DESTINO;QUANTIDADE UNIDADES\r\n"

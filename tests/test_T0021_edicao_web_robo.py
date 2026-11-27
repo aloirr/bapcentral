@@ -20,10 +20,6 @@ import bap_automation as ba
 import pos_venda as pv
 import relatorios_nucleo as rn
 
-# os testes entram antes do robô (ordem testes → robô): sem o robô da T-0021, pulam
-if not hasattr(ba, "EDICOES_WEB"):
-    pytest.skip("robô da T-0021 ainda não entrou", allow_module_level=True)
-
 TOKEN = "token-ficticio-t21"
 BASE = "https://web.exemplo.test"
 OPCOES = {"por": {"ALEXANDRE", "PRICE"}, "etapa": set(pv.ETAPAS_ENTREGA),
@@ -288,8 +284,6 @@ def test_aplicadas_ficam_num_arquivo_so_de_acrescimo(tmp_path):
 
 
 # ------------------------------------------------------------------ PC só leitura nessas edições
-@pytest.mark.skipif(not hasattr(__import__("bap_relatorios"), "MSG_EDICAO_SO_WEB"),
-                    reason="farol da T-0021 (bap_relatorios) ainda não entrou")
 def test_RN_GER_012_pc_so_leitura_na_autorizacao_e_nas_entregas(monkeypatch):
     import bap_relatorios as br
     assert br.MSG_EDICAO_SO_WEB == "A edição agora é só pela BAP Central web."
