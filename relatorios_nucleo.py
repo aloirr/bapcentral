@@ -40,7 +40,7 @@ ANA = "Analista Comercial"
 TRADE = "Trade Marketing"
 
 VERDE_TXT, AMARELO_TXT = "#2F7D32", "#B7791F"    # texto legivel no branco
-VERDE, CINZA, VERMELHO, AZUL, AMARELO = ("#62BB47", "#A7B0AA", "#B3261E",
+VERDE, CINZA, VERMELHO, AZUL, AMARELO = ("#59BA61", "#A7B0AA", "#B42318",
                                          "#1F4FD1", "#C98A00")
 MESES = ["", "JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET",
          "OUT", "NOV", "DEZ"]
@@ -307,6 +307,13 @@ def estados_do_cartao(rel, k) -> dict:
                             else "tabela do farol",
                             # taxa (%): cada estado tem a sua, nao soma
                             "taxa": eh_pct}}
+
+
+# Pares (fundo, texto) do farol, UM lugar so (manual da marca, 4.2):
+# alerta, atencao e ok (--ok-claro #F0F7EC: o verde escuro passa de 4,5:1).
+_VERM = ("#FDECEA", "#B42318")
+_AMAR = ("#FFF4D6", "#8A5A00")
+_VERD = ("#F0F7EC", "#2F7D32")
 
 
 def tabela(titulo, colunas, linhas, tons=None, filtros=(), total=None,
@@ -1760,15 +1767,15 @@ def _tabela_cond(it):
 # dias"). O % ATENDIDO vira barra: 100% verde (pode faturar), de 50% a 99%
 # amarelo (parcial), abaixo de 50% vermelho.
 def CHIP_SLA():                                         # noqa: N802
-    return [(bd.PRAZO_FATURAR - 1, "#E5F3DF", "#2F7D32"),
-            (bd.PRAZO_FATURAR, "#FFF1C7", "#8A5A00"),
-            (4, "#FBDDDA", "#B3261E"),
-            (None, "#B3261E", "#FFFFFF")]
+    return [(bd.PRAZO_FATURAR - 1, *_VERD),
+            (bd.PRAZO_FATURAR, *_AMAR),
+            (4, *_VERM),
+            (None, "#B42318", "#FFFFFF")]
 
 
-BARRA_ATENDIDO = {"max": 100, "faixas": [(49.99, "#D9534F", "#B3261E"),
+BARRA_ATENDIDO = {"max": 100, "faixas": [(49.99, "#D9534F", "#B42318"),
                                          (99.98, "#E0A526", "#8A5A00"),
-                                         (None, "#62BB47", "#2F7D32")]}
+                                         (None, "#59BA61", "#2F7D32")]}
 
 
 def _edicao_autorizacao(i_chave, i_cod, i_por):
@@ -7514,8 +7521,8 @@ def _historico_de_compra(ctx):
 # (06/11, Alexandre) o PRAZO da garantia: FECHADA verde quando fechou ate a
 # DT. FECHAMENTO, "laranja esverdeado" (verde-oliva) quando fechou depois
 CORES_PRAZO_GARANTIA = {
-    "ATRASADA": ("#FBDDDA", "#B3261E"),
-    "NO PRAZO": ("#E5F3DF", "#2F7D32"),
+    "ATRASADA": _VERM,
+    "NO PRAZO": _VERD,
     "FECHADA NO PRAZO": ("#2F7D32", "#FFFFFF"),
     "FECHADA COM ATRASO": ("#9E9D24", "#FFFFFF")}
 
@@ -10681,7 +10688,7 @@ def _mecanica_rv(ctx, comp, ac) -> dict:
         ("Positivação",
          f"META = {pct_pos:g}% da base visitada do vendedor. REAL = clientes "
          "com faturamento líquido > 0 no mês; os CNPJs internos do grupo "
-         "(BAP AUTO PARTS / FRW / PMZ DISTRIBUIDORA) ficam fora."),
+         "(BAP AUTOPARTS / FRW / PMZ DISTRIBUIDORA) ficam fora."),
         ("Visita",
          f"META = {du} visitas por dia útil desde a admissão (interior "
          f"{interior}), × {pct_vis:g}% (a meta RH). REAL = visitas da "
@@ -12419,7 +12426,7 @@ def giro_produtos(ctx):
         for j_ in somar:
             tot[j_] = sum(l[j_] or 0 for l in ls)
         return tot
-    _verm = ("#FBDDDA", "#B3261E")
+    _verm = _VERM
     chip_est = [(0, *_verm), (None, None, None)]
     chip_cob = [(GIRO_COB_VERMELHA - 0.001, *_verm), (None, None, None)]
     for titulo, filtro, ordem in (
@@ -14481,6 +14488,33 @@ def _aplicar_aderencia_planner(ctx, regs, de, ate):
     return ad
 
 
+# RN-VIS: a faixa de cor da ADERENCIA ao Planner (a mesma do tom da linha no
+# PC): >= 80 verde, de 50 a 79,99 amarelo, abaixo de 50 vermelho.
+ADERENCIA_VERDE = 80
+ADERENCIA_AMARELO = 50
+
+
+_TOM_COR = {"alerta": _VERM, "atencao": _AMAR, "ok": _VERD}
+
+
+def tom_aderencia(pct):
+    """Tom ("ok" / "atencao" / "alerta") da % de aderencia; "" sem dado.
+    Unica fonte do corte: o chip (faixa_aderencia) sai daqui."""
+    if pct is None:
+        return ""
+    return ("ok" if pct >= ADERENCIA_VERDE
+            else "atencao" if pct >= ADERENCIA_AMARELO else "alerta")
+
+
+def faixa_aderencia():
+    """O chip em faixa (ate, fundo, texto) com o mesmo corte do tom: o maior
+    float abaixo do corte vira o teto de cada faixa (valor <= ate)."""
+    import math                                         # noqa: PLC0415
+    return [(math.nextafter(ADERENCIA_AMARELO, 0), *_TOM_COR["alerta"]),
+            (math.nextafter(ADERENCIA_VERDE, 0), *_TOM_COR["atencao"]),
+            (None, *_TOM_COR["ok"])]
+
+
 def _tabelas_aderencia(ctx, regs, ad, hoje):
     """(18/10) As duas visoes do Farol de Visita:
     ADERENCIA DIA A DIA: uma coluna por dia (% dos agendados do Planner que
@@ -14506,7 +14540,9 @@ def _tabelas_aderencia(ctx, regs, ad, hoje):
         n_acum = f"% ADERÊNCIA ACUM. ATÉ {ate_:%d/%m}"
         cols = [col("SUPERVISOR", "texto", 190),
                 col("VENDEDOR", "texto", 230)] + [
-            col(n_, "pct", 62) for n_ in nomes] + [col(n_acum, "pct", 150)]
+            dict(col(n_, "pct", 62), chip=faixa_aderencia())
+            for n_ in nomes] + [dict(col(n_acum, "pct", 150),
+                                     chip=faixa_aderencia())]
         ls, ts = [], []
         for cod, por_d in por_v.items():
             g = list(por_d.values())
@@ -14519,8 +14555,7 @@ def _tabelas_aderencia(ctx, regs, ad, hoje):
                            if l and l["agendados"] else None)
             tot = pct_de(na, pr)
             ls.append(list(info[cod]) + cel + [tot])
-            ts.append("" if tot is None else "ok" if tot >= 80
-                      else "atencao" if tot >= 50 else "alerta")
+            ts.append(tom_aderencia(tot))
         ordem = sorted(range(len(ls)), key=lambda i: (ls[i][0], ls[i][1]))
         ls, ts = [ls[i] for i in ordem], [ts[i] for i in ordem]
 
@@ -17897,8 +17932,8 @@ def _tabela_relampago(ctx, cfg, ano, mes, jog_v, jog_s, equipes, nomes):
             col("BAP NO DIA", "moeda", 110), col("META BAP", "moeda", 100),
             col("DESAFIO", "texto", 110), col("PTS DESAFIO", "int", 86),
             col("PTS", "int", 72)]
-    cols[11]["chip"] = {"BATEU": ("#E5F3DF", "#2F7D32"),
-                        "NÃO BATEU": ("#FBDDDA", "#B3261E")}
+    cols[11]["chip"] = {"BATEU": _VERD,
+                        "NÃO BATEU": _VERM}
 
     def cartoes(ls):
         if not ls:
@@ -18114,8 +18149,8 @@ def _ch_resumo_geral(ctx, r, cfg, comp, resumo, t_rel):
             col("E-MAIL", "texto", 230, oculta=True),
             col("CPF", "texto", 110, oculta=True),
             col("EQUIPE", "texto", 170, oculta=True)]
-    cols[3]["chip"] = {CH_LIBERADO: ("#E5F3DF", "#2F7D32"),
-                       CH_BLOQUEADO: ("#FBDDDA", "#B3261E")}
+    cols[3]["chip"] = {CH_LIBERADO: _VERD,
+                       CH_BLOQUEADO: _VERM}
 
     def cartoes(ls):
         if not ls:
@@ -18512,8 +18547,8 @@ def bap_champions(ctx):
 
     def tons(ls, i_sit):
         return ["ok" if x[i_sit] == CH_LIBERADO else "" for x in ls]
-    chip_sit = {CH_LIBERADO: ("#E5F3DF", "#2F7D32"),
-                CH_BLOQUEADO: ("#FBDDDA", "#B3261E")}
+    chip_sit = {CH_LIBERADO: _VERD,
+                CH_BLOQUEADO: _VERM}
     cols_pessoa = [col("POS.", "int", 46)]
     cols_ating = [col("FAT. BRUTO", "moeda", 105),
                   col("DEVOLUÇÕES", "moeda", 100),
@@ -19364,15 +19399,12 @@ PAINEIS_PADRAO = {
 LINHA_PINTADA = ("pv_pedidos", "vc_markup", "vc_saldo")
 # (21/10) Farol de Visita: % META (>= 100 verde, >= 80 amarelo, abaixo
 # vermelho) e DU SEM VISITA (0 sem cor, 1 a 2 amarelo, 3 ou mais vermelho)
-FAIXA_PCT_META = [(79.9999, "#FBDDDA", "#B3261E"),
-                  (99.9999, "#FFF1C7", "#8A5A00"), (None, "#E5F3DF", "#2F7D32")]
-FAIXA_DU_SEM = [(0, None, None), (2, "#FFF1C7", "#8A5A00"),
-                (None, "#FBDDDA", "#B3261E")]
+FAIXA_PCT_META = [(79.9999, *_VERM),
+                  (99.9999, *_AMAR), (None, *_VERD)]
+FAIXA_DU_SEM = [(0, None, None), (2, *_AMAR),
+                (None, *_VERM)]
 COLUNAS_SINAL = ("SITUAÇÃO", "STATUS", "PRAZO", "ETAPA", "FAIXA",
                  "SITUAÇÃO PRAZO", "LEITURA", "SLA NCC")
-_VERM = ("#FBDDDA", "#B3261E")
-_AMAR = ("#FFF1C7", "#8A5A00")
-_VERD = ("#E5F3DF", "#2F7D32")
 CORES_SINAL = {
     **{k: _VERM for k in ("ATRASADA", "ATRASADO", "VENCIDO", "INADIMPLENTE",
                           "RUPTURA", "ENTREGUE COM ATRASO", "FORA DO PRAZO",
