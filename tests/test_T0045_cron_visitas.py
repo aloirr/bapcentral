@@ -100,8 +100,7 @@ def test_RN_VIS_008_passo_2_janela_06h00_a_21h59(h, m, s, us, roda):
         assert (r is not None) is roda, (h, m, s, us, t["diagnostico"], t["pedido"])
 
 
-@pytest.mark.xfail(strict=True, reason="D5 (T-0045): agenda.py passo 2 corta 21:59:59,x; correção no próximo lote "
-                                      "do modulo-robo")
+@pytest.mark.xfail(strict=False, reason="D5 (T-0045): transição até o #208 entrar; sai no #212")
 def test_RN_VIS_008_passo_2_janela_vale_o_minuto_21h59_inteiro():
     """A JANELA vai até 21h59 (contrato §2): 21:59:59,5 ainda é 21h59."""
     assert agenda.deve_rodar(_agora(21, 59, 59, 500000), _trab()) == "agenda"
