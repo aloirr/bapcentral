@@ -20,10 +20,6 @@ import bap_automation as ba
 import pos_venda as pv
 import relatorios_nucleo as rn
 
-# os testes entram antes do robô (ordem testes → robô): sem o robô da T-0021, pulam
-if not hasattr(ba, "EDICOES_WEB"):
-    pytest.skip("robô da T-0021 ainda não entrou", allow_module_level=True)
-
 TOKEN = "token-ficticio-t21"
 BASE = "https://web.exemplo.test"
 OPCOES = {"por": {"ALEXANDRE", "PRICE"}, "etapa": set(pv.ETAPAS_ENTREGA),
@@ -108,12 +104,6 @@ def test_spec_que_nao_bate_com_o_pc_nao_vai():
     assert ba.edicao_web("vc_visitas", "Por vendedor", ed, [], [], []) is None
 
 
-# a frase do texto com o teto padrão de 60: a função do robô da T-0023
-# (motivo_texto_web, RD-0135) ou, no main de hoje, a constante antiga
-_MOTIVO_TEXTO_60 = (ba.motivo_texto_web(60) if hasattr(ba, "motivo_texto_web")
-                    else ba.MOTIVO_TEXTO_WEB)
-
-
 # ------------------------------------------------------------------ conferência no robô (função pura)
 @pytest.mark.parametrize("reg, motivo", [
     (_reg(1), ""),
@@ -132,8 +122,8 @@ _MOTIVO_TEXTO_60 = (ba.motivo_texto_web(60) if hasattr(ba, "motivo_texto_web")
     (_ent(1, {"entregue_em": "2026-11-23"}), ba.MOTIVO_DATA_WEB),
     (_ent(1, {"frete_real": "abc"}), ba.MOTIVO_VALOR_WEB),
     (_ent(1, {"frete_real": "-5"}), ba.MOTIVO_VALOR_WEB),
-    (_ent(1, {"responsavel": "FULANO 123.456.789-00"}), _MOTIVO_TEXTO_60),
-    (_ent(1, {"responsavel": "x" * 61}), _MOTIVO_TEXTO_60),
+    (_ent(1, {"responsavel": "FULANO 123.456.789-00"}), ba.motivo_texto_web()),
+    (_ent(1, {"responsavel": "x" * 61}), ba.motivo_texto_web()),
 ])
 def test_RN_GER_012_validar_edicao_web(reg, motivo):
     assert ba.validar_edicao_web(reg, OPCOES) == motivo
@@ -294,8 +284,6 @@ def test_aplicadas_ficam_num_arquivo_so_de_acrescimo(tmp_path):
 
 
 # ------------------------------------------------------------------ PC só leitura nessas edições
-@pytest.mark.skipif(not hasattr(__import__("bap_relatorios"), "MSG_EDICAO_SO_WEB"),
-                    reason="farol da T-0021 (bap_relatorios) ainda não entrou")
 def test_RN_GER_012_pc_so_leitura_na_autorizacao_e_nas_entregas(monkeypatch):
     import bap_relatorios as br
     assert br.MSG_EDICAO_SO_WEB == "A edição agora é só pela BAP Central web."
