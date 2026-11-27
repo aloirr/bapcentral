@@ -7,6 +7,9 @@ REM  NAO TEM CAMINHO FIXO: ele usa a pasta onde ele mesmo esta. Mova a pasta
 REM  inteira de lugar e continua funcionando - so recrie a tarefa agendada
 REM  apontando para o novo caminho deste arquivo.
 REM
+REM  A janela mostra o andamento do robo e o log (SISTEMA BAP\logs\agendador.log)
+REM  recebe as mesmas linhas (T-0057).
+REM
 REM  Codigo de saida 0 = tudo certo | 1 = alguma falha (o Agendador registra).
 REM ===========================================================================
 chcp 65001 >nul
@@ -20,22 +23,30 @@ set "PYTHON=%LOCALAPPDATA%\BAP_TOOLS\.venv\Scripts\python.exe"
 if not exist "%PYTHON%" set "PYTHON=%PASTA%\.venv\Scripts\python.exe"
 if not exist "%PYTHON%" set "PYTHON=python"
 
+set "LOG=SISTEMA BAP\logs\agendador.log"
+
 cd /d "%PASTA%" || (echo Pasta %PASTA% nao encontrada. & exit /b 1)
 if not exist "SISTEMA BAP\logs" mkdir "SISTEMA BAP\logs"
 
 if not exist "%PASTA%\bap_automation.py" (
-    echo bap_automation.py nao esta em %PASTA%.>> "SISTEMA BAP\logs\agendador.log"
+    call :linha "bap_automation.py nao esta em %PASTA%."
     exit /b 1
 )
 
-echo.>> "SISTEMA BAP\logs\agendador.log"
-echo ====================================================>> "SISTEMA BAP\logs\agendador.log"
-echo INICIO %date% %time% em %COMPUTERNAME% por %USERNAME%>> "SISTEMA BAP\logs\agendador.log"
-echo pasta: %PASTA%>> "SISTEMA BAP\logs\agendador.log"
-echo ====================================================>> "SISTEMA BAP\logs\agendador.log"
+call :linha ""
+call :linha "===================================================="
+call :linha "INICIO %date% %time% em %COMPUTERNAME% por %USERNAME%"
+call :linha "pasta: %PASTA%"
+call :linha "===================================================="
 
-"%PYTHON%" "%PASTA%\bap_automation.py" >> "SISTEMA BAP\logs\agendador.log" 2>&1
+"%PYTHON%" "%PASTA%\bap_automation.py" --espelho "%LOG%"
 set CODIGO=%ERRORLEVEL%
 
-echo FIM %date% %time% - codigo de saida: %CODIGO%>> "SISTEMA BAP\logs\agendador.log"
+call :linha "FIM %date% %time% - codigo de saida: %CODIGO%"
 exit /b %CODIGO%
+
+REM Sub-rotina: a mesma linha na tela e no log. %~1 tira as aspas; "" = linha em branco.
+:linha
+echo(%~1
+>> "%LOG%" echo(%~1
+exit /b 0
