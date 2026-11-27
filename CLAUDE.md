@@ -50,8 +50,9 @@ Python 3.12; as telas atuais são Tkinter (Windows). Tudo em **português do Bra
 4. **Datas:**
    - fuso America/Manaus;
    - dia útil = seg a sex, menos os feriados do Planner do mês;
-   - **hoje fica fora do DU e da projeção**;
-   - projeção = real ÷ DU fechados × DU do mês.
+   - **hoje conta** (decisão 48, R-20261127-182711-alexandre) no faturamento (real, projeção e atingimento), no volume, na positivação, nos pedidos e no ticket, na quebra por UF, no Farol de Metas e no Painel do Diretor e na parcial: hoje entra como DU passado, e projeção = real até agora ÷ DU passados (com hoje) × DU do mês;
+   - nos outros (peças, cadastros com compra, clientes por cidade, visitas, conversão, aderência, fora de rota, TMA, TMD, jornada, almoço, expositores, RV, meta RH e parcial de RV) **hoje fica fora do DU e da projeção**, com o período no rótulo; projeção = real ÷ DU fechados × DU do mês;
+   - markup, desconto e saldo (razão do mês) e inadimplência e estoque (foto do dia) não têm projeção.
 5. **Segredos só em variável de ambiente ou no cofre do Windows.** Nunca no código, em log, em recado ou em commit. **Proibido** ler `tomtom_config*.json`, `google_maps_config*.json`, `visitas_config.json`, `**/auth/**` e `.env`.
 6. **Dados pessoais:** sem CNPJ, nome, telefone ou e-mail de cliente ou vendedor em log, fixture ou print de recado.
 7. **Dado digitado é intocável:**
