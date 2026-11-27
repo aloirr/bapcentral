@@ -386,7 +386,8 @@ _RX_CONFIRMACAO = re.compile(
     r"confirm(e|ar|acao) (o |seu |sua )?(dispositivo|acesso|identidade|"
     r"e-?mail)|autenticacao (em|de) (dois|2)|aceit(e|ar) (o |os )?termo|"
     r"termos? (de uso|e condicoes)|trocar? (a |sua )?senha|"
-    r"(altere|redefina|crie) (a |sua |uma nova )?senha|senha (expirou|"
+    r"(altere|redefina|crie|defina|troque|cadastre) (a |sua |uma |o seu )?"
+    r"(nova )?senha|nova senha|senha nova|senha (expirou|"
     r"expirada)|primeiro acesso", re.I)
 _RX_CREDENCIAL = re.compile(
     r"senha|usuario|credencia|invalid|incorret|inexistente|nao (foi )?"
@@ -423,6 +424,10 @@ def classificar_login(url, texto, tem_captcha, http_status) -> str | None:
     if _RX_BLOQUEIO.search(t):
         return "MAXIMA_BLOQUEIO"
     if _RX_CONFIRMACAO.search(t):
+        return "MAXIMA_CONFIRMACAO"
+    if not no_login:
+        # caminho de verificacao (so o caminho da URL): com qualquer redacao,
+        # a Maxima pediu confirmacao; nunca repete o login (§5.1)
         return "MAXIMA_CONFIRMACAO"
     if no_login and t.strip() and _RX_CREDENCIAL.search(t):
         return "MAXIMA_SENHA"
