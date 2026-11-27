@@ -172,25 +172,6 @@ def _num(s):
         return None
 
 
-def desconto_comercial_cheio(tabela):
-    """RN-GER-006 · o % de desconto comercial cheio (sem arredondar) do
-    Farol de Saldo: Σ DESC. COMERCIAL ÷ Σ VLR TABELA × 100 nos pedidos do
-    mes padrao do filtro MÊS da tabela "Pedido a pedido" (as mesmas linhas
-    do cartao "Desconto comercial"). Funcao pura; None sem base."""
-    if not tabela:
-        return None
-    ix = {c["nome"]: i for i, c in enumerate(tabela.get("colunas") or [])}
-    if "DESC. COMERCIAL" not in ix or "VLR TABELA" not in ix:
-        return None
-    mes = next((f.get("padrao") for f in tabela.get("filtros") or []
-                if isinstance(f, dict) and f.get("coluna") == "MÊS"), None)
-    ls = [ln for ln in tabela.get("linhas") or []
-          if mes is None or "MÊS" not in ix or ln[ix["MÊS"]] == mes]
-    dc = sum(ln[ix["DESC. COMERCIAL"]] or 0 for ln in ls)
-    tb = sum(ln[ix["VLR TABELA"]] or 0 for ln in ls)
-    return dc / tb * 100.0 if tb else None
-
-
 def _hhmm(s):
     m = re.match(r"(\d+):(\d+)", str(s or ""))
     return int(m.group(1)) + int(m.group(2)) / 60 if m else None
@@ -476,12 +457,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
          else "—")
 
     k_dc = kpi_de("vc_saldo", "Desconto comercial")
-    # (T-0036) o numero cheio da regra, nao o texto arredondado do cartao
-    dc = desconto_comercial_cheio(next(
-        (t for t in farois["vc_saldo"].get("tabelas", []) or []
-         if t.get("titulo") == "Pedido a pedido"), None))
-    if dc is None:
-        dc = _num(k_dc.get("valor"))
+    dc = _num(k_dc.get("valor"))
     dc_rs = _num(k_dc.get("detalhe"))
     dc_rs = dc_rs * f_ont if dc_rs is not None and f_ont is not None \
         else None
