@@ -8147,9 +8147,9 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
     lugar = EDICOES_WEB.get((rid, titulo))
     if not lugar:
         return None
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
     nomes_pc = [c.get("nome") if isinstance(c, dict) else c for c in pc]
     if lugar["modulo"] == "autorizacoes":
-        import relatorios_nucleo as _rn                 # noqa: PLC0415
         precisa = ("CHAVE", "CÓD. AUTORIZAÇÃO", "AUTORIZADO POR")
         if not all(n in nomes_pc for n in precisa):
             return None
@@ -8167,7 +8167,6 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
                  else "").strip()
         chaves.append(ch if _RE_CHAVE_EDICAO_WEB.match(ch) else "")
     permitidos = campos_do_lugar_web(rid, titulo)
-    import relatorios_nucleo as _rn2                    # noqa: PLC0415
     campos = []
     for c in ed_pc.get("campos") or []:
         if c.get("campo") not in permitidos:
@@ -8188,10 +8187,10 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
         if tipo in ("texto", "numero"):
             # o teto vem do nucleo (MAX_TEXTO_EDICAO); o `max` da spec do PC
             # diferente dele = a edicao nao vai (10.9.1)
-            teto = _rn2.max_texto_edicao(lugar["modulo"], c["campo"])
-            if int(c.get("max") or _rn2.MAX_TEXTO_PADRAO) != teto:
+            teto = _rn.max_texto_edicao(lugar["modulo"], c["campo"])
+            if int(c.get("max") or _rn.MAX_TEXTO_PADRAO) != teto:
                 raise ValueError("max da edicao diferente do nucleo")
-            if teto != _rn2.MAX_TEXTO_PADRAO:
+            if teto != _rn.MAX_TEXTO_PADRAO:
                 item["max"] = teto
             if c.get("multilinha"):
                 item["multilinha"] = True
@@ -9649,16 +9648,10 @@ def motivo_texto_web(maximo=None) -> str:
             "telefone ou e-mail)")
 
 
-def __getattr__(nome):          # MOTIVO_TEXTO_WEB: a frase com o teto padrao
-    if nome == "MOTIVO_TEXTO_WEB":
-        return motivo_texto_web()
-    raise AttributeError(nome)
-
-
 MOTIVO_REMOVIDO_WEB = "texto com trecho removido pelo site"
 MOTIVO_TICKET_WEB = "já existe uma garantia com esse número"
 _RE_CHAVE_NOVA_WEB = re.compile(r"^NOVO-[0-9A-F]{8}$")
-_RE_TICKET_WEB = re.compile(r"^[\w.\-/ ]{1,40}$")
+_RE_TICKET_WEB = re.compile(r"^[\w.\-/ ]+$")   # o teto vem do nucleo
 _DATA_LIVRE_MIN_WEB = date(2020, 1, 1)
 MOTIVO_LINHA_WEB = "linha não encontrada no PC"
 
@@ -9868,6 +9861,7 @@ def plano_garantia_web(reg: dict, valores: dict, existentes: dict,
       formulario); a origem e a do PC ("FAROL DE GARANTIAS").
     - Edicao: a garantia tem de existir; o ticket trocado nao pode ser de
       outra."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
     campos = dict(valores)
     if reg.get("novo") is True:
         t = str(campos.pop("ticket", "") or "").strip()
@@ -9878,7 +9872,6 @@ def plano_garantia_web(reg: dict, valores: dict, existentes: dict,
             t = novo_ticket
         elif t in existentes:
             return None, MOTIVO_TICKET_WEB
-        import relatorios_nucleo as _rn                 # noqa: PLC0415
         base = {**_rn.PADRAO_NOVA_GARANTIA,
                 "dt_solicitacao": f"{hoje:%d/%m/%Y}"}
         base.update(campos)
@@ -9894,10 +9887,9 @@ def plano_garantia_web(reg: dict, valores: dict, existentes: dict,
                 return None, MOTIVO_VALOR_WEB
             if t != atual and t in existentes:
                 return None, MOTIVO_TICKET_WEB
-    import relatorios_nucleo as _rn2                    # noqa: PLC0415
     sol = campos.get("dt_solicitacao") or (
         existentes.get(atual) or {}).get("dt_solicitacao") or ""
-    campos = {k: v for k, v in _rn2.campos_garantia_a_gravar(
+    campos = {k: v for k, v in _rn.campos_garantia_a_gravar(
         {**campos, "dt_solicitacao": sol}, fer, novo=not atual).items()
         if k != "dt_solicitacao" or "dt_solicitacao" in campos or not atual}
     if t != atual:
