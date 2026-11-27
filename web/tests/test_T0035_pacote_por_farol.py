@@ -265,5 +265,5 @@ def test_pacote_antigo_estragado_nao_derruba_a_web(amb):
     (amb / "pacotes" / "20261124T083000.json").write_text("{lixo", encoding="utf-8")
     with TestClient(criar_app(), base_url="https://testserver") as c:
         s = c.get("/saude")
-        assert s.status_code == 200 and "converter" in s.json()["aviso_pacote"]
+        assert s.status_code == 200 and "convertido" in s.json()["aviso_pacote"]
         assert s.json()["pacote"]["lote"] is None
