@@ -228,13 +228,25 @@ def _carimbo_da_fotografia(tabela) -> str:
         return "-"
 
 
+def _hoje_manaus() -> date:
+    """Hoje no fuso America/Manaus (regra 4); sem tzdata, UTC-4 fixo. O
+    mesmo dia na assinatura do cache e no acompanhar do Farol de Metas."""
+    from datetime import timedelta, timezone             # noqa: PLC0415
+    try:
+        from zoneinfo import ZoneInfo                   # noqa: PLC0415
+        fuso = ZoneInfo("America/Manaus")
+    except Exception:                                   # noqa: BLE001
+        fuso = timezone(timedelta(hours=-4))
+    return datetime.now(fuso).date()
+
+
 def _fontes(raiz, bloco) -> tuple[list, str]:
     raiz = Path(raiz)
     rel = pasta_relatorios(raiz)
     tabela = rel / "TABELA_BAP.xlsx"
     base = rel / "BASE_CLIENTE.xlsx"
     csv = raiz / "CATEGORIAS_PRODUTO.csv"
-    hoje = date.today().isoformat()
+    hoje = _hoje_manaus().isoformat()
     bloco, _, comp_pedida = bloco.partition("@")    # "meta@2026-10"
     try:
         import pastas_bap as pb                         # noqa: PLC0415
@@ -307,6 +319,10 @@ def _fontes(raiz, bloco) -> tuple[list, str]:
         # (Planner "JUGLAISON RODRIGUES" x Maxima "... DOS PRAZES")
         # "|in2" (06/11): os clientes do vendedor INATIVO sem meta de visita
         # e de positivacao (o Amapa do 000040 somava 30 na BAP)
+        # "|t0060-hoje-conta" (27/11, T-0060): hoje passa a contar no
+        # faturamento, na positivacao, nos pedidos e no Farol de Metas
+        # (decisoes 43 e 48) - meta_nucleo com dias_restantes_b (meta RH e
+        # parcial de RV) e o acompanhar com o hoje de Manaus
         try:
             prosp = rel / "Visitas" / "PROSPECCAO" / (
                 "PROSPECCAO_" + str(comp).replace("-", "")[:6] + ".xlsx")
@@ -315,7 +331,7 @@ def _fontes(raiz, bloco) -> tuple[list, str]:
         return [planner, base, tabela, raiz / "meta_config.json", csv,
                 raiz / "planner_config.json", cfg_mes, vis, prosp,
                 rel / "BAP_AJUDA_RESPOSTAS" / "RESPOSTAS_BAP_AJUDA.xlsx"], \
-            hoje + "|cv1|cat1|arr1|adm10|du12|pf2|v90|pl3|in1|rv3|in2|vi1" + (
+            hoje + "|cv1|cat1|arr1|adm10|du12|pf2|v90|pl3|in1|rv3|in2|vi1|t0060-hoje-conta" + (
                 f"|{comp_pedida}" if comp_pedida else "")
     if bloco == "executivo":
         # "e2" (14/10): positivacao = comprou e nao devolveu tudo e a PMZ
@@ -1061,7 +1077,8 @@ def _bloco_meta(raiz, comp=None) -> dict:
             .get("feriados") or []
     except (OSError, ValueError):
         fer = []
-    ac = mn.acompanhar(resultado, real, feitas, datas, feriados=fer, par=par,
+    ac = mn.acompanhar(resultado, real, feitas, datas, hoje=_hoje_manaus(),
+                       feriados=fer, par=par,
                        zonas_supervisor=mn.zonas_dos_supervisores(
                            pb.config_do_planner(raiz, comp)),
                        cad_visita=cad_vis)
