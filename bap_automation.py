@@ -7972,9 +7972,6 @@ EDICOES_WEB = {
     ("pl_entregas", "Entregas"): _ED_ENTREGAS_WEB,
     ("pl_entregas", "Pendências dos meses anteriores"): _ED_ENTREGAS_WEB,
     ("pl_fretes", "Notas com frete"): _ED_ENTREGAS_WEB}
-# campos do modulo que um lugar recusa (T-0037 P2 A: o Fretes nao edita o
-# frete real; ele fica no Farol de Entregas)
-_CAMPOS_FORA_LUGAR_WEB = {("pl_fretes", "Notas com frete"): ("frete_real",)}
 # os campos de cada modulo e o tipo de conferencia no robo
 CAMPOS_EDICAO_WEB = {
     "autorizacoes": {"codigo": "livre", "por": "lista"},
@@ -7986,6 +7983,21 @@ _RE_PESSOAL_EDICAO_WEB = re.compile(
     r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|@|"
     r"\(?\d{2}\)?\s?9?\d{4}-\d{4}")
 _MAX_OPCOES_EDICAO_WEB = 400
+# os campos proprios de um lugar (§10.9), quando nao sao todos os do modulo
+# (T-0037 P2 A: o Fretes nao edita o frete real; ele fica no Farol de Entregas)
+CAMPOS_LUGAR_WEB = {
+    ("pl_fretes", "Notas com frete"): {
+        "etapa": "lista", "transportadora": "lista",
+        "prevista_manual": "data", "entregue_em": "data",
+        "responsavel": "livre"}}
+
+
+def campos_do_lugar_web(rid: str, titulo: str) -> dict:
+    """{campo: tipo de conferencia} do lugar: o proprio (CAMPOS_LUGAR_WEB) ou
+    o do modulo."""
+    lugar = EDICOES_WEB[(rid, titulo)]
+    return CAMPOS_LUGAR_WEB.get((rid, titulo)) or CAMPOS_EDICAO_WEB[
+        lugar["modulo"]]
 
 
 def _ops_web(lista) -> list:
@@ -8023,7 +8035,7 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
         ch = str(ln[i_ch] if len(ln) > i_ch and ln[i_ch] is not None
                  else "").strip()
         chaves.append(ch if _RE_CHAVE_EDICAO_WEB.match(ch) else "")
-    permitidos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
+    permitidos = campos_do_lugar_web(rid, titulo)
     campos = []
     for c in ed_pc.get("campos") or []:
         if c.get("campo") not in permitidos:
@@ -9524,9 +9536,7 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
     if lugar["modulo"] == "pos_venda" and chave.count("|") != 2:
         return MOTIVO_CHAVE_WEB
     valores = reg.get("valores")
-    campos = {c: t for c, t in CAMPOS_EDICAO_WEB[lugar["modulo"]].items()
-              if c not in _CAMPOS_FORA_LUGAR_WEB.get(
-                  (reg.get("rid"), reg.get("tabela")), ())}
+    campos = campos_do_lugar_web(reg.get("rid"), reg.get("tabela"))
     if not (isinstance(valores, dict) and valores
             and set(valores) <= set(campos)):
         return MOTIVO_LUGAR_WEB
