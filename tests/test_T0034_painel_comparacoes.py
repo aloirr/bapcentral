@@ -14,7 +14,8 @@ Dado real: as bases congeladas do repositório, com hoje = 24/11/2026, pelo cami
 - Pacote × regra: a variação mostrada é a conta do PC (`painel_rrm.v_pct`, `v_pp`, `v_n`,
   `v_min`) sobre o número do cartão e o da comparação, dentro do arredondamento do texto.
 - Web × pacote × PC: a web da T-0034 (no main desde o #146; cópia descartável de `web/`, ou de BAP_TESTE_WEB) mostra
-  em cada cartão a comparação que o PC desenha (`painel_rrm`). Sem a web da T-0034 (sem
+  em cada cartão a comparação que o PC desenha (`painel_rrm`). Com a web da T-0052 (valor grande em todo cartão,
+  sem números na faixa do topo), o teste do cartão confere o `rc-valor` de todos; a detecção é pelo HTML. Sem a web da T-0034 (sem
   `render.faixa_painel`) ou sem fastapi, esses testes são pulados com o motivo.
 
 Nenhum dado pessoal: só os números agregados da BAP.
@@ -304,20 +305,38 @@ def _cartoes_da_tela(h):
     return out
 
 
+def _numeros_na_faixa(h):
+    """O texto dos números da faixa do topo do Painel (`class="bc3-ks"`, `_faixa.numeros`) ou None quando a faixa
+    não traz números (a web da T-0052, R-20261127-093750 e R-20261127-094731)."""
+    if 'class="bc3-ks"' not in h:
+        return None
+    return _texto(h.split('class="bc3-ks"')[1].split("</header>")[0])
+
+
 def test_RN_PAINEL_011_web_T0034_mostra_em_cada_cartao_a_comparacao_do_pc(web, mundo):
-    """Web × pacote × PC: o rótulo, o número e as 3 comparações de cada cartão são os do Painel do PC (painel_rrm);
-    os 3 primeiros levam o número à faixa do topo (RD-0063)."""
+    """Web × pacote × PC: o rótulo, o número e as 3 comparações de cada cartão são os do Painel do PC (painel_rrm).
+
+    Onde fica o número, condicional pelo HTML (não pela `web.app.VERSAO`, que muda de número entre os lotes):
+    - web até a T-0050 (RD-0063): a faixa do topo tem os números (`bc3-ks`) e os 3 primeiros cartões levam o
+      número lá, sem `rc-valor`; os demais trazem o `rc-valor`;
+    - web da T-0052 (decisão do Alexandre, R-20261127-093750 e R-20261127-094731): a faixa RRM não tem `bc3-ks`
+      e TODO cartão traz o seu `rc-valor`, igual ao `valor` do PC.
+    Um estado misto (faixa com números e cartão repetindo o valor, ou faixa sem números e cartão sem valor)
+    falha, e as 3 abas precisam estar no mesmo caso."""
     pc, _rel, _pac, _f = mundo
+    casos = set()
     for chave, v, _t in ABAS:
         h = web.get(f"/painel?aba={chave}").text
         tela = _cartoes_da_tela(h)
         assert [t[0] for t in tela] == [c["titulo"].upper() for c in pc[v]], chave
-        faixa_topo = _texto(h.split('class="bc3-ks"')[1].split("</header>")[0])
+        faixa_topo = _numeros_na_faixa(h)
+        casos.add("faixa" if faixa_topo is not None else "T-0052")
         for i, ((rot, val, fx), c) in enumerate(zip(tela, pc[v])):
             assert fx == [(f[0], f[1], f[3] or "—") for f in c["faixa"]], (chave, rot)
-            if i < 3:
+            if faixa_topo is not None and i < 3:
                 assert val is None and c["valor"] in faixa_topo, (chave, rot)
             else:
-                assert val == c["valor"], (chave, rot)
+                assert val == c["valor"], (chave, rot, val, c["valor"])
         com_numero = [tuple(f[2] for f in fx) for _r, _v, fx in tela if any(f[2] != "—" for f in fx)]
         assert len(com_numero) == len(set(com_numero)), (chave, com_numero)   # nenhum cartão repete a comparação de outro
+    assert len(casos) == 1, casos                                   # as 3 abas no mesmo caso (faixa × T-0052)
