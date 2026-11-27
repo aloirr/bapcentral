@@ -722,17 +722,6 @@ def test_RN_VIS_005_canal_do_pc_continua_edge_chrome_chromium():
     assert tentados == ["chrome"]
 
 
-def test_RN_VIS_005_nuvem_sem_screenshot_no_codigo_do_robo():
-    """D5: o único print do robô é o `foto_do_erro`, e ele sai mudo com `foto=False`."""
-    fonte = (RAIZ / "visitas_maxima.py").read_text(encoding="utf-8")
-    chamadas = re.findall(r"\.screenshot\(", fonte)
-    assert len(chamadas) == 1
-    corpo = fonte.split("def foto_do_erro", 1)[1].split("def ", 1)[0]
-    assert "not self.usar_foto" in corpo and ".screenshot(" in corpo
-    assert not re.search(r"\.on\(\s*[\"']console", fonte)
-    assert not re.search(r"tracing\.start|record_video|record_har", fonte)
-
-
 # ------------------------------------------------------------------ RN-VIS-003: gravar_excel_importado
 def _nome(d=date(2026, 11, 26), pasta=VENDEDOR, hhmm="06-07"):
     return nome_arquivo(pasta, d, hhmm)

@@ -95,7 +95,7 @@ def test_admin_ve_botao_e_os_outros_nao(ped, cli):
     html = ped.get(URL_PED).text
     assert 'class="bt-ed"' in html and ">Autorização</th>" in html
     assert 'class="bt-ed"' in ped.get(URL_ENT).text
-    for perfil, url in (("pre_venda", URL_PED), ("gerente", URL_PED), ("pos_venda", URL_ENT)):
+    for perfil, url in (("pre_venda", URL_PED), ("gerente", URL_PED)):  # T-0054: o pós-venda edita as Entregas (test_T0054_*)
         login = _criar(ped, perfil)
         _entrar_como(cli, login)
         html = cli.get(url).text

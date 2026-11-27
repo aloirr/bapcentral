@@ -8310,6 +8310,15 @@ EDICOES_WEB = {
     ("pl_garantias", "Garantias"): {
         "modulo": "garantias", "arquivo": "RELATORIOS/_GARANTIAS",
         "aba": "", "acao": "Editar", "novo": True}}
+# (T-0054, RN-POS-011, contrato 10.9.7) quem edita, por lugar: igual a
+# edicoes.EDITA_LUGAR da web. Lugar fora da tabela = so o admin (RN-GER-012)
+EDITA_LUGAR_WEB = {
+    ("pl_entregas", "Entregas"): ("admin", "pos_venda"),
+    ("pl_entregas", "Pendências dos meses anteriores"):
+        ("admin", "pos_venda"),
+    # (R-20261127-103925, P2 A) Fretes da T-0037: no main o lugar ainda nao
+    # esta em EDICOES_WEB (recusado antes), entao a linha nao muda nada
+    ("pl_fretes", "Notas com frete"): ("admin", "pos_venda")}
 # os campos de cada modulo e o tipo de conferencia no robo: "lista" (lista
 # fechada do PC), "data" (dd/mm/aaaa), "data_livre" (uma data do calendario,
 # de 01/01/2020 a hoje + 1 ano), "livre" (texto de uma linha), "longo" (texto
@@ -10029,6 +10038,7 @@ ARQ_ESTADO_EDICOES_WEB = "ESTADO_EDICOES_WEB.json"
 _PAGINAS_MAX_EDICOES_WEB = 50
 # motivos de recusa (vao ao site): frases fixas, sem dado pessoal
 MOTIVO_LUGAR_WEB = "tabela ou campo que não edita na web"
+MOTIVO_PERFIL_WEB = "perfil sem edição neste farol"
 MOTIVO_CHAVE_WEB = "chave da linha inválida"
 MOTIVO_OPCAO_WEB = "valor fora das opções do PC"
 MOTIVO_DATA_WEB = "data inválida"
@@ -10176,6 +10186,10 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
     lugar = EDICOES_WEB.get((reg.get("rid"), reg.get("tabela")))
     if not lugar or reg.get("modulo") != lugar["modulo"]:
         return MOTIVO_LUGAR_WEB
+    # (T-0054) perfil conferido; registro sem perfil (fila antiga) segue
+    if "perfil" in reg and reg["perfil"] not in EDITA_LUGAR_WEB.get(
+            (reg.get("rid"), reg.get("tabela")), ("admin",)):
+        return MOTIVO_PERFIL_WEB
     chave = reg.get("chave")
     novo = reg.get("novo") is True
     if novo and not lugar.get("novo"):
@@ -10397,6 +10411,8 @@ def _registrar_aplicada_web(raiz, reg, status, motivo, epoca,
         linha["antes"] = reg["antes"]
     if reg.get("novo") is True:
         linha["novo"] = True
+    if reg.get("perfil") is not None:          # (T-0054) quem editou
+        linha["perfil_web"] = reg["perfil"]
     linha.update(extra or {})
     with open(arq, "a", encoding="utf-8") as f:
         f.write(json.dumps(linha, ensure_ascii=False) + "\n")
