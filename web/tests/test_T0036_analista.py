@@ -342,7 +342,7 @@ def test_T0036_abas_curtas_e_dica_da_busca_por_farol(com_analista):
             assert f'placeholder="{dica}"' in com_analista.get(f"/farol/{rid}?aba={chave}").text
             assert len(dica) <= 26, dica                              # cabe a 1366 px sem corte
     assert not hasattr(tabelas, "DICA_FAROL")
-    assert tabelas.DICA_BUSCA[("vc_saldo", "Pedido a pedido")] == "Buscar pedido ou vendedor"
+    assert tabelas.DICA_BUSCA[("vc_saldo", "Pedido a pedido")] == "Buscar pedido, vendedor"
 
 
 def test_T0036_faixa_com_no_maximo_seis_numeros(com_analista):

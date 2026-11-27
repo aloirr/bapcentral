@@ -1178,7 +1178,7 @@ GRADE.update({
 # nunca cliente por nome (RN-GER-011)
 RIDS_ANALISTA = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 DICA_BUSCA.update({
-    ("vc_saldo", "Pedido a pedido"): "Buscar pedido ou vendedor", ("vc_saldo", "Por vendedor"): "Buscar vendedor",
+    ("vc_saldo", "Pedido a pedido"): "Buscar pedido, vendedor", ("vc_saldo", "Por vendedor"): "Buscar vendedor",
     ("vc_saldo", "Por supervisor"): "Buscar supervisor", ("vc_saldo", "Por UF"): "Buscar UF",
     ("vc_markup", "Por pedido"): "Buscar pedido ou código", ("vc_markup", "Por UF"): "Buscar UF",
     ("vc_markup", "Por cidade"): "Buscar cidade", ("vc_markup", "Por supervisor"): "Buscar supervisor",
@@ -1193,7 +1193,7 @@ DICA_BUSCA.update({
     ("an_divergencias", "Sem coordenada / endereço"): "Buscar código ou cidade",
 })
 # T-0036 (UX, A): rótulo curto dos números da faixa, só no celular (o inteiro fica no title) e título curto do farol
-KPI_CURTO = {"desconto comercial": "Desc. com.", "saldo do frete": "Frete", "abaixo do mínimo": "Abaixo mín.", "queda após reajuste": "Queda pós-reaj.",
+KPI_CURTO = {"desconto comercial": "Desc. com.", "saldo do frete": "Frete", "abaixo do mínimo": "Abaixo mín.", "queda após reajuste": "Queda reaj.",
              "clientes na base (planner)": "Na base", "vendedor diferente": "Vend. diferente",
              "sem vendedor no planner": "Sem vendedor", "fora da base do planner": "Fora da base",
              "código duplicado": "Duplicados"}
@@ -1223,7 +1223,6 @@ def aplicar_rotulos(tab: dict, rid: str) -> None:
         if r is None and c.get("tipo") in ("moeda", "moeda2", "pct", "pct1"):
             r = _UNIDADE.sub("", n).strip() or n
         c["rot"] = r or n
-ROTULO_COLUNA = {"VENDEDOR PROTHEUS (A1_VEND)": "VENDEDOR PROTHEUS"}
 
 
 def colunas_fora_da_grade(tab: dict) -> set[int]:
