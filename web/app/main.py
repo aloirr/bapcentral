@@ -69,7 +69,7 @@ def fmt_manaus_curto(iso: str | None) -> str:
 def hhmm(iso: str | None) -> str:
     """"hh:mm" se for de hoje (Manaus); senão "dd/mm hh:mm"."""
     f = fmt_manaus(iso)
-    return f[-5:] if f[:10] == cobranca.agora().strftime("%d/%m/%Y") else f[:5] + " " + f[-5:]
+    return f[-5:] if f[:10] == cobranca.agora().strftime("%d/%m/%Y") else fmt_manaus_curto(iso)
 
 
 def criar_app() -> FastAPI:
@@ -94,6 +94,7 @@ def criar_app() -> FastAPI:
     modelos.env.filters["manaus_curto"] = fmt_manaus_curto
     modelos.env.globals["kpis_da_faixa"] = render.kpis_da_faixa    # RD-0065: a regra "comum na faixa, rico no corpo" é uma só
     modelos.env.globals["kpis_do_corpo"] = render.kpis_do_corpo
+    modelos.env.globals["abas_no_celular"] = render.abas_no_celular   # RD-0065: a regra das 3 abas + "Mais" é uma só
     modelos.env.globals["datas_proximas"] = render.datas_proximas  # T-0020: uma data só
     diario = cobranca.Diario(cfg.dados)
     diario.limpar()                                   # §10.6.5: também quando o app sobe
@@ -282,6 +283,7 @@ def criar_app() -> FastAPI:
         paineis = render.localizar_paineis(rel) if rel else []     # T-0022: as outras 9 abas do PC
         if not abas and not paineis:
             return pagina(request, "painel.html", abas=[], tela=None, tela_f=None, aba=aba)
+        du = render.du_do_painel(abas)                      # U8: os dias úteis ficam na faixa de todas as abas
         nav = [{"chave": a["chave"], "curta": render.PAINEL_CURTO.get(a["chave"], a["titulo"]), "so_bap": False}
                for a in abas] + \
               [{"chave": p["chave"], "curta": render.PAINEL_CURTO.get(p["chave"], p["titulo"]), "so_bap": p["so_bap"]}
@@ -293,20 +295,20 @@ def criar_app() -> FastAPI:
             escolhido = uf.upper()[:2] if (not p_atual["so_bap"] and uf.upper()[:2] in p_atual["ufs"]) else ""
             tela_f = render.farol_para_tela(dados, escolhido or None)
             return pagina(request, "painel.html", abas=nav, aba=p_atual["chave"], tela=None, tela_f=tela_f,
-                          faixa_ks=render.faixa_painel(None, tela_f), uf=escolhido,
+                          faixa_ks=render.faixa_painel(None, tela_f), uf=escolhido, du=du,
                           filtros=None if p_atual["so_bap"] else {"ufs": p_atual["ufs"]},
                           # aba só da BAP: o seletor fica no lugar, desligado, com os estados das outras abas (contrato §4.2)
                           ufs_off=(p_atual["ufs"] or sorted({u for q in paineis for u in q["ufs"]})) if p_atual["so_bap"] else [])
         if not abas:
             tela_f = render.farol_para_tela(rel["paineis"][nav[0]["chave"]], None)
             return pagina(request, "painel.html", abas=nav, aba=nav[0]["chave"], tela=None, tela_f=tela_f,
-                          faixa_ks=render.faixa_painel(None, tela_f), filtros=None, uf="")
+                          faixa_ks=render.faixa_painel(None, tela_f), filtros=None, uf="", du=du)
         atual = next((a for a in abas if a["chave"] == aba), abas[0])
         # T-0014: o filtro só escolhe a visão pronta do PC (por estado)
         escolhido = render.escolher_uf(atual, uf[:4] or None)
         tela = render.aba_para_tela(atual, escolhido)
         return pagina(request, "painel.html", abas=nav, aba=atual["chave"], tela=tela, tela_f=None,
-                      faixa_ks=render.faixa_painel(tela, None), sub_painel=tela["sub"],
+                      faixa_ks=render.faixa_painel(tela, None), sub_painel=tela["sub"], du=du,
                       filtros=render.filtros(atual), uf=escolhido or "")
 
     def rel_do(rid):

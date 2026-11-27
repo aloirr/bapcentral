@@ -4,7 +4,6 @@ import re
 
 import pytest
 from conftest import postar
-from painel22_fixture import pacote_completo
 from test_abas import _cli_de
 
 from app import render
@@ -129,3 +128,17 @@ def test_regra_cartao_comum_na_faixa_rico_no_corpo_e_uma_so():
     ks = [{"rot": "a"}, {"rot": "b", "estados": [1]}, {"rot": "c", "linhas": [1]}]
     assert [k["rot"] for k in render.kpis_da_faixa(ks)] == ["a"]
     assert [k["rot"] for k in render.kpis_do_corpo(ks)] == ["b", "c"]
+
+
+def test_dias_uteis_na_faixa_de_todas_as_abas_do_painel(com_painel):
+    # U8: "13 de 19 DU" lido do `sub` do PC, ao lado da data, em todas as abas; o resto da nota fica no title
+    for aba in ("resultado", "produtividade", "faturamento", "inadimplencia"):
+        h = com_painel.get(f"/painel?aba={aba}").text
+        faixa = h.split('class="bc3-quando"')[1].split("</span></span>")[0]
+        assert " · 13 de 19 DU" in faixa, aba
+    assert render.du_do_painel([]) == "" and render.du_do_painel([{"visao": "res", "dados": {"sub": {"res": "sem dias"}}}]) == ""
+
+
+def test_regra_das_3_abas_no_celular_e_uma_so():
+    assert render.abas_no_celular(list("abcde"), "a") == [0, 1, 2] and render.abas_no_celular(list("abcde"), "b") == [0, 1, 2]
+    assert render.abas_no_celular(list("abcde"), "d") == [0, 1, 3] and render.abas_no_celular(list("abc"), "x") == [0, 1, 2]

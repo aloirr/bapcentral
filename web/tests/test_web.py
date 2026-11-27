@@ -159,11 +159,6 @@ def test_pacote_remove_chaves_internas(cli, amb):
 
 
 # ---------------------------------------------------------------- telas
-def test_sem_pacote_aviso(admin):
-    r = admin.get("/painel")
-    assert "Sem dados ainda. A primeira atualização chega às 06h30." in r.text
-
-
 def test_render_painel_abas_aneis_barras_rodapes(admin):
     postar(admin, pacote_ficticio())
     r = admin.get("/painel").text

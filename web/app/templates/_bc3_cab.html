@@ -30,9 +30,7 @@
   {% if abas %}
   {# celular: 3 abas (as duas primeiras e a aberta) + "Mais ▾" com as outras; no PC, todas na linha #}
   {% set nomes_abas = abas|map('first')|list %}
-  {% set vis = [0, 1] if (aba in nomes_abas[:2] or aba not in nomes_abas) else [0, nomes_abas.index(aba)] %}
-  {% if aba in nomes_abas[:2] %}{% set vis = [0, 1, 2] %}{% endif %}
-  {% if aba in nomes_abas[2:] %}{% set vis = [0, 1, nomes_abas.index(aba)] %}{% endif %}
+  {% set vis = abas_no_celular(nomes_abas, aba) %}
   <nav class="bc3-abas" aria-label="Abas do farol">{% for c, n0 in abas %}{% set n = n0|aba_curta %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}" class="{{ 'on' if c == aba }}{{ ' so-pc' if loop.index0 not in vis }}"{{ ' aria-current="page"'|safe if c == aba }}>{{ n }}{% if c == aba and e_tab and tabela.total_linhas %} <span>· {{ tabela.total_linhas }}</span>{% endif %}</a>{% endfor %}
     {% if abas|length > 3 %}<details class="bc3-mais-abas"><summary>Mais</summary><div>{% for c, n0 in abas %}{% if loop.index0 not in vis %}<a href="/farol/{{ rid }}{{ '?aba=' ~ c if c != 'resumo' }}{{ ('&uf=' ~ uf_at) if uf_at and c != 'resumo' }}">{{ n0|aba_curta }}</a>{% endif %}{% endfor %}</div></details>{% endif %}</nav>
   {% endif %}

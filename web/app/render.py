@@ -87,8 +87,20 @@ PAINEIS = (("resumo", "Resumo"), ("faturamento", "Faturamento"), ("volume", "Vol
 PAINEL_CURTO = {"resultado": "Resultado", "produtividade": "Produtividade", "por_dia_util": "Por DU"}   # as 3 abas RRM
 
 
+_DU = re.compile(r"\((\d+) de (\d+) dias úteis\)")
+
+
+def du_do_painel(abas: list[dict]) -> str:
+    """U8: "13 de 19 DU", lido do `sub` que o PC mandou nas abas RRM (nada é recalculado); vazio se o PC não mandou."""
+    for a in abas or []:
+        m = _DU.search(str((a.get("dados") or {}).get("sub", {}).get(a["visao"], "")))
+        if m:
+            return f"{m.group(1)} de {m.group(2)} DU"
+    return ""
+
+
 def kpis_da_faixa(kpis: list[dict]) -> list[dict]:
-    """RD-0065: os cartões comuns vão para a faixa; o que tem barras por estado ou linhas de detalhe fica no corpo."""
+    """RD-0065: os cartões comuns vão para a faixa; o que tem barras por estado ou linhas de detalhe fica no corpo (`_resumo.html`)."""
     return [k for k in (kpis or []) if not k.get("estados") and not k.get("linhas")]
 
 
@@ -96,6 +108,12 @@ def kpis_do_corpo(kpis: list[dict]) -> list[dict]:
     """RD-0065: o complemento de `kpis_da_faixa`: primeiro os com barras por estado, depois os com linhas."""
     ks = kpis or []
     return [k for k in ks if k.get("estados")] + [k for k in ks if not k.get("estados") and k.get("linhas")]
+
+
+def abas_no_celular(chaves: list, atual) -> list[int]:
+    """RD-0065 (b): no celular a barra mostra 3 abas (as duas primeiras e a aberta) e "Mais" leva as outras (contrato §5.3)."""
+    pos = list(chaves).index(atual) if atual in chaves else 0
+    return [0, 1, pos] if pos > 1 else [0, 1, 2]
 
 
 def faixa_painel(tela: dict | None, tela_f: dict | None) -> list[dict]:
