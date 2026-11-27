@@ -273,9 +273,14 @@ def _reg(seq, valores, chave="FILIAL FICTICIA|900001|1"):
     (_reg(1, {"responsavel": "FULANO 123.456.789-00"}), "texto"),
 ])
 def test_RN_POS_010_validar_edicao_do_fretes(reg, motivo):
+    # texto recusado: a frase com o teto do campo, que vem do núcleo (T-0023,
+    # RD-0135); no robô sem a T-0023, a constante antiga
+    texto = (ba.motivo_texto_web(rn.max_texto_edicao("pos_venda",
+                                                     "responsavel"))
+             if hasattr(ba, "motivo_texto_web") else ba.MOTIVO_TEXTO_WEB)
     esperado = {"": "", "opcao": ba.MOTIVO_OPCAO_WEB,
                 "chave": ba.MOTIVO_CHAVE_WEB, "data": ba.MOTIVO_DATA_WEB,
-                "texto": ba.MOTIVO_TEXTO_WEB}[motivo]
+                "texto": texto}[motivo]
     assert ba.validar_edicao_web(reg, OPCOES) == esperado
 
 
