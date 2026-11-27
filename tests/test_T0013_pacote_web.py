@@ -221,8 +221,9 @@ _MAPA_ABAS = getattr(ba, "_ABAS_WEB", {"res": "resultado", "prod": "produtividad
 _ABAS_PAINEL = set(_MAPA_ABAS.values())
 _VISOES_PAINEL = set(_MAPA_ABAS)
 _COM_DU = "du" in _VISOES_PAINEL
-# relatório montado no PC que nunca vai para a web (fora da lista branca)
-FORA_DA_LISTA = "pl_garantias"
+# relatório montado no PC que nunca vai para a web (fora da lista branca; o
+# pl_garantias entrou na T-0023 v2)
+FORA_DA_LISTA = "vc_markup"
 
 
 def _farois_web():
