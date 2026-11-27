@@ -1552,7 +1552,7 @@ Conferidas no `main` em `a32b610`, com `montar(rid, raiz)` nas bases do reposit�
 
 ### 10.12 Porta de leitura da web (leitura v1, T-0055, RN-GER-020)
 
-Saída da web, não entrada: o pacote não muda e o robô não muda. Este parágrafo é a fonte da interface; a implementação, a lista fechada de chaves (§4) e os limites (§5) estão em `docs/desenho/T-0055.md`.
+Saída da web, não entrada: o pacote não muda e o robô não muda. A regra é a RN-GER-020 (`docs/produto/03-regras.md`). Este parágrafo é a fonte da interface; a implementação, a lista fechada de chaves (§4) e os limites (§5) estão em `docs/desenho/T-0055.md`.
 
 - **Rotas:** `GET /api/leitura/painel` (carimbo + visões do Painel Executivo + índice dos faróis do diretor) e `GET /api/leitura/resumo/{rid}` (carimbo + cartões do Resumo do farol `rid`). Autenticação: `Authorization: Bearer` igual a `BAP_WEB_LEITURA_TOKEN`, separado do `BAP_WEB_TOKEN`, do `BAP_VISITAS_TOKEN` e do `SESSION_SECRET`.
 - **Respostas, nesta ordem** (a primeira que vale responde, em qualquer método):
