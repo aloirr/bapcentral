@@ -36,7 +36,7 @@ TEXTO_PARA_O_TI = (
     "Aplicativo interno 'Automacao BAP Tools' (cliente publico, sem segredo). "
     "Permissoes delegadas Mail.Send e User.Read: envia, pela caixa do "
     "proprio usuario que fez login, a parcial de metas de cada vendedor, "
-    "supervisor e gerente da BAP Auto Parts (Farol de Metas). Nao le e-mails "
+    "supervisor e gerente da BAP AUTOPARTS (Farol de Metas). Nao le e-mails "
     "nem acessa a caixa de ninguem.")
 
 

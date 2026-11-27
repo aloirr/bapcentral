@@ -1,0 +1,30 @@
+{# T-0034: cabeçalho BC3 do Painel Executivo (contrato tela-bc3 §4 e §5; parecer de UX §5.2): faixa com os números da aba,
+   abas curtas numa linha ("Indicadores ▾" leva as últimas no PC; "Mais ▾" no celular) e o filtro de estado.
+   Os números vêm prontos de `render.faixa_painel` (a web não recalcula). #}
+{% from "_faixa.html" import quando, selo_velho, filtro_uf, filtro_uf_off, numeros %}
+{% set filtro_ufs = (filtros.ufs if filtros else []) or [] %}
+<header class="bc3-faixa">
+  <div class="bc3-tt">
+    <h1>Painel Executivo{% if tela and tela.como_ler %}<span class="bc3-info" tabindex="0" role="note" title="{{ tela.como_ler }}" aria-label="Como ler: {{ tela.como_ler }}">ⓘ</span>{% endif %}</h1>
+    {% call quando(gerado_em, sub_painel) %}{% if du %} · {{ du }}{% endif %}{% endcall %}
+    {{ selo_velho(desatualizado) }}
+    {% if filtro_ufs %}{{ filtro_uf("/painel?aba=" ~ aba, filtro_ufs, uf) }}
+    {% elif ufs_off %}{{ filtro_uf_off(ufs_off) }}{% endif %}
+  </div>
+  {{ numeros(faixa_ks) }}
+</header>
+{% if abas %}
+{# PC: as 7 primeiras na linha e o resto em "Indicadores"; celular: a primeira, a segunda e a aberta, e o resto em "Mais" #}
+{% set chaves = abas|map(attribute='chave')|list %}
+{% set pos = chaves.index(aba) if aba in chaves else 0 %}
+{% set vis_cel = abas_no_celular(chaves, aba) %}
+<div class="bc3-sub">
+  <nav class="bc3-abas" aria-label="Abas do painel">
+    {% for a in abas %}<a href="/painel?aba={{ a.chave }}{{ ('&amp;uf=' ~ uf) if uf and not a.so_bap }}" class="{{ 'on' if a.chave == aba }}{{ ' so-pc' if loop.index0 not in vis_cel }}{{ ' so-cel' if loop.index0 >= 7 }}"{{ ' aria-current="page"'|safe if a.chave == aba }}>{{ a.curta }}</a>{% endfor %}
+    {% if abas|length > 7 %}
+    <details class="bc3-ind{{ ' on' if pos >= 7 }}"><summary>Indicadores</summary><div>{% for a in abas[7:] %}<a href="/painel?aba={{ a.chave }}{{ ('&amp;uf=' ~ uf) if uf and not a.so_bap }}"{{ ' aria-current="page"'|safe if a.chave == aba }}>{{ a.curta }}</a>{% endfor %}</div></details>
+    {% endif %}
+    <details class="bc3-mais-abas"><summary>Mais</summary><div>{% for a in abas %}{% if loop.index0 not in vis_cel %}<a href="/painel?aba={{ a.chave }}{{ ('&amp;uf=' ~ uf) if uf and not a.so_bap }}">{{ a.curta }}</a>{% endif %}{% endfor %}</div></details>
+  </nav>
+</div>
+{% endif %}

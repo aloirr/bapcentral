@@ -365,7 +365,7 @@ def montar(ctx, b) -> dict:
     hb = {"titulo": "Impacto estimado no faturamento do mês",
           "rotulos": [c["farol"] for c in com_imp],
           "valores": [c["impacto"] for c in com_imp],
-          "cores": ["#62BB47" if c["impacto"] > 0 else "#B3261E"
+          "cores": ["#59BA61" if c["impacto"] > 0 else "#B42318"
                     for c in com_imp], "formato": "moeda"}
     graficos = []
     if ins_uf and ins_uf[1]:
@@ -585,7 +585,7 @@ def _frase_entrega_uf(por_uf, b, rn, ctx):
     linhas.sort(key=lambda l: (l[1] is None, l[1] or 0))
     g = {"titulo": "Entrega x resultado por UF · da mais rápida para a "
                    "mais lenta", "rotulos": [l[0] for l in linhas],
-         "series": [{"nome": "% ating. proj.", "cor": "#62BB47",
+         "series": [{"nome": "% ating. proj.", "cor": "#59BA61",
                      "valores": [l[3] for l in linhas]}],
          "formato": "pct", "rotular": True,
          "subrotulos": [f"SLA {rn.br(l[1], 1)} d" if l[1] is not None
@@ -627,7 +627,7 @@ def _visitas_x_resultado(b, rn):
          "rotulos": [_curto(x[0]) for x in pts],
          "series": [{"nome": "visitas", "cor": "#B9DEAB",
                      "valores": [x[1] for x in pts]},
-                    {"nome": "faturamento", "cor": "#62BB47",
+                    {"nome": "faturamento", "cor": "#59BA61",
                      "valores": [x[2] for x in pts]}],
          "formato": "pct", "rotular": True}
     return (("ok" if a >= z else "atencao"),

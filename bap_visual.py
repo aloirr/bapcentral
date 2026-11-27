@@ -61,18 +61,19 @@ def altura_da_linha(font, folga=10, minimo=0):
         return minimo or 24
 
 # ---------------------------------------------------------------- cores BAP
-VERDE = "#62BB47"          # o verde da marca
+VERDE = "#59BA61"          # o verde da marca
 VERDE_ESCURO = "#2F7D32"   # texto verde (legivel no branco)
 VERDE_CLARO = "#E5F3DF"    # fundo de linha boa
 CINZA_CAB = "#E4E7E3"      # o cabecalho (no lugar do preto BAP)
-CINZA_LINHA = "#D5DAD4"
+NOME_MARCA = "BAP AUTOPARTS"     # o nome nos materiais (uma grafia so)
+CINZA_LINHA = "#E3E8E4"
 FUNDO = "#F3F4F2"          # o gelo do fundo
 CARTAO = "#FFFFFF"
 ZEBRA_CLARA = "#F6F7F6"     # (08/10) a linha cinza bem clara da zebra
 TEXTO = "#1E2722"
-SUAVE = "#69736D"
-VERMELHO = "#B3261E"
-VERMELHO_CLARO = "#FBE3E1"
+SUAVE = "#5E6B63"
+VERMELHO = "#B42318"
+VERMELHO_CLARO = "#FDECEA"
 AMARELO = "#B7791F"
 AMARELO_CLARO = "#FFF4D6"
 AZUL = "#1F4FD1"           # o "NOVO" do card de preco
@@ -86,7 +87,7 @@ FAIXA_ABAS_HOVER = "#DAE6D6"
 CORES = {"ok": VERDE_ESCURO, "alerta": VERMELHO, "atencao": AMARELO,
          "info": TEXTO, "neutro": TEXTO}
 # fundo da LINHA da tabela: tons bem leves, so para o olho achar o estado
-FUNDOS = {"ok": "#F0F7EC", "alerta": "#FCEFEE", "atencao": "#FFF8E6",
+FUNDOS = {"ok": "#F0F7EC", "alerta": "#FDECEA", "atencao": "#FFF4D6",
           "info": "#FFFFFF", "azul": "#EAF1FB", "cinza": "#F1F2F0",
           "grave": "#F6C9C4"}
 FUNDO_GRAVE = "#F6C9C4"
@@ -356,7 +357,7 @@ class Cabecalho(tk.Frame if tk else object):
         self.acoes.pack(side="right", padx=16)
         esq = tk.Frame(self, background=CINZA_CAB)
         esq.pack(side="left", fill="x", expand=True, padx=22, pady=(11, 10))
-        tk.Label(esq, text=f"BAP AUTO PARTS  ·  {area.upper()}",
+        tk.Label(esq, text=f"{NOME_MARCA}  ·  {area.upper()}",
                  background=CINZA_CAB, foreground=VERDE_ESCURO,
                  font=fonte(8, "bold")).pack(anchor="w")
         linha = tk.Frame(esq, background=CINZA_CAB)
@@ -441,23 +442,23 @@ MODELO_CARTAO = "RRM"
 #   CLARO   = faixa verde bem clara com texto escuro (sem o bloco escuro)
 PALETAS_RRM = {
     "GRAFITE": {"faixa": "#151515", "rotulo": "#B9BDC1", "trilho": "#3A3F44",
-                "numero": "#FFFFFF", "ok": "#62BB47", "atencao": "#E8A317",
+                "numero": "#FFFFFF", "ok": "#59BA61", "atencao": "#E8A317",
                 "alerta": "#F07A6A", "barra": "#2B2F33",
                 "ok_b": "#3F8C2E", "atencao_b": "#C2860C",
-                "alerta_b": "#C0392B", "filete": "#62BB47",
+                "alerta_b": "#C0392B", "filete": "#59BA61",
                 "branco": "#FFFFFF", "borda": "#E6E8EA"},
     "VERDE": {"faixa": "#2E3D34", "rotulo": "#C3CEC6", "trilho": "#4B5D51",
               "numero": "#FFFFFF", "ok": "#7FD06A", "atencao": "#F0B840",
               "alerta": "#F59A8C", "barra": "#4A5D51",
               "ok_b": "#3F8C2E", "atencao_b": "#C2860C",
-              "alerta_b": "#C0392B", "filete": "#62BB47",
+              "alerta_b": "#C0392B", "filete": "#59BA61",
               "branco": "#FFFFFF", "borda": "#DDE5DA"},
     "CLARO": {"faixa": "#E8F0E4", "rotulo": "#5E6B62", "trilho": "#CFDCCB",
               "numero": "#1E2722", "ok": "#2F7D32", "atencao": "#B7791F",
-              "alerta": "#B3261E", "barra": "#8FA79A",
+              "alerta": "#B42318", "barra": "#8FA79A",
               "ok_b": "#2F7D32", "atencao_b": "#B7791F",
-              "alerta_b": "#B3261E", "filete": "#62BB47",
-              "branco": "#FFFFFF", "borda": "#D5DAD4"},
+              "alerta_b": "#B42318", "filete": "#59BA61",
+              "branco": "#FFFFFF", "borda": "#E3E8E4"},
 }
 PALETA_RRM = os.environ.get("BAP_PALETA_RRM", "CLARO")   # (10/11) Alexandre: C
 _PAL = PALETAS_RRM.get(PALETA_RRM, PALETAS_RRM["VERDE"])
@@ -1305,11 +1306,11 @@ class Tabela(tk.Frame if tk else object):
                 # do Farol de Entregas pintado pelo prazo
                 t_ = linha[c["chip_tom"]] if c["chip_tom"] < len(linha) \
                     else ""
-                cores = {"ok": ("#E5F3DF", "#2F7D32"),
-                         "atencao": ("#FFF1C7", "#8A5A00"),
-                         "alerta": ("#B3261E", "#FFFFFF"),
+                cores = {"ok": ("#F0F7EC", "#2F7D32"),
+                         "atencao": ("#FFF4D6", "#8A5A00"),
+                         "alerta": ("#FDECEA", "#B42318"),
                          # (06/11) o SLA que parou de contar (fechada)
-                         "cinza": ("#E4E7E4", "#69736D")}.get(t_)
+                         "cinza": ("#E3E8E4", "#5E6B63")}.get(t_)
                 if not cores:
                     cv.create_text(w - 8, h / 2, text=txt, anchor="e",
                                    fill=TEXTO, font=fonte(self._tam))
@@ -2009,7 +2010,7 @@ class GraficoBarras(tk.Canvas if tk else object):
 
 PIZZA_CORES = ("#1F5A28", "#2F7D3A", "#59BA61", "#8FD08F", "#C4E6C2",
                "#7A8F80", "#B9C4BC", "#DDE3DC")
-ATING_FUNDO = (("#FDE0DE", "#A3201A"), ("#FFF1C7", "#8A5A00"),
+ATING_FUNDO = (("#FDE0DE", "#A3201A"), ("#FFF4D6", "#8A5A00"),
                ("#DDF2DF", "#1E6B2A"))
 
 
@@ -2848,7 +2849,7 @@ def exportar_excel(rel: dict, caminho) -> Path:
     ws.title = "RESUMO"
     cab = PatternFill("solid", fgColor=CINZA_CAB[1:])
     verde = Font(color=VERDE_ESCURO[1:], bold=True, size=9)
-    ws["A1"] = f"BAP AUTO PARTS · {rel.get('area', '').upper()}"
+    ws["A1"] = f"{NOME_MARCA} · {rel.get('area', '').upper()}"
     ws["A1"].font = verde
     ws["A2"] = rel.get("titulo", "")
     ws["A2"].font = Font(bold=True, size=16)
@@ -3034,7 +3035,7 @@ def exportar_pdf(rel: dict, caminho, max_linhas: int = 1500) -> Path:
                             leftMargin=14 * mm, rightMargin=14 * mm,
                             topMargin=17 * mm, bottomMargin=13 * mm,
                             title=rel.get("titulo", "Relatório BAP"),
-                            author="BAP Auto Parts")
+                            author=NOME_MARCA)
     largura = pag[0] - 28 * mm
 
     def cartoes(kpis, compacto=False):
@@ -3374,7 +3375,7 @@ def exportar_pdf(rel: dict, caminho, max_linhas: int = 1500) -> Path:
         canvas.rect(0, pag[1] - 2 * mm, pag[0], 2 * mm, stroke=0, fill=1)
         canvas.setFont("Helvetica-Bold", 7)
         canvas.setFillColor(cor(VERDE_ESCURO))
-        canvas.drawString(14 * mm, pag[1] - 9 * mm, f"BAP AUTO PARTS  ·  {area}")
+        canvas.drawString(14 * mm, pag[1] - 9 * mm, f"{NOME_MARCA}  ·  {area}")
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(cor(SUAVE))
         canvas.drawRightString(pag[0] - 14 * mm, pag[1] - 9 * mm, gerado)
@@ -3659,7 +3660,7 @@ def _exportar_html(rel, caminho, max_linhas):
          f"th{{background:{CINZA_CAB};text-align:left}}th,td{{padding:3px 6px;"
          f"border-bottom:1px solid {CINZA_LINHA}}}</style></head><body>",
          f"<div style='color:{VERDE_ESCURO};font-weight:bold;font-size:11px'>"
-         f"BAP AUTO PARTS · {e(CABECALHO_PDF)}</div>",
+         f"{NOME_MARCA} · {e(CABECALHO_PDF)}</div>",
          f"<h1>{e(rel.get('titulo', ''))}</h1><p>{e(rel.get('subtitulo', ''))}</p>"]
     for k in rel.get("kpis", []):
         p.append(f"<div class='k'>{e(k['rotulo'].upper())}<b>{e(k['valor'])}"
@@ -3701,7 +3702,7 @@ CINZA_TEXTO = "#2E3330"
 VERDE_INICIO = "#F4FAF1"    # o comeco da linha
 VERDE_TEXTO = "#1F3B22"
 VERDE_NUMERO = "#2F9E44"
-ATING_CORES = (("#FDE0DE", "#A3201A"), ("#FFF1C7", "#8A5A00"),
+ATING_CORES = (("#FDE0DE", "#A3201A"), ("#FFF4D6", "#8A5A00"),
                ("#DDF2DF", "#1E6B2A"))
 RECURSOS = Path(__file__).resolve().parent / "SISTEMA BAP" / "recursos"
 # O CABECALHO DE TODOS OS PDFs EXPORTADOS (no lugar da area: Vendas e CRM,
@@ -3791,7 +3792,7 @@ def _exportar_pdf_bap(rel: dict, caminho, max_linhas: int = 1500) -> Path:
                             rightMargin=ML - 6, topMargin=50,
                             bottomMargin=34,
                             title=rel.get("titulo", "Relatório BAP"),
-                            author="BAP Auto Parts")
+                            author=NOME_MARCA)
     logo = RECURSOS / "logo_bap.png"
     faixa = rel.get("faixa") or rel.get("titulo", "").upper()
     area = CABECALHO_PDF        # o mesmo em todos os PDFs exportados

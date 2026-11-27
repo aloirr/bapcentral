@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 {% block titulo %}Entrar{% endblock %}
 {% block corpo %}
-<form method="post" action="/login" class="caixa">
-  <h1>Entrar</h1>
-  {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
+{# T-0034: contrato tela-bc3 §3: logo grande, "BAP Central" e, pequeno, a empresa; o título não repete o botão #}
+<form method="post" action="/login" class="caixa bc3-login">
+  <i class="bc3-login-logo" role="img" aria-label="BAP Central"></i>
+  <h1>BAP Central<small>{{ empresa }}</small></h1>
+  {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <label>Usuário <input name="usuario" autocomplete="username" autofocus required></label>
   <label>Senha <input name="senha" type="password" autocomplete="current-password" required></label>
-  <button type="submit">Entrar</button>
+  <button type="submit" class="bt-principal">Entrar</button>
 </form>
 {% endblock %}

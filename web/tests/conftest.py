@@ -17,11 +17,12 @@ ADMIN = "admin.teste"
 SENHA0 = "senha-inicial-123"
 
 
-def _cartao(titulo, valor, leg="", aneis=(), uf_bars=None, ant=True):
+def _cartao(titulo, valor, leg="", aneis=(), uf_bars=None, ant=True, faixa=None):
+    """`faixa` = [[rótulo, variação, tom, fechamento], ...] do próprio indicador (como o PC manda); sem ela, a do Faturamento."""
     return {"chave": "x", "titulo": titulo, "valor": valor, "legenda": leg,
             "aneis": [list(a) for a in aneis],
-            "faixa": [["out", "+11%", "ok", "R$ 149 mil"], ["set", "−31%", "alerta", "R$ 237 mil"],
-                      ["jul (bench.)", "−74%", "alerta", "R$ 626 mil"]],
+            "faixa": faixa if faixa is not None else [["out", "+11%", "ok", "R$ 149 mil"], ["set", "−31%", "alerta", "R$ 237 mil"],
+                                                      ["jul (bench.)", "−74%", "alerta", "R$ 626 mil"]],
             "estados": {"barras": uf_bars or [["PA", 28600.0, "R$ 28,6 mil", "9%", "alerta"],
                                               ["MA", 87000.0, "R$ 87,0 mil", "110%", "ok"],
                                               ["AM", 49100.0, "R$ 49,1 mil", "95%", "atencao"],
@@ -43,8 +44,10 @@ def _aba(visao, titulo, cartoes):
 def pacote_ficticio(gerado_em="2026-11-20T08:30:00-04:00", n=3):
     res = [_cartao("Faturamento líquido · proj.", "R$ 165 mil", "projeção do mês",
                    [("MTD", 11.2, "1,03 mi"), ("MÊS", 100.4, "1,50 mi")]),
-           _cartao("Positivação", "45", "projeção do mês 66", [("MTD", 40.0, "112"), ("MÊS", 93.0, "163")]),
-           _cartao("Pedidos faturados · proj.", "85", "projeção do mês")]
+           _cartao("Positivação", "45", "projeção do mês 66", [("MTD", 40.0, "112"), ("MÊS", 93.0, "163")],
+                   faixa=[["out", "−7%", "alerta", "71"], ["set", "−9%", "alerta", "72"], ["jul (bench.)", "−48%", "alerta", "126"]]),
+           _cartao("Pedidos faturados · proj.", "85", "projeção do mês",
+                   faixa=[["out", "+10%", "ok", "77"], ["set", "+1%", "ok", "84"], ["jul (bench.)", "−50%", "alerta", "168"]])]
     prod = [_cartao("Visitas", "310", "", [("MÊS", 70.0, "440")])]
     return {"versao_contrato": 1, "gerado_em": gerado_em, "ano": 2026, "mes": 11,
             "relatorios": {"vc_painel": {"titulo": "Painel Executivo", "abas": {
@@ -107,6 +110,14 @@ def postar(cli, corpo=None, token=TOKEN, **kw):
     h = {"Authorization": f"Bearer {token}"} if token else {}
     return cli.post("/api/pacote", json=corpo if corpo is not None else pacote_ficticio(),
                     headers=h, **kw)
+
+
+@pytest.fixture
+def com_painel(admin):
+    """T-0034 (RD-0067): o admin logado, com o pacote completo do Painel Executivo (T-0022) já enviado."""
+    from painel22_fixture import pacote_completo
+    assert postar(admin, pacote_completo()).status_code == 200
+    return admin
 
 
 def guardado(amb) -> dict:
