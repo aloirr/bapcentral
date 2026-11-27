@@ -47,8 +47,8 @@ O parecer olha o **print real** da tela (janela do PC, navegador, PDF, e-mail), 
 
 **C. Layout**
 - Cartão com área vazia grande, ou que caberia numa linha.
-- **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): coluna vazia, bloco solto ou página que desce antes de preencher a horizontal é achado; tamanhos fora do padrão das outras páginas também.
-- **Botões embaixo e juntos** (regra 12 do CLAUDE.md (PR #218; R-20261127-175849-alexandre)): botões espalhados em vários lugares do bloco ou da página são achado; cada bloco tem uma barra só, no rodapé.
+- **"MENOS É MAIS"** (regra 12 do CLAUDE.md; R-20261127-174849-alexandre / R-20261127-175849-alexandre; PR #218): página (tela da web ou do PC, PDF, e-mail) totalmente preenchida na horizontal antes de descer, sem coluna vazia nem bloco solto, com tamanhos padrão em todas as páginas (largura útil, grade, altura de cartão, fontes e espaçamentos), seguindo padrão de mercado, marca BAP AUTOPARTS (manual), sem redundância e design do time. Coluna vazia, bloco solto ou tamanho fora do padrão das outras páginas é achado. Simulação: tela da web em 1366 e 390 px; tela do PC, PDF e e-mail no tamanho real.
+- **Botões embaixo e juntos** (regra 12 do CLAUDE.md; R-20261127-174849-alexandre / R-20261127-175849-alexandre; PR #218): botões espalhados em vários lugares do bloco ou da página são achado: cada bloco tem UMA barra de botões, no rodapé, com todos juntos: a ação principal à esquerda e os destrutivos à direita. As ações da página ficam na barra do rodapé da página; fora dela, só a busca e os links de linha. Vale também nos PDFs, onde couber.
 - Acima da dobra (janela do PC sem rolar; celular, na web) fica o que o usuário usa primeiro.
 - Aviso de dado desatualizado repetido em vários cartões → um aviso global só.
 - Mesmo componente reimplementado em telas diferentes.
