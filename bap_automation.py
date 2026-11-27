@@ -8640,22 +8640,21 @@ def _corte_solicitacao_web(rid: str, rel: dict) -> None:
         _avisar_web(rid, rel, AVISO_SOLICITACAO_ABERTO)
 
 
-def _corte_cliente_a_cliente_web(rid: str, rel: dict) -> None:
-    tabs = rel.get("tabelas")
-    if tabs and any(t.get("titulo") == "Cliente a cliente" for t in tabs):
-        rel["tabelas"] = [t for t in tabs
-                          if t.get("titulo") != "Cliente a cliente"]
-        _abas_fora_web(rid, rel, ["Cliente a cliente"])
+def _corte_aba_web(titulo: str):
+    """Tira a aba `titulo` do farol, com o aviso das abas fora (10.8.7,
+    10.10.4)."""
+    def corte(rid: str, rel: dict) -> None:
+        tabs = rel.get("tabelas")
+        if tabs and any(t.get("titulo") == titulo for t in tabs):
+            rel["tabelas"] = [t for t in tabs if t.get("titulo") != titulo]
+            _abas_fora_web(rid, rel, [titulo])
+    return corte
 
 
-def _corte_historico_web(rid: str, rel: dict) -> None:
-    """(T-0023 v2, 10.10.4) Garantias: o "Historico de compra" (a maior parte
-    do farol) sai primeiro, com o aviso das abas fora."""
-    tabs = rel.get("tabelas")
-    if tabs and any(t.get("titulo") == "Histórico de compra" for t in tabs):
-        rel["tabelas"] = [t for t in tabs
-                          if t.get("titulo") != "Histórico de compra"]
-        _abas_fora_web(rid, rel, ["Histórico de compra"])
+_corte_cliente_a_cliente_web = _corte_aba_web("Cliente a cliente")
+# (T-0023 v2, 10.10.4) Garantias: o "Historico de compra" (a maior parte do
+# farol) sai primeiro
+_corte_historico_web = _corte_aba_web("Histórico de compra")
 
 
 def _corte_tabelas_web(rid: str, rel: dict) -> None:
