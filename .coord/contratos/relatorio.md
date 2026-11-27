@@ -735,6 +735,13 @@ Conferidas no `main` em `2d182bd`, com `montar(rid, raiz, hoje=20/11/2026, param
 
 Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do cliente) e mantém o aviso "Sem filtro por estado: os cartões mostram a BAP inteira." (§10.1).
 
+**`pl_fretes`** (T-0037, §10.11; `tons` do PC: `alerta`, `ok` ou `""`)
+- **"Notas com frete"** (16; não sai nenhuma): `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa, código e nome) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto [D6]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote, oculto), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA`. A edição vai pela §10.11.4.
+- **"Por UF"** (5): `MÊS` texto · `UF` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+- **"Por cidade"** (5): `MÊS` texto · `CIDADE` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+- **"Por transportadora"** (5): `MÊS` texto · `TRANSPORTADORA` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+  - As 3 abas de resumo terminam nas mesmas 3 colunas de número (`NOTAS`, `VLR NF` e `VLR FRETE`; no robô, `bap_automation._RESUMO_FRETES_WEB`). Filtro: `MÊS`. A `CIDADE` do "Por cidade" vem como "CIDADE / UF"; a `TRANSPORTADORA` vazia vem "(sem)".
+
 **Mudou no PC?** Primeiro muda esta lista (acréscimo, PR do engenheiro-software), depois o código. Até lá, o PC deixa a aba fora (§10.7.6), e as outras seguem.
 
 #### 10.7.4 Dado pessoal: o que sai e a limpeza (no PC, antes do envio)
