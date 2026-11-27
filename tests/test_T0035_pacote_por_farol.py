@@ -1,5 +1,9 @@
 """T-0035 (ADR 0003, contrato 10.8): o robo manda farol a farol.
 
+Trazido do modulo-robo (R-20261126-181930) e revisto pelo testes: o corte
+do Pedidos passava vazio (`if sa:`); os nomes citam a ADR 0003, porque o
+transporte nao e regra de negocio (nao ha RN para ele).
+
 Servidor de teste local que segue o 10.8 (so o necessario ao robo). Nao toca
 a rede da empresa; sem dado pessoal (farois sinteticos)."""
 import gzip
@@ -114,7 +118,7 @@ def _env(w):
     return {"url": "https://x.exemplo", "token": "tk", "log": lambda m: None}
 
 
-def test_RN_GER_011_formato2_manda_farol_a_farol_e_fecha(web):
+def test_ADR0003_formato2_manda_farol_a_farol_e_fecha(web):
     w = web()
     p = _pacote()
     assert ba.enviar_pacote(p, **_env(w)) is True
@@ -126,21 +130,21 @@ def test_RN_GER_011_formato2_manda_farol_a_farol_e_fecha(web):
     assert w.recebidos["vc_painel"][1] == p["relatorios"]["vc_painel"]
 
 
-def test_RN_GER_011_web_antiga_cai_no_formato1(web):
+def test_ADR0003_web_antiga_cai_no_formato1(web):
     w = web(formatos=())
     assert ba.enviar_pacote(_pacote(), **_env(w)) is True
     assert ("POST", "/api/pacote") in w.rotas
     assert not [r for r in w.rotas if "/farol/" in r[1]]
 
 
-def test_RN_GER_011_saude_fora_cai_no_formato1(web, monkeypatch):
+def test_ADR0003_saude_fora_cai_no_formato1(web, monkeypatch):
     w = web()
     monkeypatch.setattr(ba, "_formatos_web", lambda b, r: [1])
     assert ba.enviar_pacote(_pacote(), **_env(w)) is True
     assert ("POST", "/api/pacote") in w.rotas
 
 
-def test_RN_GER_011_farol_recusado_vai_no_manter_e_nao_derruba_outros(web):
+def test_ADR0003_farol_recusado_vai_no_manter_e_nao_derruba_outros(web):
     w = web(recusa={"pv_pedidos": 413})
     assert ba.enviar_pacote(_pacote(), **_env(w)) is True
     assert w.fechar[0]["manter"] == ["pv_pedidos"]
@@ -148,27 +152,27 @@ def test_RN_GER_011_farol_recusado_vai_no_manter_e_nao_derruba_outros(web):
     assert {"vc_painel", "vc_visitas"} <= set(w.fechar[0]["farois"])
 
 
-def test_RN_GER_011_404_deixa_o_farol_fora_sem_manter(web):
+def test_ADR0003_404_deixa_o_farol_fora_sem_manter(web):
     w = web(recusa={"vc_visitas": 404})
     assert ba.enviar_pacote(_pacote(), **_env(w)) is True
     assert "manter" not in w.fechar[0]
     assert "vc_visitas" not in w.fechar[0]["farois"]
 
 
-def test_RN_GER_011_fechar_409_reenvia_os_faltantes(web):
+def test_ADR0003_fechar_409_reenvia_os_faltantes(web):
     w = web(faltam_uma_vez="vc_painel")
     assert ba.enviar_pacote(_pacote(), **_env(w)) is True
     assert len(w.fechar) == 2 and "vc_painel" in w.fechar[1]["farois"]
 
 
-def test_RN_GER_011_nenhum_farol_aceito_nao_fecha(web):
+def test_ADR0003_nenhum_farol_aceito_nao_fecha(web):
     w = web(recusa={r: 422 for r in ("vc_painel", "pv_pedidos",
                                      "vc_visitas")})
     assert ba.enviar_pacote(_pacote(), **_env(w)) is False
     assert not w.fechar
 
 
-def test_RN_GER_011_lote_e_o_gerado_em_de_manaus():
+def test_ADR0003_lote_e_o_gerado_em_de_manaus():
     assert ba._lote_web(GERADO) == "20261126T083000"
 
 
@@ -183,31 +187,56 @@ def _grande(rid):
                          "subabas": [sa]}]}
 
 
-def test_RN_GER_011_corte_do_farol_so_o_dele_e_preserva_anexos():
+def _mb(f):
+    return len(ba._json_farol_web({k: v for k, v in f.items()
+                                   if k not in ("parciais", "csvs_protheus")})) / (1024 * 1024)
+
+
+def test_ADR0003_corte_1_do_pedidos_basta_fica_so_em_aberto_e_preserva_anexos():
+    """(testes) Antes o teto de 1 MB tirava a aba inteira e o `if sa:` passava
+    vazio. Agora o teto fica entre o farol só com EM ABERTO e o farol inteiro:
+    o corte 1 tem de bastar, e a aba fica."""
     f = _grande("pv_pedidos")
     antes = json.dumps(f)
-    out = ba._cortar_farol_web("pv_pedidos", f, teto_mb=1)
+    so_aberto = json.loads(antes)
+    sa0 = so_aberto["tabelas"][0]["subabas"][0]
+    sa0["linhas"] = [l for l in sa0["linhas"] if l[1] == "EM ABERTO"]
+    sa0["tons"] = [""] * len(sa0["linhas"])
+    teto = (_mb(so_aberto) + _mb(f)) / 2
+    assert _mb(so_aberto) < teto < _mb(f)
+    out = ba._cortar_farol_web("pv_pedidos", f, teto_mb=teto)
     assert json.dumps(f) == antes                 # funcao pura
     assert out["parciais"] == {"acum": "AAA"}     # anexo nao e tocado
-    sa = out["tabelas"][0]["subabas"][0] if out.get("tabelas") else None
-    assert out["avisos"]
-    if sa:
-        assert all(l[1] == "EM ABERTO" for l in sa["linhas"])
+    assert out.get("tabelas"), "o corte 1 bastava: a aba nao pode sair"
+    sa = out["tabelas"][0]["subabas"][0]
+    assert len(sa["linhas"]) == 30000 and len(sa["tons"]) == 30000
+    assert all(l[1] == "EM ABERTO" for l in sa["linhas"])
+    assert ba.AVISO_SOLICITACAO_ABERTO in out["avisos"]
+    assert not any(a.startswith("Abas fora") for a in out["avisos"])
+    assert _mb(out) <= teto
 
 
-def test_RN_GER_011_abaixo_do_teto_devolve_o_mesmo_farol():
+def test_ADR0003_corte_do_pedidos_que_nao_basta_tira_a_aba_com_aviso():
+    f = _grande("pv_pedidos")
+    out = ba._cortar_farol_web("pv_pedidos", f, teto_mb=1)
+    assert "tabelas" not in out and out["parciais"] == {"acum": "AAA"}
+    assert ba.AVISO_ABAS_FORA.format(lista=ba.TITULO_SOLICITACAO_WEB) in out["avisos"]
+    assert ba.AVISO_SOLICITACAO_ABERTO in out["avisos"]       # o corte 1 veio antes
+
+
+def test_ADR0003_abaixo_do_teto_devolve_o_mesmo_farol():
     f = {"titulo": "x", "avisos": []}
     assert ba._cortar_farol_web("vc_painel", f) is f
 
 
-def test_RN_GER_011_farol_fora_da_lista_perde_todas_as_tabelas():
+def test_ADR0003_farol_fora_da_lista_perde_todas_as_tabelas():
     f = {"titulo": "x", "avisos": [],
          "tabelas": [{"titulo": "Grande", "linhas": ["y" * 100] * 50000}]}
     out = ba._cortar_farol_web("pl_inadimplencia", f, teto_mb=1)
     assert "tabelas" not in out and out["avisos"][0].startswith("Abas fora")
 
 
-def test_RN_GER_011_montar_pacote_sem_cortar_nao_aplica_o_teto_global(
+def test_ADR0003_montar_pacote_sem_cortar_nao_aplica_o_teto_global(
         monkeypatch):
     chamado = []
     monkeypatch.setattr(ba, "_cortar_pacote_web",
