@@ -31,6 +31,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import bap_dados as bd
+from painel_farol import pct_do_liquido
 from bap_dados import sem_acento, texto
 
 PRE = "Pré-venda e Faturamento"
@@ -556,11 +557,12 @@ def _semanas_do_ano(r, ctx, ano, nome, eventos, formato, cor, agg):
 
 def _eventos_faturamento(ctx, liquido=False):
     """[(data da NF, valor)] das vendas; liquido = menos as devolucoes."""
-    ev = [(it["dt_nf"], it["valor"]) for it in ctx.tabela["itens"]
-          if it["tipo"] == "VND"]
-    if liquido:
-        ev += [(it["dt_nf"], -abs(it["valor"])) for it in ctx.tabela["itens"]
-               if it["tipo"] == "DEV"]
+    ev = []
+    for it in ctx.tabela["itens"]:
+        v = _liquido(it) if liquido else (
+            it["valor"] if it["tipo"] == "VND" else None)
+        if v is not None:                    # RN-GER-002: o _liquido
+            ev.append((it["dt_nf"], v))
     return ev
 
 
@@ -1791,6 +1793,99 @@ def _edicao_autorizacao(i_chave, i_cod, i_por):
                         "opcoes": list(QUEM_AUTORIZA), "col": i_por}]}
 
 
+# (T-0023 v2, contrato 10.9.1) O teto do texto de cada campo editavel pela
+# web, um lugar so: o nucleo poe no "max" da edicao e o robo confere contra
+# o mesmo numero. Sem entrada = 60 caracteres (o padrao da web).
+TETO_TEXTO_LONGO = 600
+MAX_TEXTO_PADRAO = 60
+MAX_TEXTO_EDICAO = {("garantias", c): TETO_TEXTO_LONGO
+                    for c in ("reclamacao", "pendencias", "retorno_cliente",
+                              "observacao")}
+MAX_TEXTO_EDICAO[("garantias", "ticket")] = 40       # RD-0136
+
+# RN-POS-005 e a garantia nova: UMA regra, para a janela do PC, a edicao da
+# web e o robo (RD-0139).
+PADRAO_NOVA_GARANTIA = {"status": "ABERTO", "resultado": "PENDENTE"}
+ORIGEM_GARANTIA_FAROL = "FAROL DE GARANTIAS"
+
+
+def prazo_padrao_txt(dt_solicitacao_txt, fer=()) -> str:
+    """RN-POS-005: a DT. FECHAMENTO padrao (solicitacao + 15 dias uteis,
+    hoje fora) em dd/mm/aaaa; "" sem solicitacao valida."""
+    import garantias as gm                              # noqa: PLC0415
+    d = gm.prazo_padrao(gm.data(dt_solicitacao_txt), fer)
+    return f"{d:%d/%m/%Y}" if d else ""
+
+
+def campos_garantia_a_gravar(campos, fer=(), novo=False) -> dict:
+    """RN-POS-005: o prazo igual ao padrao fica em branco (acompanha a
+    solicitacao); a garantia nova leva a origem do farol. Funcao pura."""
+    saida = dict(campos)
+    if saida.get("dt_prazo") and saida["dt_prazo"] == prazo_padrao_txt(
+            saida.get("dt_solicitacao"), fer):
+        saida["dt_prazo"] = ""
+    if novo:
+        saida["origem"] = ORIGEM_GARANTIA_FAROL
+    return saida
+
+# (T-0023 v2, 10.9.3) os 14 campos da Garantia que a web edita, na ordem do
+# contrato: (campo, rotulo, tipo, coluna da tabela). O contato do cliente
+# NAO entra (P2 A: so se edita no PC).
+CAMPOS_EDICAO_GARANTIA = (
+    ("ticket", "TICKET", "texto", "TICKET"),
+    ("dt_solicitacao", "DT. SOLICITAÇÃO", "data", "DT. SOLICITAÇÃO"),
+    ("dt_prazo", "DT. FECHAMENTO (PRAZO)", "data", "DT. FECHAMENTO"),
+    ("dt_retorno", "DT. RETORNO", "data", "DT. RETORNO"),
+    ("status", "STATUS", "lista", "STATUS"),
+    ("resultado", "RESULTADO ANÁLISE", "lista", "RESULTADO ANÁLISE"),
+    ("cod_cliente", "CÓD. CLIENTE", "texto", "CÓD. CLIENTE"),
+    ("cod_produto", "CÓD. PRODUTO", "texto", "CÓD. PRODUTO"),
+    ("descricao", "DESCRIÇÃO PRODUTO", "texto", "DESCRIÇÃO PRODUTO"),
+    ("qtd", "QTD", "texto", "QTD"),
+    ("reclamacao", "RECLAMAÇÃO", "longo", "RECLAMAÇÃO"),
+    ("pendencias", "PENDÊNCIAS", "longo", "PENDÊNCIAS"),
+    ("retorno_cliente", "RETORNO DO CLIENTE", "longo", "RETORNO DO CLIENTE"),
+    ("observacao", "OBSERVAÇÃO", "longo", "OBSERVAÇÃO"))
+
+
+def max_texto_edicao(modulo, campo) -> int:
+    """O teto (1 a 600) do texto do campo; sem entrada, 60."""
+    return MAX_TEXTO_EDICAO.get((modulo, campo), MAX_TEXTO_PADRAO)
+
+
+def edicao_garantia(i_col, status, resultados, ticket_padrao="") -> dict:
+    """(T-0023 v2, RN-GER-012) A `edicao` da tabela Garantias, a que o robo
+    traduz para a web. Funcao pura: `i_col` = {nome da coluna: indice},
+    `status`/`resultados` = as listas do garantias.py, `ticket_padrao` =
+    garantias.novo_ticket (a web nao calcula numero). A linha nova nasce
+    com ABERTO, PENDENTE e a data de hoje ("@hoje"). O contato do cliente
+    fica fora (dado pessoal)."""
+    listas = {"status": list(status), "resultado": list(resultados)}
+    padroes = {**PADRAO_NOVA_GARANTIA, "ticket": ticket_padrao,
+               "dt_solicitacao": "@hoje"}
+    campos = []
+    for campo, rotulo, tipo, coluna in CAMPOS_EDICAO_GARANTIA:
+        c = {"campo": campo, "rotulo": rotulo, "opcoes": [],
+             "col": i_col[coluna]}
+        if tipo == "lista":
+            c["opcoes"] = listas[campo]
+        elif tipo == "data":
+            c["data"] = True                 # sem opcoes = data livre
+        else:
+            c["livre"] = True
+            c["mantem_caixa"] = tipo == "longo" or campo == "descricao"
+        if tipo == "longo":
+            c["multilinha"] = True
+        if max_texto_edicao("garantias", campo) != MAX_TEXTO_PADRAO:
+            c["max"] = max_texto_edicao("garantias", campo)   # RD-0136
+        if padroes.get(campo):
+            c["padrao"] = padroes[campo]
+        campos.append(c)
+    return {"arquivo": "RELATORIOS/_GARANTIAS", "aba": "",
+            "modulo": "garantias", "acao": "Editar", "chave": i_col["TICKET"],
+            "novo_web": {"rotulo": "Nova garantia"}, "campos": campos}
+
+
 def farol_pedidos(ctx):
     """
     Um farol so para o pedido inteiro: EM ABERTO, FATURADO, EXCLUIDO e - pelo
@@ -2545,6 +2640,12 @@ def _meses_antes(comp, n):
             ano, mes = ano - 1, 12
         saida.append(f"{ano}-{mes:02d}")
     return saida
+
+
+def _uteis_ate_ontem(ctx):
+    """RN-GER-007: a contagem de dias uteis que deixa HOJE fora (conta ate
+    ontem). Uma so, para o montar e o ao_mudar da NCC."""
+    return lambda a, b: ctx.uteis(a, min(b, ctx.hoje - timedelta(days=1)))
 
 
 def _liquido(it):
@@ -6853,8 +6954,9 @@ def farol_ncc(ctx):
         ed_ = ctrl.get(k_nc) or {}
         status = ed_.get("status") or como(n["cod"], ult)
         dt_mov = ed_.get("dt_mov")
-        du_, _prz, sit_sla = nc.sla(status, dt_mov, n["emissao"], hoje,
-                                    ctx.uteis, ctx.mais_uteis)
+        du_, _prz, sit_sla = nc.sla(
+            status, dt_mov, n["emissao"], hoje, _uteis_ate_ontem(ctx),
+            ctx.mais_uteis)
         orig[k_nc] = (status, dt_mov)
         lin.append([
             status, sit_sla, dt_mov, du_,
@@ -6957,7 +7059,7 @@ def farol_ncc(ctx):
             linha[I_MOV] = hoje
         emis = linha[8]                     # a EMISSAO
         linha[I_DU], _p, linha[I_SLA] = nc.sla(
-            linha[I_COMO], linha[I_MOV], emis, hoje, ctx.uteis,
+            linha[I_COMO], linha[I_MOV], emis, hoje, _uteis_ate_ontem(ctx),
             ctx.mais_uteis)
     r["tabelas"].append(tabela(
         "NCC pendentes", cols, lin, tons,
@@ -7654,8 +7756,20 @@ def garantias(ctx):
             col("SUPERVISOR", "texto", 160, oculta=True),
             col("SITUAÇÃO DO PRAZO", "texto", 140, oculta=True),
             col("TOM SLA", "texto", 60, oculta=True),
-            col("DT. FECHOU", "data", 85, oculta=True)]
-    t_ = tabela("Garantias", cols, linhas, tons,
+            col("DT. FECHOU", "data", 85, oculta=True),
+            # (T-0023 v2) ocultas: a web mostra o valor de hoje no
+            # formulario de edicao. A tela do PC nao muda.
+            col("RECLAMAÇÃO", "texto", 200, oculta=True),
+            col("OBSERVAÇÃO", "texto", 200, oculta=True),
+            col("DT. RETORNO", "data", 85, oculta=True)]
+    for l in linhas:
+        g = dados[l[2]]
+        l.extend([texto(g.get("reclamacao")), texto(g.get("observacao")),
+                  gm.data(g.get("dt_retorno"))])
+    edicao_g = edicao_garantia(
+        {c["nome"]: i for i, c in enumerate(cols)}, gm.STATUS,
+        gm.RESULTADOS, gm.novo_ticket(ctx.raiz))
+    t_ = tabela("Garantias", cols, linhas, tons, edicao=edicao_g,
                 filtros=("STATUS", "RESULTADO ANÁLISE", "PRAZO", "CIDADE",
                          "VENDEDOR"),
                 kpis_de=cartoes,
@@ -7752,10 +7866,12 @@ def devolucoes(ctx):
              for x in ctx.posvenda.get("devolucoes", [])}
     fat_mes, fat_vend = defaultdict(float), defaultdict(float)
     for it in ctx.tabela["itens"]:
-        if it["tipo"] == "VND":
-            fat_mes[rotulo_mes(mes_de(it["dt_nf"]))] += it["valor"]
+        # RN-GER-002: faturado = VND - DEV, pela data da NF
+        v = _liquido(it)
+        if v is not None and it["dt_nf"]:
+            fat_mes[rotulo_mes(mes_de(it["dt_nf"]))] += v
             if mes_de(it["dt_nf"]) in meses:
-                fat_vend[ctx.vendedor(it["vend"])] += it["valor"]
+                fat_vend[ctx.vendedor(it["vend"])] += v
     dev_mes = defaultdict(float)
     por_vend, por_cli, por_prod = (defaultdict(lambda: [0, 0.0])
                                    for _ in range(3))
@@ -7798,14 +7914,14 @@ def devolucoes(ctx):
         meses_vis = {l[0] for l in ls}
         fat = sum(fat_mes[x] for x in meses_vis)
         val = sum(l[8] for l in ls)
+        pd_ = pct_do_liquido(val, fat)                  # RN-GER-002
         com = [l for l in ls if l[18]]
         abertas = sum(1 for l in com if l[11].upper() not in
                       pvm.ENCERRADAS_DEV)
         sem_mot = sum(1 for l in com if l[12] in ("", "(SEM MOTIVO)"))
         return [
             kpi("Devoluções", br(len(ls)), "alerta" if ls else "ok", moeda(val)),
-            kpi("% do faturado", p(pct_de(val, fat)),
-                "alerta" if (pct_de(val, fat) or 0) > 3 else "ok",
+            kpi("% do faturado", p(pd_), "alerta" if (pd_ or 0) > 3 else "ok",
                 ""),
             kpi("Clientes", br(len({l[4] for l in ls})), "neutro"),
             kpi("Abertas no acompanhamento", br(abertas),
@@ -7818,7 +7934,7 @@ def devolucoes(ctx):
         "titulo": "Mês a mês: % do faturado",
         "rotulos": [rotulo_mes(x) for x in meses],
         "series": [{"nome": "% devolvido", "cor": AMARELO,
-                    "valores": [pct_de(dev_mes[x], fat_mes[rotulo_mes(x)]) or 0
+                    "valores": [pct_do_liquido(dev_mes[x], fat_mes[rotulo_mes(x)]) or 0
                                 for x in meses]}],
         "formato": "pct"})
     datas = datas_para_escolher(hoje)
@@ -7870,7 +7986,7 @@ def devolucoes(ctx):
          col("VALOR", "moeda"), col("FATURADO 12M", "moeda"),
          col("% DEVOLVIDO", "pct")],
         sorted([[k, v[0], v[1], fat_vend.get(k, 0.0),
-                 pct_de(v[1], fat_vend.get(k, 0.0))]
+                 pct_do_liquido(v[1], fat_vend.get(k, 0.0))]
                 for k, v in por_vend.items()], key=lambda x: -x[2])))
     r["tabelas"].append(tabela(
         "Por cliente (12 meses)", [col("CLIENTE", "texto", 280),
@@ -9486,12 +9602,12 @@ def _abas_do_painel(ctx, r, d):
     k_res = {k["rotulo"]: k for k in r["kpis"]}
     kpis_fat = [k for k in r["kpis"] if k["rotulo"] not in
                 ("Markup", "Desconto comercial")]
+    pd_ = pct_do_liquido(dev, atual["real"])            # RN-GER-002
     kpis_fat += [
         kpi("M3M", moeda(m3_real) if m3_real is not None else "—",
             tom_var(var_m3), f"projeção {sinal(var_m3)} x média 3 meses"),
         kpi("Devoluções", moeda(dev), "atencao" if dev else "ok",
-            f"{br(pct_de(dev, atual['vnd']) or 0, 1)}% do faturado"
-            if atual["vnd"] else "")]
+            f"{br(pd_, 1)}% do faturado" if pd_ is not None else "")]
     _ = k_res
     paineis.append({"titulo": "Faturamento", "kpis": kpis_fat,
                     "painel": _grade_painel([
@@ -16370,6 +16486,7 @@ def divergencias_clientes(ctx):
         gravar_correcao(ctx, destino, chaves)
     r["exportar_correcao_json"] = lambda chaves=None: \
         correcao_json(ctx, chaves)
+    r["correcao_linhas"] = lambda chaves=None: correcao_linhas(ctx, chaves)
     return r
 
 
@@ -16378,43 +16495,74 @@ def _para_corrigir(ctx, chaves=None) -> list:
             if chaves is None or (d["cod"], d["loja"]) in chaves]
 
 
+def codigo_do_cliente(texto_cliente) -> str:
+    """RN-GER-011: de "001234-01 - NOME" devolve "001234-01" (codigo e
+    loja). Sem o codigo no comeco, "". Nunca devolve o nome."""
+    # formato do Protheus: A1_COD 6 digitos + loja opcional de 2; CPF/CNPJ
+    # so com digitos (11/14) nao casa e devolve ""
+    m = re.match(r"\s*(\d{6}(?:-\d{2})?)(?=\s|$|-)",
+                 "" if texto_cliente is None else str(texto_cliente))
+    return m.group(1) if m else ""
+
+
+# RD-0002: os cabecalhos do Excel de correcao, em um lugar so (o
+# gravar_correcao e o robo usam estes). Com a coluna CLIENTE; o
+# correcao_linhas (RN-GER-011) devolve as linhas sem ela.
+CAB_CORRIGIR = ("A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
+                "A1_VEND ATUAL", "A1_VEND CORRETO", "VENDEDOR CORRETO",
+                "SUPERVISOR", "STATUS PROTHEUS")
+CAB_ANALISAR = ("A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
+                "VENDEDOR NO PLANNER", "A1_VEND ATUAL", "SITUAÇÃO",
+                "O QUE FAZER")
+
+
+def correcao_linhas(ctx, chaves=None) -> dict:
+    """As linhas do Excel de correcao, sem a coluna CLIENTE (RN-GER-011):
+    corrigir = CORRIGIR NO PROTHEUS (10 colunas); analisar = ANALISAR (9).
+    Funcao pura; o gravar_correcao usa as mesmas linhas (com o nome)."""
+    return _correcao_linhas(ctx, chaves, com_nome=False)
+
+
+def _correcao_linhas(ctx, chaves, com_nome) -> dict:
+    pes = _vendedores_do_planner(ctx)
+    corrigir, analisar = [], []
+    for d in _para_corrigir(ctx, chaves):
+        nome = [d["nome"]] if com_nome else []
+        if d["situacao"] in SIT_CORRIGIR:
+            v = d["vend_planner"]
+            corrigir.append([d["filial"], d["cod"], d["loja"], *nome,
+                             d["cidade"], d["uf"], d["vend_protheus"], v,
+                             (pes.get(v) or {}).get("nome", ""),
+                             _sup_nome(ctx, v), d["status_protheus"]])
+        else:
+            analisar.append([d["filial"], d["cod"], d["loja"], *nome,
+                             d["cidade"], d["uf"], d["vend_planner"] or "",
+                             d["vend_protheus"], d["situacao"], d["acao"]])
+    return {"corrigir": corrigir, "analisar": analisar}
+
+
 def gravar_correcao(ctx, destino, chaves=None):
     """O Excel para corrigir o Protheus: CORRIGIR NO PROTHEUS (A1_VEND
     atual -> o do Planner) e ANALISAR (o que nao se resolve trocando o
     A1_VEND). chaves: {(cod, loja)} - so o que estava na tela."""
     from openpyxl import Workbook                       # noqa: PLC0415
     from openpyxl.styles import Font, PatternFill       # noqa: PLC0415
-    pes = _vendedores_do_planner(ctx)
-    divs = _para_corrigir(ctx, chaves)
     wb = Workbook()
     ws = wb.active
     ws.title = "CORRIGIR NO PROTHEUS"
     an = wb.create_sheet("ANALISAR")
-    cab1 = ["A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
-            "A1_VEND ATUAL", "A1_VEND CORRETO", "VENDEDOR CORRETO",
-            "SUPERVISOR", "STATUS PROTHEUS"]
-    cab2 = ["A1_FILIAL", "A1_COD", "A1_LOJA", "CLIENTE", "CIDADE", "UF",
-            "VENDEDOR NO PLANNER", "A1_VEND ATUAL", "SITUAÇÃO", "O QUE FAZER"]
-    for w, cab in ((ws, cab1), (an, cab2)):
+    for w, cab in ((ws, CAB_CORRIGIR), (an, CAB_ANALISAR)):
         for j, x in enumerate(cab, 1):
             c = w.cell(1, j, x)
             c.font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
             c.fill = PatternFill("solid", fgColor="2F7D32")
         w.freeze_panes = "A2"
-    n1 = n2 = 0
-    for d in divs:
-        if d["situacao"] in SIT_CORRIGIR:
-            n1 += 1
-            v = d["vend_planner"]
-            ws.append([d["filial"], d["cod"], d["loja"], d["nome"],
-                       d["cidade"], d["uf"], d["vend_protheus"], v,
-                       (pes.get(v) or {}).get("nome", ""), _sup_nome(ctx, v),
-                       d["status_protheus"]])
-        else:
-            n2 += 1
-            an.append([d["filial"], d["cod"], d["loja"], d["nome"],
-                       d["cidade"], d["uf"], d["vend_planner"] or "",
-                       d["vend_protheus"], d["situacao"], d["acao"]])
+    lin = _correcao_linhas(ctx, chaves, com_nome=True)
+    for linha in lin["corrigir"]:
+        ws.append(linha)
+    for linha in lin["analisar"]:
+        an.append(linha)
+    n1, n2 = len(lin["corrigir"]), len(lin["analisar"])
     for w, larg in ((ws, (11, 9, 7, 36, 22, 5, 14, 16, 34, 30, 15)),
                     (an, (11, 9, 7, 36, 22, 5, 18, 14, 26, 90))):
         for j, x in enumerate(larg, 1):
@@ -19020,8 +19168,9 @@ def _painel_devolucoes(r, ctx):
                    VERMELHO, "baixo"),
             pf.ind("% devolvido do faturado",
                    [(it["dt_nf"], abs(it["valor"]), 0) for it in dev]
-                   + [(it["dt_nf"], 0, it["valor"])
-                      for it in _ev_itens(ctx)], "pct", "pct", VERMELHO,
+                   + [(d, 0, v) for d, v in
+                      _eventos_faturamento(ctx, liquido=True)],
+                   "pct", "pct", VERMELHO,
                    "baixo")]
     ls, ix = pf.tabela_de(r, "Devoluções")
     ano, mes = periodo(ctx)
