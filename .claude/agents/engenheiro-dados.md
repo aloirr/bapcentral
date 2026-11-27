@@ -1,6 +1,6 @@
 ---
 name: engenheiro-dados
-description: "Engenheiro de Dados do BAP Tools: camada de dados e cache (bap_dados, dados_bap, xlsx_rapido), fotografia RELATORIOS\DADOS, catálogo de produtos (catalogo_bap, familia_nucleo), exportação para o Power BI e o caminho robô → Render. Use quando a tarefa lê, grava ou muda o formato de um dado."
+description: "Engenheiro de Dados do BAP Tools: camada de dados e cache (bap_dados, dados_bap, xlsx_rapido), fotografia RELATORIOS/DADOS, catálogo de produtos (catalogo_bap, familia_nucleo), exportação para o Power BI e o caminho robô → Render. Use quando a tarefa lê, grava ou muda o formato de um dado."
 tools: Read, Grep, Glob, Write, Edit, Bash
 model: opus
 color: cyan
