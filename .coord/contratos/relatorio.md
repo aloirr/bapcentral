@@ -1388,7 +1388,12 @@ Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.
   - `cliente_sem_documento`: `CLIENTE` das Devoluções e do "Por cliente (12 meses)";
   - `nome_sem_contato`: `CLIENTE` das Garantias, que é digitado.
 - **Texto livre** (`texto_sem_contato`, D6 A do §10.7.9): `MOTIVO`, `PENDÊNCIAS`, `RETORNO DO CLIENTE`, `RECLAMAÇÃO`, `OBSERVAÇÃO` e `OBSERVAÇÕES`. O texto que voltou com "[removido]" não pode ser gravado por cima do original (§10.9.1, regra 4).
-- **Nunca vão** (fora da lista branca do §10.1): `garantia`, `campanha_export` e `detalhe_pedido`. O `_champions` e o `editar` já saem pelo §10.1. O `testes` procura essas chaves e os padrões do bloco `padroes-pessoais` (§10.9.1) no JSON de cada farol.
+- **Nunca vão** (fora da lista branca do §10.1): `garantia`, `campanha_export` e `detalhe_pedido`. O `_champions` e o `editar` já saem pelo §10.1.
+- **Onde o `testes` procura** (no JSON de cada farol):
+  - **as chaves acima:** em qualquer nível;
+  - **`EMAIL`, `DOC_MEIO` e `DOC_SOLTO`** (bloco `padroes-pessoais`, §10.9.1): em **toda string** do farol (célula, total, cartão, aviso, rótulo e chave). A exceção é o código de produto só com dígitos nas colunas de código, `CÓD. PRODUTO` e `PRODUTO`: ali é código do ERP, não documento;
+  - **número:** só reprova o inteiro de 11 ou 14 dígitos fora das colunas de código. Um número com casas decimais não passa pelos padrões de texto (o `97.35000000000001` de uma moeda não é documento);
+  - **`FONE`:** só nas colunas de texto livre e nas colunas "limpa" desta seção. Em data ISO e em valor, ele casaria por engano.
 - **Nome da equipe:** `VENDEDOR`, `SUPERVISOR`, `AUX. TÉCNICO`, `JOGADOR`, o nome da assistente no título do DDR e os nomes da config das Campanhas vão ("2 A").
 
 #### 10.10.4 Tamanho e cortes
