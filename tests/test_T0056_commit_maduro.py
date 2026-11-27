@@ -6,8 +6,7 @@ Com o HEAD do ``main`` com menos de 2 h, o ``--diario`` lista os commits do
 com os limites 2, 3 (so igual, ``versoes_batem``) e 5 valendo para ele.
 
 Sem rede (fixture ``_sem_rede`` da T-0018), tudo em ``tmp_path``, SHAs e
-versoes ficticios, sem dado pessoal. Pula enquanto o codigo da T-0056 nao
-estiver no ``main``.
+versoes ficticios, sem dado pessoal.
 """
 from __future__ import annotations
 
@@ -19,9 +18,6 @@ import atualizar_do_github as atu
 from test_T0018_rotina_diaria import (  # noqa: F401  (fixtures da T-0018)
     AGORA, SHA, T_COMMIT, _commit, _log, _pr, _sem_rede, _sem_troca, producao, rede,
 )
-
-pytestmark = pytest.mark.skipif(not hasattr(atu, "escolher_commit_maduro"),
-                                reason="T-0056 ainda nao esta no atualizar_do_github.py")
 
 HEAD = "d" * 40          # HEAD novo (0,5 h)
 MEIO = "c" * 40          # commit intermediario, ainda novo (1 h)
