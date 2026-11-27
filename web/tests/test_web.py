@@ -418,7 +418,7 @@ def test_T0014_filtro_mostra_a_visao_pronta_sem_calcular(admin):
     from conftest import postar
     assert postar(admin, _pacote_com_recortes()).status_code == 200
     html = admin.get("/painel?aba=resultado").text
-    assert "BAP inteira" in html and "R$ 165 mil" in html          # sem filtro: o total
+    assert ">BAP</a>" in html and "R$ 165 mil" in html          # sem filtro: o total
     html = admin.get("/painel?aba=resultado&uf=MA").text
     assert "R$ 87,0 mil" in html and "R$ 165 mil" not in html       # a barra do MA, como veio
     assert "rrm-recorte" in html                                     # cartão compacto no recorte

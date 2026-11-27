@@ -682,7 +682,7 @@ def test_robo_antigo_so_resumo_e_aba_pedida_diz_indisponivel(admin):
     h = admin.get("/farol/pv_pedidos").text
     assert "R$ 112 mil" in h and 'class="abas' not in h
     r = admin.get("/farol/pv_pedidos?aba=pedidos")
-    assert r.status_code == 200 and "ainda não disponível na web" in r.text.lower()
+    assert r.status_code == 200 and "este farol não veio no último pacote do pc" in r.text.lower()
 
 
 def test_aba_que_ficou_fora_some_da_barra_e_nao_quebra(admin):

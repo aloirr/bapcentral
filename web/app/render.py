@@ -11,6 +11,8 @@ import math
 import re
 import unicodedata
 
+from . import marca
+
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
 TITULOS = {"res": "Painel Executivo · resultado",
@@ -324,8 +326,8 @@ def _bloco_barras(b) -> dict:
     formato = g.get("formato", "num")
     series = []
     for s in _lista(g.get("series")):
-        series.append({"nome": str(s.get("nome", "")), "cor": _cor(s.get("cor"), "#8fa79a"),
-                       "cor_neg": _cor(s.get("cor_negativo"), "#b3261e"),
+        series.append({"nome": str(s.get("nome", "")), "cor": _cor(s.get("cor"), marca.TOKENS["--grafico-3"]),
+                       "cor_neg": _cor(s.get("cor_negativo"), marca.TOKENS["--alerta"]),
                        "vals": [_num(v) for v in _lista(s.get("valores"))],
                        "txt": [str(t) for t in _lista(s.get("rotulos"))]})
     meta = _num(g.get("meta"))
@@ -363,7 +365,7 @@ def _bloco_hbarras(b) -> dict:
         v = vals[i] if i < len(vals) else None
         linhas.append({"rot": r_, "txt": fmt_valor(v, formato),
                        "larg": 0 if not v else round(max(2.0, 100 * abs(v) / mx), 1),
-                       "cor": _cor(cores[i] if i < len(cores) else None, "#8fa79a")})
+                       "cor": _cor(cores[i] if i < len(cores) else None, marca.TOKENS["--grafico-3"])})
     return {"tipo": "hbarras", "titulo": str(b.get("titulo", "")), "linhas": linhas,
             "ref": {"pos": round(100 * abs(ref) / mx, 1), "txt": fmt_valor(ref, formato)} if ref else None}
 

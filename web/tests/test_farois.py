@@ -116,9 +116,9 @@ def test_menu_4_itens_e_indisponivel(admin):
     for n in ("Farol de Pedidos", "Farol de Visita", "Farol de Entregas", "Farol de Inadimplência"):
         assert n in h
     assert 'href="/farol/pl_inadimplencia"' in h and 'href="/farol/pv_pedidos"' not in h
-    assert "ainda não disponível" in h
+    assert 'class="quadro indisp"' in h and "ainda não disponível" not in h.lower()      # RD-0040: o quadro cinza basta
     r = admin.get("/farol/pv_pedidos")
-    assert r.status_code == 200 and "Ainda não disponível" in r.text
+    assert r.status_code == 200 and "Este farol não veio no último pacote do PC." in r.text
 
 
 def test_acesso_negado_por_perfil(admin):

@@ -187,7 +187,7 @@ def test_robo_antigo_sem_tabelas_nao_mostra_abas(admin):
     postar(admin, pacote_farol())
     h = _tela(admin).text
     assert 'class="abas"' not in h
-    assert "inda não disponível" in _tela(admin, "titulos").text
+    assert "Este farol não veio no último pacote do PC." in _tela(admin, "titulos").text   # RD-0040: um texto só
 
 
 # ----------------------------------------------------------------- abas
@@ -659,8 +659,8 @@ def test_js_da_fila_envia_ao_sair_guarda_pendente_e_so_confirma_com_ok_do_servid
 def test_tratados_acessivel_da_primeira_pagina(admin):
     postar(admin, pacote_cobranca())
     h = _tela(admin, "cobrar").text
-    assert 'href="/farol/pl_inadimplencia?aba=cobrar&amp;pag=1#tratados">1 já tratados hoje</a>' in h
-    assert 'id="tratados"' in h
+    assert 'id="tratados"' in h and "Já tratados hoje (1)" in h
+    assert h.lower().count("já tratados hoje") == 1                  # RD-0033: a contagem uma vez só
 
 
 def test_aviso_de_numero_repetido_diz_digitos_repetidos():

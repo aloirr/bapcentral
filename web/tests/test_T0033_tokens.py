@@ -24,7 +24,7 @@ def test_T0033_tokens_do_root_iguais_ao_marca_py():
 def test_T0033_valores_aprovados_no_manual_da_marca():
     t = marca.TOKENS
     assert t["--verde-marca"] == "#59BA61" and t["--verde-escuro"] == "#2F7D32"
-    assert (t["--faixa-ini"], t["--faixa-fim"], t["--faixa-texto"]) == ("#2F7D32", "#1B4D1F", "#FFFFFF")
+    assert (t["--faixa-inicio"], t["--faixa-fim"], t["--faixa-texto"]) == ("#2F7D32", "#1B4D1F", "#FFFFFF")
     assert (t["--alerta"], t["--alerta-claro"]) == ("#B42318", "#FDECEA")
     assert (t["--erro"], t["--erro-claro"]) == ("#B42318", "#FDECEA")
     assert t["--atencao-texto"] == "#8A5A00" and t["--atencao"] == "#B7791F"
@@ -43,3 +43,15 @@ def test_T0033_texto_de_atencao_usa_o_tom_escuro_e_o_amarelo_so_em_ponto_e_barra
     css = CSS.read_text(encoding="utf-8")
     assert not re.search(r"[^-]color:var\(--atencao\)", css), "o amarelo #B7791F não é texto (3,64:1)"
     assert ".t-atencao{color:var(--atencao-texto)}" in css
+
+
+def test_T0033_nenhum_hex_no_codigo_do_site_fora_do_marca_py_e_do_root():
+    """RD-0065: as cores moram no `:root` do CSS e no `marca.py`; .py, templates e .js só usam os tokens."""
+    app = Path(__file__).resolve().parents[1] / "app"
+    achados = []
+    for p in [*app.glob("*.py"), *app.glob("templates/*.html"), *app.glob("static/*.js")]:
+        if p.name == "marca.py":
+            continue
+        achados += [f"{p.name}:{n}" for n, l in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+                    if re.search(r"#[0-9A-Fa-f]{6}\b", l)]
+    assert not achados, achados

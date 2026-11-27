@@ -15,7 +15,7 @@ import math
 import re
 import unicodedata
 
-from . import edicoes, render
+from . import edicoes, marca, render
 from .render import COLUNAS_FORA, RE_DATA, coluna_fora, fmt_celula   # a lista e o formato são do render (fonte única)
 
 # ------------------------------------------------------------------ D1: quem vê as tabelas
@@ -184,8 +184,10 @@ TIPOS_SUB = {"texto", "num", "data"}
 NUM_TIPOS = {"int", "num", "num1", "num2", "moeda", "moeda2", "pct", "pct1", "valor"}
 TIPOS = NUM_TIPOS | {"texto", "dia", "data", "hora"}
 # paleta fixa do selo pela linha (bap_visual.py), §10.7.2
-PALETA_TOM = {"ok": ("#E5F3DF", "#2F7D32"), "atencao": ("#FFF1C7", "#8A5A00"),
-              "alerta": ("#B42318", "#FFFFFF"), "cinza": ("#E4E7E4", "#5E6B63")}   # manual da marca: alerta e suave aprovados
+PALETA_TOM = {"ok": (marca.TOKENS["--verde-claro"], marca.TOKENS["--verde-escuro"]),      # (fundo, texto) do selo pela linha
+              "atencao": (marca.TOKENS["--atencao-claro"], marca.TOKENS["--atencao-texto"]),
+              "alerta": (marca.TOKENS["--alerta"], marca.TOKENS["--branco"]),
+              "cinza": (marca.TOKENS["--borda"], marca.TOKENS["--suave"])}
 MAX_LINHAS = 60000
 MAX_RECORTES = 20
 MAX_OPCOES = 300
@@ -670,11 +672,11 @@ def _celula_tela(v, k, row, cols, tipo, centavos):
     elif isinstance(chip, list) and _num(v):            # selo por faixa
         fundo, texto = _faixa_de(v, chip)
         if fundo:
-            out["f"], out["c"] = fundo, texto or "#1B2430"
+            out["f"], out["c"] = fundo, texto or marca.TEXTO
     elif isinstance(c.get("barra"), dict) and _num(v):
         b = c["barra"]
         fundo, texto = _faixa_de(v, b["faixas"])
-        out["b"] = {"w": round(max(0.0, min(1.0, v / b["max"])) * 100, 1), "f": fundo or "#8FA79A"}
+        out["b"] = {"w": round(max(0.0, min(1.0, v / b["max"])) * 100, 1), "f": fundo or marca.TOKENS["--grafico-3"]}
         out["c"] = texto
     elif isinstance(c.get("chip_tom"), str):            # selo pela linha (coluna oculta pelo nome)
         j = next((i for i, x in enumerate(cols) if x["nome"] == c["chip_tom"]), None)
@@ -862,8 +864,8 @@ GRADE: dict[tuple[str, str], dict] = {
         "grade": ("MÊS", "NF", "CLIENTE", "SITUAÇÃO", "SLA", "DT. PREVISTA", "ETAPA", "VLR NF")},
     ("pl_inadimplencia", "Títulos"): {
         "chave": "NOME", "cel": ("NOME", None, "FAIXA", "SALDO"),
-        "grade": ("NOME", "NF", "PARC.", "VENCIMENTO", "DIAS ATRASO", "FAIXA", "SALDO", "SITUAÇÃO", "STATUS",
-                  "VENDEDOR")},
+        "grade": ("NOME", "NF", "PARC.", "VENCIMENTO", "DIAS ATRASO", "SALDO", "SITUAÇÃO", "STATUS",
+                  "VENDEDOR")},      # RD-0042: a FAIXA é o atraso em 3ª representação; fica no filtro, no popup e no Excel
     ("pl_inadimplencia", "Por cliente"): {
         "chave": "NOME", "cel": ("NOME", None, "FAIXA", "EM ATRASO"),
         "grade": ("NOME", "SITUAÇÃO", "FAIXA", "TÍTULOS VENCIDOS", "EM ATRASO", "MAIOR ATRASO", "A VENCER", "STATUS",

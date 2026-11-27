@@ -7,7 +7,7 @@
 {# T-0033: só o visual BC3 (os ramos do layout antigo saíram, RD-0044) #}
 {% include "_bc3_cab.html" %}
 {% if not tela and not tabela and fila is not defined %}
-<p class="aviso atencao">{{ indisponivel|capitalize }}.</p>
+{% if gerado_em %}<p class="aviso atencao">Este farol não veio no último pacote do PC.</p>{% endif %}
 {% elif tabela %}
 {% include "_tabela.html" %}
 {% elif fila is defined %}

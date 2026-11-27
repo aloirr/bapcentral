@@ -152,7 +152,7 @@ def criar_app() -> FastAPI:
             velho = bool(ent) and (cobranca.agora() - pacotes._como_manaus(gerado_farol)).total_seconds() > pacotes.HERDA_HORAS * 3600
         except (TypeError, ValueError):
             velho = False
-        ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, indisponivel=render.INDISPONIVEL,
+        ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, empresa=marca.EMPRESA, indisponivel=render.INDISPONIVEL,
                    gerado_em=gerado_farol, desatualizado=velho)
         # T-0030 (Alexandre, 26/11: "BC3 para o pc e celular", "M3 aprovado"): barra lateral + faixa verde;
         # liga por farol (render.BC3) até todos passarem para o padrão novo
