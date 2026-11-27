@@ -1,13 +1,15 @@
 {# T-0030: cabeçalho BC3 do farol — faixa verde (título, data, estado, números) e a barra das abas (busca e Exportar).
-   T-0033: a faixa tem a mesma altura em todas as abas e leva os números em todas elas.
+   T-0033: a faixa tem a mesma altura em todas as abas. Na aba de tabela leva os `kpis_padrao` inteiros (rótulo, valor, detalhe)
+   no padrão; com filtro, recorte ou estado eles saem e entra o AVISO_CARTOES (§10.7.2).
    Serve ao Resumo (`tela`) e às abas de tabela (`tabela`, `kpis`, `ufs`, `uf`) e à fila de cobrança. #}
 {% set e_tab = tabela is defined and tabela %}
 {% set lista_uf = (ufs if e_tab else (tela.ufs if tela else [])) or [] %}
 {% set uf_at = (uf if e_tab else (tela.uf if tela else '')) or '' %}
-{# com filtro os números ficam e ganham "sem o filtro" (feito em main.py); a fila e a Solicitação também levam os do Resumo #}
+{# a aba de tabela leva os `kpis_padrao` (ou nenhum + AVISO_CARTOES, feito em main.py); a fila e a Solicitação levam os do Resumo #}
 {% set ks_todos = (kpis if (kpis is defined and kpis) else (tela.kpis if tela else [])) or [] %}
-{# cartão com barras por estado ou linhas de detalhe fica no corpo (Resumo); a faixa leva só os números #}
-{% set ks = ks_todos|rejectattr('estados')|rejectattr('linhas')|list %}
+{# Resumo: o cartão com barras por estado ou linhas fica no corpo e a faixa leva só os números. Aba de tabela: a faixa leva o cartão
+   inteiro, com `linhas` ou não (o Visita manda os 10 com `linhas`; sem isso a faixa ficava vazia no padrão) #}
+{% set ks = ks_todos if e_tab else ks_todos|rejectattr('estados')|rejectattr('linhas')|list %}
 {% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
 {% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
 {# RD-0023/RD-0039: sem seletor de estado, o aviso é um só, na própria faixa (não em cada aba) #}

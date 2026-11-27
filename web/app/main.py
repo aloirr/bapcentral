@@ -364,6 +364,7 @@ def criar_app() -> FastAPI:
         subnomes, sub, juntas = [], None, []
         if solicitacao:                                 # Solicitação BAP: sem estado, sem cartões do Resumo (D5)
             ufs, uf_ok = [], ""
+            topo = render.farol_para_tela(rel, None, rid)   # sem estado, os cartões de cima são os da BAP inteira (D5)
             try:
                 sub = int(consulta.get("sub", ["0"])[0])
             except ValueError:

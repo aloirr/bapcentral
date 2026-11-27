@@ -593,6 +593,27 @@ def test_cartao_com_detalhe_do_pc_so_aparece_no_padrao(admin):
         assert "em aberto" not in h and "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and "BAP inteira" not in h
 
 
+def test_faixa_da_aba_leva_o_cartao_com_linhas_no_padrao(com_tabelas, admin):
+    # defeito 1 (dado real): os cartões do Visita trazem `linhas`; a faixa das abas de tabela não pode ficar vazia no padrão
+    p = pacote_tres_farois()
+    t = _tab(p["relatorios"]["pv_pedidos"], "Pedidos")
+    for k in t["kpis_padrao"]:
+        k["linhas"] = [["linha", "1"]]
+    assert postar(admin, p).status_code == 200
+    h = admin.get("/farol/pv_pedidos?aba=pedidos").text
+    faixa = h.split('class="bc3-faixa"')[1].split("</header>")[0]
+    assert "3,6 dia(s)" in faixa and "SLA médio" in faixa.replace("SLA MÉDIO", "SLA médio") and "bc3-aviso-k" not in faixa
+    assert len(re.findall(r'class="bc3-k[ "]', faixa)) == len([k for k in t["kpis_padrao"] if k["valor"] != "—"])
+
+
+def test_solicitacao_bap_ignora_o_estado_tambem_nos_cartoes_de_cima(com_tabelas):
+    # defeito 2: a aba não tem estado (D5); `&uf=` na URL não pode trocar os cartões de cima pelos do estado
+    sem = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao").text
+    com = com_tabelas.get("/farol/pv_pedidos?aba=solicitacao&uf=AM").text
+    pega = lambda h: re.findall(r'<small>(.*?)</small><b>(.*?)</b>', h.split('class="bc3-faixa"')[1].split("</header>")[0])
+    assert pega(sem) == pega(com) and pega(sem)
+
+
 def test_entregas_estado_filtra_linhas_e_junta_de_pendencias(com_tabelas):
     p = pacote_tres_farois()
     t = _tab(p["relatorios"]["pl_entregas"], "Entregas")
