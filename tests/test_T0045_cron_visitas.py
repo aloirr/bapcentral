@@ -26,7 +26,7 @@ import subprocess
 import sys
 import threading
 import urllib.error
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlparse
@@ -88,27 +88,98 @@ def test_RN_VIS_005_passo_1_pausado_vence_tudo():
     assert agenda.deve_rodar(_agora(), t) is None
 
 
+# ---------------------------------------------------------------- passo 1, lote 2: login_barrado (RN-VIS-005; v1.2 §3.1)
+def _barrado(dia=HOJE, codigo="MAXIMA_SENHA"):
+    return {"dia": _ymd(dia) if isinstance(dia, date) else dia, "codigo": codigo}
+
+
+def _trabs_que_rodariam():
+    """Um `trabalho` por motivo, cada um rodando às 06h05 sem o `login_barrado` (o valor de controle do teste)."""
+    d3 = HOJE - timedelta(days=3)
+    return {"diagnostico": _trab(diagnostico={"estado": "pendente"}),
+            "pedido": _trab(pedido={"id": "P1", "de": _ymd(ONTEM), "ate": _ymd(ONTEM), "rodadas": 0}),
+            "agenda": _trab(),
+            "retentativa": _trab(indice={_ymd(ONTEM): _fechado(ONTEM), _ymd(d3): _fechado(d3, erros=2)})}
+
+
+@pytest.mark.parametrize("motivo", ["diagnostico", "pedido", "agenda", "retentativa"])
+def test_RN_VIS_005_passo_1_login_barrado_hoje_nada_roda(motivo):
+    """Login recusado hoje = nenhum 2º login no dia: None mesmo com diagnóstico pendente, pedido na fila, ontem aberto
+    ou retentativa pendente, em qualquer hora da JANELA."""
+    t = _trabs_que_rodariam()[motivo]
+    assert agenda.deve_rodar(_agora(), t) == motivo                        # controle: sem a barra, roda
+    t["login_barrado"] = _barrado()
+    for h, m in ((6, 0), (6, 30), (7, 30), (12, 0), (21, 59)):
+        assert agenda.deve_rodar(_agora(h, m), t) is None, (motivo, h, m)
+
+
+@pytest.mark.parametrize("codigo", ["MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA", "MAXIMA_BLOQUEIO",
+                                    "RODADA_INTERROMPIDA"])
+def test_RN_VIS_005_passo_1_login_barrado_vale_para_todo_codigo_e_sem_pausa(codigo):
+    """O passo 1 olha só o `dia`: barra com qualquer código, mesmo depois do "Retomar" (pausado null)."""
+    t = _trab(diagnostico={"estado": "pendente"}, pausado=None, login_barrado=_barrado(codigo=codigo))
+    assert agenda.deve_rodar(_agora(8), dict(t, login_barrado=None)) == "diagnostico"     # controle
+    assert agenda.deve_rodar(_agora(8), t) is None
+
+
+def test_RN_VIS_005_passo_1_login_barrado_de_ontem_roda():
+    """No dia seguinte volta sozinho, sem clique (o site manda null, mas o cron confere o dia mesmo assim)."""
+    for motivo, t in _trabs_que_rodariam().items():
+        t["login_barrado"] = _barrado(ONTEM)
+        assert agenda.deve_rodar(_agora(), t) == motivo
+        t["login_barrado"] = _barrado(HOJE + timedelta(days=1))           # dia futuro (relógio torto) também não barra
+        assert agenda.deve_rodar(_agora(), t) == motivo
+
+
+@pytest.mark.parametrize("valor", ["ausente", None, {}, {"dia": None}, {"dia": ""}, {"codigo": "MAXIMA_SENHA"},
+                                   "20261127", ["20261127"], 20261127])
+def test_RN_VIS_005_passo_1_login_barrado_ausente_null_ou_torto_roda(valor):
+    """Site antigo (sem a chave), null ou formato fora do contrato (não é objeto, sem `dia`): o passo 1 não barra."""
+    for motivo, t in _trabs_que_rodariam().items():
+        if valor != "ausente":
+            t["login_barrado"] = valor
+        assert agenda.deve_rodar(_agora(), t) == motivo, (valor, motivo)
+
+
+@pytest.mark.parametrize("dia,esperado", [(20261127, None), (20261126, "agenda"), (20261128, "agenda")])
+def test_RN_VIS_005_passo_1_login_barrado_dia_em_numero(dia, esperado):
+    """`dia` em número (JSON sem aspas) compara pelo texto AAAAMMDD."""
+    assert agenda.deve_rodar(_agora(), _trab(login_barrado=None)) == "agenda"              # controle
+    assert agenda.deve_rodar(_agora(), _trab(login_barrado={"dia": dia, "codigo": "MAXIMA_SENHA"})) == esperado
+
+
+def test_RN_VIS_005_passo_1_login_barrado_pelo_dia_de_manaus_com_relogio_em_utc():
+    """01h30 UTC de 28/11 = 21h30 de 27/11 em Manaus (dentro da JANELA). Barra o dia 27 (o de Manaus), não o 28 (o UTC).
+    10h00 UTC de 28/11 = 06h00 de 28/11 em Manaus: o 27 já passou e a agenda roda."""
+    quase_meia_noite = datetime(2026, 11, 28, 1, 30, tzinfo=timezone.utc)
+    t = _trab(diagnostico={"estado": "pendente"})
+    assert agenda.deve_rodar(quase_meia_noite, t) == "diagnostico"                         # controle
+    assert agenda.deve_rodar(quase_meia_noite, dict(t, login_barrado=_barrado(HOJE))) is None
+    assert agenda.deve_rodar(quase_meia_noite, dict(t, login_barrado=_barrado(HOJE + timedelta(days=1)))) \
+        == "diagnostico"
+    amanha_06h = datetime(2026, 11, 28, 10, 0, tzinfo=timezone.utc)
+    amanha = _trab(tentativas_hoje={"dia": _ymd(HOJE + timedelta(days=1)), "total": 0, "por_motivo": {}})
+    assert agenda.deve_rodar(amanha_06h, amanha) == "agenda"                               # controle
+    assert agenda.deve_rodar(amanha_06h, dict(amanha, login_barrado=_barrado(HOJE))) == "agenda"
+    assert agenda.deve_rodar(amanha_06h, dict(amanha, login_barrado=_barrado(HOJE + timedelta(days=1)))) is None
+
+
 @pytest.mark.parametrize("h,m,s,us,roda", [
     (5, 59, 59, 999999, False), (6, 0, 0, 0, True), (12, 0, 0, 0, True), (21, 59, 0, 0, True),
-    (21, 59, 59, 0, True), (22, 0, 0, 0, False), (23, 30, 0, 0, False), (0, 0, 0, 0, False),
+    (21, 59, 59, 0, True), (21, 59, 59, 500000, True), (21, 59, 59, 999999, True), (22, 0, 0, 0, False),
+    (23, 30, 0, 0, False), (0, 0, 0, 0, False),
 ])
 def test_RN_VIS_008_passo_2_janela_06h00_a_21h59(h, m, s, us, roda):
-    """Fora da JANELA (06h00 a 21h59 de Manaus) o cron sai, mesmo com diagnóstico pendente ou pedido."""
+    """Fora da JANELA (06h00 a 21h59 de Manaus) o cron sai, mesmo com diagnóstico pendente ou pedido. O minuto 21h59
+    vale inteiro (contrato v1.2 §2: `06:00:00 <= hora < 22:00:00`; D5 corrigido no lote 2, 21:59:59,5 e ,999999)."""
     for t in (_trab(), _trab(diagnostico={"estado": "pendente"}),
               _trab(pedido={"id": "P1", "de": _ymd(ONTEM), "ate": _ymd(ONTEM), "rodadas": 0})):
         r = agenda.deve_rodar(_agora(h, m, s, us), t)
         assert (r is not None) is roda, (h, m, s, us, t["diagnostico"], t["pedido"])
 
 
-@pytest.mark.xfail(strict=False, reason="D5 (T-0045): transição até o #208 entrar; sai no #212")
-def test_RN_VIS_008_passo_2_janela_vale_o_minuto_21h59_inteiro():
-    """A JANELA vai até 21h59 (contrato §2): 21:59:59,5 ainda é 21h59."""
-    assert agenda.deve_rodar(_agora(21, 59, 59, 500000), _trab()) == "agenda"
-
-
 def test_RN_VIS_008_passo_2_janela_em_manaus_mesmo_com_relogio_em_utc():
     """10h00 UTC = 06h00 de Manaus (o `schedule` do Render é em UTC); 02h00 UTC = 22h00 da véspera em Manaus."""
-    from datetime import timezone
     assert agenda.deve_rodar(datetime(2026, 11, 27, 10, 0, tzinfo=timezone.utc), _trab()) == "agenda"
     assert agenda.deve_rodar(datetime(2026, 11, 28, 2, 0, tzinfo=timezone.utc), _trab()) is None
     assert agenda.deve_rodar(datetime(2026, 11, 27, 9, 59, tzinfo=timezone.utc), _trab()) is None
