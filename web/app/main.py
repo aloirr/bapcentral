@@ -626,7 +626,7 @@ def criar_app() -> FastAPI:
         rod = f"{marca.EMPRESA} · {render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(ind.gerado_em(rid))}"
         return baixar(exportar.pdf_tabela(t, rod), "application/pdf", nome + ".pdf")
 
-    # ------------------------------------------------------------ T-0021: edição (só admin)
+    # ------------------------------------------------------------ T-0021: edição (admin e, nas Entregas, o pós-venda)
     def selecao(t, tab, consulta):
         """`sel` = linha (índice da tabela) escolhida com um clique; só nas tabelas com junta ligada."""
         liga = next((j["liga"][1] for j in t.get("juntas") or [] if j.get("liga")), None)
@@ -650,7 +650,7 @@ def criar_app() -> FastAPI:
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         if not isinstance(ed, dict):
             return None
-        admin = u["perfil"] in edicoes.EDITA
+        admin = edicoes.pode_editar(u["perfil"], (rid, titulo))
         algum = False
         for ln in linhas:
             ch = edicoes.chave_da_linha(ed, ln["k"])
@@ -671,7 +671,7 @@ def criar_app() -> FastAPI:
         quem não é admin não recebe nem o botão nem a contagem."""
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         nv = ed.get("novo") if isinstance(ed, dict) else None
-        if not nv or u["perfil"] not in edicoes.EDITA:
+        if not nv or not edicoes.pode_editar(u["perfil"], (rid, titulo)):
             return None
         n = edicoes.contagem_novas(sit, titulo, recebido)
         return {"rotulo": nv["rotulo"], "url": f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "novo": "1", "volta": volta}),
@@ -758,8 +758,8 @@ def criar_app() -> FastAPI:
     async def editar_get(request: Request, rid: str, tab: str = "", chave: str = "", volta: str = "", novo: str = ""):
         u = usuario(request)
         exige_farol(u, rid)
-        if u["perfil"] not in edicoes.EDITA:
-            raise PermissionError                       # só o admin edita (decisão de 25/11)
+        if not edicoes.pode_editar(u["perfil"], (rid, tab[:80])):
+            raise PermissionError                       # só quem a EDITA_LUGAR diz (RN-GER-012, RN-POS-011)
         volta = volta_ok(rid, volta)
         t, aba = tabela_editavel(rid, tab[:80])
         ed = (t or {}).get("edicao")
@@ -780,10 +780,12 @@ def criar_app() -> FastAPI:
     async def editar_post(request: Request, rid: str):
         u = usuario(request)
         exige_farol(u, rid)
-        if u["perfil"] not in edicoes.EDITA:
+        if u["perfil"] not in edicoes.perfis_do_rid(rid):
             raise PermissionError                       # 403 antes de ler o formulário
         f = await formulario(request)                   # CSRF errado = 403
         tab, chave = str(f.get("tab", ""))[:80], str(f.get("chave", ""))[:80]
+        if not edicoes.pode_editar(u["perfil"], (rid, tab)):
+            raise PermissionError                       # o lugar exato (RN-POS-011)
         volta = volta_ok(rid, f.get("volta"))
         t, aba = tabela_editavel(rid, tab)
         ed = (t or {}).get("edicao")
@@ -802,7 +804,7 @@ def criar_app() -> FastAPI:
                           aviso="" if erro else "Nada mudou.", **form_ctx(rid, tab, t, aba, k, sit, volta))
         try:
             fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=chave,
-                           valores=mudou, antes=antes)
+                           valores=mudou, antes=antes, perfil=u["perfil"])
         except OSError:
             log.error("edição: falha ao gravar a fila")
             return pagina(request, "editar.html", status=503, erro=edicoes.MSG_FALHA_FILA,
@@ -820,7 +822,7 @@ def criar_app() -> FastAPI:
                           **novo_ctx(rid, tab, t, aba, volta, f))
         try:
             fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=edicoes.chave_nova(),
-                           valores=valores, antes=antes, novo=True)
+                           valores=valores, antes=antes, novo=True, perfil=u["perfil"])
         except OSError:
             log.error("edição: falha ao gravar a fila")
             return pagina(request, "editar.html", status=503, erro=edicoes.MSG_FALHA_FILA,

@@ -8,3 +8,4 @@
 2026-11-26 — T-0035 — pacote por farol na web (0.4.0): rotas por farol e fechar, Indice com LRU 96 MB, /saude com memória, selo Desatualizado
 2026-11-27 — T-0045 — web 0.6.0: rotas do cron (concessão, progresso, lote, fim), fila de lotes (edicoes.Fila parametrizada), tetos RN-VIS-008, pausa RN-VIS-005/007, tela Atualizar visitas, /saude.visitas
 2026-11-27 — T-0045 — pareceres: empate=nuvem (espelho do núcleo), teto de descompressão 50 MB (413 DESCOMPRESSAO_TETO), diagnóstico na tela, 9 achados de UX, RD-0114 a 0122, simulação v2
+2026-11-27 — T-0054 — Farol de Entregas: pós-venda edita (EDITA_LUGAR/pode_editar, perfil na fila), web 0.12.0
