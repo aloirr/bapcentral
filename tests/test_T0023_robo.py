@@ -182,7 +182,9 @@ def test_RN_GER_012_edicao_da_garantia_14_campos_novo_max_multilinha_e_padroes(f
     assert c["dt_solicitacao"]["padrao"] == "@hoje" and c["dt_solicitacao"]["opcoes"] == []
     assert (c["status"]["padrao"], c["resultado"]["padrao"]) == ("ABERTO", "PENDENTE")
     assert c["status"]["opcoes"] == list(gm.STATUS) and c["resultado"]["opcoes"] == list(gm.RESULTADOS)
-    assert all("max" not in c[k] for k in ("ticket", "qtd", "cod_cliente"))   # sem max = 60
+    assert all("max" not in c[k] for k in ("qtd", "cod_cliente"))            # sem max = 60
+    if hasattr(rn, "CAMPOS_EDICAO_GARANTIA"):                                  # núcleo f0af112 (RD-0136)
+        assert c["ticket"]["max"] == rn.max_texto_edicao("garantias", "ticket") == 40
     t = _tab(farois, "pl_garantias", "Garantias")
     nomes = [x["nome"] for x in t["colunas"]]
     assert all(x["coluna"] in nomes for x in ed["campos"])                  # as 3 colunas novas do nucleo
@@ -310,6 +312,15 @@ def test_RN_GER_012_linha_nova_so_no_lugar_que_aceita():
     r = _d(2, {"etapa": "NEGADA"}, chave="NOVO-3F9A01C2")
     r["novo"] = True
     assert ba.validar_edicao_web(r, OPC) == ba.MOTIVO_LUGAR_WEB
+
+
+@pytest.mark.skipif(not hasattr(rn, "CAMPOS_EDICAO_GARANTIA"), reason="núcleo sem o ticket de 40 (f0af112)")
+def test_RN_GER_012_ticket_ate_40_e_a_frase_leva_o_40():
+    """O ticket tem teto de 40 caracteres, vindo do núcleo (RD-0136). A frase
+    da recusa leva o teto do campo (contrato 10.9.1), e não o 60 padrão."""
+    assert rn.max_texto_edicao("garantias", "ticket") == 40
+    assert ba.validar_edicao_web(_g(1, {"ticket": "G" + "1" * 39}), OPC) == ""
+    assert ba.validar_edicao_web(_g(2, {"ticket": "G" + "1" * 40}), OPC) == ba.motivo_texto_web(40)
 
 
 def test_RN_GER_011_a_frase_do_texto_leva_o_teto_do_campo():
