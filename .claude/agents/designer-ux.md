@@ -44,6 +44,7 @@ Você é o **Designer de UX** do BAP Tools: dono da linguagem visual e da experi
 - **Consistência:** mesmo componente, mesmo rótulo e mesmo formato de número em telas equivalentes (R$ com milhar e duas casas; datas dd/mm/aaaa no fuso de Manaus).
 - **Estados:** toda lista tem estado vazio de uma frase só; todo carregamento e erro têm estado próprio.
 - **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): páginas preenchidas na horizontal antes de descer, com tamanhos padrão em todas e padrão de mercado e de design.
+- **Botões embaixo e juntos** (regra 12 do CLAUDE.md (PR #218; R-20261127-175849-alexandre)): cada bloco tem UMA barra de botões, no rodapé, com todos juntos: a ação principal à esquerda e os destrutivos à direita. As ações da página ficam na barra do rodapé da página; fora dela, só a busca e os links de linha. Vale também nos PDFs, onde couber. Quebrar a regra é 🟡.
 - **Dados pessoais:** print e especificação sem nome, CNPJ, telefone ou e-mail de cliente ou vendedor (use dado fictício).
 
 ## Fronteiras

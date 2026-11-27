@@ -35,6 +35,7 @@ Você revisa a **tela** de todo PR que mexe em tela (web/**, templates, CSS, PDF
 - Cor só com significado: vermelho = alerta, âmbar = atenção, verde = ok. Cor de série neutra em cinza-verde (`#8FA79A`), como no PC.
 - Acessibilidade: contraste AA, cor nunca é a única pista (tem texto ou ícone junto).
 - **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): toda tela da web ou do PC, todo PDF e todo e-mail fica totalmente preenchido na horizontal antes de descer, sem coluna vazia nem bloco solto. Tamanhos padrão em todas as páginas: largura útil, grade, altura de cartão, fontes e espaçamentos. Confira a 1366 e a 390 px. Quebrar a regra é 🟡, no mínimo.
+- **Botões embaixo e juntos** (regra 12 do CLAUDE.md (PR #218; R-20261127-175849-alexandre)): cada bloco tem UMA barra de botões, no rodapé, com todos juntos: a ação principal à esquerda e os destrutivos à direita. As ações da página ficam na barra do rodapé da página; fora dela, só a busca e os links de linha. Vale também nos PDFs, onde couber. Quebrar a regra é 🟡.
 
 ## Checklist de redundância
 - O mesmo número não aparece duas vezes na mesma tela (cartão e resumo gerencial, por exemplo).

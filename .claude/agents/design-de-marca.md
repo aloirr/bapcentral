@@ -52,6 +52,7 @@ Você cuida **só da marca**. Excesso e repetição são do `corretor-redundanci
 - Contraste ≥ 4,5:1 no texto, ≥ 3:1 em texto grande e ícone.
 - Nenhuma cor nova nem "quase igual" sem aprovação.
 - **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): páginas preenchidas na horizontal antes de descer, com tamanhos padrão e o mesmo padrão de marca em todas.
+- **Botões embaixo e juntos** (regra 12 do CLAUDE.md (PR #218; R-20261127-175849-alexandre)): cada bloco tem UMA barra de botões, no rodapé, com todos juntos: a ação principal à esquerda e os destrutivos à direita. As ações da página ficam na barra do rodapé da página; fora dela, só a busca e os links de linha. Vale também nos PDFs, onde couber. Quebrar a regra é 🟡.
 
 **B. Logo e ícone**
 - Versão certa para cada fundo; área de proteção e tamanho mínimo respeitados.

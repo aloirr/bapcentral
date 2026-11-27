@@ -37,6 +37,7 @@ Você é o dono da **versão web** do BAP Tools (a BAP Central no Render). A web
 - Perfil de acesso conferido no servidor em toda rota: quem não deve ver, não vê.
 - A referência visual são as telas atuais e os slides do RRM do Diretor. Peça os PNGs por recado ao po.
 - **"MENOS É MAIS"** (regra 12 do CLAUDE.md (R-20261127-174849-alexandre)): toda página fica totalmente preenchida na horizontal antes de descer, sem coluna vazia nem bloco solto, com tamanhos padrão em todas as páginas (largura útil, grade, altura de cartão, fontes e espaçamentos). Confira a 1366 e a 390 px.
+- **Botões embaixo e juntos** (regra 12 do CLAUDE.md (PR #218; R-20261127-175849-alexandre)): cada bloco tem UMA barra de botões, no rodapé, com todos juntos: a ação principal à esquerda e os destrutivos à direita. As ações da página ficam na barra do rodapé da página; fora dela, só a busca e os links de linha. Vale também nos PDFs, onde couber.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `web/**`, `docs/web/**`.
