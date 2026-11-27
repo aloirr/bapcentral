@@ -316,9 +316,6 @@ button{background:var(--verde-escuro);border-color:var(--verde-escuro)}
 .cob-desfaz button,.filtros-tab a,.caixa a{color:var(--verde-escuro)}
 /* barras: as cores do PC trocadas pelas da BAP (verde, verde-escuro, areia, cinza-verde) */
 .gb-b i,.leg i{border-radius:6px 6px 0 0}.leg i{border-radius:2px}
-.gb-b i[style*="1F4FD1" i],.hb-trilho i[style*="1F4FD1" i],.leg i[style*="1F4FD1" i]{background:var(--verde-escuro)!important}
-.gb-b i[style*="C98A00" i],.gb-b i[style*="B7791F" i],.hb-trilho i[style*="C98A00" i],.leg i[style*="C98A00" i],.leg i[style*="B7791F" i]{background:var(--grafico-2)!important}
-.gb-b i[style*="4F6D7A" i],.hb-trilho i[style*="4F6D7A" i],.leg i[style*="4F6D7A" i]{background:var(--grafico-3)!important}
 .hb-trilho{border-radius:7px;overflow:hidden;background:var(--c-eef1ee)}
 /* T-0020: coluna que só repete outra não aparece; tabelas de baixo lado a lado, como no farol do PC */
 .oc{display:none}
@@ -718,11 +715,9 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .gb-larga .gb-txt{font-size:12px}
 .gb-larga .r-c{display:none}
 @media(max-width:700px){
-  .graf-larga{padding-left:6px;padding-right:6px}
-  .gb.gb-larga{gap:1px;grid-auto-columns:minmax(0,1fr)}
-  .gb-larga .gb-rot{font-weight:600;letter-spacing:-.02em}
+  .gb.gb-larga{grid-auto-columns:minmax(0,1fr)}
   .gb-larga .r-l{display:none}.gb-larga .r-c{display:inline}
-  .gb-larga .gb-rot,.gb-larga .gb-txt{font-size:11px}
+  .gb-larga .gb-txt{font-size:11px}
   .bc3 .graf .gb.gb-larga .gb-rot{font-size:11px;overflow:visible;font-weight:600;letter-spacing:-.02em}
   .bc3 .graf .gb.gb-larga{overflow:visible}
   .bc3 .graficos .graf.graf-larga{padding-left:12px;padding-right:12px}

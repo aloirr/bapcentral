@@ -226,8 +226,9 @@ def test_RN_POS_009_resumo_do_fretes_titulos_total_frases_e_rotulos_do_pc(admin)
     assert len({tuple(b["total"]) for b in tabs}) == 1                                  # as 3 fecham igual
     assert [x[1] for x in frases] == ["PA concentra 56% do valor das notas com frete.",
                                       "TRANSP. GAMA leva 34% do valor."]
+    assert [b["tipo"] for b in bl] == ["barras", "tabela", "tabela", "tabela"]        # sem o bloco insights (RD-0192)
     for fr in [x[1] for x in frases]:
-        assert fr in html
+        assert html.count(fr) == 1                                                     # as frases só uma vez (insights_painel)
     rot = {b["titulo"]: [x[0] for x in b["linhas"]] for b in tabs}
     assert "Sem UF" in rot["Por UF (NOV/26)"]
     assert {"SERRA BONITA / Sem UF", "Sem cidade / MA"} <= set(rot["Por cidade (NOV/26)"])
@@ -248,3 +249,10 @@ def test_UX_A8_cores_do_pc_viram_o_token_do_mesmo_papel():
     assert len({x["cor"] for x in h["linhas"]}) == 4                  # os estados continuam distintos
     h2 = render._bloco_hbarras({"rotulos": ["a"], "valores": [1], "cores": ["#59BA61"]})
     assert h2["linhas"][0]["cor"] == t["--verde-marca"]
+
+
+def test_RD_0198_mes_oculto_nas_3_abas_de_resumo():
+    """§10.7.3: o MÊS vai oculto (o) em Por UF, Por cidade e Por transportadora; o filtro oculto precisa da coluna."""
+    for t in ("Por UF", "Por cidade", "Por transportadora"):
+        cols = tabelas.COLUNAS_RID[("pl_fretes", t)]
+        assert cols[0] == ("MÊS", "texto", True), t

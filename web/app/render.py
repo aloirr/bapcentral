@@ -436,6 +436,14 @@ def _cor(c, padrao) -> str:
     return padrao
 
 
+def _disposicao(cols, n_series, denso, larga) -> tuple[bool, bool]:
+    """(vert, rotv) do gráfico de colunas: valor em pé e rótulo em pé. Num lugar só (RD-0196)."""
+    n, maxrot = len(cols), max([len(c["rot"]) for c in cols] or [0])
+    vert = 8 < n * max(n_series, 1) and not denso and not larga          # valor em pé: não se sobrepõe
+    rotv = not larga and ((n > 5 and maxrot > 5) or (n > 8 and maxrot > (3 if denso else 4)))   # nome comprido em pé
+    return vert, rotv
+
+
 def _bloco_barras(b) -> dict:
     g = b.get("grafico")
     if not isinstance(g, dict):
@@ -460,16 +468,14 @@ def _bloco_barras(b) -> dict:
                        "alt": 0 if not v else round(max(3.0, 100 * abs(v) / mx), 1),
                        "cor": s["cor_neg"] if (v or 0) < 0 else s["cor"]})
         cols.append({"rot": rot, "barras": bs})
-    nbarras = len(cols) * max(len(series), 1)
-    maxrot = max([len(c["rot"]) for c in cols] or [0])
     denso = len(cols) > 14
     larga = (_num(b.get("colspan")) or 1) >= 2 and not denso          # A1: o gráfico que pede a largura toda
     for c in cols:                                                       # celular: "DEZ/25" vira "DEZ"
         m = re.match(r"^([A-ZÇ]{3})/\d{2}$", c["rot"])
         c["rot_c"] = m.group(1) if m else c["rot"]
+    vert, rotv = _disposicao(cols, len(series), denso, larga)
     return {"tipo": "barras", "larga": larga, "titulo": str(g.get("titulo", "")), "cols": cols,
-            "denso": denso, "vert": 8 < nbarras and not denso and not larga,       # valor em pé: não se sobrepõe
-            "rotv": not larga and ((len(cols) > 5 and maxrot > 5) or (len(cols) > 8 and maxrot > (3 if denso else 4))),   # data/nome comprido em pé
+            "denso": denso, "vert": vert, "rotv": rotv,
             "legenda": [{"nome": s["nome"], "cor": s["cor"]} for s in series if s["nome"]] if len(series) > 1 else [],
             "meta": {"pos": round(100 * abs(meta) / mx, 1), "txt": fmt_valor(meta, formato)} if meta else None,
             "largo": len(cols) > 8}
@@ -631,10 +637,8 @@ def _blocos(painel) -> tuple[list[dict], list[dict]]:
         for x in out:
             if x.get("larga"):
                 x["larga"] = False
-                n = len(x["cols"])
-                maxrot = max([len(c["rot"]) for c in x["cols"]] or [0])
-                x["vert"] = 8 < n * max(len(x["cols"][0]["barras"]), 1) and not x["denso"]
-                x["rotv"] = (n > 5 and maxrot > 5) or (n > 8 and maxrot > (3 if x["denso"] else 4))
+                x["vert"], x["rotv"] = _disposicao(x["cols"], len(x["cols"][0]["barras"]) if x["cols"] else 1,
+                                                   x["denso"], False)
     return ins, out
 
 

@@ -107,18 +107,12 @@ def spec_fretes(cols, linhas):
                  "tipo": "texto", "opcoes": ["MOTORISTA FICTICIO 1", "MOTORISTA FICTICIO 2"]}]}
 
 
-def rotulo_agrupa(col, ln, nb):
-    """Espelho de relatorios_nucleo.rotulo_agrupa_fretes (faróis 48c6577): o rótulo das tabelas Por UF, Por cidade e
-    Por transportadora sai pronto do PC. Nota sem acompanhamento (sem chave) e sem transportadora vai para
-    "Sem acompanhamento"; "Sem transportadora" tem o mesmo critério do cartão."""
-    v = (ln[nb.index(col)] or "").strip()
-    if col == "UF":
-        return v or "Sem UF"
-    if col == "CIDADE":
-        return (v or "Sem cidade") + " / " + ((ln[nb.index("UF")] or "").strip() or "Sem UF")
-    if not v:
-        return "Sem acompanhamento" if ln[nb.index("ETAPA")] == SEM_AC else "Sem transportadora"
-    return v
+def _rotulo_pc(col, ln, nb):
+    """O rótulo do PC (`relatorios_nucleo.rotulo_agrupa_fretes`): a linha da fixture tem os mesmos índices do PC, menos a
+    17ª célula (CHAVE), que não vem sem acompanhamento."""
+    import relatorios_nucleo as rn
+    chave = "" if ln[nb.index("ETAPA")] == SEM_AC else "CHAVE"
+    return rn.rotulo_agrupa_fretes({"UF": 7, "CIDADE": 6, "TRANSPORTADORA": 11}[col], list(ln) + [chave])
 
 
 def _resumo(titulo, col):
@@ -127,7 +121,7 @@ def _resumo(titulo, col):
     nb = [c["nome"] for c in bcols]
     grupos: dict = {}
     for ln in base:
-        g = grupos.setdefault(rotulo_agrupa(col, ln, nb), [0, 0.0, 0.0])
+        g = grupos.setdefault(_rotulo_pc(col, ln, nb), [0, 0.0, 0.0])
         g[0] += 1
         g[1] += ln[nb.index("VLR NF")]
         g[2] += ln[nb.index("VLR FRETE")]
@@ -142,59 +136,9 @@ def _resumo(titulo, col):
 MESES12 = ["DEZ/25", "JAN/26", "FEV/26", "MAR/26", "ABR/26", "MAI/26", "JUN/26", "JUL/26", "AGO/26", "SET/26", "OUT/26",
            "NOV/26"]
 NOTAS12 = [4, 5, 5, 6, 7, 6, 8, 7, 9, 8, 10]                     # dez/25 a out/26 (inventado); nov/26 vem das CASOS
-TABELAS_RESUMO = (("Por UF", "UF"), ("Por cidade", "CIDADE"), ("Por transportadora", "TRANSPORTADORA"))
-
-
-def blocos_resumo_web(r):
-    """Espelho de bap_automation.blocos_resumo_fretes_web (robô, T-0037 91e6f8a), campo a campo: o gráfico de 12 meses
-    como `barras`; as tabelas do mês padrão como `tabela` (sem MÊS, com TOTAL); e as 2 frases como `insights`."""
-    import relatorios_nucleo as rn
-    blocos, linha = [], 0
-    for g in r.get("graficos") or []:
-        if g.get("rotulos"):
-            blocos.append({"tipo": "barras", "row": linha, "col": 0, "colspan": 3, "grafico": g})
-            linha += 1
-            break
-    por_titulo = {t["titulo"]: t for t in r["tabelas"]}
-    agreg = {}
-    for titulo, rot in TABELAS_RESUMO:
-        t = por_titulo[titulo]
-        nomes = [c["nome"] for c in t["colunas"]]
-        mes = next(f["padrao"] for f in t["filtros"] if f["coluna"] == "MÊS")
-        im, ir = nomes.index("MÊS"), nomes.index(rot)
-        ls = [[l[ir], l[nomes.index("NOTAS")], l[nomes.index("VLR NF")] or 0,
-               l[nomes.index("VLR FRETE")] or 0] for l in t["linhas"] if l[im] == mes]
-        ls.sort(key=lambda x: -x[2])
-        tot = ["TOTAL", sum(x[1] or 0 for x in ls), round(sum(x[2] for x in ls), 2), round(sum(x[3] for x in ls), 2)]
-        agreg[titulo] = [list(x) for x in ls]
-        ls = [[x[0], x[1], round(x[2], 2), round(x[3], 2)] for x in ls]
-        cols = [{"nome": rot, "tipo": "texto", "largura": 140, "oculta": False},
-                {"nome": "NOTAS", "tipo": "int", "largura": 70, "oculta": False},
-                {"nome": "VLR NF", "tipo": "moeda", "largura": 100, "oculta": False},
-                {"nome": "VLR FRETE", "tipo": "moeda", "largura": 100, "oculta": False}]
-        blocos.append({"tipo": "tabela", "titulo": f"{titulo} ({mes})", "colunas": cols, "linhas": ls, "total": tot,
-                       "row": linha, "col": 0})
-        linha += 1
-    frases = []
-    ufs = agreg["Por UF"]
-    ufs_ok = [x for x in ufs if x[0] != "Sem UF"]
-    if len(ufs) > 1 and ufs_ok:
-        v_ = sum(x[2] for x in ufs)
-        topo = max(ufs_ok, key=lambda x: x[2])
-        frases.append(("info", f"{topo[0]} concentra {rn.p(rn.pct_de(topo[2], v_))} do valor das notas com frete."))
-    trs = agreg["Por transportadora"]
-    tr = [x for x in trs if x[0] not in ("Sem transportadora", "Sem acompanhamento")]
-    if tr:
-        v_ = sum(x[2] for x in trs)
-        t0 = max(tr, key=lambda x: x[2])
-        frases.append(("info", f"{t0[0]} leva {rn.p(rn.pct_de(t0[2], v_))} do valor."))
-    if frases:
-        blocos.append({"tipo": "insights", "titulo": "Resumo gerencial", "linhas": frases, "row": linha, "col": 0})
-    return blocos, frases
-
-
 def tabelas_resumo():
-    return [_resumo(t, rot) for t, rot in TABELAS_RESUMO]
+    import bap_automation as ba
+    return [_resumo(t, rot) for t, rot in ba._TABELAS_RESUMO_FRETES_WEB]
 
 
 def blocos_resumo():
@@ -208,7 +152,8 @@ def blocos_resumo():
         t = deepcopy(t)
         t["filtros"] = [{"coluna": "MÊS", "padrao": "NOV/26"}]
         tabs.append(t)
-    blocos, frases = blocos_resumo_web({"graficos": [graf], "tabelas": tabs})
+    import bap_automation as ba
+    blocos, frases = ba.blocos_resumo_fretes_web({"graficos": [graf], "tabelas": tabs})
     return json.loads(json.dumps(blocos)), json.loads(json.dumps(frases))
 
 

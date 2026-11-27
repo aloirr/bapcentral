@@ -393,9 +393,9 @@ COLUNAS_RID.update({
         _c("SUPERVISOR", "texto", True), _c("NCC", "int"), _c("SALDO", "moeda"), _c("NCC MAIS ANTIGA (DIAS)", "int"),
         _c("TÍTULOS EM ABERTO", "moeda"), _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")
     ],
-    ("pl_fretes", "Por UF"): [_c("MÊS"), _c("UF")] + _RESUMO_FRETES,
-    ("pl_fretes", "Por cidade"): [_c("MÊS"), _c("CIDADE")] + _RESUMO_FRETES,
-    ("pl_fretes", "Por transportadora"): [_c("MÊS"), _c("TRANSPORTADORA")] + _RESUMO_FRETES,
+    ("pl_fretes", "Por UF"): [_c("MÊS", "texto", True), _c("UF")] + _RESUMO_FRETES,
+    ("pl_fretes", "Por cidade"): [_c("MÊS", "texto", True), _c("CIDADE")] + _RESUMO_FRETES,
+    ("pl_fretes", "Por transportadora"): [_c("MÊS", "texto", True), _c("TRANSPORTADORA")] + _RESUMO_FRETES,
     **{("pl_ncc", f"Por {k}"): _agrupa_ncc(k.upper()) for k in ("filial", "vendedor", "supervisor")},
 })
 # colunas que nunca vão, por tabela (§10.10.3, bloco `colunas-fora-por-tabela`): a web recusa o pacote que as traz
