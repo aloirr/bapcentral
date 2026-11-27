@@ -111,7 +111,7 @@ O texto exato está em `docs/desenho/T-0045-render-yaml.diff`, explicado no `doc
 
 **Donos:** o `Dockerfile` e o `nuvem/**` hoje são "sem-dono"; as linhas do `.coord/donos.json` estão no desenho, §3 (governança 1, §9). Até elas entrarem, o `Dockerfile` fica como texto.
 
-**Sem dependência nova no PC:** o robô DT-AMADMBAP-03 importa com `requests` e a biblioteca padrão. O Playwright e o `openpyxl` já estão no `requirements.txt` do PC. Nada de pyarrow nem de Git. Na imagem, o `requirements-visitas.txt` leva o Playwright e o `openpyxl`, e o `COPY` leva o `relatorios_nucleo.py` e o `bap_dados.py` (a limpeza do §7; os dois só importam a biblioteca padrão no topo).
+**Sem dependência nova no PC:** o robô DT-AMADMBAP-03 importa com `requests` e a biblioteca padrão. O Playwright e o `openpyxl` já estão no `requirements.txt` do PC. Nada de pyarrow nem de Git. Na imagem, o `requirements-visitas.txt` leva o Playwright e o `openpyxl`, e o `COPY` leva o `relatorios_nucleo.py` e o `bap_dados.py` (a limpeza do §7; desenho, §3).
 
 ## 3. Quando roda e quem aperta (D2, D3)
 
@@ -122,7 +122,7 @@ O texto exato está em `docs/desenho/T-0045-render-yaml.diff`, explicado no `doc
 - **A agenda nasce desligada.** O primeiro trabalho do cron, com as variáveis presentes, é o diagnóstico. Só o admin liga a agenda, com diagnóstico `ok` e o robô do PC novo no ar (é ele que conta ao site os dias que o PC já fechou, §5.1).
 - **Teto diário de logins (RN-VIS-008): 8 por dia, somando todos os motivos,** e um teto por motivo (agenda 4 = 1 + 3 retentativas; pedido 3; retentativa 1; diagnóstico 2). O site conta **na concessão**, porque cada concessão é um login, mesmo que a rodada caia depois. Por que 8:
   - **risco de bloqueio:** sem teto, uma falha que deixa tentar de novo dispararia a cada 10 min até 21h50, cerca de 96 logins por dia. 8 é cerca de 3 vezes o uso normal (1 agenda e 1 ou 2 botões), em horários espaçados, e a senha recusada nunca tenta de novo (RN-VIS-005);
-  - **custo (o teto em dinheiro):** no pior caso, os 8 logins de todo dia com rodadas de até 45 min, são 360 min por dia, ou **cerca de US$ 6 por mês** a mais [SUPOSIÇÃO de preço]. Sem teto, 96 × 8 min chegariam a cerca de US$ 13 por mês;
+  - **custo:** o teto põe um limite em dinheiro no pior mês, e sem ele a conta passaria do dobro (§4);
   - **o dia normal não chega perto:** 1 agenda e 1 botão são 2 logins.
 - **Retentativa (RN-VIS-006):** marcada como feita já na concessão, para ficar uma só mesmo que falhe.
 
@@ -167,7 +167,8 @@ O site guarda uma **concessão** (lease): só uma rodada ativa por vez, gravada 
 
 - **Tempo-limite da rodada:** 45 min, conferido no fim de cada dia; o que faltar continua na volta seguinte. Um vigia liga o `parar` do `Robo` e, se ele não parar, encerra o processo com saída de erro. O teto do Render (12 h) nunca é o freio. Os valores estão no contrato, §2.
 - **Do fim da rodada até a tela:** até 30 min para o robô do PC importar (§5.1), mais a rodada do robô (cerca de 9 min): **até cerca de 40 min**. Na tela, o "baixado em" do farol muda nessa volta.
-- **Conta do custo (Standard):** a agenda dá 30 × 8 min; 10 botões de 25 min por mês; e as voltas sem trabalho do §3.3. São cerca de 1.900 min por mês, **cerca de US$ 1 a 3 por mês**; o teto do §3.1 limita o pior mês a cerca de US$ 7, com as voltas sem trabalho [SUPOSIÇÃO: preço a conferir no painel].
+- **Conta do custo (Standard):** a agenda dá 30 × 8 min; 10 botões de 25 min por mês; e as voltas sem trabalho do §3.3. São cerca de 1.900 min por mês, **cerca de US$ 1 a 3 por mês** [SUPOSIÇÃO: preço a conferir no painel].
+- **Pior mês com o teto do §3.1:** 8 logins por dia × até 45 min = 360 min por dia; × 30 dias = 10.800 min × ~US$ 0,00058 = cerca de US$ 6,30, mais cerca de US$ 0,85 das voltas sem trabalho (§3.3): **cerca de US$ 7 por mês**. Sem teto, 96 logins × 8 min por dia dariam cerca de 23.000 min, ou cerca de US$ 13 por mês.
 
 ## 5. Como as visitas chegam ao site e voltam ao PC sem perder dado
 
@@ -293,4 +294,3 @@ Os códigos, o texto no site e o que acontece em seguida estão no contrato, §5
 - **Rede privada sem TLS:** o Bearer do cron trafega em claro dentro da rede privada do Render. É a rede da própria conta [SUPOSIÇÃO]; se o diagnóstico mostrar que o cron não alcança o `hostport`, a troca é para a URL pública com HTTPS (PR de governança).
 - **Preços do Render não conferidos:** todos os valores em dólar são [SUPOSIÇÃO] e são confirmados no painel antes do "autorizo".
 - **`bap_dados.VERSAO` fica em 27:** nada aqui toca o cache dos núcleos.
-- **Processo no contêiner:** o Python como PID 1 não recolheria os processos do Chromium nem trataria o `SIGTERM` do Render. Por isso, `tini` como PID 1, `SIGTERM` tratado e Chromium com `--disable-dev-shm-usage` (contrato, §2; `Dockerfile` no desenho, §3).
