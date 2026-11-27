@@ -1843,20 +1843,35 @@ checar(_ok06i and not (_oc06 & {rn.norm_nome(l_[0]) for l_ in
 # Painel do Diretor vai ate ontem; Farol de Metas e de Visita tiram a venda
 # / visita de hoje da projecao (o realizado do cartao continua com hoje)
 import datetime as _dt05  # noqa: E402
-_k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0, real_proj=60)
-_c05 = rn._cartoes_farol(
-    [["A", 500.0, 100.0]], [{"nome": "NOME"}, {"nome": "FAT. META"},
-                            {"nome": "FAT. REAL"}], 10, 50.0,
-    hoje_total={"FAT.": 40.0})
-_c05b = rn._cartoes_farol(
-    [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]],
-    [{"nome": "NOME"}, {"nome": "FAT. META"}, {"nome": "FAT. REAL"}], 10,
-    50.0, hoje_de={"ANA": {"FAT.": 40.0}})
-checar({x_[0]: x_[1] for x_ in _k05["linhas"]}.get("Projeção do mês", "").startswith("120")
-       and {x_[0]: x_[1] for x_ in _c05[0]["linhas"]}.get("Projeção do mês", "").startswith(
-           "R$ 120")
-       and {x_[0]: x_[1] for x_ in _c05b[0]["linhas"]}.get("Projeção do mês", "").startswith(
-           "R$ 220")
+# transição T-0060 (decisão 43): volta ao estrito no PR seguinte
+import inspect as _in05  # noqa: E402
+_cols05 = [{"nome": "NOME"}, {"nome": "FAT. META"}, {"nome": "FAT. REAL"}]
+
+
+def _pj05(c_):
+    return {x_[0]: x_[1] for x_ in c_["linhas"]}.get("Projeção do mês", "")
+
+
+if "hoje_total" in _in05.signature(rn._cartoes_farol).parameters:
+    _k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0, real_proj=60)
+    _c05 = rn._cartoes_farol([["A", 500.0, 100.0]], _cols05, 10, 50.0,
+                             hoje_total={"FAT.": 40.0})
+    _c05b = rn._cartoes_farol(
+        [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]], _cols05, 10, 50.0,
+        hoje_de={"ANA": {"FAT.": 40.0}})
+    _ok05 = (_pj05(_k05).startswith("120")
+             and _pj05(_c05[0]).startswith("R$ 120")
+             and _pj05(_c05b[0]).startswith("R$ 220"))
+else:
+    # decisão 43: projeção = real ÷ (DU corridos com hoje ÷ DU do mês)
+    _k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0)
+    _c05 = rn._cartoes_farol([["A", 500.0, 100.0]], _cols05, 10, 50.0)
+    _c05b = rn._cartoes_farol(
+        [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]], _cols05, 10, 50.0)
+    _ok05 = (_pj05(_k05).startswith("200")
+             and _pj05(_c05[0]).startswith("R$ 200")
+             and _pj05(_c05b[0]).startswith("R$ 300"))
+checar(_ok05
        and (_dd29.get("dados_ate") is None
             or _dd29["dados_ate"] < _dt05.date.today()
             or _dd29["dados_ate"].month != _dt05.date.today().month),
