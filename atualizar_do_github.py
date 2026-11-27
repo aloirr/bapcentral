@@ -23,17 +23,20 @@ Fluxo:
 
 Codigos de saida: 0 ok (ou nada a fazer) | 1 erro de origem ou argumento |
 2 trava "instalado por fora" (limite 5) | 3 backup falhou | 4 troca falhou
-(restaurado) | 10 limite 1: commit do main com menos de 2 h | 11 limite 2: CI
-do PR de origem nao esta verde | 12 limite 3: versao da web no main diferente
-da do ``/saude`` | 13 limite 4: fora da janela 06h00-07h30 (Manaus) | 14
+(restaurado) | 10 limite 1: nenhum commit do main com 2 h ou mais (ou o
+instalado ja e mais novo que ele) | 11 limite 2: CI do PR de origem nao esta
+verde | 12 limite 3: web do commit escolhido diferente da do ``/saude``
+(ou sem resposta) | 13 limite 4: fora da janela 06h00-07h30 (Manaus) | 14
 limite 4: robo rodando | 15 API do GitHub indisponivel ou sem cota (60/h) |
 16 rotina pausada (``SISTEMA BAP\\PAUSAR_ATUALIZACAO``).
 
 Modos (T-0018, ADR 0002, R-20261124-214958-alexandre):
  - ``--diario``: a tarefa agendada das 06h30 no notebook do robo. So instala
-   se os 5 limites passarem (funcoes puras ``commit_maduro``, ``ci_verde``,
-   ``versoes_batem``, ``dentro_da_janela``/``robo_rodando`` e a trava do
-   ``planejar``). Nunca instala os ``.bat`` de instalacao, o proprio
+   se os 5 limites passarem (funcoes puras ``escolher_commit_maduro``,
+   ``ci_verde``, ``versoes_batem``,
+   ``dentro_da_janela``/``robo_rodando`` e a trava do ``planejar``). Com o
+   HEAD do ``main`` com menos de 2 h, instala o commit mais novo com 2 h ou
+   mais (T-0056), se a web dele for igual a do ``/saude``. Nunca instala os ``.bat`` de instalacao, o proprio
    atualizador, o ``tarefa_bap.xml`` nem ``.json`` (esses seguem com
    "instale"). Baixa o zip do SHA conferido, sem token (repositorio
    publico). Grava ``SISTEMA BAP\\VERSAO_INSTALADA.txt`` e uma linha por
@@ -70,6 +73,7 @@ from datetime import date, datetime, timedelta, timezone
 from datetime import time as dtime
 from fnmatch import fnmatch
 from pathlib import Path, PurePath, PureWindowsPath
+from typing import NamedTuple
 
 URL_ZIP_MAIN = "https://github.com/aloirr/bapcentral/archive/refs/heads/main.zip"
 TOLERANCIA_S = 2.0
@@ -126,7 +130,10 @@ SO_COM_INSTALE = frozenset(n.lower() for n in (
     "VERIFICAR_REQUISITOS.bat", "ATUALIZAR_DO_GITHUB.bat",
     "INSTALAR_ROTINA_DIARIA.bat", "atualizar_do_github.py", "tarefa_bap.xml",
 ))
-REQUISICOES_MINIMAS_API = 4   # rate_limit nao conta; main + pulls + check-runs
+# rate_limit nao conta; main + (lista de commits, so com o HEAD novo, T-0056)
+# + pulls + check-runs = ate 4 pagas, mais 1 de folga.
+REQUISICOES_MINIMAS_API = 5
+COMMITS_LISTADOS = 100        # 1 pagina de /commits?sha=main (T-0056)
 ASSUNTO_DIARIO = "DIARIO"
 ASSUNTO_PRIMEIRA_VEZ = "PRIMEIRA_VEZ"
 NOME_TAREFA = "BAP - Atualizacao diaria do codigo"
@@ -231,6 +238,55 @@ def commit_maduro(data_commit: datetime, agora: datetime,
     if data_commit.tzinfo is None or agora.tzinfo is None:
         raise ValueError("datas sem fuso")
     return agora - data_commit >= timedelta(hours=horas)
+
+
+class EscolhaCommit(NamedTuple):
+    """Resultado de ``escolher_commit_maduro`` (T-0056).
+
+    ``situacao``: ``"maduro"`` (instalar ``sha``), ``"ja_instalado"`` (o mais
+    novo com 2 h e o instalado), ``"instalado_mais_novo"`` (a producao ja tem
+    um commit mais novo que o ultimo com 2 h; nao volta para tras) ou
+    ``"nenhum_maduro"``. ``sha``/``data`` so vem nas duas primeiras.
+    """
+    situacao: str
+    sha: str | None = None
+    data: datetime | None = None
+
+
+def escolher_commit_maduro(commits: list, agora: datetime,
+                           instalado: str | None = None,
+                           horas: float = HORAS_MINIMAS_COMMIT) -> EscolhaCommit:
+    """Limite 1 (T-0056): o commit mais novo do ``main`` com ``horas`` (2) ou mais.
+
+    ``commits`` e a lista de ``/repos/{REPO}/commits?sha=main`` na ordem da API
+    (o mais novo primeiro, a historia do ``main``); a idade e a data do
+    committer (``commit_maduro``). Item sem SHA valido e ignorado; item sem
+    data valida conta como novo (nao e escolhido). Se o ``instalado`` aparece
+    antes do primeiro commit maduro, a producao ja esta a frente e nada volta
+    para tras (``"instalado_mais_novo"``).
+    """
+    alvo = (instalado or "").strip().lower() or None
+    for item in commits or []:
+        if not isinstance(item, dict):
+            continue
+        sha = str(item.get("sha", "")).lower()
+        if not _RE_SHA.match(sha):
+            continue
+        try:
+            data = data_iso(item["commit"]["committer"]["date"])
+            maduro = commit_maduro(data, agora, horas)
+        except (KeyError, TypeError, ValueError):
+            data, maduro = None, False
+        if maduro:
+            return EscolhaCommit("ja_instalado" if sha == alvo else "maduro", sha, data)
+        if sha == alvo:
+            return EscolhaCommit("instalado_mais_novo")
+    return EscolhaCommit("nenhum_maduro")
+
+
+def horas_desde(data: datetime, agora: datetime) -> str:
+    """Idade em horas com 1 casa e virgula (pt-BR), para o log: ``'2,3'``."""
+    return f"{(agora - data).total_seconds() / 3600:.1f}".replace(".", ",")
 
 
 def pr_de_origem(pulls: list, sha: str) -> dict | None:
@@ -812,16 +868,21 @@ def rodar_diario(producao: Path, simular: bool = False,
     """``--diario``: confere os 5 limites e, se todos passarem, instala.
 
     Ordem (do mais barato ao mais caro): pausa; limite 4 (janela e robo);
-    cota da API; SHA do ``main`` (ja instalado -> 0); limite 1; limite 2;
-    zip do SHA conferido; limite 3; plano com ``so_com_instale``; limite 5;
-    troca. Limite que falha -> nada trocado, codigo proprio e 1 linha no log.
+    cota da API; SHA do ``main`` (ja instalado -> 0); limite 1 (HEAD com
+    menos de 2 h -> o commit mais novo com 2 h, ``escolher_commit_maduro``,
+    T-0056); limite 2; zip do SHA escolhido; limite 3
+    (``versoes_batem``); plano com ``so_com_instale``; limite 5;
+    troca. Limite que falha -> nada trocado, codigo proprio e 1 linha no log,
+    que diz qual commit foi escolhido e por que.
     """
     producao = Path(producao)
     agora = agora or agora_manaus()
     modo = "diario"
     sha: str | None = None
+    contexto = ""  # qual commit foi escolhido e por que (T-0056)
 
     def fim(codigo: int, motivo: str) -> int:
+        motivo = contexto + motivo
         print(f"[codigo {codigo}] {motivo}")
         if not simular:  # simulacao nao grava nada, nem o log
             registrar(producao, linha_log(agora, modo, codigo, motivo, sha))
@@ -849,12 +910,36 @@ def rodar_diario(producao: Path, simular: bool = False,
     except (ErroApi, KeyError, TypeError, ValueError) as erro:
         return fim(CODIGO_API, f"API do GitHub: {type(erro).__name__} {erro}")
 
-    if sha_instalado(producao) == sha:
+    instalado = sha_instalado(producao)
+    if instalado == sha:
         return fim(CODIGO_OK, "nada a fazer: este main ja esta instalado")
-    if not commit_maduro(data_commit, agora):
-        horas = (agora - data_commit).total_seconds() / 3600
-        return fim(CODIGO_LIMITE_IDADE,
-                   f"limite 1: commit com {horas:.1f} h no main (minimo 2 h)")
+    if commit_maduro(data_commit, agora):
+        contexto = f"HEAD com {horas_desde(data_commit, agora)} h; "
+    else:
+        # T-0056: HEAD com menos de 2 h nao derruba o dia; vale o commit mais
+        # novo do main com 2 h ou mais, com os mesmos limites 2, 3 e 5.
+        cabeca = f"HEAD {sha[:7]} com {horas_desde(data_commit, agora)} h"
+        try:
+            lista = _get_json(f"{URL_API}/repos/{REPO}/commits"
+                              f"?sha=main&per_page={COMMITS_LISTADOS}")
+        except ErroApi as erro:
+            return fim(CODIGO_API, f"{cabeca}; API do GitHub: {erro}")
+        if not isinstance(lista, list):
+            return fim(CODIGO_API, f"{cabeca}; API do GitHub: lista de commits invalida")
+        escolha = escolher_commit_maduro(lista, agora, instalado)
+        if escolha.situacao == "nenhum_maduro":
+            return fim(CODIGO_LIMITE_IDADE,
+                       f"limite 1: {cabeca}; nenhum commit com {HORAS_MINIMAS_COMMIT:g} h entre os "
+                       f"{COMMITS_LISTADOS} mais novos do main")
+        if escolha.situacao == "instalado_mais_novo":
+            return fim(CODIGO_LIMITE_IDADE,
+                       f"limite 1: {cabeca}; o instalado ({instalado[:7]}) ja e mais "
+                       f"novo que o ultimo commit com {HORAS_MINIMAS_COMMIT:g} h")
+        sha = escolha.sha
+        contexto = f"{cabeca}; escolhido {sha[:7]} ({horas_desde(escolha.data, agora)} h); "
+        if escolha.situacao == "ja_instalado":
+            return fim(CODIGO_OK, f"nada a fazer: o commit mais novo com "
+                       f"{HORAS_MINIMAS_COMMIT:g} h ja esta instalado")
 
     try:
         pulls = _get_json(f"{URL_API}/repos/{REPO}/commits/{sha}/pulls")
@@ -887,8 +972,8 @@ def rodar_diario(producao: Path, simular: bool = False,
         v_site = versao_do_site()
         if not versoes_batem(v_main, v_site):
             return fim(CODIGO_LIMITE_VERSAO_WEB,
-                       f"limite 3: web no main {v_main or '?'} x /saude "
-                       f"{v_site or 'sem resposta'} (deploy pendente?)")
+                       f"limite 3: web do commit {v_main or '?'} x /saude "
+                       f"{v_site or 'sem resposta'} (tem de ser igual; deploy pendente?)")
 
         try:
             plano = planejar(origem, producao, lambda rel: datas[rel],

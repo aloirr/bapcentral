@@ -11,9 +11,11 @@ passa de hoje.
 Também RN-VIS-007 (RD-0112, RD-0114): a rede de dado pessoal (`_REDE` /
 `RE_PESSOAL`), os `TIPOS_ACHADO` e as colunas do Espelho que nunca saem
 (`_FORA_DO_ESPELHO` / `COLUNAS_PROIBIDAS`). Um lado que muda sem o outro
-reprova. Aqui só entra a comparação núcleo × web; o que olha só o núcleo
+reprova. Entra a comparação núcleo × web; o que olha só o núcleo
 (a lista em si, as permitidas, o cabeçalho) fica em
-tests/test_T0045_visitas_nucleo.py (RD-0149).
+tests/test_T0045_visitas_nucleo.py (RD-0149). No fim, a comparação robô ×
+web das cópias de FASES, FECHADOS_PC_DIAS e dos códigos (RD-0174), que exige
+o robô da T-0045 no main.
 
 Datas fictícias, sem dado de cliente.
 """
@@ -194,3 +196,96 @@ def test_RN_VIS_007_colunas_fora_do_espelho_iguais_na_rota_e_na_web(web_app):
     if hasattr(web_app.visitas, "ESPELHO_PERMITIDAS"):
         assert {k: tuple(v) for k, v in web_app.visitas.ESPELHO_PERMITIDAS.items()} == \
             {k: tuple(v) for k, v in vn.ESPELHO_PERMITIDAS.items()}
+
+
+# ------------------------------------------------------------------ robô × web (RD-0174)
+# O robô (`visitas_maxima`) e a web têm cópias de FASES, FECHADOS_PC_DIAS e dos
+# códigos do contrato (§2, §3.3 e §5). Exigem o robô da T-0045 (PR #165) no main.
+def _robo_novo():
+    import visitas_maxima as vm
+    return vm
+
+
+def test_RN_VIS_005_fases_iguais_no_robo_e_na_web(web_app):
+    vm = _robo_novo()
+    assert tuple(vm.FASES) == tuple(web_app.visitas.FASES)
+
+
+def test_RN_VIS_002_fechados_pc_dias_igual_no_robo_e_na_web(web_app):
+    vm = _robo_novo()
+    assert vm.FECHADOS_PC_DIAS == web_app.visitas.FECHADOS_PC_DIAS == 40
+
+
+def test_RN_VIS_005_todo_codigo_do_robo_esta_na_web(web_app):
+    """Todo código que o robô escreve (literal de código no `visitas_maxima.py`, fora nome de variável de
+    ambiente e evento do Tk) e todo código que as funções puras devolvem existem em `web.CODIGOS`."""
+    import re
+    vm = _robo_novo()
+    fonte = (RAIZ / "visitas_maxima.py").read_text(encoding="utf-8")
+    literais = {m for m in re.findall(r"[\"']([A-Z]{2,}(?:_[A-Z0-9]{2,})+)[\"']", fonte)
+                if not m.startswith(("BAP_", "WM_", "PLAYWRIGHT_", "PW"))}
+    tempo = type("TimeoutError", (Exception,), {})
+    devolvidos = {vm.codigo_da_excecao(e, f)[0] for e, f in (
+        (vm.ErroRobo("x"), "grade"), (RuntimeError("Target closed"), "grade"), (RuntimeError("x"), "grade"),
+        (tempo("t"), "login"), (tempo("t"), "grade"))}
+    devolvidos |= {vm.classificar_login(u, t, c, h) for u, t, c, h in (
+        ("https://x.test/login", "Usuário ou senha inválidos", False, None), ("https://x.test/login", "", True, None),
+        ("https://x.test/login", "Enviamos um código por SMS", False, None),
+        ("https://x.test/login", "Conta bloqueada", False, None))} - {None}
+    todos = literais | devolvidos
+    assert {"MAXIMA_SENHA", "MAXIMA_CAPTCHA", "MAXIMA_CONFIRMACAO", "MAXIMA_BLOQUEIO", "TELA_MUDOU",
+            "NAVEGADOR_FALHOU", "MAXIMA_FORA", "ERRO_INTERNO"} <= todos
+    fora = sorted(todos - set(web_app.visitas.CODIGOS))
+    assert fora == [], fora
+
+
+# ------------------------------------------------------------------ cron × web (RD-A1, padrão RD-0174)
+# O cron (`nuvem/visitas/agenda.py` e `rodar.py`, modulo-robo) tem cópias das constantes da web (contrato §2, §3.1,
+# §3.2, §3.5 e §5): um lado que muda sem o outro reprova. TIPOS_ACHADO e MANAUS do cron vêm do `visitas_nucleo`
+# (importação, não cópia) e ficam fora daqui. Exigem o `nuvem/visitas/` (T-0045, PR do modulo-robo) no main.
+def _cron():
+    from nuvem.visitas import agenda, rodar
+    return agenda, rodar
+
+
+_CONTRATO_S2 = {"TENTATIVAS_DIA": {"agenda": 4, "pedido": 3, "retentativa": 1, "diagnostico": 2},
+                "LOGINS_DIA_MAX": 8, "PEDIDO_MAX_DIAS": 7, "PEDIDO_MAX_RODADAS": 3,
+                "RETENTATIVAS_AGENDA": ("06h30", "07h00", "07h30"),
+                "NOVA_TENTATIVA": ("MAXIMA_FORA", "TELA_MUDOU", "NAVEGADOR_FALHOU", "SITE_RECUSOU",
+                                   "RODADA_INTERROMPIDA", "PARCIAL_TEMPO", "ERRO_INTERNO")}
+
+
+@pytest.mark.parametrize("nome", sorted(_CONTRATO_S2))
+def test_RN_VIS_008_constantes_da_agenda_do_cron_iguais_na_web_e_no_contrato(web_app, nome):
+    agenda, _ = _cron()
+    cron, web = getattr(agenda, nome), getattr(web_app.visitas, nome)
+    if isinstance(cron, (list, tuple)):
+        assert tuple(cron) == tuple(web) == _CONTRATO_S2[nome]
+    else:
+        assert cron == web == _CONTRATO_S2[nome]
+
+
+def test_RN_VIS_005_pede_fase_do_cron_igual_na_web(web_app):
+    _, rodar = _cron()
+    assert tuple(rodar.PEDE_FASE) == tuple(web_app.visitas.PEDE_FASE) == ("TELA_MUDOU", "ERRO_INTERNO")
+
+
+@pytest.mark.parametrize("cron_nome,web_nome", [("RX_ID", "RE_ID_RODADA"), ("RX_ROTULO", "RE_ROTULO")])
+def test_RN_VIS_004_regex_do_cron_igual_na_web(web_app, cron_nome, web_nome):
+    """`<id>` da rodada (§3) e o rótulo dos achados (§3.6): mesmo padrão e mesmas flags."""
+    _, rodar = _cron()
+    c, w = getattr(rodar, cron_nome), getattr(web_app.visitas, web_nome)
+    assert (c.pattern, c.flags) == (w.pattern, w.flags)
+    for s in ("R20261127T060012", "R2026112T060012", "r20261127T060012", "R20261127T060012\n", "KM DIST",
+              "% VISITAS", "CELULA", "km dist", "A" * 41, ""):
+        assert bool(c.match(s)) == bool(w.match(s)), s
+
+
+def test_RN_VIS_005_saida_do_cron_segue_o_status_da_web(web_app):
+    """§5: saída 0 para `ok` e `parcial`, 1 para `erro`. Todo código que sai com 0 existe no `CODIGOS` da web."""
+    _, rodar = _cron()
+    status = web_app.visitas.STATUS_DO_CODIGO
+    assert set(rodar.SAIDA_OK) <= set(status)
+    for codigo, st in status.items():
+        assert rodar.codigo_e_saida(codigo) == (0 if st in ("ok", "parcial") else 1), (codigo, st)
+    assert rodar.codigo_e_saida("QUALQUER_OUTRO") == 1

@@ -4166,7 +4166,9 @@ checar(_s06a["prevista"] == date(2026, 11, 24) and _s06a["sla"] == 17
        "Garantias: DT. FECHAMENTO = 15 dias úteis (com feriado) ou a "
        "editada; fechada com SLA cinza; FECHADA no prazo × com atraso")
 # (06/11, Alexandre: "Acrescente para poder editar o ticket") a troca do
-# numero e uma linha do diario; a garantia segue no numero novo
+# numero e uma linha do diario; a garantia segue no numero novo. (T-0023) a
+# troca agora vem so da BAP Central web (garantias.renomear, pelo robo); no
+# PC o ticket e so leitura (tests/test_T0023_pc_so_leitura.py)
 with _tfv.TemporaryDirectory() as _dgm6:
     _gm14.gravar(_dgm6, "374504", {"dt_solicitacao": "08/07/2026"},
                  agora=datetime(2026, 11, 1, 10))
@@ -4182,12 +4184,11 @@ checar(_r6a.startswith("já existe") and _r6b == ""
        and sorted(_l6) == ["G-0009", "G-0010"]
        and _l6["G-0010"]["dt_solicitacao"] == "08/07/2026"
        and _l6["G-0010"]["status"] == "FINALIZADA"
-       and _gm14.renomear(_dgm6, None, "") != ""
-       and _br14.DialogoGarantia.CAMPOS[0][0] == "ticket",
-       "Garantia: ticket editável (não repete número; a história segue no "
-       "número novo)")
-# (14/10) o cadastro do cliente editavel na garantia: vale o da garantia,
-# em branco o da base (a base nao muda)
+       and _gm14.renomear(_dgm6, None, "") != "",
+       "Garantia: troca de ticket no diário (garantias.renomear: não repete "
+       "número; a história segue no número novo)")
+# (14/10) o cadastro do cliente na garantia: vale o da garantia, em branco o
+# da base (a base nao muda). (T-0023) no PC o cadastro e so leitura
 with _tfv.TemporaryDirectory() as _dgm2:
     _gm14.gravar(_dgm2, "2001", {"cli_cidade": "SAO LUIS", "cli_bairro": ""})
     _cad = _gm14.cadastro(_gm14.ler(_dgm2)["2001"],
@@ -4195,9 +4196,8 @@ with _tfv.TemporaryDirectory() as _dgm2:
                            "cli_bairro": "CENTRO", "cli_vendedor": "LEANDRO"})
 checar(_cad["cli_cidade"] == "SAO LUIS" and _cad["cli_bairro"] == "CENTRO"
        and _cad["cli_vendedor"] == "LEANDRO"
-       and {k for k, _ in _gm14.CAMPOS_CLIENTE} <= set(_gm14.CAMPOS)
-       and hasattr(_br14.DialogoGarantia, "_trocou_cliente"),
-       "Garantia: cadastro do cliente editável (fica na garantia; em branco "
+       and {k for k, _ in _gm14.CAMPOS_CLIENTE} <= set(_gm14.CAMPOS),
+       "Garantia: cadastro do cliente da garantia (o da garantia; em branco "
        "vale a base)")
 _rg14 = rn.montar("pl_garantias", AQUI)
 _tg14 = next(t_ for t_ in _rg14["tabelas"] if t_["titulo"] == "Garantias")
@@ -4216,6 +4216,8 @@ checar({"STATUS", "RESULTADO ANÁLISE", "DT. SOLICITAÇÃO", "DT. FECHAMENTO",
        and rn.CORES_SINAL["ATRASADA"] == ("#FDECEA", "#B42318"),  # T-0033
        "Farol de Garantias (colunas, duplo clique, nova garantia); linhas "
        "sem cor fora de Pedidos/Markup/Saldo")
+# (T-0023, RN-GER-012) PC só leitura na NCC, Devoluções e Garantias:
+# tests/test_T0023_pc_so_leitura.py
 
 # (15/10) FAROL DE PRECO: faturamento x volume x preco mes a mes; o efeito
 # preco (mesmo item) + volume + mix fecha a variacao do faturamento

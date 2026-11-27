@@ -5,7 +5,7 @@
 - **Escopo:** o dicionário que `relatorios_nucleo.montar(rid, raiz, hoje=None, log=None, params=None, tela=False)` devolve (`relatorios_nucleo.py:19130`). É a ponte entre os núcleos e qualquer tela: Tkinter (`bap_relatorios.py`) hoje, web amanhã.
 - **Regra de versão:** acrescentar chave opcional = v1 continua. Renomear, mudar tipo ou tirar chave = **v2**, com ADR em `docs/decisoes/` e recado aos consumidores (seção 9).
 - **Como a versão é lida:** hoje o dicionário **não tem** chave de versão. A versão sai da chave de topo opcional `versao_contrato` (`int`): **ausente = 1**. Acrescentar a chave não muda a v1. Ela passa a ser obrigatória na v2: o `montar` grava `rel["versao_contrato"]` a partir de uma constante do núcleo (proposta: `relatorios_nucleo.VERSAO_CONTRATO = 1`; pedido ao modulo-farois na T-0006). A web lê essa chave e recusa, com aviso, versão maior que a que conhece (ADR 0001, §4.6). Não confundir com `bap_dados.VERSAO` (27), que é a versão do cache.
-- **Acréscimos compatíveis de 27/11/2026:** faróis do Analista Comercial (`vc_saldo`, `vc_markup`, `vc_preco`, `an_divergencias`; T-0036), §10.11; Farol de Fretes (`pl_fretes`, T-0037), §10.12.
+- **Acréscimos compatíveis de 27/11/2026:** faróis do Analista Comercial (`vc_saldo`, `vc_markup`, `vc_preco`, `an_divergencias`; T-0036), §10.11; Farol de Fretes (`pl_fretes`, T-0037), §10.13.
 - **Formato do pacote** (o transporte, ADR 0003): 1 = um JSON com todos os faróis; 2 = um arquivo por farol e um índice (§10.8, T-0035, 26/11/2026). O formato não muda o `versao_contrato`.
 - Exemplos com **valores fictícios**. Nenhum dado de cliente ou vendedor.
 
@@ -739,12 +739,12 @@ Conferidas no `main` em `2d182bd`, com `montar(rid, raiz, hoje=20/11/2026, param
 
 Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do cliente) e mantém o aviso "Sem filtro por estado: os cartões mostram a BAP inteira." (§10.1).
 
-**`pl_fretes`** (T-0037, §10.12; `tons` do PC: `alerta`, `ok` ou `""`)
-- **"Notas com frete"** (16; não sai nenhuma): `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa, código e nome) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto [D6]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote, oculto), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA`. A edição vai pela §10.12.4.
+**`pl_fretes`** (T-0037, §10.13; `tons` do PC: `alerta`, `ok` ou `""`)
+- **"Notas com frete"** (16; não sai nenhuma): `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa, código e nome) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto [D6]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote, oculto), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA`. A edição vai pela §10.13.4.
 - **"Por UF"** (5): `MÊS` texto (o) · `UF` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
 - **"Por cidade"** (5): `MÊS` texto (o) · `CIDADE` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
 - **"Por transportadora"** (5): `MÊS` texto (o) · `TRANSPORTADORA` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
-  - As 3 abas de resumo terminam nas mesmas 3 colunas de número (`NOTAS`, `VLR NF` e `VLR FRETE`; no robô, `bap_automation._RESUMO_FRETES_WEB`). Filtro: `MÊS` (padrão = mês do pacote, oculto). O `MÊS` vai oculto, como no "Notas com frete" e no "Entregas": com só o mês do pacote [P1 A], a coluna repetiria o mesmo valor em todas as linhas, mas o filtro oculto precisa dela (RD-0198). No PC, nada muda (lá o "(todos)" mostra os 12 meses). Os rótulos vêm prontos do PC (`relatorios_nucleo.rotulo_agrupa_fretes`, §10.12.3).
+  - As 3 abas de resumo terminam nas mesmas 3 colunas de número (`NOTAS`, `VLR NF` e `VLR FRETE`; no robô, `bap_automation._RESUMO_FRETES_WEB`). Filtro: `MÊS` (padrão = mês do pacote, oculto). O `MÊS` vai oculto, como no "Notas com frete" e no "Entregas": com só o mês do pacote [P1 A], a coluna repetiria o mesmo valor em todas as linhas, mas o filtro oculto precisa dela (RD-0198). No PC, nada muda (lá o "(todos)" mostra os 12 meses). Os rótulos vêm prontos do PC (`relatorios_nucleo.rotulo_agrupa_fretes`, §10.13.3).
 
 **Mudou no PC?** Primeiro muda esta lista (acréscimo, PR do engenheiro-software), depois o código. Até lá, o PC deixa a aba fora (§10.7.6), e as outras seguem.
 
@@ -1086,9 +1086,10 @@ Donos:
 
 **Teto do texto, um lugar só:** `relatorios_nucleo.MAX_TEXTO_EDICAO`, `{(módulo, campo): int}` (modulo-farois).
 - O núcleo põe esse número no `max` da `edicao`.
-- O robô confere a edição contra o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`).
-- `max` do pacote diferente do número do núcleo = edição recusada, com `MOTIVO_TEXTO_WEB`.
-- A frase passa a ser "texto inválido (até {max} caracteres, sem CPF, CNPJ, telefone ou e-mail)", com o `max` do campo.
+- O robô usa o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`), em dois momentos:
+  1. **Na montagem do pacote** (`bap_automation.edicao_web`, chamada pela `_tabela_web7`): o `max` da `edicao` do PC (sem ele, `relatorios_nucleo.MAX_TEXTO_PADRAO`) diferente de `relatorios_nucleo.max_texto_edicao(módulo, campo)` levanta `ValueError`. A tabela vai ao pacote **sem a chave `edicao`** (fica só de leitura) e o log ganha um aviso com o farol e a tabela, sem dado pessoal. Nada chega ao site para recusar.
+  2. **Na hora de aplicar a edição** (`bap_automation.validar_edicao_web`, chamada pela `aplicar_edicao_web`): o texto que passa de `max_texto_edicao(módulo, campo)` é recusado com o motivo de `bap_automation.motivo_texto_web(maximo)`, com o teto do campo.
+- A frase é "texto inválido (até {maximo} caracteres, sem CPF, CNPJ, telefone ou e-mail)"; sem `maximo` (`None`), o teto é o padrão do núcleo (`relatorios_nucleo.MAX_TEXTO_PADRAO`).
 - A web corta o valor bruto em `max` + 100 caracteres (hoje, 200 fixos).
 
 **Regras do texto livre**, na web e no robô:
@@ -1291,6 +1292,32 @@ O aviso do PC "Parâmetros alterados em ... por ..." sai dos `avisos` do farol (
 
 Cada merge no `main` reinicia as 2 h do limite 1 da ADR 0002. Um merge entre 04h30 e 06h30 só adia a instalação para o dia seguinte; ele não troca nada pela metade.
 
+#### 10.9.7 Quem edita, por lugar (T-0054)
+
+Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.** Fontes: R-20261127-100158-alexandre, P1 A e P2 A do R-20261127-103925-alexandre, RN-POS-010 e RN-POS-011. Desenho: `docs/desenho/T-0054.md`.
+
+- **Padrão:** o da RN-GER-012. Só o perfil `admin` edita (`edicoes.EDITA`).
+- **Exceção por lugar:** a mesma tabela na web (`edicoes.EDITA_LUGAR`) e no robô (`bap_automation.EDITA_LUGAR_WEB`). Um teste do `testes` confere que as duas são iguais a esta.
+
+| `(rid, tabela)` | Perfis que editam |
+|---|---|
+| `("pl_entregas", "Entregas")` | `admin`, `pos_venda` |
+| `("pl_entregas", "Pendências dos meses anteriores")` | `admin`, `pos_venda` |
+| `("pl_fretes", "Notas com frete")` | `admin`, `pos_venda` (RN-POS-010; vale quando o lugar entrar em `LUGARES` e `EDICOES_WEB`) |
+
+- **Na web:** `edicoes.pode_editar(perfil, lugar)`, com `lugar = (rid, tabela)`, = `perfil in EDITA_LUGAR.get(lugar, EDITA)`. É a única pergunta, e vale para:
+  - o botão da linha e a coluna de ação;
+  - o `GET` e o `POST /farol/<rid>/editar`. É 403 para os outros perfis. O `POST` confere antes de ler o formulário se o perfil edita algum lugar do `rid`; depois, confere o lugar do `tab`;
+  - o motivo do "O PC recusou" na dica, que quem edita vê.
+- **O perfil é o do usuário**, não o do acesso por usuário (RN-GER-018). Num farol liberado a outro perfil, o usuário vê só o Resumo, sem editar. O `pos_venda` sem o `pl_entregas` na lista leva 403, como hoje.
+- **Sem mudança:** a linha nova (§10.9.2) continua só do admin. O pacote, os campos, os tetos e a gravação também não mudam (§10.9.1 e §10.9.3).
+- **Fila:** o registro `edicao` ganha a chave opcional `perfil` (`str`, um dos `usuarios.PERFIS`). A web a grava no envio, e o `GET /api/edicoes` a passa como veio.
+- **Robô** (`validar_edicao_web`):
+  - registro com `perfil` fora de `EDITA_LUGAR_WEB.get(lugar, ("admin",))`: vai a `erro`, com `MOTIVO_PERFIL_WEB` = "perfil sem edição neste farol", e nada é gravado;
+  - registro sem `perfil` (de antes da T-0054): aceito, como hoje;
+  - o `APLICADAS_WEB_<máquina>.jsonl` ganha a chave `perfil_web`.
+- **Ordem:** a web e o robô entram em qualquer ordem. O robô velho ignora o `perfil`, e a web velha não o manda.
+
 ### 10.10 Os faróis novos no site: Garantias, Devoluções, NCC, DDR, Campanhas e Expositores (T-0023 v2, T-0025 v2)
 
 Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.**
@@ -1396,7 +1423,12 @@ Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.
   - `cliente_sem_documento`: `CLIENTE` das Devoluções e do "Por cliente (12 meses)";
   - `nome_sem_contato`: `CLIENTE` das Garantias, que é digitado.
 - **Texto livre** (`texto_sem_contato`, D6 A do §10.7.9): `MOTIVO`, `PENDÊNCIAS`, `RETORNO DO CLIENTE`, `RECLAMAÇÃO`, `OBSERVAÇÃO` e `OBSERVAÇÕES`. O texto que voltou com "[removido]" não pode ser gravado por cima do original (§10.9.1, regra 4).
-- **Nunca vão** (fora da lista branca do §10.1): `garantia`, `campanha_export` e `detalhe_pedido`. O `_champions` e o `editar` já saem pelo §10.1. O `testes` procura essas chaves e os padrões do bloco `padroes-pessoais` (§10.9.1) no JSON de cada farol.
+- **Nunca vão** (fora da lista branca do §10.1): `garantia`, `campanha_export` e `detalhe_pedido`. O `_champions` e o `editar` já saem pelo §10.1.
+- **Onde o `testes` procura** (no JSON de cada farol):
+  - **as chaves acima:** em qualquer nível;
+  - **`EMAIL`, `DOC_MEIO` e `DOC_SOLTO`** (bloco `padroes-pessoais`, §10.9.1): em **toda string** do farol (célula, total, cartão, aviso, rótulo e chave). A exceção é o código de produto só com dígitos nas colunas de código, `CÓD. PRODUTO` e `PRODUTO`: ali é código do ERP, não documento;
+  - **número:** só reprova o inteiro de 11 ou 14 dígitos fora das colunas de código. Um número com casas decimais não passa pelos padrões de texto (o `97.35000000000001` de uma moeda não é documento);
+  - **`FONE`:** só nas colunas de texto livre e nas colunas "limpa" desta seção. Em data ISO e em valor, ele casaria por engano.
 - **Nome da equipe:** `VENDEDOR`, `SUPERVISOR`, `AUX. TÉCNICO`, `JOGADOR`, o nome da assistente no título do DDR e os nomes da config das Campanhas vão ("2 A").
 
 #### 10.10.4 Tamanho e cortes
@@ -1526,7 +1558,24 @@ Conferidas no `main` em `a32b610`, com `montar(rid, raiz)` nas bases do reposit�
 3. **Web antes** (modulo-web): os perfis, o menu, os quatro `rid` no `ACEITOS`, a validação do §10.11.3, o anexo e a rota do §10.11.4 e a `VERSAO` nova no `/saude`.
 4. **Robô depois** (modulo-robo): os quatro `rid` no `FAROIS_WEB`, depois da T-0024, da T-0023-v2 e da T-0025-v2 (um merge por vez no `FAROIS_WEB`). Chega ao PC pela rotina diária, só com o `/saude` na versão do `main` (ADR 0002, limite 3).
 
-### 10.12 Farol de Fretes (`pl_fretes`, T-0037): as 4 abas e a edição de "Notas com frete"
+### 10.12 Porta de leitura da web (leitura v1, T-0055, RN-GER-020)
+
+Saída da web, não entrada: o pacote não muda e o robô não muda. A regra é a RN-GER-020 (`docs/produto/03-regras.md`). Este parágrafo é a fonte da interface; a implementação, a lista fechada de chaves (§4) e os limites (§5) estão em `docs/desenho/T-0055.md`.
+
+- **Rotas:** `GET /api/leitura/painel` (carimbo + visões do Painel Executivo + índice dos faróis do diretor) e `GET /api/leitura/resumo/{rid}` (carimbo + cartões do Resumo do farol `rid`). Autenticação: `Authorization: Bearer` igual a `BAP_WEB_LEITURA_TOKEN`, separado do `BAP_WEB_TOKEN`, do `BAP_VISITAS_TOKEN` e do `SESSION_SECRET`.
+- **Respostas, nesta ordem** (a primeira que vale responde, em qualquer método):
+  1. **404** `{"erro":"não encontrado"}`: porta desligada (sem a variável, token curto ou repetido);
+  2. **429** `{"erro":"muitas chamadas"}` + `Retry-After: 60`: limite estourado (desenho §5);
+  3. **405** `{"erro":"só leitura"}` + `Allow: GET`: método que não seja GET;
+  4. **401** `{"erro":"não autorizado"}` + `WWW-Authenticate: Bearer`: token ausente ou errado;
+  5. **404** `{"erro":"não encontrado"}`: `rid` que o diretor não vê ou que não é farol;
+  6. **503** `{"erro":"sem pacote"}`: o lote ou o farol ainda não chegou (também com o fuso errado, como as telas);
+  7. **200** `application/json; charset=utf-8`.
+- **Corpo:** `versao_leitura` (1), `versao_web`, `pacote` (`lote`, `gerado_em`, `dados_ate`, `du`) e, conforme a rota, `visoes` + `farois` ou `rid` + `nome` + `cartoes`. `gerado_em` é o da tela; `dados_ate` é o "Baixado do ERP em" do farol lido, no formato da tela, ou `null`; `du` é o da tela do Painel no `/painel` e `null` no `/resumo`. Os números são os textos que a tela mostra, sem recálculo.
+- Só o que o diretor vê (RN-GER-014). O que nunca sai é o da RN-GER-020, pela lista fechada do desenho §4.
+- Mudança incompatível = `versao_leitura` 2 + ADR + recado aos consumidores.
+
+### 10.13 Farol de Fretes (`pl_fretes`, T-0037): as 4 abas e a edição de "Notas com frete"
 
 Acrescentada em 27/11/2026 (T-0037; item 39 do inventário `recados/anexos/T-0033/inventario-pc-site.md`). Desenho completo, divisão por dono e perguntas: `docs/desenho/T-0037.md`.
 
@@ -1541,7 +1590,7 @@ Fontes:
 - a fonte do PC, "TABELA_BAP › ftPedidos (VND) + cidade do cliente";
 - a aba ENTREGAS do `ACOMPANHAMENTO_POS_VENDA.xlsx` (`_entregas_por_nf`, chave filial + NF).
 
-#### 10.12.1 O que é nota com frete e de onde vem cada número
+#### 10.13.1 O que é nota com frete e de onde vem cada número
 
 - **Nota com frete** [RN-POS-007]:
   - nota VND dos 12 meses (`ultimos_meses(hoje, 12)`, pela data da NF);
@@ -1560,7 +1609,7 @@ Fontes:
   - `ok`: entregue;
   - `""`: o resto.
 
-#### 10.12.2 Cartões (`kpis`, os mesmos do PC; `kpis_de` = `cartoes`) [RN-POS-009]
+#### 10.13.2 Cartões (`kpis`, os mesmos do PC; `kpis_de` = `cartoes`) [RN-POS-009]
 
 Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
 
@@ -1586,7 +1635,7 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
      - Colunas: `UF`, `CIDADE` ou `TRANSPORTADORA` (texto) · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda. A coluna `MÊS` sai.
      - Ordem: maior `VLR NF` primeiro. Cada valor vai arredondado a 2 casas.
      - `total`: `TOTAL` · soma das NOTAS · soma dos VLR NF · soma dos VLR FRETE. As somas são feitas sobre os valores sem arredondar, e só o total é arredondado: as 3 tabelas dão o mesmo total.
-     - Os rótulos vêm prontos do PC (`rotulo_agrupa_fretes`, §10.12.3); o robô não os reescreve.
+     - Os rótulos vêm prontos do PC (`rotulo_agrupa_fretes`, §10.13.3); o robô não os reescreve.
      - `tabela` entra no Fretes por `_TIPOS_BLOCO_EXTRA_WEB["pl_fretes"]`; vale a trava de coluna de pessoa do §10.1 (UF, cidade e transportadora passam).
   3. **As frases** (`frases`), sem bloco `insights`: vão só em `insights_painel`, de onde a web lê (RD-0192). São até 2 frases `info`, só as que os cartões não dizem:
      - a UF de maior VLR NF, só com 2 ou mais linhas no "Por UF": "<UF> concentra P% do valor das notas com frete.";
@@ -1595,13 +1644,13 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
   - O `selecionar_farol_web` põe as frases em `insights_painel` quando o PC não mandou nenhuma. O título "Resumo gerencial" é da tela, não do pacote.
   - Os blocos são da BAP inteira: o `recortes[UF]` leva só os `kpis` (§10.1).
 
-#### 10.12.3 Abas e colunas (`TabelaWeb7`, §10.7.2; a lista entra no §10.7.3 via `_COLUNAS_TABELAS_WEB`)
+#### 10.13.3 Abas e colunas (`TabelaWeb7`, §10.7.2; a lista entra no §10.7.3 via `_COLUNAS_TABELAS_WEB`)
 
 Colunas, tipos, colunas ocultas e filtros das 4 abas: **§10.7.3 (`pl_fretes`)**, a fonte única. O teste `test_T0017_colunas_robo_igual_contrato_1073` lê de lá. Aqui ficam só a chave da URL e a edição:
 
 | Chave da aba (URL) | `titulo` (PC) | Edição |
 |---|---|---|
-| `notas` | "Notas com frete" | **sim** (§10.12.4) |
+| `notas` | "Notas com frete" | **sim** (§10.13.4) |
 | `uf` | "Por UF" | não |
 | `cidade` | "Por cidade" | não |
 | `transportadora` | "Por transportadora" | não |
@@ -1621,7 +1670,7 @@ Colunas, tipos, colunas ocultas e filtros das 4 abas: **§10.7.3 (`pl_fretes`)**
 - **Tela (`tela-bc3.md` §6.2):** a grade do "Notas com frete" é a `web/app/tabelas.GRADE[("pl_fretes", "Notas com frete")]`, a fonte única (colunas, `blocos` do popup e `cel`). A regra: até 10 colunas, chave **NF**, as 4 editáveis (ETAPA, TRANSPORTADORA, ENTREGAR ATÉ e ENTREGUE) na grade e o RESPONSÁVEL no popup. As 3 de resumo ficam fora da `GRADE`. Abas curtas (§13.3): Resumo · Notas · UF · Cidade · Transportadora; busca "Buscar NF ou cliente".
 - **Corte acima do teto** (§10.8.7): o `pl_fretes` entra em "os outros" (todas as `tabelas` saem, com o `AVISO_ABAS_FORA`).
 
-#### 10.12.4 Edição de "Notas com frete" (a mesma linha da aba ENTREGAS)
+#### 10.13.4 Edição de "Notas com frete" (a mesma linha da aba ENTREGAS)
 
 - O lugar é `("pl_fretes", "Notas com frete")`, com módulo `pos_venda`, arquivo `RELATORIOS/ACOMPANHAMENTO_POS_VENDA.xlsx`, aba `ENTREGAS` e ação "Editar".
   - Entra em `bap_automation.EDICOES_WEB` e em `web/app/edicoes.LUGARES` (§10.9.3: mais um lugar do módulo `pos_venda`, aba `ENTREGAS`).
@@ -1638,7 +1687,7 @@ Colunas, tipos, colunas ocultas e filtros das 4 abas: **§10.7.3 (`pl_fretes`)**
 
 - **`frete_real` não é campo do Fretes:** o PC não o oferece aqui; ele fica no Farol de Entregas [P2 A]. O robô recusa o `frete_real` vindo do Fretes (`MOTIVO_LUGAR_WEB`).
 - **Linha sem chave** (CONCLUÍDA antes do controle ou "(sem acompanhamento)"): `chaves[k] = ""`. A web não abre o formulário e mostra o motivo.
-- **Quem edita:** só o `admin` (`web/app/edicoes.EDITA`, RN-GER-012). Os outros perfis veem a tabela sem o botão (403 no POST).
+- **Quem edita:** o `admin` e o `pos_venda` (RN-POS-010 e RN-POS-011; `web/app/edicoes.EDITA_LUGAR`, §10.9.7, da T-0054). Os outros perfis veem a tabela sem o botão (403 no POST).
 - **Caminho** (o da T-0021, sem mudança de formato):
   1. A web grava a edição na fila só de acréscimo `<BAP_WEB_DADOS>/edicoes/EDICOES_WEB_<AAAA-MM>.jsonl`.
   2. O robô puxa em `GET /api/edicoes?desde=<seq>` e confere de novo (`validar_edicao_web`).
@@ -1656,23 +1705,23 @@ Colunas, tipos, colunas ocultas e filtros das 4 abas: **§10.7.3 (`pl_fretes`)**
   - isso entra no **mesmo** lote do robô que passa a mandar a `edicao` do Fretes, nunca antes.
 - Nada aqui escreve o `transportadoras_config.json` nem outro `.json` digitado. Pela RN-GER-016, o cadastro só vira editável na web com um "autorizo" para esse arquivo (pergunta futura, fora da T-0037).
 
-#### 10.12.5 Quem vê
+#### 10.13.5 Quem vê
 
 | Perfil | Resumo | Abas | Edita |
 |---|---|---|---|
 | `admin` | sim | as 4 | sim |
 | `gerente` | sim | as 4 | não |
 | `analista` | sim | as 4 (lê como o gerente, RN-GER-017) | não |
-| `pos_venda` | sim | as 4 [P4 A] | não |
+| `pos_venda` | sim | as 4 [P4 A] | sim (RN-POS-010) |
 | `diretor` | sim | nenhuma | não |
 
 - `render.FAROIS["pl_fretes"] = ("Farol de Fretes", LEITURA_GERAL + ("diretor", "pos_venda"))`, no grupo "Pós-venda" do menu. `LEITURA_GERAL` = admin, gerente e analista (T-0036, RN-GER-017), a mesma forma do `pl_entregas`.
-- Edição só do `admin` (RN-GER-012): o analista e o gerente leem e não editam.
+- Edição do `admin` e do `pos_venda` (RN-POS-010/011, `EDITA_LUGAR` do §10.9.7): o analista, o gerente e o diretor leem e não editam.
 - O diretor vê só o Resumo (RN-GER-014).
 - Aba fora do perfil = 403.
 - Página com tabela: `no-store` e `noindex` (§10.7.5).
 
-#### 10.12.6 Ordem de publicação
+#### 10.13.6 Ordem de publicação
 
 1. Este contrato.
 2. **Web antes** (modulo-web): o `pl_fretes` em `FAROIS`/`ACEITOS`, as 4 abas, o lugar da edição e a `GRADE` e a situação pelos lugares irmãos (`IRMAOS`). A web nova aceita pacote sem o `pl_fretes`.
