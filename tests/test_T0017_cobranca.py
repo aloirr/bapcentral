@@ -81,8 +81,8 @@ COL_C = [("SITUAÇÃO", "texto"), ("FAIXA", "texto"), ("CLIENTE", "texto"),
          ("PRÓX. VENCIMENTO", "data"), ("LIMITE", "moeda"),
          ("PEDIDO EM ABERTO", "moeda"), ("ÚLTIMA COMPRA", "data"),
          ("TELEFONE", "texto")]
-CHIP = {"VENCIDO": ("#FBDDDA", "#B3261E"),
-        "INADIMPLENTE": ("#FBDDDA", "#B3261E")}
+CHIP = {"VENCIDO": ("#FDECEA", "#B42318"),
+        "INADIMPLENTE": ("#FDECEA", "#B42318")}
 
 
 def _cols(lista):
@@ -500,10 +500,18 @@ def test_RN_POS_004_chip_e_tons_como_o_pc_entrega():
     for t in ba.tabelas_cobranca_web(_farol()):
         com = {c["nome"]: c for c in t["colunas"] if "chip" in c}
         assert set(com) == {"SITUAÇÃO", "FAIXA"}
-        assert com["FAIXA"]["chip"]["VENCIDO"] == ["#FBDDDA", "#B3261E"]
+        assert com["FAIXA"]["chip"]["VENCIDO"] == ["#FDECEA", "#B42318"]
         assert com["FAIXA"]["larg_fixa"] == 106
         assert set(t["tons"]) == {""}
     json.dumps(ba.tabelas_cobranca_web(_farol()), allow_nan=False)
+
+
+def test_RN_POS_004_chip_da_fixture_e_o_chip_do_pc_no_manual_da_marca():
+    """T-0033: o CHIP da fixture é o que o PC pinta (CORES_SINAL) e é o
+    vermelho do manual da marca (--alerta-claro #FDECEA, --alerta #B42318)."""
+    import relatorios_nucleo as rn                      # noqa: PLC0415
+    for k in ("VENCIDO", "INADIMPLENTE"):
+        assert tuple(rn.CORES_SINAL[k]) == CHIP[k] == ("#FDECEA", "#B42318")
 
 
 def test_RN_POS_004_bloco_de_status_vai_inteiro_ou_nao_vai():
