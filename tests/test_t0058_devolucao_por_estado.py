@@ -130,3 +130,18 @@ def test_RN_GER_002_saldo_filtro_uf_pa_ago26_desconta_toda_a_filial():
     pf = rn.por_filial_da_nota(ctx, "2026-08")["fat"]
     assert _faturado(t, ls, {ix["MÊS"]: "AGO/26", ix["UF"]: "PA"}) \
         == rn.moeda(venda - toda_dev) == rn.moeda(pf["PA"]) == "R$ 33.834"
+
+
+@pytest.mark.parametrize("rid", ["pv_pedidos", "vc_saldo"])
+def test_RN_GER_002_recorte_por_estado_na_web_ago26_pa_igual_painel(rid):
+    """Web (bap_automation._recortes_do_farol_web): o cartao Faturado de PA
+    em AGO/26 = por_filial_da_nota = "R$ 33.834", como no PC."""
+    r = rn.montar(rid, RAIZ, hoje=HOJE, params={"ANO": "2026", "MÊS": "08"})
+    rec = ba._recortes_do_farol_web(rid, r)
+    fat = {uf: {k["rotulo"]: k for k in x["kpis"]}["Faturado"]["valor"]
+           for uf, x in rec.items()}
+    pf = rn.por_filial_da_nota(rn.Contexto(RAIZ), "2026-08")["fat"]
+    assert pf["PA"] == pytest.approx(33833.74, abs=0.005)
+    assert fat["PA"] == rn.moeda(pf["PA"]) == "R$ 33.834"
+    for uf, valor in fat.items():
+        assert valor == rn.moeda(pf[uf]), uf
