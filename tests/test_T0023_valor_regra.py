@@ -406,6 +406,108 @@ def test_RN_GER_002_pct_do_faturado(real):
         f"{rn.br(rn.pct_de(dev[m], vnd[m] - dev[m]), 1)}% do faturado"
 
 
+def _serie_resumo(rel, titulo):
+    for b in (rel.get("painel") or {}).get("blocos") or []:
+        g = b.get("grafico") or {}
+        if g.get("titulo") == titulo:
+            return list(g["rotulos"]), list(g["series"][0]["valores"])
+    raise AssertionError(titulo)
+
+
+def _pct_liquido(dev, vnd):
+    """RN-GER-002: devolução ÷ (VND − DEV); sem faturado líquido, sem número."""
+    liq = vnd - dev
+    return dev / liq * 100.0 if liq > 0 else None
+
+
+def _confere_serie(valores, esperado, nome):
+    assert len(valores) == len(esperado), nome
+    for i, (v, e) in enumerate(zip(valores, esperado)):
+        if e is None:
+            # sem faturado líquido: "—" (None) ou o vazio do dia sem evento (0)
+            assert v is None or v == "—" or v == 0, (nome, i)
+        else:
+            assert math.isclose(v, e, abs_tol=0.005), (nome, i)          # o PC grava 2 casas
+
+
+def _vnd_dev_por_dia(mes):
+    ctx = rn.Contexto(RAIZ, HOJE, None, {"ANO": "2026", "MÊS": str(mes)})
+    vnd, dev = defaultdict(float), defaultdict(float)
+    for it in ctx.tabela["itens"]:
+        if not it["dt_nf"]:
+            continue
+        if it["tipo"] == "VND":
+            vnd[it["dt_nf"]] += it["valor"]
+        elif it["tipo"] == "DEV":
+            dev[it["dt_nf"]] += abs(it["valor"])
+    return vnd, dev
+
+
+def test_RN_GER_002_pct_devolvido_do_faturado_do_resumo(real):
+    """O "% devolvido do faturado" do Resumo (dia a dia, semana a semana e
+    mês a mês) = soma da devolução ÷ soma de (VND − DEV) de cada período,
+    pela data da NF. A semana começa na segunda (a 1ª pega o dia 1)."""
+    pcs, _f = real
+    vnd, dev = _vnd_dev_por_dia(11)
+    dias = [date(2026, 11, d) for d in range(1, 31)]
+    rot, val = _serie_resumo(pcs["pl_devolucoes"], "% devolvido do faturado · dia a dia · NOV/26")
+    assert rot == [str(d.day) for d in dias]
+    _confere_serie(val, [_pct_liquido(dev[d], vnd[d]) if (dev[d] or vnd[d]) else None for d in dias],
+                   "dia")
+    semanas = []
+    for d in dias:
+        if not semanas or d.weekday() == 0:
+            semanas.append((d.strftime("%d/%m"), []))
+        semanas[-1][1].append(d)
+    rot, val = _serie_resumo(pcs["pl_devolucoes"], "% devolvido do faturado · semana a semana · NOV/26")
+    assert rot == [s for s, _ in semanas]
+    _confere_serie(val, [_pct_liquido(sum(dev[d] for d in ds), sum(vnd[d] for d in ds))
+                         if any(dev[d] or vnd[d] for d in ds) else None for _s, ds in semanas], "semana")
+    vm, dm = _vnd_dev_por_mes()
+    rot, val = _serie_resumo(pcs["pl_devolucoes"], "% devolvido do faturado · mês a mês (12 meses)")
+    _confere_serie(val, [_pct_liquido(dm[m], vm[m]) for m in rn.ultimos_meses(HOJE, 12)], "mês")
+    assert round(val[rot.index("SET")], 1) == 12.0
+
+
+def test_RN_GER_002_faturado_12m_por_vendedor(real):
+    """FATURADO 12M de cada vendedor = VND − DEV dos 12 meses, pela data da
+    NF; % DEVOLVIDO = VALOR ÷ FATURADO 12M."""
+    _pcs, f = real
+    ctx = rn.Contexto(RAIZ, HOJE, None, {"ANO": "2026", "MÊS": "11"})
+    meses = set(rn.ultimos_meses(HOJE, 12))
+    fat = defaultdict(float)
+    for it in ctx.tabela["itens"]:
+        if it["tipo"] in ("VND", "DEV") and it["dt_nf"] and rn.mes_de(it["dt_nf"]) in meses:
+            fat[ctx.vendedor(it["vend"])] += it["valor"] if it["tipo"] == "VND" else -abs(it["valor"])
+    t = _tab(f, "pl_devolucoes", "Por vendedor (12 meses)")
+    conferidos = 0
+    for i, (vend, v, f12, pct) in enumerate(_linhas(t, "VENDEDOR", "VALOR", "FATURADO 12M", "% DEVOLVIDO")):
+        assert math.isclose(f12 or 0.0, fat.get(vend, 0.0), abs_tol=0.01), i
+        if f12 and f12 > 0:
+            assert math.isclose(pct, 100 * v / f12, rel_tol=1e-9), i
+        conferidos += 1
+    assert conferidos == len(t["linhas"]) == 21
+
+
+def test_RN_GER_002_faturado_liquido_zero_ou_negativo_mostra_traco():
+    """06/10/2026 (real, bases congeladas): VND R$ 674,00 e DEV R$ 717,88, o
+    faturado líquido do dia é negativo. O "% devolvido do faturado" do dia
+    mostra "—", nunca um percentual negativo (era -1.636%)."""
+    vnd, dev = _vnd_dev_por_dia(10)
+    d6 = date(2026, 10, 6)
+    assert vnd[d6] - dev[d6] < 0 < dev[d6]
+    r = rn.montar("pl_devolucoes", RAIZ, hoje=HOJE, params={"ANO": "2026", "MÊS": "10"})
+    rot, val = _serie_resumo(r, "% devolvido do faturado · dia a dia · OUT/26")
+    v = val[rot.index("6")]
+    assert v is None or v == "—", "06/10 com faturado líquido negativo tem de mostrar —"
+    assert all(x is None or x == "—" or x >= 0 for x in val)
+    # a semana de 05/10 tem faturado líquido positivo: número normal
+    sem = [date(2026, 10, d) for d in range(5, 12)]
+    rot_s, val_s = _serie_resumo(r, "% devolvido do faturado · semana a semana · OUT/26")
+    esp = _pct_liquido(sum(dev[d] for d in sem), sum(vnd[d] for d in sem))
+    assert esp is not None and math.isclose(val_s[rot_s.index("05/10")], esp, abs_tol=0.005)
+
+
 def test_RN_GER_002_devolucao_do_mes_pela_data_da_nf(real):
     """O R$ devolvido do mês é o DEV pela data da NF (o mesmo do gráfico)."""
     pcs, _f = real
