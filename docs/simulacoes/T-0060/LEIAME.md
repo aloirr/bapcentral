@@ -62,3 +62,11 @@ Na base congelada (19/11): 112.701 ÷ 13 × 19 = R$ 164.717 (Painel, Diretor e M
 - `_ultimo_dia` disparou com o campo real: com hoje = 30/11 (último DU), `dias_restantes` = 0, `dias_restantes_b` = 1 e o cartão diz "último dia: faltam R$ 1.387.299".
 - Código morto removido: `_hoje_fora_do_du`, `_du_fechados`, `_de_hoje` e os acumuladores "hoje"/"vol_hoje"/"vhoje" (24 pontos em `relatorios_nucleo.py` e 2 em `visao_executiva.py`).
 - Para o engenheiro-dados: o bloco `meta@AAAA-MM` do `bap_dados.carregar` ficou em cache sem `dias_restantes_b` (na simulação o campo só apareceu depois de apagar o `.pkl`). A assinatura do bloco precisa de uma marca nova quando o `meta_nucleo` muda (VERSAO fica 27).
+
+## Mudou depois da aprovação de 380a819
+- Markup, média/DU (Diretor): R$ 2,1 mil → R$ 2,0 mil. Volta ao número do main: as duas pontas ficam até ontem, sem misturar margem até hoje com DU até ontem (RN-GER-007).
+- Desconto, média/DU (Diretor): R$ 1,8 mil → R$ 1,7 mil. Mesmo motivo (RN-GER-007).
+- Visitas, Nec./dia (Metas): 91,0 → 78,0. Visita é do grupo B (RN-GER-007), então o cartão passa a usar os mesmos DU da tabela (`dias_rh`).
+
+Não mudaram: Real 112.701, projeção 164.717, positivação 66, ticket, volume e barras por UF.
+Regenerados só `diretor_*` e `metas_*` (meta_nucleo do 7c76164). No caso do último DU, o Metas diz "Falta hoje · R$ 1.387.299" (era "último dia: faltam ...").
