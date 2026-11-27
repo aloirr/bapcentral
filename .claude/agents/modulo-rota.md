@@ -46,7 +46,7 @@ Você é o dono da **rota** do BAP Tools.
   - avisos só na área de Alertas;
   - "o usuário precisa disso para decidir ou agir agora? Se não, sai".
 - Número que vai ao Diretor tem de bater com o farol de origem.
-- Fuso **America/Manaus**. Dia útil = seg a sex, menos os feriados do Planner do mês. **Hoje fica fora do DU e da projeção.**
+- Fuso **America/Manaus**. Dia útil = seg a sex, menos os feriados do Planner do mês. **Hoje: regra 4 do CLAUDE.md (RN-GER-007)** — em parte dos indicadores hoje conta, nos outros fica fora, com o período no rótulo.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `planner_nucleo.py`, `bap_planner.py`, `rota_lugar.py`, `geocodificar.py`, `geografia.py`, `agenda_cidades.py`, `zonas_padrao.py`, `visitas_nucleo.py`, `email_rota.py`, `atualizar_coordenadas*.bat`, `abrir_planner.bat`.

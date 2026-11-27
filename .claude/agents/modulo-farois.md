@@ -44,7 +44,7 @@ Você é o dono dos **faróis e painéis** do BAP Tools.
   - "o usuário precisa disso para decidir ou agir agora? Se não, sai".
   - **Regra 12 do CLAUDE.md ("MENOS É MAIS" e botões embaixo e juntos):** requisito de construção nas telas, no PDF e no e-mail; simulação da tela da web em 1366 e 390 px, e o resto no tamanho real.
 - Número que vai ao Diretor tem de bater com o farol de origem.
-- Fuso **America/Manaus**. Dia útil = seg a sex, menos os feriados do Planner do mês. **Hoje fica fora do DU e da projeção.**
+- Fuso **America/Manaus**. Dia útil = seg a sex, menos os feriados do Planner do mês. **Hoje: regra 4 do CLAUDE.md (RN-GER-007)** — em parte dos indicadores hoje conta, nos outros fica fora, com o período no rótulo.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `relatorios_nucleo.py`, `bap_relatorios.py`, `bap_visual.py`, `painel_cartoes.py`, `painel_diretor.py`, `painel_farol.py`, `painel_rrm.py`, `visao_executiva.py`, `parcial_imagem.py`, `email_parcial.py`, `bap_central.py`, `bap_janela.py`, `bap_champions.py`, `farol_ddr.py`, `conta_email.py`, `gerar_farol_ddr.bat`, `abrir_bap_central.bat`.
