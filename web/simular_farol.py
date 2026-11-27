@@ -31,6 +31,8 @@ def _csrf(c, url):
 def paginas(pacote: dict, pedidos: list[tuple[str, str]]) -> list[tuple[int, str]]:
     """Cada pedido é (perfil, caminho). O HTML sai com o CSS embutido (para tirar o PNG sem servidor)."""
     css = (AQUI / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
+    js = (AQUI / "app" / "static" / "bc3.js").read_text(encoding="utf-8")           # RD-0006: lidos uma vez
+    logo = base64.b64encode((AQUI / "app" / "static" / "logo_bap.png").read_bytes()).decode()
     saida: list[tuple[int, str]] = []
     with tempfile.TemporaryDirectory() as d:
         os.environ.update({"SESSION_SECRET": "simulacao-0123456789abcdef0123", "BAP_WEB_DADOS": d,
@@ -62,9 +64,7 @@ def paginas(pacote: dict, pedidos: list[tuple[str, str]]) -> list[tuple[int, str
                 r = sessoes[perfil].get(url)
                 html = r.text.replace('<link rel="stylesheet" href="/static/estilo.css">', f"<style>{css}</style>")
                 # T-0036: o JS (uma tela no PC, lista do celular) e o logo também vão dentro do HTML
-                js = (AQUI / "app" / "static" / "bc3.js").read_text(encoding="utf-8")
                 html = html.replace('<script src="/static/bc3.js"></script>', f"<script>{js}</script>")
-                logo = base64.b64encode((AQUI / "app" / "static" / "logo_bap.png").read_bytes()).decode()
                 html = html.replace("/static/logo_bap.png", "data:image/png;base64," + logo)
                 saida.append((r.status_code, html))
     return saida

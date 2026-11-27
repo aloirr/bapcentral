@@ -608,6 +608,8 @@ def preparar_farol(rid: str, farol) -> dict:
     """Passos comuns ao formato 1 e ao 2 depois da validação: tira a aba com documento e as chaves
     internas, e deixa o Painel enxuto. Devolve o farol pronto para `guardar_farol`."""
     corpo = {"relatorios": {rid: farol}}
+    if tabelas.limpar_textos_livres(corpo):              # T-0036: antes da regra da aba, a OBSERVAÇÃO limpa não derruba a Pesquisa
+        log.warning("texto livre limpo na web (documento, telefone ou e-mail)")
     fora = tabelas.tirar_abas_com_documento(corpo)
     if fora:
         log.warning("abas fora do pacote por CPF/CNPJ em célula: %d", len(fora))

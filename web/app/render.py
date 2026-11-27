@@ -151,6 +151,8 @@ def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
 # T-0036 (desenho §2, P1 = A): o analista vê como o gerente tudo o que não é meta RH nem edição.
 # Uma fonte só: com a P1 = B, troca esta linha (e o analista sai das tuplas dos outros faróis).
 LEITURA_GERAL = ("admin", "gerente", "analista")
+# T-0036 (RD-0004): os faróis do Analista Comercial, lista única (menu, busca e rótulos do `tabelas`)
+RIDS_ANALISTA = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
 FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "pv_pedidos": ("Farol de Pedidos", LEITURA_GERAL + ("diretor", "pre_venda")),
     "vc_visitas": ("Farol de Visita", LEITURA_GERAL + ("diretor", "vendas")),
@@ -189,7 +191,7 @@ BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
                ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_frw")),
                ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")),   # T-0024: lote 2 no menu
-               ("Analista Comercial", ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")),
+               ("Analista Comercial", RIDS_ANALISTA),
                # T-0036 (contrato §10.10.1): o grupo do trade; aparece quando o Farol de Expositores entrar (T-0025 v2)
                ("Trade", ("tm_expositores",)))
 # T-0036 (revisão UX): o grupo do próprio perfil abre a barra; os outros perfis seguem a ordem de GRUPOS_MENU

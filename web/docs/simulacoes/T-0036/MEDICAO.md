@@ -16,8 +16,8 @@ nos 4 faróis e no menu; perfil `trade` na página inicial.
 | divergencias (Divergentes) | 390 | 0 | 0 | lista (M3) | 187 px | 6 | 50 px | 3 + Mais | lista |
 | menu do analista (Saldo, Resumo) | 1366 | 0 | — | não | 88 px | 4 | 44 px | 5 | — |
 | menu do analista (☰ aberto) | 390 | 0 | — | não | 187 px | 4 | 50 px | 3 + Mais | — |
-| início do trade | 1366 | 0 | — | não | 88 px | 0 | — | — | — |
-| início do trade | 390 | 0 | — | não | 51 px | 0 | — | — | — |
+| início do trade | 1366 | 0 | — | não | sem faixa | 0 | — | — | — |
+| início do trade | 390 | 0 | — | não | sem faixa | 0 | — | — | — |
 
 - A faixa tem 88 px em todas as telas do PC (a mesma altura do `main`, §15.3). O 7º número do Markup e das Divergências fica no Resumo.
 - O Markup (12 abas) cabe numa linha a 1366, com a busca em ícone.
@@ -39,3 +39,10 @@ já traz as medidas novas.
 - Divergências no celular: o selo da linha usa o rótulo curto (Vend. dif. / Sem vendedor / Fora da base); o texto inteiro
   aparece no detalhe aberto.
 - Início do trade: título da aba "Início" e a frase "Os faróis do Trade Marketing ainda não estão no site."
+
+## Redundâncias da revisão (RD-0003 a RD-0007, 27/11/2026)
+
+PNGs refeitos só do início do trade (PC 1366 e celular 390, deviceScaleFactor 2; rolagem lateral 0 nos dois).
+
+- Início do trade: sem a faixa com "BAP Central" (o nome já está na marca da barra); fica só a frase. O aviso
+  "Ainda não chegou nenhum pacote do PC" sai pela flag `sem_pacote_ok` do `base.html`, não mais pelo nome do farol.

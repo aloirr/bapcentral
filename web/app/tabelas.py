@@ -45,7 +45,7 @@ VE_TABELAS = {
 # a web confere só o formato, as colunas que nunca vão e o documento na célula
 FAROIS_LIVRES = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")
 ABAS_SO_GERENCIA: dict[str, tuple[str, ...]] = {}      # D1 C: {"vc_visitas": ("cliente", "prospeccao", "indicacao")}
-PERFIS_GERENCIA = ("admin", "gerente", "analista")   # T-0036: o analista lê como o gerente (RN-GER-017)
+PERFIS_GERENCIA = render.LEITURA_GERAL   # T-0036 (RD-0003): o analista lê como o gerente (RN-GER-017)
 
 RIDS = tuple(VE_TABELAS)
 RESUMO = ("resumo", "Resumo")
@@ -306,15 +306,6 @@ COLUNAS_RID: dict[tuple[str, str], list] = {
         "CÓD.", "LOJA", "O QUE FALTA", "NA ROTA DO MÊS", "UF", "CIDADE", "VENDEDOR PLANNER",
         "SUPERVISOR PLANNER", "SEGMENTO", "CURVA", "SITUAÇÃO", "PONTO"),
 }
-# nº de colunas do §10.11.3 (confere a digitação acima)
-_N_COLUNAS = {("vc_saldo", "Pedido a pedido"): 18, ("vc_saldo", "Por vendedor"): 12, ("vc_saldo", "Por supervisor"): 11,
-              ("vc_saldo", "Por UF"): 11, ("vc_markup", "Por pedido"): 27, ("vc_markup", "Por UF"): 11,
-              ("vc_markup", "Por produto"): 20, ("vc_markup", "Todos os produtos"): 22,
-              ("vc_markup", "Por categoria"): 13, ("vc_preco", "Por categoria"): 17,
-              ("vc_preco", "Reajustes por produto"): 22, ("vc_preco", "Pesquisa de mercado"): 33,
-              ("an_divergencias", "Por vendedor"): 10, ("an_divergencias", "Clientes divergentes"): 11,
-              ("an_divergencias", "Sem coordenada / endereço"): 12}
-assert all(len(COLUNAS_RID[k]) == n for k, n in _N_COLUNAS.items()), "lista do §10.11.3 fora do número do contrato"
 RE_COORD = re.compile(r"-?\d+\.\d{3,}")                  # coordenada na coluna PONTO: a aba fica fora (§10.11.2)
 
 # "Aderência dia a dia": 2 + N + 1 colunas, conferidas por padrão de nome (§10.7.3)
@@ -786,6 +777,34 @@ def _aba_tem_documento(t: dict) -> bool:
     """CPF/CNPJ já formatado em célula de texto de qualquer parte da aba (linhas, total, juntas, sub-abas)."""
     partes = [t] + [j["tabela"] for j in t.get("juntas") or []] + list(t.get("subabas") or [])
     return any(_celulas_com_documento(list(p.get("linhas") or []) + [p.get("total") or []]) for p in partes)
+
+
+# T-0036 (revisão 🟢): a OBSERVAÇÃO da Pesquisa de mercado é digitada no campo; o PC limpa e a web limpa de novo
+# (defesa em profundidade). O padrão é o do texto livre das edições (`edicoes.RE_PESSOAL`), com o e-mail inteiro.
+LIMPA_TEXTO = {("vc_preco", "Pesquisa de mercado"): ("OBSERVAÇÃO",)}
+_RE_LIMPA = re.compile(edicoes.RE_PESSOAL.pattern.replace("|@|", r"|\S*@\S*|"))
+
+
+def limpar_texto(t: str) -> str:
+    """Tira CPF, CNPJ, telefone e e-mail de um texto livre (RN-GER-011, regra 6 do CLAUDE.md)."""
+    return re.sub(r"\s{2,}", " ", _RE_LIMPA.sub("", t)).strip()
+
+
+def limpar_textos_livres(corpo: dict) -> int:
+    """Passa `limpar_texto` nas colunas de `LIMPA_TEXTO`; devolve quantas células mudaram."""
+    n = 0
+    for (rid, titulo), nomes in LIMPA_TEXTO.items():
+        rel = (corpo.get("relatorios") or {}).get(rid)
+        for t in (rel.get("tabelas") or []) if isinstance(rel, dict) else ():
+            if not isinstance(t, dict) or t.get("titulo") != titulo:
+                continue
+            idx = [i for i, c in enumerate(t.get("colunas") or []) if isinstance(c, dict) and c.get("nome") in nomes]
+            for ln in t.get("linhas") or []:
+                for i in idx:
+                    if isinstance(ln, list) and i < len(ln) and isinstance(ln[i], str) and _RE_LIMPA.search(ln[i]):
+                        ln[i] = limpar_texto(ln[i])
+                        n += 1
+    return n
 
 
 def tirar_abas_com_documento(corpo: dict) -> list[str]:
@@ -1281,7 +1300,7 @@ GRADE.update({
 })
 # T-0036 (UX 2ª passada, D): as dicas dos faróis do Analista moram na DICA_BUSCA, por (farol, aba), como as do lote 2;
 # nunca cliente por nome (RN-GER-011)
-RIDS_ANALISTA = ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")
+RIDS_ANALISTA = render.RIDS_ANALISTA      # RD-0004: a lista mora no render
 DICA_BUSCA.update({
     ("vc_saldo", "Pedido a pedido"): "Buscar pedido, vendedor", ("vc_saldo", "Por vendedor"): "Buscar vendedor",
     ("vc_saldo", "Por supervisor"): "Buscar supervisor", ("vc_saldo", "Por UF"): "Buscar UF",
@@ -1306,8 +1325,8 @@ TITULO_CEL = {"an_divergencias": "Divergências Planner × Protheus"}
 
 
 # T-0036 (revisão UX 4): o selo da lista do celular das Divergências usa o rótulo curto; o inteiro fica no detalhe
-SELO_CURTO = {"VENDEDOR DIFERENTE": "Vend. dif.", "SEM VENDEDOR NO PLANNER": "Sem vendedor",
-              "FORA DA BASE DO PLANNER": "Fora da base"}
+# (RD-0005: o texto curto é o do KPI_CURTO)
+SELO_CURTO = {k.upper(): KPI_CURTO[k] for k in ("vendedor diferente", "sem vendedor no planner", "fora da base do planner")}
 
 
 def selo_curto(t) -> str:

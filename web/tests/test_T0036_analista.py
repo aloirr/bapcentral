@@ -276,7 +276,7 @@ def test_RN_GER_006_estado_pela_coluna_uf_das_linhas(com_analista):
 
 
 # ------------------------------------------------------------------ Excel de correção (§10.11.4): só admin
-def test_RN_GER_012_correcao_so_admin(com_analista, usu):
+def test_RN_GER_017_correcao_so_admin(com_analista, usu):
     for p in ("gerente", "analista", "diretor", "trade", "pre_venda", "vendas", "pos_venda"):
         assert usu(p).get(CORRECAO).status_code == 403, p
 
@@ -456,3 +456,31 @@ def test_T0036_selo_curto_na_lista_do_celular_e_inteiro_no_detalhe(admin):
         inteiro = {v: k for k, v in tabelas.SELO_CURTO.items()}[curto]
         assert inteiro in dl
     assert tabelas.selo_curto("OK") == "OK"
+
+
+# ------------------------------------------------------------------ revisão 🟢: OBSERVAÇÃO da Pesquisa limpa na web
+def _farol_pesquisa(obs):
+    from analista_fixture import farol
+    f = farol("vc_preco")
+    t = next(t for t in f["tabelas"] if t["titulo"] == "Pesquisa de mercado")
+    t["linhas"][0][[c["nome"] for c in t["colunas"]].index("OBSERVAÇÃO")] = obs
+    return f
+
+
+def test_RN_GER_011_observacao_da_pesquisa_limpa_na_web():
+    assert tabelas.limpar_texto("Ligar (92) 99999-1234, falar com a.b@c.com doc 123.456.789-01 ok") == \
+        "Ligar , falar com doc ok"
+    far = pacotes.preparar_farol("vc_preco", _farol_pesquisa("Ver 12.345.678/0001-90 e 92 98888-7777"))
+    t = next(t for t in far["tabelas"] if t["titulo"] == "Pesquisa de mercado")   # a aba segue (não cai por documento)
+    i = [c["nome"] for c in t["colunas"]].index("OBSERVAÇÃO")
+    assert t["linhas"][0][i] == "Ver e"
+    assert not any(tabelas._RE_LIMPA.search(str(ln[i])) for ln in t["linhas"])
+
+
+def test_RN_GER_017_perfis_e_listas_numa_fonte_so():
+    assert set(cobranca.VE_TABELAS) == {"admin", "pos_venda", "gerente", "analista"}
+    assert tabelas.PERFIS_GERENCIA is render.LEITURA_GERAL
+    assert tabelas.RIDS_ANALISTA is render.RIDS_ANALISTA
+    assert ("Analista Comercial", render.RIDS_ANALISTA) in render.GRUPOS_MENU
+    assert tabelas.SELO_CURTO == {"VENDEDOR DIFERENTE": "Vend. dif.", "SEM VENDEDOR NO PLANNER": "Sem vendedor",
+                                  "FORA DA BASE DO PLANNER": "Fora da base"}

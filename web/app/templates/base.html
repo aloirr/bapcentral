@@ -29,7 +29,7 @@
   <div class="bc3-main">
     <div class="bc3-topo-cel"><a class="bc3-marca" href="/"><i aria-hidden="true"></i><span>BAP Central<small>{{ empresa }}</small></span></a>
       <button type="button" class="bc3-menu" aria-controls="bc3-lado" aria-expanded="false" aria-label="Abrir o menu">☰</button></div>
-    {% if not gerado_em and farol_nome != "BAP Central" %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
+    {% if not gerado_em and not sem_pacote_ok %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
     {% block faixa %}{% endblock %}
     <main class="bc3-corpo{% block mainclass2 %}{% endblock %}">{% block corpo %}{% endblock %}</main>
   </div>

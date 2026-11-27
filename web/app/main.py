@@ -24,7 +24,7 @@ from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
 MANAUS = ZoneInfo("America/Manaus")
-VERES = ("admin", "diretor", "gerente", "analista")   # T-0036 (P1 = A): o analista vê o Painel como o gerente
+VERES = render.LEITURA_GERAL + ("diretor",)   # T-0036 (P1 = A, RD-0003): o analista vê o Painel como o gerente
 RELATORIO = ("vc_painel", "Painel Executivo")
 FORM_MAX = 16 * 1024
 FECHAR_MAX = 256 * 1024
@@ -269,7 +269,7 @@ def criar_app() -> FastAPI:
             return RedirectResponse("/farol/vc_saldo", status_code=302)
         if u["perfil"] == "trade" and not render.farois_do_perfil("trade"):
             # T-0036 (2 A, UX 9): até a T-0025-v2 o Trade Marketing não tem farol; casca BC3, uma frase neutra
-            return pagina(request, "trade_inicio.html", bc3=True, farol_nome="BAP Central")
+            return pagina(request, "trade_inicio.html", bc3=True, sem_pacote_ok=True)
         menu = [{"href": "/painel", "nome": RELATORIO[1]}] if u["perfil"] in VERES else []
         no_pacote = (ind.indice() or {}).get("farois") or {}
         for rid, nome in render.farois_do_perfil(u["perfil"]):
