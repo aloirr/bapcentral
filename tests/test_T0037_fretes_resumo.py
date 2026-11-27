@@ -9,7 +9,7 @@ do VLR NF) e ao "Frete estimado" (RN-POS-007 e RN-POS-009); a barra do mês é
 o mesmo nº de notas. Sem dado pessoal (RN-GER-011, regra 6).
 
 Base: o pacote real das bases congeladas, hoje = 24/11/2026. Teste trazido
-do modulo-robo (robô 4370d2d). Contrato §10.12; desenho docs/desenho/T-0037.md.
+do modulo-robo (robô 91e6f8a). Contrato §10.12; desenho docs/desenho/T-0037.md.
 Sem os faróis e o robô da T-0037, pula.
 """
 import json
@@ -30,6 +30,7 @@ if not (hasattr(rn, "kpis_fretes")
 
 RAIZ = Path(__file__).resolve().parent.parent
 HOJE = date(2026, 11, 24)
+_SEM_TRANSP = ("Sem transportadora", "Sem acompanhamento")
 TITULOS_RESUMO = ["Por UF (NOV/26)", "Por cidade (NOV/26)",
                   "Por transportadora (NOV/26)"]
 
@@ -85,6 +86,17 @@ def test_RN_POS_009_totais_das_tabelas_batem_com_o_cartao(real):
     assert barras["grafico"]["series"][0]["valores"][-1] == notas
 
 
+def test_RN_POS_009_sem_transportadora_da_tabela_bate_com_o_cartao(real):
+    """Linha "Sem transportadora" de "Por transportadora (NOV/26)" = cartão
+    "Sem transportadora" (a "Sem acompanhamento" fica fora dos dois)."""
+    _, f = real
+    k = {c["rotulo"]: c for c in f["kpis"]}
+    t_tr = _tabelas(f)[2]
+    lin = {x[0]: x for x in t_tr["linhas"]}
+    n_tab = lin["Sem transportadora"][1] if "Sem transportadora" in lin else 0
+    assert _num(k["Sem transportadora"]["valor"]) == n_tab
+
+
 def test_RN_POS_009_totais_iguais_nas_3_tabelas(real):
     _, f = real
     tots = [b["total"] for b in _tabelas(f)]
@@ -98,59 +110,67 @@ def test_T0037_resumo_so_2_frases_e_nao_repetem_cartao(real):
     ins = next(b for b in f["painel"]["blocos"] if b["tipo"] == "insights")
     assert len(fr) == 2
     assert fr == [x for _, x in ins["linhas"]]
-    assert re.fullmatch(r"\w\w tem \d+ das \d+ notas com frete e \d+% do "
-                        r"valor \(R\$ [\d.]+\)\.", fr[0])
-    assert re.fullmatch(r".+ leva \d+% do valor: R\$ [\d.]+ em \d+ notas?\.",
-                        fr[1])
+    assert re.fullmatch(r"\w\w concentra \d+% do valor das notas com "
+                        r"frete\.", fr[0])
+    assert re.fullmatch(r".+ leva \d+% do valor\.", fr[1])
     assert not any("líquido" in x or "entregues" in x
                    or "sem transportadora" in x for x in fr)
 
 
-def test_T0037_resumo_frase_de_uf_bate_com_a_tabela(real):
-    """Valor × regra da 1ª frase: a UF de maior VLR NF (sem a linha "Sem
-    UF"), o nº de notas dela, o total (= cartão) e o % do valor saem da
-    tabela "Por UF (NOV/26)"."""
+def test_T0037_resumo_frases_batem_com_as_tabelas(real):
+    """Valor × regra das 2 frases: a UF de maior VLR NF (sem a linha "Sem
+    UF") e o % dela no TOTAL de "Por UF (NOV/26)"; a transportadora de maior
+    VLR NF (sem "Sem transportadora" e "Sem acompanhamento") e o % dela no
+    TOTAL de "Por transportadora (NOV/26)"."""
     _, f = real
-    fr = f["insights_painel"][0][1]
-    m = re.fullmatch(r"(\w\w) tem (\d+) das (\d+) notas com frete e (\d+)% "
-                     r"do valor \(R\$ ([\d.]+)\)\.", fr)
+    t_uf, _t_cid, t_tr = _tabelas(f)
+    m = re.fullmatch(r"(\w\w) concentra (\d+)% do valor das notas com "
+                     r"frete\.", f["insights_painel"][0][1])
     assert m
-    uf, n_uf, n_tot, pct, rs = m.groups()
-    t_uf = _tabelas(f)[0]
+    uf, pct = m.group(1), int(m.group(2))
     lin = {x[0]: x for x in t_uf["linhas"]}
-    assert uf in lin
-    assert int(n_uf) == lin[uf][1]
-    assert int(n_tot) == t_uf["total"][1]
-    assert uf != "Sem UF"                       # a linha sem UF não é citada
+    assert uf in lin and uf != "Sem UF"
     assert lin[uf][2] == max(x[2] for x in t_uf["linhas"]
                              if x[0] != "Sem UF")
-    assert int(pct) == round(100 * lin[uf][2] / t_uf["total"][2])
-    assert int(rs.replace(".", "")) == round(lin[uf][2])
+    assert pct == round(100 * lin[uf][2] / t_uf["total"][2])
+    m = re.fullmatch(r"(.+) leva (\d+)% do valor\.",
+                     f["insights_painel"][1][1])
+    assert m
+    tr, pct = m.group(1), int(m.group(2))
+    lin = {x[0]: x for x in t_tr["linhas"]}
+    assert tr in lin and tr not in _SEM_TRANSP
+    assert lin[tr][2] == max(x[2] for x in t_tr["linhas"]
+                             if x[0] not in _SEM_TRANSP)
+    assert pct == round(100 * lin[tr][2] / t_tr["total"][2])
 
 
-def test_T0037_rotulos_sem_parenteses():
-    r = {"kpis": [], "tabelas": [
-        {"titulo": "Por UF", "colunas": [{"nome": n} for n in (
-            "MÊS", "UF", "NOTAS", "VLR NF", "VLR FRETE")],
-         "filtros": [{"coluna": "MÊS", "padrao": "NOV/26"}],
-         "linhas": [["NOV/26", "(sem)", 1, 10.0, 1.0],
-                    ["NOV/26", "PA", 2, 30.0, 3.0]]},
-        {"titulo": "Por cidade", "colunas": [{"nome": n} for n in (
-            "MÊS", "CIDADE", "NOTAS", "VLR NF", "VLR FRETE")],
-         "filtros": [{"coluna": "MÊS", "padrao": "NOV/26"}],
-         "linhas": [["NOV/26", "(sem) / PA", 1, 10.0, 0.1]]},
-        {"titulo": "Por transportadora", "colunas": [{"nome": n} for n in (
-            "MÊS", "TRANSPORTADORA", "NOTAS", "VLR NF", "VLR FRETE")],
-         "filtros": [{"coluna": "MÊS", "padrao": "NOV/26"}],
-         "linhas": [["NOV/26", "(sem)", 1, 10.0, 0.1],
-                    ["NOV/26", "TRANSPORTADORA FICTICIA", 1, 30.0, 0.2]]}]}
+def _t(titulo, rot, linhas):
+    return {"titulo": titulo, "colunas": [{"nome": n} for n in (
+        "MÊS", rot, "NOTAS", "VLR NF", "VLR FRETE")],
+            "filtros": [{"coluna": "MÊS", "padrao": "NOV/26"}],
+            "linhas": linhas}
+
+
+def test_T0037_rotulo_do_pc_passa_adiante_e_sem_acompanhamento_nao_vira_frase():
+    """Os rótulos do PC (relatorios_nucleo.rotulo_agrupa_fretes) vão como
+    estão; "Sem acompanhamento" (R$ 90, o maior) não é citado: a frase cita
+    a de maior valor com transportadora, 30 de 140 = 21%."""
+    r = {"tabelas": [
+        _t("Por UF", "UF", [["NOV/26", "Sem UF", 1, 10.0, 1.0],
+                            ["NOV/26", "PA", 2, 30.0, 3.0]]),
+        _t("Por cidade", "CIDADE", [
+            ["NOV/26", "CIDADE FICT A / Sem UF", 1, 10.0, 0.1],
+            ["NOV/26", "Sem cidade / MA", 1, 5.0, 0.1]]),
+        _t("Por transportadora", "TRANSPORTADORA", [
+            ["NOV/26", "Sem acompanhamento", 1, 90.0, 0.1],
+            ["NOV/26", "Sem transportadora", 1, 20.0, 0.1],
+            ["NOV/26", "TRANSPORTADORA FICTICIA", 1, 30.0, 0.2]])]}
     blocos, frases = ba.blocos_resumo_fretes_web(r)
-    rot = [x[0] for b in blocos if b["tipo"] == "tabela"
-           for x in b.get("linhas", [])]
-    assert rot == ["PA", "Sem UF", "Sem cidade / PA",
+    rot = [x[0] for b in blocos if b["tipo"] == "tabela" for x in b["linhas"]]
+    assert rot == ["PA", "Sem UF", "CIDADE FICT A / Sem UF",
+                   "Sem cidade / MA", "Sem acompanhamento",
                    "TRANSPORTADORA FICTICIA", "Sem transportadora"]
-    assert frases[1][1] == ("TRANSPORTADORA FICTICIA leva 75% do valor: "
-                            "R$ 30 em 1 nota.")
+    assert frases[1][1] == "TRANSPORTADORA FICTICIA leva 21% do valor."
 
 
 def test_T0037_uma_uf_sem_frase_de_uf():
@@ -194,13 +214,12 @@ def _tab_uf(linhas):
 
 
 def test_T0037_frase_da_uf_pula_a_linha_sem_uf():
-    """"Sem UF" tem o maior valor, mas não é a UF citada; o total (6 notas)
-    e o % do valor ainda a incluem (50 de 150 = 33%)."""
+    """"Sem UF" tem o maior valor, mas não é a UF citada; o % do valor
+    ainda a inclui no total (50 de 150 = 33%)."""
     _, fr = ba.blocos_resumo_fretes_web({"tabelas": [_tab_uf([
-        ["NOV/26", "(sem)", 5, 100.0, 1.0],
+        ["NOV/26", "Sem UF", 5, 100.0, 1.0],
         ["NOV/26", "PA", 1, 50.0, 1.0]])]})
-    assert fr == [("info",
-                   "PA tem 1 das 6 notas com frete e 33% do valor (R$ 50).")]
+    assert fr == [("info", "PA concentra 33% do valor das notas com frete.")]
 
 
 def test_T0037_frase_da_uf_e_a_de_maior_valor_nao_a_de_mais_notas():
@@ -209,22 +228,11 @@ def test_T0037_frase_da_uf_e_a_de_maior_valor_nao_a_de_mais_notas():
     _, fr = ba.blocos_resumo_fretes_web({"tabelas": [_tab_uf([
         ["NOV/26", "PA", 5, 100.0, 5.0],
         ["NOV/26", "RR", 1, 300.0, 9.0]])]})
-    assert fr == [("info",
-                   "RR tem 1 das 6 notas com frete e 75% do valor (R$ 300).")]
+    assert fr == [("info", "RR concentra 75% do valor das notas com frete.")]
 
 
 def test_T0037_so_sem_uf_nao_tem_frase_de_uf():
     _, fr = ba.blocos_resumo_fretes_web({"tabelas": [_tab_uf([
-        ["NOV/26", "(sem)", 5, 100.0, 1.0]])]})
+        ["NOV/26", "Sem UF", 5, 100.0, 1.0]])]})
     assert fr == []
 
-
-def test_T0037_cidade_sem_uf_sem_barra_solta():
-    """A cidade sem UF sai só com o nome (sem " /"); "(sem) / " vira "Sem
-    cidade"."""
-    f = ba._rotulo_sem_fretes_web
-    assert f("CIDADE", "CIDADE FICT A / ") == "CIDADE FICT A"
-    assert f("CIDADE", "CIDADE FICT A /") == "CIDADE FICT A"
-    assert f("CIDADE", "CIDADE FICT A / PA") == "CIDADE FICT A / PA"
-    assert f("CIDADE", "(sem) / ") == "Sem cidade"
-    assert f("CIDADE", "(sem) / PA") == "Sem cidade / PA"
