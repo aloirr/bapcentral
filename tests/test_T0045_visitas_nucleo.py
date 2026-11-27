@@ -5,7 +5,7 @@ pelo testes. Regras: RN-VIS-002 (o dia fecha pela hora da baixa, em Manaus;
 vale a baixa mais nova entre a nuvem e o PC) e RN-VIS-007 (o Espelho vai sem
 dado pessoal: só as colunas permitidas; o achado leva o tipo, nunca o valor;
 linha de cliente = cliente ou código de 6 a 8 dígitos, o R9; rodapé e
-formatos válidos não geram achado).
+formatos válidos, como ORD de até 6 dígitos, não geram achado).
 
 Pulado, com motivo, enquanto a branch da rota não estiver no main. Dados 100%
 fictícios; os arquivos vão para pastas temporárias.
@@ -262,7 +262,7 @@ def test_RN_VIS_007_linha_de_cliente_cliente_ou_codigo_de_6_a_8():
     assert not f({})
 
 
-def test_RN_VIS_007_formato_aceita_ord_de_5_digitos_e_atend_negativo():
+def test_RN_VIS_007_formato_aceita_ord_de_ate_6_digitos_e_atend_negativo():
     f = vn.achar_dado_pessoal
     assert f("12345", "ord") is None
     assert f("-0:05:30", "hora") is None
@@ -286,9 +286,9 @@ def test_RN_VIS_007_rodape_total_na_coluna_codigo_nao_gera_achado(tmp_path):
     assert [c["codigo"] for c in vn.ler_espelho(dst)["clientes"]] == ["123456"]
 
 
-def test_RN_VIS_007_ord_prev_de_5_digitos_e_atend_negativo_sem_achado_no_espelho(tmp_path):
-    """No Espelho inteiro (filtrar_espelho), ORD PREV com 5 dígitos e ATEND
-    negativo passam sem achado de `formato`."""
+def test_RN_VIS_007_ord_prev_de_ate_6_digitos_e_atend_negativo_sem_achado_no_espelho(tmp_path):
+    """No Espelho inteiro (filtrar_espelho), ORD PREV de até 6 dígitos (aqui,
+    5) e ATEND negativo passam sem achado de `formato`."""
     from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active

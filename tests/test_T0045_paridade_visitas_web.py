@@ -11,8 +11,10 @@ O dia fecha quando foi baixado num dia (Manaus) depois dele, e a rodada nunca
 passa de hoje.
 Também RN-VIS-007 (RD-0112, RD-0114): a rede de dado pessoal (`_REDE` /
 `RE_PESSOAL`), os `TIPOS_ACHADO` e as colunas do Espelho que nunca saem
-(`_FORA_DO_ESPELHO` / `COLUNAS_PROIBIDAS`), contra as permitidas
-(`ESPELHO_PERMITIDAS`). Um lado que muda sem o outro reprova.
+(`_FORA_DO_ESPELHO` / `COLUNAS_PROIBIDAS`). Um lado que muda sem o outro
+reprova. Aqui só entra a comparação núcleo × web; o que olha só o núcleo
+(a lista em si, as permitidas, o cabeçalho) fica em
+tests/test_T0045_visitas_nucleo.py (RD-0149).
 
 Pulado, com motivo, enquanto uma das duas branches não estiver no main. Datas
 fictícias, sem dado de cliente.
@@ -193,8 +195,6 @@ def test_RN_VIS_007_rede_de_dado_pessoal_igual_na_rota_e_na_web(web_app):
     for tipo, rx in rede:
         assert web[tipo].pattern == rx.pattern, tipo
         assert web[tipo].flags == rx.flags, tipo
-    # os nomes do núcleo que a web cita no docstring são os da rede
-    assert [rx for _t, rx in rede] == [vn._RX_EMAIL, vn._RX_CNPJ, vn._RX_CPF, vn._RX_FONE]
     for s in _AMOSTRAS:
         r = next((t for t, rx in rede if rx.search(s)), None)
         w = next((t for t, rx in web.items() if rx.search(s)), None)
@@ -202,24 +202,15 @@ def test_RN_VIS_007_rede_de_dado_pessoal_igual_na_rota_e_na_web(web_app):
 
 
 def test_RN_VIS_007_tipos_achado_iguais_e_na_mesma_ordem(web_app):
-    rede = _rede_rota()
     assert tuple(web_app.visitas.TIPOS_ACHADO) == tuple(vn.TIPOS_ACHADO)
-    assert tuple(vn.TIPOS_ACHADO) == tuple(t for t, _ in rede) + ("formato",)
 
 
-def test_RN_VIS_007_colunas_fora_e_permitidas_do_espelho_batem(web_app):
+def test_RN_VIS_007_colunas_fora_do_espelho_iguais_na_rota_e_na_web(web_app):
     """As colunas que nunca saem do Espelho são as mesmas nos dois lados
-    (`_FORA_DO_ESPELHO` na rota, `COLUNAS_PROIBIDAS` na web), e as permitidas
-    (`ESPELHO_PERMITIDAS["colunas"]`) são exatamente o resto das colunas do
-    `ler_espelho`, sem nenhuma proibida."""
-    fora = tuple(vn._FORA_DO_ESPELHO)
-    assert tuple(web_app.visitas.COLUNAS_PROIBIDAS) == fora
-    assert fora == ("KM DIST", "BONIF", "OBSERVACAO")
-    perm = tuple(vn.ESPELHO_PERMITIDAS["colunas"])
-    assert not set(perm) & set(web_app.visitas.COLUNAS_PROIBIDAS)
-    assert perm == tuple(c for c in vn._COLUNAS_ESPELHO if c not in web_app.visitas.COLUNAS_PROIBIDAS)
-    assert set(perm) | set(fora) == set(vn._COLUNAS_ESPELHO)
-    assert tuple(vn.ESPELHO_PERMITIDAS["cabecalho"]) == tuple(vn._ROTULOS_ESPELHO)
+    (`_FORA_DO_ESPELHO` na rota, `COLUNAS_PROIBIDAS` na web), e nenhuma
+    proibida da web está nas permitidas do núcleo."""
+    assert tuple(web_app.visitas.COLUNAS_PROIBIDAS) == tuple(vn._FORA_DO_ESPELHO)
+    assert not set(vn.ESPELHO_PERMITIDAS["colunas"]) & set(web_app.visitas.COLUNAS_PROIBIDAS)
     # se a web um dia tiver a lista das permitidas, ela é a mesma
     if hasattr(web_app.visitas, "ESPELHO_PERMITIDAS"):
         assert {k: tuple(v) for k, v in web_app.visitas.ESPELHO_PERMITIDAS.items()} == \
