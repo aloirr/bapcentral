@@ -54,7 +54,8 @@ L_NOV = [
 L_OUT = [_l(OUT, "000105 - CLIENTE TESTE 05", "CIDADE FICT A", "PA", 500.0,
             25.0, "ENTREGUE", "TRANSPORTADORA FICTICIA 1", D(2026, 10, 10),
             D(2026, 10, 8), "FILIAL FICTICIA|900005|1")]
-# faturado VND por (mês, UF do cliente), com os clientes de Manaus no AM
+# faturado LÍQUIDO de devolução (P3 B) por (mês, UF do cliente), com os
+# clientes de Manaus no AM; o líquido montado do zero: test_T0037_fretes_nucleo
 FAT = {(NOV, "AM"): 40000.0, (NOV, "PA"): 8000.0, (NOV, "RR"): 5000.0,
        (OUT, "AM"): 20000.0, (OUT, "PA"): 9500.0}
 
@@ -313,3 +314,18 @@ def test_RN_POS_010_frete_real_recusado_no_fretes_aceito_no_entregas():
     # junto com um campo válido, a edição do Fretes também cai inteira
     mix = _reg(2, {"etapa": "ENTREGUE", "frete_real": "120,00"})
     assert ba.validar_edicao_web(mix, OPCOES) == ba.MOTIVO_LUGAR_WEB
+
+
+def test_RN_POS_010_campos_lugar_web_do_fretes_sem_frete_real():
+    """Contrato §10.11.4: os 5 campos do lugar, pela tabela por lugar
+    (CAMPOS_LUGAR_WEB); o Entregas segue com os do módulo (com frete_real)."""
+    if not hasattr(ba, "CAMPOS_LUGAR_WEB"):
+        pytest.skip("CAMPOS_LUGAR_WEB ainda não entrou")
+    esperado = {"etapa": "lista", "transportadora": "lista",
+                "prevista_manual": "data", "entregue_em": "data",
+                "responsavel": "livre"}
+    assert ba.CAMPOS_LUGAR_WEB[("pl_fretes", "Notas com frete")] == esperado
+    assert ba.campos_do_lugar_web("pl_fretes", "Notas com frete") == esperado
+    ent = ba.campos_do_lugar_web("pl_entregas", "Entregas")
+    assert ent == ba.CAMPOS_EDICAO_WEB["pos_venda"]
+    assert ent["frete_real"] == "valor"

@@ -128,7 +128,9 @@ finally:
 
 # --------------------------------------------------------------------------
 print("\n[3] OS RELATORIOS")
-for rid, area, titulo, _f in rn.CATALOGO:
+# (T-0037) o Fretes mora no LEGADO (sai do menu do PC), mas vai para a web
+for rid, area, titulo, _f in rn.CATALOGO + [
+        x for x in getattr(rn, "LEGADO", []) if x[0] == "pl_fretes"]:
     try:
         t = time.time()
         r = rn.montar(rid, AQUI)
