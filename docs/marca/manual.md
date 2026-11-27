@@ -81,9 +81,9 @@ O manual do BapAjuda deixava a paleta completa "a aprovar" e citava a decisão d
 | `--verde-escuro` | `#2F7D32` | Texto verde, botão, aba ativa, número "bom" | `VERDE_ESCURO` (`bap_visual.py`), já usado no BC3 | Os outros 6 verdes do `estilo.css` (#2b8a3e, #1e8e3e, #4FA236, #3C9440, #2F5D3A, #2E5C3B) saem |
 | `--preto-bap` | `#231F20` | Fundo do logo e faixa do cabeçalho do PDF | `PRETO_BAP` (`bap_visual.py`), a cor do catálogo | Nenhuma no PC; no site, a placa do logo |
 | `--verde-claro` | `#E5F3DF` | Fundo de destaque (grupo do Excel, total), **só com `--texto`** | `VERDE_CLARO` (`bap_visual.py`) | Nenhuma |
-| `--faixa-inicio` | `#2F7D32` | Início do degradê da faixa BC3 | O BC3 aprovado (R-20261126-171559-alexandre) | Hoje é `#3C9440`, com texto pequeno a 3,8:1. Muda o tom do canto da faixa, que fica um pouco mais escuro (ver o antes e depois da prancha) |
+| `--faixa-inicio` | `#2F7D32` | Início do degradê da faixa BC3 | O BC3 aprovado (R-20261126-171559-alexandre) | Antes era `#3C9440`: texto branco a 3,82:1 e o esverdeado `#D2E7D3` a 2,93:1. Muda o tom do canto da faixa, que fica um pouco mais escuro (ver o antes e depois da prancha) |
 | `--faixa-fim` | `#1B4D1F` | Fim do degradê da faixa BC3 | O BC3 aprovado | Nenhuma |
-| `--faixa-texto` | `#FFFFFF` | Todo o texto da faixa, inclusive o pequeno | — | Hoje o texto pequeno é `#D2E7D3` (3,9:1). A hierarquia fica pelo peso e pelo tamanho |
+| `--faixa-texto` | `#FFFFFF` | Todo o texto da faixa, inclusive o pequeno | — | Antes, o texto pequeno era `#D2E7D3`: 2,93:1 sobre o `#3C9440` de antes e 3,93:1 mesmo sobre o novo `#2F7D32`, abaixo de 4,5:1 nos dois. A hierarquia fica pelo peso e pelo tamanho |
 | `--faixa-alerta` | `#FFB4A9` | Número em alerta na faixa | O BC3 aprovado | Só em número ≥ 19 px negrito |
 | `--faixa-atencao` | `#FFE08A` | Número em atenção na faixa | O BC3 aprovado | idem |
 | `--faixa-ok` | `#A6E3A9` | Número bom na faixa | O BC3 aprovado | idem |
@@ -144,7 +144,7 @@ O manual do BapAjuda deixava a paleta completa "a aprovar" e citava a decisão d
 - `--verde-marca` como texto ou ícone em fundo claro (2,44:1 no branco).
 - `--verde-escuro` sobre `--verde-claro` em texto pequeno (4,44:1).
 - `--atencao` #B7791F como texto (3,64:1): use `--atencao-texto`.
-- Texto esverdeado (#D2E7D3) na faixa (3,9:1): use branco.
+- Texto esverdeado (#D2E7D3) na faixa (2,93:1 no #3C9440; 3,93:1 no #2F7D32): use branco.
 - Cor de farol (verde, amarelo, vermelho) como enfeite, título ou fundo de cabeçalho.
 - Logo inteiro direto em fundo claro (a palavra "bap" some).
 
@@ -157,7 +157,7 @@ O manual do BapAjuda deixava a tipografia do site "a aprovar". Antes da decisão
 
 **Decisão (9 A): uma família, a Inter.**
 - **Por quê:**
-  - É a letra das simulações do BC3 e do M3 que o Alexandre aprovou. O `estilo.css` pede a Inter primeiro, e a máquina das simulações a tem. [SUPOSIÇÃO]
+  - É a letra das simulações do BC3 e do M3 que o Alexandre aprovou. O `estilo.css` já pede a Inter primeiro.
   - É livre (licença OFL), então pode ser hospedada no site: fica igual no PC e no celular. Também pode ser embutida no PDF e na imagem da parcial.
   - Tem algarismos de mesma largura, o que deixa as colunas de números alinhadas.
 - **Onde não dá para levar a Inter**, entra a Segoe UI e, sem ela, Arial (pilha: `Inter, "Segoe UI", Arial, sans-serif`):
