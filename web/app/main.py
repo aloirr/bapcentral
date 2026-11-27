@@ -83,6 +83,7 @@ def criar_app() -> FastAPI:
     modelos.env.filters["manaus"] = fmt_manaus
     modelos.env.filters["hhmm"] = hhmm
     modelos.env.globals["kpi_curto"] = tabelas.kpi_curto
+    modelos.env.globals["selo_curto"] = tabelas.selo_curto
     modelos.env.globals["titulo_cel"] = tabelas.TITULO_CEL
     modelos.env.globals["analista"] = tabelas.RIDS_ANALISTA        # T-0036: faróis do Analista Comercial
     modelos.env.filters["fone"] = cobranca.fone_bonito

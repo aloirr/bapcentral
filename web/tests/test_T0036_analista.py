@@ -85,6 +85,16 @@ def test_RN_GER_017_menu_do_analista_tem_o_grupo_analista_comercial():
     assert "Trade" not in [g["nome"] for g in render.menu_lateral("trade", no_pacote, None)]
 
 
+def test_T0036_grupo_do_proprio_perfil_vem_primeiro():
+    no_pacote = {rid: {} for rid in render.FAROIS}
+    assert [g["nome"] for g in render.menu_lateral("analista", no_pacote, None)][0] == "Analista Comercial"
+    assert render.grupos_na_ordem("trade")[0][0] == "Trade"
+    for p in ("diretor", "gerente", "admin", "vendas"):                 # os outros perfis: a ordem de sempre
+        assert render.grupos_na_ordem(p) == render.GRUPOS_MENU
+    nomes = [g["nome"] for g in render.menu_lateral("diretor", no_pacote, None)]
+    assert nomes.index("Vendas") < nomes.index("Analista Comercial")
+
+
 def test_T0036_pacote_da_simulacao_passa_no_contrato_e_fecha_as_contas():
     p = pacote_coerente()
     for rid, f in p["relatorios"].items():
@@ -97,7 +107,7 @@ def test_T0036_pacote_da_simulacao_passa_no_contrato_e_fecha_as_contas():
 
 def test_RN_GER_017_pagina_inicial_do_trade_sem_farol(admin, usu):
     r = usu("trade").get("/")
-    assert r.status_code == 200 and "Nenhum farol do Trade Marketing no site ainda." in r.text
+    assert r.status_code == 200 and "Os faróis do Trade Marketing ainda não estão no site." in r.text
     assert "bc3-lado" in r.text and "BAP AUTOPARTS" in r.text            # casca BC3 com a marca (UX 9, 5)
     assert "/farol/" not in r.text and "/painel" not in r.text and "/senha" in r.text
     assert "Dados de" not in r.text and "v0.5" not in r.text and "aviso atencao" not in r.text
@@ -404,3 +414,45 @@ def test_T0036_titulo_da_coluna_sem_a_unidade_do_numero(com_analista):
     h = com_analista.get("/farol/vc_markup?aba=pedido").text
     assert ">VENDA<" in h and ">MARKUP<" in h and "R$ VENDA" not in h and "MARKUP %" not in h
     assert "% DESC. COM." not in com_analista.get("/farol/vc_saldo?aba=pedido").text
+
+
+def _base_rotulo(r: str) -> list[str]:
+    return [w.strip(".") for w in r.upper().replace("/", " ").split() if w.strip(".")]
+
+
+def _mesma_base(a: str, b: str) -> bool:
+    """"DESC. COM." e "DESC. COMERCIAL" têm a mesma base: as palavras de uma abreviam as da outra."""
+    a, b = _base_rotulo(a), _base_rotulo(b)
+    return len(a) == len(b) and all(x.startswith(y) or y.startswith(x) for x, y in zip(a, b))
+
+
+def test_T0036_nenhuma_tabela_com_dois_rotulos_de_mesma_base():
+    assert _mesma_base("DESC. COM.", "DESC. COMERCIAL") and not _mesma_base("DESC. S/ TABELA", "DESC. COMERCIAL")
+    for (rid, titulo), cols in tabelas.COLUNAS_RID.items():
+        if rid not in tabelas.RIDS_ANALISTA:
+            continue
+        tab = {"cols": [{"nome": n, "tipo": tp} for n, tp, _ in cols]}
+        tabelas.aplicar_rotulos(tab, rid)
+        rs = [c["rot"] for c in tab["cols"]]
+        dup = [(a, b) for i, a in enumerate(rs) for b in rs[i + 1:] if _mesma_base(a, b)]
+        assert not dup, (rid, titulo, dup)
+
+
+def test_T0036_saldo_separa_desconto_em_percentual_e_em_reais(com_analista):
+    h = com_analista.get("/farol/vc_saldo?aba=pedido").text
+    assert ">DESC. S/ TABELA<" in h and ">DESC. COMERCIAL<" in h and ">DESC. COM.<" not in h
+    assert tabelas.kpi_curto("Vendedor diferente") == "Vend. dif."
+
+
+def test_T0036_selo_curto_na_lista_do_celular_e_inteiro_no_detalhe(admin):
+    assert postar(admin, pacote_coerente()).status_code == 200
+    h = admin.get("/farol/an_divergencias?aba=divergentes").text
+    itens = re.findall(r'<details class="bc3-item[^"]*"><summary>(.*?)</summary>\s*<dl>(.*?)</dl>', h, re.S)
+    assert itens
+    for summ, dl in itens:
+        assert "VENDEDOR DIFERENTE" not in summ and "SEM VENDEDOR NO PLANNER" not in summ \
+            and "FORA DA BASE DO PLANNER" not in summ
+        curto = next(c for c in ("Vend. dif.", "Sem vendedor", "Fora da base") if c in summ)
+        inteiro = {v: k for k, v in tabelas.SELO_CURTO.items()}[curto]
+        assert inteiro in dl
+    assert tabelas.selo_curto("OK") == "OK"

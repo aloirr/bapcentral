@@ -192,6 +192,13 @@ GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
                ("Analista Comercial", ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")),
                # T-0036 (contrato §10.10.1): o grupo do trade; aparece quando o Farol de Expositores entrar (T-0025 v2)
                ("Trade", ("tm_expositores",)))
+# T-0036 (revisão UX): o grupo do próprio perfil abre a barra; os outros perfis seguem a ordem de GRUPOS_MENU
+GRUPO_DO_PERFIL = {"analista": "Analista Comercial", "trade": "Trade"}
+
+
+def grupos_na_ordem(perfil: str) -> tuple:
+    meu = GRUPO_DO_PERFIL.get(perfil)
+    return tuple(sorted(GRUPOS_MENU, key=lambda g: g[0] != meu))
 
 
 def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
@@ -202,7 +209,7 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
     if painel:
         grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
                                                        "ativo": ativo == "painel"}]})
-    for nome, rids in GRUPOS_MENU:
+    for nome, rids in grupos_na_ordem(perfil):
         itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r].removeprefix("Farol de ")),
                   "ativo": r == ativo}
                  for r in rids if r in meus]

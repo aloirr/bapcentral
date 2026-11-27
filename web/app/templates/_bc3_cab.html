@@ -35,7 +35,7 @@
   </div>
   {% if ks %}
   <div class="bc3-ks">
-    {% for k in ks %}<div class="bc3-k t-{{ k.cor }}">{% set curto = kpi_curto(k.rot) if rid in analista else k.rot %}{% if curto != k.rot %}<small title="{{ k.rot }}"><span class="r-pc">{{ k.rot }}</span><span class="r-cel">{{ curto }}</span></small>{% else %}<small>{{ k.rot }}</small>{% endif %}<b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
+    {% for k in ks %}<div class="bc3-k t-{{ k.cor }}">{% set curto = kpi_curto(k.rot) if rid in analista else k.rot %}{% if curto != k.rot %}<small title="{{ k.rot }}"><span class="r-pc">{{ k.rot }}</span><span class="r-cel">{{ curto }}</span></small>{% else %}<small>{{ k.rot }}</small>{% endif %}<b{{ ' class="longo"'|safe if (k.valor|string|length) > 9 }}>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
   </div>
   {% elif aviso_kpis is defined and aviso_kpis %}
   <p class="bc3-aviso-k">{{ aviso_kpis }}</p>

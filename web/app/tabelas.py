@@ -1299,10 +1299,19 @@ DICA_BUSCA.update({
 })
 # T-0036 (UX, A): rótulo curto dos números da faixa, só no celular (o inteiro fica no title) e título curto do farol
 KPI_CURTO = {"desconto comercial": "Desc. com.", "saldo do frete": "Frete", "abaixo do mínimo": "Abaixo mín.", "queda após reajuste": "Queda reaj.",
-             "clientes na base (planner)": "Na base", "vendedor diferente": "Vend. diferente",
+             "clientes na base (planner)": "Na base", "vendedor diferente": "Vend. dif.",
              "sem vendedor no planner": "Sem vendedor", "fora da base do planner": "Fora da base",
              "código duplicado": "Duplicados"}
 TITULO_CEL = {"an_divergencias": "Divergências Planner × Protheus"}
+
+
+# T-0036 (revisão UX 4): o selo da lista do celular das Divergências usa o rótulo curto; o inteiro fica no detalhe
+SELO_CURTO = {"VENDEDOR DIFERENTE": "Vend. dif.", "SEM VENDEDOR NO PLANNER": "Sem vendedor",
+              "FORA DA BASE DO PLANNER": "Fora da base"}
+
+
+def selo_curto(t) -> str:
+    return SELO_CURTO.get(str(t or "").strip().upper(), str(t or ""))
 
 
 def kpi_curto(rot: str) -> str:
@@ -1313,7 +1322,9 @@ def kpi_curto(rot: str) -> str:
 
 
 # T-0036 (UX, C): o título da coluna não repete a unidade que o número já mostra ("R$ 100", "10,0%")
-ROTULO_COLUNA = {"VENDEDOR PROTHEUS (A1_VEND)": "VENDEDOR PROTHEUS"}
+# e duas colunas da mesma tabela não ficam com rótulos de mesma base ("DESC. COM." % ao lado de "DESC. COMERCIAL" R$)
+ROTULO_COLUNA = {"VENDEDOR PROTHEUS (A1_VEND)": "VENDEDOR PROTHEUS",
+                 "% DESC. COM.": "DESC. S/ TABELA", "% DESC.": "DESC. S/ TABELA", "VAR. FAT. R$": "DIF. FAT."}
 _UNIDADE = re.compile(r"^(?:R\$ |% )|(?: %| R\$)$")
 
 
@@ -1444,9 +1455,11 @@ def dados_do_popup(tab: dict, linha: dict, so_fora: bool = False) -> list[list]:
     for i, (c, v) in enumerate(zip(cols, linha.get("cel") or [])):
         if (v or {}).get("cod"):                                  # Entregas: o código do cliente sai da grade
             blocos.setdefault("Outros", []).append(["CÓD. CLIENTE", v["cod"]])
-        if (so_fora and i not in g["fora"]) or (not so_fora and i in fechada):
-            continue
         t = str((v or {}).get("t", "")).strip()
+        # T-0036: o selo da linha fechada com rótulo curto deixa o texto inteiro no detalhe aberto
+        inteiro = i == g["cel"].get("sla") and selo_curto(t) != t
+        if (so_fora and i not in g["fora"]) or (not so_fora and i in fechada and not inteiro):
+            continue
         nome = str(c.get("nome", ""))
         if not t or t == "—" or (nome.upper() == "PED. MÁX." and t == ped):
             continue
