@@ -659,12 +659,12 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
 }
 .rolagem-dados.sem-rolagem .tab-dados tfoot td:first-child{position:sticky;bottom:0;left:auto}
 
-/* T-0023 v2 (UX R2): rótulo longo do cartão da faixa se divide em vez de vazar */
+/* T-0023 v2 (UX R2 e A4): no celular, o rótulo longo do cartão se divide e os alvos têm --alvo */
 @media(max-width:700px){
   .bc3-k small{hyphens:auto;overflow-wrap:anywhere}
   .ed-botoes button,.ed-botoes .ed-cancelar,.bc3-ed a.bt-ed,.ed-campo input,.ed-campo select{min-height:var(--alvo)}
 }
-/* T-0023 v2 (UX A1/A2/A4): formulário largo (Garantia) em 4 colunas no PC, sem rolar; alvos de 44 px no celular */
+/* T-0023 v2 (UX A1/A2): formulário largo (Garantia) em 4 colunas no PC, sem rolar */
 .ed-aviso-pessoal{margin:.4rem 0 0;font-size:.75rem;color:var(--suave);grid-column:1/-1}
 .ed-cancelar{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1px solid var(--borda);border-radius:8px;text-decoration:none;font-weight:600}
 .ed-botoes a.ed-cancelar{color:var(--texto)}
