@@ -34,15 +34,7 @@ PARAMS = {"ANO": "2026", "MÊS": "11"}
 MES_ROT = "NOV/26"
 RIDS = ("pv_pedidos", "pl_entregas", "vc_visitas")
 # transição T-0037: até o #169 (testes/T-0037-fretes), que põe o pl_fretes no RIDS_1073 e volta a comparar tudo
-ABAS_FRETES_TRANSICAO = {"Notas com frete", "Por UF", "Por cidade",
-                         "Por transportadora"}
-
-
-# transição T-0037: até o #169 (testes/T-0037-fretes); some junto com a constante
-def _sem_fretes(d):
-    return {t: c for t, c in d.items() if t not in ABAS_FRETES_TRANSICAO}
-
-
+from escopo_farois_web import sem_fretes as _sem_fretes  # noqa: E402
 ABAS = {"pv_pedidos": ["Pedidos", "Solicitação BAP"],
         "pl_entregas": ["Entregas"],
         "vc_visitas": ["Por supervisor", "Por vendedor", "Dia a dia",
