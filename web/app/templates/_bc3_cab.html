@@ -24,6 +24,7 @@
     {% elif ufs_off %}{{ filtro_uf_off(ufs_off) }}{% endif %}
   </div>
   {{ numeros(ks) }}
+  {% if not ks and aviso_kpis is defined and aviso_kpis %}<p class="bc3-aviso-k">{{ aviso_kpis }}</p>{% endif %}
 </header>
 <div class="bc3-sub">
   {% if abas %}

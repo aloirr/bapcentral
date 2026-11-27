@@ -398,14 +398,16 @@ def criar_app() -> FastAPI:
                 j["edicao"] = edicao_tela(rid, j["tabela"], jt, j["linhas"], u, volta, sit, recebido)
         # RD-0023 (decisão do gerente, 26/11): o aviso "Sem filtro por estado" do Visita é um só, na faixa (`_bc3_cab.html`)
         aviso_uf = aviso_tabs_uf
-        # T-0033: a faixa leva os números em todas as abas; com filtro, recorte ou estado eles ficam e ganham o detalhe
+        # §10.7.2 (`kpis_padrao`), §10.7.6 e D5: os cartões da aba só valem no padrão; com filtro, recorte ou estado
+        # eles saem e entra o AVISO_CARTOES. Os de cima (`topo["kpis"]`) seguem a RN-GER-006 e vêm prontos do núcleo.
+        aviso_kpis = ""
         if t.get("kpis_padrao") is not None and not solicitacao:
-            kpis = render.kpis_para_tela(t["kpis_padrao"])
+            if tab["filtrado"] or (uf_ok and rid != "vc_meta"):
+                kpis, aviso_kpis = [], tabelas.AVISO_CARTOES
+            else:
+                kpis = render.kpis_para_tela(t["kpis_padrao"])
         else:
             kpis = topo["kpis"]
-        if not solicitacao and (tab["filtrado"] or (uf_ok and rid != "vc_meta" and t.get("kpis_padrao") is not None)):
-            marca_k = "sem o filtro" if tab["filtrado"] else "BAP inteira"       # a marca vai sempre, mesmo com `detalhe` do PC
-            kpis = [{**k, "detalhe": f"{marca_k} · {k['detalhe']}" if k.get("detalhe") else marca_k} for k in kpis]
         uf = uf_ok
         urls = urls_tabela(request, rid, aba, tab, sub, uf, bool(tab.get("fora_base") and tab["fora_base"]["mostrar"]))
         if linhas:                                      # "carregar mais": só as linhas da página pedida (mesmo corte de perfil)
@@ -413,7 +415,7 @@ def criar_app() -> FastAPI:
         return pagina(request, "farol.html", tela=None, tabela=tab, juntas=juntas, kpis=kpis, **urls,
                       faixa=True, ufs=ufs, uf=uf, subnomes=subnomes, sub=sub,
                       ed_enviada=edicoes.MSG_ENVIADA if consulta.get("ed") == ["1"] else "",
-                      aviso_uf=aviso_uf, titulo_aba=t["titulo"], **ctx)
+                      aviso_uf=aviso_uf, aviso_kpis=aviso_kpis, titulo_aba=t["titulo"], **ctx)
 
     # ------------------------------------------------------------ T-0026: parcial em imagem e exportação
     QUANDOS = (("acum", "Acumulado"), ("d1", "D-1"), ("hoje", "Hoje"))

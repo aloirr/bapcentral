@@ -567,32 +567,30 @@ def test_estado_filtra_linhas_pelo_uf_linhas_e_cartoes_da_aba_viram_traco(com_ta
     esperado = [k for k, ln in enumerate(t["linhas"]) if ln[20] == "EM ABERTO" and t["uf_linhas"][k] == "PA"]
     assert tela["total_linhas"] == len(esperado) and not tela["padrao"]
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
-    # T-0033: os números da faixa ficam (nunca "—") e dizem de onde vêm: "BAP inteira"
-    assert f"{len(esperado)} linhas" in h and "<em>BAP inteira</em>" in h
-    assert "3,6 dia(s)" in h and '<b>—</b>' not in h
+    # §10.7.2/D5: com estado os cartões da aba saem e entra o aviso (nunca o número da BAP inteira)
+    assert f"{len(esperado)} linhas" in h and "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h
+    assert "3,6 dia(s)" not in h and "<em>BAP inteira</em>" not in h and '<b>—</b>' not in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos").text                 # sem estado: os cartões prontos da aba
-    assert "3,6 dia(s)" in h and "<em>BAP inteira</em>" not in h and "sem o filtro" not in h
+    assert "3,6 dia(s)" in h and "Cartões sem filtro" not in h
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=XX").text           # estado desconhecido: ignora
-    assert "3,6 dia(s)" in h
+    assert "3,6 dia(s)" in h and "Cartões sem filtro" not in h
 
 
 def test_cartoes_da_aba_sem_numero_com_recorte_ou_filtro(com_tabelas):
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&f8=MANAUS").text
-    assert "3,6 dia(s)" in h and "<em>sem o filtro</em>" in h and '<b>—</b>' not in h   # T-0033: o número fica e diz que é sem o filtro
+    assert "3,6 dia(s)" not in h and "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and '<b>—</b>' not in h   # filtro: os cartões da aba saem e fica o aviso
 
 
-def test_cartao_com_detalhe_do_pc_tambem_diz_de_onde_vem_o_numero(admin):
-    # T-0033 (W1): com estado ou filtro, a marca vai sempre, mesmo quando o PC já mandou `detalhe`
+def test_cartao_com_detalhe_do_pc_so_aparece_no_padrao(admin):
+    # §10.7.2: o `detalhe` do PC vale no padrão; com estado ou filtro o cartão sai (sem marca inventada pela web)
     p, r = _rel("pv_pedidos")
     _tab(r, "Pedidos")["kpis_padrao"][5]["detalhe"] = "em aberto"                # o cartão "Volume"
     assert postar(admin, p).status_code == 200
-    com_tabelas = admin
-    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
-    assert "<em>BAP inteira · em aberto</em>" in h
-    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&f8=MANAUS").text
-    assert "<em>sem o filtro · em aberto</em>" in h
-    h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos").text
-    assert "<em>em aberto</em>" in h and "BAP inteira · em aberto" not in h
+    h = admin.get("/farol/pv_pedidos?aba=pedidos").text
+    assert "<em>em aberto</em>" in h and "Cartões sem filtro" not in h
+    for q in ("uf=PA", "f8=MANAUS"):
+        h = admin.get("/farol/pv_pedidos?aba=pedidos&" + q).text
+        assert "em aberto" not in h and "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and "BAP inteira" not in h
 
 
 def test_entregas_estado_filtra_linhas_e_junta_de_pendencias(com_tabelas):
@@ -770,13 +768,11 @@ def test_config_padrao_do_pacote_e_25_mb_como_o_render_yaml(monkeypatch, amb):
         assert re.search(r"BAP_WEB_PACOTE_MAX_MB\s*\n\s*value:\s*['\"]?25", yaml.read_text(encoding="utf-8"))
 
 
-def test_recorte_ativo_esconde_os_cartoes_da_visita_e_mostra_o_aviso(com_tabelas):
-    h = com_tabelas.get("/farol/vc_visitas?aba=dia&rec=0").text
-    assert 'class="bc3-ks"' in h and "<em>sem o filtro</em>" in h            # T-0033: o número fica e diz "sem o filtro"
-    h = com_tabelas.get("/farol/vc_visitas?aba=dia").text                    # sem recorte: sem a nota
-    assert 'class="bc3-ks"' in h and "sem o filtro" not in h
-    h = com_tabelas.get("/farol/vc_visitas?aba=dia&f5=SEM%20VISITA").text    # filtro de coluna também
-    assert 'class="bc3-ks"' in h and "<em>sem o filtro</em>" in h
+def test_visita_sem_kpis_padrao_mantem_os_cartoes_de_cima_com_recorte_ou_filtro(com_tabelas):
+    # §10.7.2: sem `kpis_padrao` a aba mostra os `kpis` de cima; só os cartões da aba (kpis_padrao) saem com filtro
+    for q in ("", "&rec=0", "&f5=SEM%20VISITA"):
+        h = com_tabelas.get("/farol/vc_visitas?aba=dia" + q).text
+        assert 'class="bc3-ks"' in h and "Cartões sem filtro" not in h
 
 
 def test_linha_sem_visita_tem_contadores_zerados_e_horas_vazias():
@@ -891,9 +887,9 @@ def test_total_fixo_so_sem_filtro_recorte_ou_estado(com_tabelas):
 # ------------------------------------------------------------------ cartões, estado vazio, avisos
 def test_aviso_dos_cartoes_e_o_do_contrato_e_estado_tira_os_cartoes(com_tabelas):
     h = com_tabelas.get("/farol/pv_pedidos?aba=pedidos&uf=PA").text
-    assert "<em>BAP inteira</em>" in h and "<b>—</b>" not in h and "Cartões sem filtro" not in h
+    assert "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and "<b>—</b>" not in h and "BAP inteira</em>" not in h
     h = com_tabelas.get("/farol/pl_entregas?aba=entregas&uf=PA").text
-    assert "<em>BAP inteira</em>" in h and "<b>—</b>" not in h
+    assert "Cartões sem filtro. Com filtro, veja as linhas na tabela." in h and "<b>—</b>" not in h
     assert not hasattr(render, "kpis_sem_numero")
 
 
