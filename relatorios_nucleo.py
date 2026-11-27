@@ -7878,18 +7878,17 @@ def devolucoes(ctx):
     return r
 
 
-def kpis_fretes(ls, fat_por_mes_uf) -> list:
+def kpis_fretes(ls, fat_por_mes_uf, uf=None) -> list:
     """Os 6 cartoes do Fretes (RN-POS-009). ls = linhas de "Notas com frete"
     (MES=0, CIDADE=6, UF=7, VLR NF=8, VLR FRETE=9, ETAPA=10, TRANSP.=11,
     ENTREGAR ATE=12, ENTREGUE=13, CHAVE=16). fat_por_mes_uf = {(mes, uf): VND}
-    de todas as notas do cliente. Denominador: meses visiveis; se as linhas
-    sao de uma UF so, so o faturado dessa UF. Denominador bruto (P3 A); se a
+    de todas as notas do cliente. Denominador: meses visiveis; com `uf` (o
+    recorte, informado por quem chama) so o faturado dessa UF; uf=None soma
+    todas as UFs (BAP inteira, nunca adivinhada pelas linhas). Denominador bruto (P3 A); se a
     P3 for B, montar fat somando _liquido(it) por (mes da NF, UF)."""
     meses_vis = {l[0] for l in ls}
-    ufs = {l[7] for l in ls}
-    uf_unica = next(iter(ufs)) if len(ufs) == 1 else None
     fat = sum(v for (m, u), v in fat_por_mes_uf.items()
-              if m in meses_vis and (uf_unica is None or u == uf_unica))
+              if m in meses_vis and (uf is None or u == uf))
     val = sum(l[8] for l in ls)
     entregues = [l for l in ls if l[13] or l[10] in ("ENTREGUE", CONCLUIDA)]
     com_data = [l for l in ls if l[13]]
@@ -7957,8 +7956,9 @@ def fretes(ctx):
     for l in linhas:
         l[3] = l[3].lstrip("0")
 
-    def cartoes(ls):
-        return kpis_fretes(ls, fat)
+    def cartoes(ls, filtro=None):
+        f = filtro or {}
+        return kpis_fretes(ls, fat, f.get(7) or f.get("UF") or None)
 
     r["kpis"] = cartoes([l for l in linhas if rotulo_no_periodo(ctx, l[0])])
     r["graficos"].append({
