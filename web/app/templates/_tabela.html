@@ -77,7 +77,7 @@
 {{ '</details>'|safe if bc3 else '</section>'|safe }}
 {% endfor %}
 {% if juntas %}</div>{% endif %}
-{% if tabela.sel_col is defined and tabela.sel_col is not none %}<div id="pop-pedido" class="pop-pedido" role="tooltip" hidden></div><script src="/static/popup_pedido.js"></script>{% endif %}
+{% if (tabela.sel_col is defined and tabela.sel_col is not none) or (tabela.grade is defined and tabela.grade) %}<div id="pop-pedido" class="pop-pedido" role="tooltip" hidden></div><script src="/static/popup_pedido.js"></script>{% endif %}
 {% if csvs and not bc3 %}
 <section class="csvs-protheus" aria-label="Arquivos para importar no Protheus">
   <h2>Arquivos para importar no Protheus <small>{{ csvs|length }} {{ "arquivo" if csvs|length == 1 else "arquivos" }}, últimos 30 dias</small></h2>

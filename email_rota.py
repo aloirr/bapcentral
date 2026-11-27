@@ -273,8 +273,8 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
                                     TableStyle)
     C = colors.HexColor
     VERDE_B, VERDE_T, TXT, SUA, LIN, ZEB, VERM = (
-        C("#62BB47"), C("#2F7D32"), C("#1E2722"), C("#69736D"),
-        C("#E3E7E2"), C("#F7F9F6"), C("#B3261E"))
+        C("#59BA61"), C("#2F7D32"), C("#1E2722"), C("#5E6B63"),
+        C("#E3E7E2"), C("#F7F9F6"), C("#B42318"))
     ZEB2 = C("#F1F4F0")         # um pouco mais forte: e ela que separa a linha
     pag = landscape(A4)
     mg = 12 * mm
@@ -288,7 +288,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
         cv.rect(0, pag[1] - 4, pag[0], 4, stroke=0, fill=1)
         cv.setFont("Helvetica", 6.5)
         cv.setFillColor(SUA)
-        cv.drawString(mg, 7 * mm, f"BAP Auto Parts · {titulo_pdf} · "
+        cv.drawString(mg, 7 * mm, f"BAP AUTOPARTS · {titulo_pdf} · "
                                   f"{rotulo_semana(segunda)}")
         cv.drawRightString(pag[0] - mg, 7 * mm,
                            f"gerado em {gerado:%d/%m/%Y %H:%M} · página "
@@ -298,7 +298,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
     doc = SimpleDocTemplate(str(caminho), pagesize=pag, leftMargin=mg,
                             rightMargin=mg, topMargin=11 * mm,
                             bottomMargin=13 * mm, title=titulo_pdf,
-                            author="BAP Auto Parts")
+                            author="BAP AUTOPARTS")
     est = {
         "marca": ParagraphStyle("m", fontName="Helvetica-Bold", fontSize=7,
                                 leading=9, textColor=VERDE_T),
@@ -327,7 +327,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
             ("CIDADES", rn.br(len(cidades)), TXT),
             ("EM ATRASO", bv.moeda(atraso) if atraso else "—",
              VERM if atraso else TXT)]
-    esq = [Paragraph("BAP AUTO PARTS · ROTA DA SEMANA", est["marca"]),
+    esq = [Paragraph("BAP AUTOPARTS · ROTA DA SEMANA", est["marca"]),
            Paragraph(html.escape(ep.nome_bonito(nome)), est["nome"]),
            Paragraph(html.escape(
                f"{rotulo_semana(segunda)} · {ate_quando(segunda)}"
@@ -381,7 +381,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
                                             alignment=2))
         txt = bv.moeda(v)
         if vermelho:
-            txt = f"<font color='#B3261E'><b>{txt}</b></font>"
+            txt = f"<font color='#B42318'><b>{txt}</b></font>"
         return Paragraph(txt, ParagraphStyle("v", parent=est["cel"],
                                              alignment=2))
 
@@ -416,7 +416,7 @@ def pdf_da_rota(linhas, nome, supervisor, segunda, caminho) -> Path:
         ls = por_dia.get(d) or []
         cid = Counter(nu.texto(r.get("CIDADE")).title() for r in ls)
         linha_dia = Table([[
-            Paragraph(f"<font color='#62BB47'>■</font>&nbsp; "
+            Paragraph(f"<font color='#59BA61'>■</font>&nbsp; "
                       f"{DIAS[d.weekday()].upper()} · {d:%d/%m}", est["dia"]),
             Paragraph(html.escape(
                 (f"{len(ls)} visita(s) · " + " · ".join(
@@ -530,7 +530,7 @@ def corpo(pessoa, linhas_de, nomes, segunda) -> tuple:
                  f"{'da sua equipe' if pessoa['cargo'] == 'SUPERVISOR' else 'do time'}.")
         fim = ("Em anexo, um PDF por vendedor, com os clientes de cada dia na "
                "ordem da visita.")
-    rodape = ("BAP Auto Parts · Farol Roteirização (Gerado automaticamente)<br>"
+    rodape = ("BAP AUTOPARTS · Farol Roteirização (Gerado automaticamente)<br>"
               f"Rota do Planner · semana de {sem}")
     h = (f"<div style='font-family:Segoe UI,Arial,sans-serif;color:{TEXTO};"
          f"font-size:14px'><p>Olá, {html.escape(primeiro)}.</p>"
