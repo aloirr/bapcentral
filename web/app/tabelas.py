@@ -887,8 +887,13 @@ GRADE: dict[tuple[str, str], dict] = {
 
 def grade_de(tab: dict, rid: str = "") -> dict | None:
     """A GRADE da tabela pelo par (rid, título do pacote); None = tabela fora da GRADE (desenhada inteira)."""
-    g = GRADE.get((rid, tab.get("tabela") or tab.get("titulo") or ""))
+    titulo = tab.get("tabela") or tab.get("titulo") or ""
+    g = GRADE.get((rid, titulo))
     nomes = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
+    if g is None and rid == "vc_visitas" and titulo == ADERENCIA and "VENDEDOR" in nomes and nomes[-1].startswith("% ADER"):
+        # contrato §6.3: VENDEDOR · um quadrado por dia útil · % ACUM.; o SUPERVISOR vai ao popup (nº de dias varia no mês)
+        g = {"chave": "VENDEDOR", "grade": tuple(n for n in nomes if n != "SUPERVISOR"),
+             "blocos": (("Supervisor", ("SUPERVISOR",)),), "cel": ("VENDEDOR", None, nomes[-1], nomes[-1])}
     return g if g and g["chave"] in nomes else None
 
 

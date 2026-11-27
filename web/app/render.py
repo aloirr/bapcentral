@@ -13,9 +13,9 @@ import unicodedata
 
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
-TITULOS = {"res": "Painel do Diretor · resultado",
-           "prod": "Painel do Diretor · produtividade",
-           "du": "Painel do Diretor · por dia útil"}
+TITULOS = {"res": "Painel Executivo · resultado",
+           "prod": "Painel Executivo · produtividade",
+           "du": "Painel Executivo · por dia útil"}
 
 
 def br(v, d=0) -> str:
@@ -110,7 +110,7 @@ def localizar_abas(rel: dict) -> list[dict]:
     return abas
 
 
-COMO_LER_ESTADO = ("Número do estado como na barra dele no Painel do Diretor do PC; "
+COMO_LER_ESTADO = ("Número do estado como na barra dele no Painel Executivo do PC; "
                    "% = atingimento da meta do estado, ou variação × mês anterior sem meta. "
                    "Cartão com — não tem número por estado.")
 
