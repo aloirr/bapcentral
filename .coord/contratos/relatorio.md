@@ -1506,7 +1506,7 @@ Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
 | `entregue_em` | DT. REAL (ENTREGA) | `ENTREGUE` | data | `datas_para_escolher(hoje)` | `dd/mm/aaaa` |
 | `responsavel` | RESPONSÁVEL (MOTORISTA) | `RESPONSÁVEL` | texto (sugere os já usados) | | até 60 caracteres, sem caractere de controle e sem CPF/CNPJ, e-mail ou telefone (`_RE_PESSOAL_EDICAO_WEB`) |
 
-- **`frete_real` não é campo do Fretes:** o PC não o oferece aqui; ele fica no Farol de Entregas [P2 A]. O robô recusa o `frete_real` vindo do Fretes (`MOTIVO_CAMPO_WEB`).
+- **`frete_real` não é campo do Fretes:** o PC não o oferece aqui; ele fica no Farol de Entregas [P2 A]. O robô recusa o `frete_real` vindo do Fretes (`MOTIVO_LUGAR_WEB`).
 - **Linha sem chave** (CONCLUÍDA antes do controle ou "(sem acompanhamento)"): `chaves[k] = ""`. A web não abre o formulário e mostra o motivo.
 - **Quem edita:** só o `admin` (`web/app/edicoes.EDITA`, RN-GER-012). Os outros perfis veem a tabela sem o botão (403 no POST).
 - **Caminho** (o da T-0021, sem mudança de formato):
