@@ -3242,11 +3242,9 @@ def dias_uteis_restantes(competencia: str, hoje=None, feriados=(),
     """
     Quantos dias de venda AINDA FALTAM no mes.
 
-    Grupo A (faturamento, projecao, positivacao, pedidos, volume; decisoes
-    43 e 48): HOJE CONTA COMO DU PASSADO, entao os que faltam sao os dias
-    DEPOIS de hoje (hoje_conta=True, o padrao). Grupo B (meta RH, RV, pecas,
-    cadastros, visitas): o dado vai ate ontem, hoje ainda e dia a vencer
-    (hoje_conta=False).
+    Decisao 43 (RN-GER-007, docs/produto/03-regras.md): por padrao HOJE
+    CONTA como DU passado e os que faltam sao os dias DEPOIS de hoje.
+    hoje_conta=False deixa hoje como dia a vencer (usado na meta RH).
 
     E o denominador do NEC./DIA. Mes que ja passou devolve 0 - e ali a
     coluna fica vazia, porque "quanto por dia" nao quer dizer mais nada.
@@ -3283,8 +3281,7 @@ def _meta_do_gap(linha: dict, chave: str):
 
 
 def _fechar_rh(linha: dict, dias: int) -> None:
-    # `dias` aqui e a contagem do GRUPO B (hoje ainda a vencer).
-    """A META RH de faturamento contra o mesmo realizado: atingimento,
+    """(`dias` e a contagem com hoje fora.) A META RH de faturamento contra o mesmo realizado: atingimento,
     falta e NEC./DIA. E por ela que a RV de faturamento paga."""
     meta = linha.get("meta_rh")
     if meta is None:
@@ -3295,9 +3292,13 @@ def _fechar_rh(linha: dict, dias: int) -> None:
     linha["nec_fat_rh"] = (max(0.0, meta - real) / dias) if dias else None
 
 
-def _fechar_gaps(linha: dict, dias: int) -> None:
-    """O GAP DO MES e o NEC./DIA de cada indicador daquela linha."""
+def _fechar_gaps(linha: dict, dias: int, dias_visita: int = None) -> None:
+    """O GAP DO MES e o NEC./DIA de cada indicador daquela linha.
+    A visita usa `dias_visita` (hoje fora) quando informado."""
+    dias_a = dias
     for _, meta_k, real_k, _, gap_k, nec_k in METAS_DO_ACOMPANHAMENTO:
+        dias = (dias_visita if nec_k == "nec_visita"
+                and dias_visita is not None else dias_a)
         meta = _meta_do_gap(linha, meta_k)
         real = linha.get(real_k)
         if meta is None:
@@ -3307,7 +3308,7 @@ def _fechar_gaps(linha: dict, dias: int) -> None:
         gap = float(meta) - float(real or 0.0)
         linha[gap_k] = gap
         linha[nec_k] = (max(0.0, gap) / dias) if dias else None
-    linha["dias_restantes"] = dias or None
+    linha["dias_restantes"] = dias_a or None
 
 
 # --------------------------------------------------------------------------
@@ -3942,7 +3943,8 @@ def acompanhar(resultado: dict, realizado: dict, visitas=None,
     # nivel tem a sua regra (o piso do vendedor, o rateio da UF...) e o
     # acompanhamento tem de medir contra a MESMA meta que foi dada.
     dias = dias_uteis_restantes(comp_do_mes, hoje, feriados)
-    dias_rh = dias_uteis_restantes(comp_do_mes, hoje, feriados, False)
+    dias_rh = dias_uteis_restantes(comp_do_mes, hoje, feriados,
+                                  hoje_conta=False)
     if zonas_supervisor is None:
         zonas_supervisor = zonas_dos_supervisores()
     extras_sup = _extras_das_zonas_do_supervisor(linhas, realizado,
@@ -4001,7 +4003,7 @@ def acompanhar(resultado: dict, realizado: dict, visitas=None,
             _fechar_cadastro(linha)
             _refechar_acompanhamento(linha)
         for linha in recortes[recorte]:
-            _fechar_gaps(linha, dias)
+            _fechar_gaps(linha, dias, dias_rh)
             _fechar_rh(linha, dias_rh)
             # A REMUNERACAO VARIAVEL, pessoa a pessoa. So depois do
             # atingimento estar fechado - e dele que a faixa sai.
@@ -4010,7 +4012,7 @@ def acompanhar(resultado: dict, realizado: dict, visitas=None,
 
     totais = {r: _total_acompanhamento(recortes[r]) for r in RECORTES}
     for recorte, linha in totais.items():
-        _fechar_gaps(linha, dias)
+        _fechar_gaps(linha, dias, dias_rh)
         _fechar_rh(linha, dias_rh)
         # no TOTAL a RV SE SOMA - e a folha daquele nivel. Diferente do
         # atingimento, que e uma divisao e nao se soma.
@@ -4025,7 +4027,7 @@ def acompanhar(resultado: dict, realizado: dict, visitas=None,
                              if tem_rv else None)
     geral = _fechar_acompanhamento("TOTAL", linhas)
     geral["meta_rh"] = (resultado.get("total") or {}).get("meta_rh")
-    _fechar_gaps(geral, dias)
+    _fechar_gaps(geral, dias, dias_rh)
     _fechar_rh(geral, dias_rh)
     return {
         "clientes": linhas,
@@ -4041,6 +4043,7 @@ def acompanhar(resultado: dict, realizado: dict, visitas=None,
                                                    nivel)}
             for nivel in ("gerente", "supervisor", "vendedor")},
         "dias_restantes": dias,
+        "dias_restantes_b": dias_rh,
         "dias_uteis_do_mes": len(dias_uteis_do_mes(comp_do_mes, feriados)),
         "competencia": realizado["competencia"],
         "mes": resultado.get("mes", ""),
