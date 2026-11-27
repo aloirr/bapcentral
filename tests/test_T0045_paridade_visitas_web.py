@@ -1,7 +1,6 @@
 """T-0045: paridade entre a regra do índice de baixas da rota
-(`visitas_nucleo.juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`,
-branch modulo-rota/T-0045-visitas-nucleo) e o espelho da web
-(`web/app/visitas.py`, branch modulo-web/T-0045-visitas). O Render publica só
+(`visitas_nucleo.juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`)
+e o espelho da web (`web/app/visitas.py`). O Render publica só
 `web/`, por isso a web tem uma cópia. Este teste prova que as duas dão a
 mesma resposta.
 
@@ -16,8 +15,8 @@ reprova. Aqui só entra a comparação núcleo × web; o que olha só o núcleo
 (a lista em si, as permitidas, o cabeçalho) fica em
 tests/test_T0045_visitas_nucleo.py (RD-0149).
 
-Pulado, com motivo, enquanto uma das duas branches não estiver no main. Datas
-fictícias, sem dado de cliente.
+Pulado, com motivo, enquanto a web (`web/app/visitas.py`) não estiver no main.
+Datas fictícias, sem dado de cliente.
 """
 import sys
 import types
@@ -31,9 +30,6 @@ import visitas_nucleo as vn
 RAIZ = Path(__file__).resolve().parent.parent
 _ROTA = ("juntar_baixado", "dia_fechado_no_indice", "dias_a_baixar")
 
-if not all(hasattr(vn, n) for n in _ROTA):
-    pytest.skip("rota da T-0045 (modulo-rota/T-0045-visitas-nucleo) ainda não está no main",
-                allow_module_level=True)
 if not (RAIZ / "web" / "app" / "visitas.py").exists():
     pytest.skip("web da T-0045 (modulo-web/T-0045-visitas, web/app/visitas.py) ainda não está no main",
                 allow_module_level=True)
@@ -179,17 +175,10 @@ _AMOSTRAS = (
 )
 
 
-def _rede_rota():
-    rede = getattr(vn, "_REDE", None)
-    if rede is None:
-        pytest.skip("rota sem visitas_nucleo._REDE (modulo-rota/T-0045-visitas-nucleo)")
-    return tuple(rede)
-
-
 def test_RN_VIS_007_rede_de_dado_pessoal_igual_na_rota_e_na_web(web_app):
     """Mesmos tipos, na mesma ordem, com o mesmo padrão e as mesmas flags, e a
     mesma resposta numa amostra fictícia (o primeiro tipo que casa)."""
-    rede = _rede_rota()
+    rede = tuple(vn._REDE)
     web = web_app.visitas.RE_PESSOAL
     assert [t for t, _ in rede] == list(web)
     for tipo, rx in rede:
@@ -207,10 +196,8 @@ def test_RN_VIS_007_tipos_achado_iguais_e_na_mesma_ordem(web_app):
 
 def test_RN_VIS_007_colunas_fora_do_espelho_iguais_na_rota_e_na_web(web_app):
     """As colunas que nunca saem do Espelho são as mesmas nos dois lados
-    (`_FORA_DO_ESPELHO` na rota, `COLUNAS_PROIBIDAS` na web), e nenhuma
-    proibida da web está nas permitidas do núcleo."""
+    (`_FORA_DO_ESPELHO` na rota, `COLUNAS_PROIBIDAS` na web)."""
     assert tuple(web_app.visitas.COLUNAS_PROIBIDAS) == tuple(vn._FORA_DO_ESPELHO)
-    assert not set(vn.ESPELHO_PERMITIDAS["colunas"]) & set(web_app.visitas.COLUNAS_PROIBIDAS)
     # se a web um dia tiver a lista das permitidas, ela é a mesma
     if hasattr(web_app.visitas, "ESPELHO_PERMITIDAS"):
         assert {k: tuple(v) for k, v in web_app.visitas.ESPELHO_PERMITIDAS.items()} == \

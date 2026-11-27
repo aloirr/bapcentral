@@ -1,26 +1,16 @@
 """T-0045: as funções puras do visitas_nucleo (Visitas no Render).
 
-Trazido do modulo-rota (branch modulo-rota/T-0045-visitas-nucleo) e revisto
-pelo testes. Regras: RN-VIS-002 (o dia fecha pela hora da baixa, em Manaus;
+Trazido do modulo-rota e revisto pelo testes. Regras: RN-VIS-002 (o dia fecha pela hora da baixa, em Manaus;
 vale a baixa mais nova entre a nuvem e o PC) e RN-VIS-007 (o Espelho vai sem
 dado pessoal: só as colunas permitidas; o achado leva o tipo, nunca o valor;
 linha de cliente = cliente ou código de 6 a 8 dígitos, o R9; rodapé e
 formatos válidos, como ORD de até 6 dígitos, não geram achado).
 
-Pulado, com motivo, enquanto a branch da rota não estiver no main. Dados 100%
-fictícios; os arquivos vão para pastas temporárias.
+Dados 100% fictícios; os arquivos vão para pastas temporárias.
 """
 from datetime import date, datetime
 
-import pytest
-
 import visitas_nucleo as vn
-
-_FUNCOES = ("juntar_baixado", "dia_fechado_no_indice", "dias_a_baixar", "achar_dado_pessoal",
-            "filtrar_espelho", "anotar_baixado", "ESPELHO_PERMITIDAS")
-if not all(hasattr(vn, n) for n in _FUNCOES):
-    pytest.skip("rota da T-0045 (modulo-rota/T-0045-visitas-nucleo) ainda não está no main",
-                allow_module_level=True)
 
 
 def test_RN_VIS_002_juntar_baixado_vale_a_maior():
@@ -127,8 +117,7 @@ def test_RN_VIS_007_permitidas_batem_com_as_tabelas_do_ler_espelho():
     assert cab == set(vn._ROTULOS_ESPELHO)
     col = set(vn.ESPELHO_PERMITIDAS["colunas"])
     assert col <= set(vn._COLUNAS_ESPELHO)
-    assert set(vn._COLUNAS_ESPELHO) - col == {"KM DIST", "BONIF",
-                                             "OBSERVACAO"}
+    assert set(vn._COLUNAS_ESPELHO) - col == set(vn._FORA_DO_ESPELHO)
 
 
 def test_RN_VIS_007_filtrar_espelho_tira_colunas_e_ler_espelho_igual(tmp_path):
@@ -234,7 +223,6 @@ def test_RN_VIS_002_dia_fechado_usa_a_regra_unica(tmp_path):
 def test_RN_VIS_007_nomes_que_o_site_espelha():
     assert vn.TIPOS_ACHADO == ("email", "cnpj", "cpf", "telefone", "formato")
     assert vn._FORA_DO_ESPELHO == ("KM DIST", "BONIF", "OBSERVACAO")
-    assert not set(vn._FORA_DO_ESPELHO) & set(vn.ESPELHO_PERMITIDAS["colunas"])
 
 
 def test_RN_VIS_007_linhas_so_nome_codigo_curto_e_decimal_continuam(tmp_path):

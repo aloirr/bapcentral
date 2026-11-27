@@ -16,10 +16,11 @@ from pathlib import Path
 
 import pytest
 
+import relatorios_nucleo as rn
 import visitas_maxima as novo
 import visitas_nucleo as vn
 
-if not (hasattr(novo, "indice_do_pc") and hasattr(novo, "hoje_manaus")):
+if not hasattr(novo, "indice_do_pc"):
     pytest.skip("plano do robô da T-0045 (modulo-robo/T-0045-plano) ainda não está no main",
                 allow_module_level=True)
 
@@ -65,4 +66,18 @@ def test_RN_VIS_002_dia_aberto_e_fechado_e_arquivo_a_mao():
 
 
 def test_RN_VIS_002_sem_hoje_usa_manaus():
-    assert novo.hoje_manaus() == datetime.now(vn.FUSO_MANAUS).date()
+    """Sem `hoje`, o plano vai até o dia de hoje em Manaus, pelo
+    `relatorios_nucleo.hoje_manaus` (RD-0147: um só). Pela regra do núcleo
+    (`dias_a_baixar`: `ate = min(ate, hoje)`), hoje ENTRA no plano, como dia
+    aberto, e nada passa dele."""
+    assert rn.hoje_manaus() == datetime.now(vn.FUSO_MANAUS).date()
+    with tempfile.TemporaryDirectory() as t:
+        r = Path(t)
+        vn.pasta_diario(r).mkdir(parents=True)
+        d1 = rn.hoje_manaus() - timedelta(days=3)
+        antes = rn.hoje_manaus()
+        dias, _m = novo.plano(r, d1, date(2099, 1, 1))
+        depois = rn.hoje_manaus()
+        assert dias[-1] in (antes, depois)           # o último dia é hoje (Manaus)
+        assert dias[0] == d1 and all(d <= depois for d in dias)
+        assert dias == vn.dias_a_baixar({}, d1, date(2099, 1, 1), dias[-1])
