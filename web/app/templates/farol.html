@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block titulo %}{{ farol_nome }}{% endblock %}
 {% from "_estados.html" import barras_estados, cartoes %}
-{% block mainclass %}{{ ' class="larga"'|safe if tabela }}{% endblock %}
 {% block cabeca %}{% if noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}{% endblock %}
 {% block corpo %}
 {# T-0033: só o visual BC3 (os ramos do layout antigo saíram, RD-0044) #}

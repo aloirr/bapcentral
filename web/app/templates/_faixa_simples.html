@@ -1,0 +1,8 @@
+{# T-0034: a faixa verde das telas sem farol (Usuários, Trocar senha, Parcial, Editar): título e, se houver, números.
+   Mesma altura da faixa dos faróis (contrato tela-bc3 §4.2). `ks` = [{rot, valor}] #}
+{% macro faixa_simples(titulo, ks=[], quando="") %}
+<header class="bc3-faixa simples">
+  <div class="bc3-tt"><h1>{{ titulo }}</h1>{% if quando %}<span class="bc3-quando">{{ quando }}</span>{% endif %}</div>
+  {% if ks %}<div class="bc3-ks">{% for k in ks %}<div class="bc3-k"><small>{{ k.rot }}</small><b>{{ k.valor }}</b></div>{% endfor %}</div>{% endif %}
+</header>
+{% endmacro %}

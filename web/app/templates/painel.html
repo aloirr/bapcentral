@@ -1,27 +1,19 @@
 {% extends "base.html" %}
 {% block titulo %}Painel Executivo{% endblock %}
 {% from "_estados.html" import barras_estados %}
+{# T-0034: o Painel Executivo no BC3 (RD-0038: "Painel Executivo" é o nome único). A faixa leva os números; o corpo, os cartões ricos e os gráficos #}
+{% block faixa %}
+{% if not tela and not tela_f %}
+<header class="bc3-faixa"><div class="bc3-tt"><h1>Painel Executivo</h1></div></header>
+{% else %}{% include "_painel_cab.html" %}{% endif %}
+{% endblock %}
 {% block corpo %}
 {% if not tela and not tela_f %}
-<h1>Painel Executivo</h1>
-<p class="aviso atencao">Sem dados do painel no último pacote.</p>
-{% else %}
-<nav class="abas">
-  {% for a in abas %}<a href="/painel?aba={{ a.chave }}{% if uf %}&uf={{ uf }}{% endif %}" class="{{ 'ativa' if a.chave == aba }}">{{ a.titulo }}</a>{% endfor %}
-</nav>
-{% if filtros and filtros.ufs and not (tela_f and tela_f.so_bap) %}
-<nav class="filtros" aria-label="Filtro por estado">
-  <a href="/painel?aba={{ aba }}" class="{{ 'ativa' if not uf }}">BAP</a>
-  {% for u in filtros.ufs %}<a href="/painel?aba={{ aba }}&uf={{ u }}" class="{{ 'ativa' if u == uf }}">{{ u }}</a>{% endfor %}
-</nav>
-{% endif %}
-{% if tela_f %}
-<header class="cab-painel"><h1>Painel Executivo</h1></header>
-{% if aviso_bap %}<p class="aviso info">{{ aviso_bap }}</p>{% endif %}
+<p class="aviso atencao">Sem dados ainda. A primeira atualização chega às 06h30.</p>
+{% elif tela_f %}
 {% for a in tela_f.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
 {% with tela=tela_f, rot_resumo="O que o painel diz" %}{% include "_resumo.html" %}{% endwith %}
 {% else %}
-<header class="cab-painel"><h1>{{ tela.titulo }}</h1><span>{{ tela.sub }}</span></header>
 {% for a in tela.avisos %}<p class="aviso atencao">{{ a }}</p>{% endfor %}
 <section class="rrm{{ ' rrm-recorte' if tela.uf }}">
 {% for c in tela.cartoes %}
@@ -61,6 +53,5 @@
 {% endfor %}
 </section>
 {% if tela.como_ler %}<p class="como">{{ tela.como_ler }}</p>{% endif %}
-{% endif %}
 {% endif %}
 {% endblock %}

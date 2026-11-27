@@ -86,7 +86,25 @@ ABAS_OPCIONAIS = ("por_dia_util",)         # T-0022: robô antigo manda só as d
 PAINEIS = (("resumo", "Resumo gerencial"), ("faturamento", "Faturamento"), ("volume", "Volume"),
            ("visitas", "Produtividade"), ("positivacao", "Positivação"), ("itens", "Itens por pedido"),
            ("markup", "Markup"), ("preco", "Preço"), ("inadimplencia", "Inadimplência"))
+# T-0034 (contrato tela-bc3 §13): nomes curtos das abas do Painel Executivo, para caber numa linha a 1366
+PAINEL_CURTO = {"resultado": "Resultado", "produtividade": "Produtividade", "por_dia_util": "Por DU", "resumo": "Resumo",
+                "faturamento": "Faturamento", "volume": "Volume", "visitas": "Visitas", "positivacao": "Positivação",
+                "itens": "Itens", "markup": "Markup", "preco": "Preço", "inadimplencia": "Inadimplência"}
 AVISO_SO_BAP = "Esta aba é da BAP inteira, como no PC: o filtro de estado não vale nela."
+
+
+def faixa_painel(tela: dict | None, tela_f: dict | None) -> list[dict]:
+    """T-0034: os números da faixa do Painel Executivo, prontos do pacote (nada é recalculado). Aba RRM: os 3 cartões de
+    cabeça, com os anéis (MTD, MÊS) como detalhe; aba de painel: os cartões comuns (os ricos ficam no corpo)."""
+    if tela_f:
+        return [k for k in tela_f["kpis"] if not k.get("estados") and not k.get("linhas")]
+    out = []
+    for c in ((tela or {}).get("cartoes") or [])[:3]:
+        aneis = [a for a in c["aneis"] if a["tem"]]
+        det = " · ".join(f"{a['rot']} {a['pct']}" for a in aneis) or c["legenda"]
+        out.append({"rot": c["titulo"], "valor": c["valor"], "detalhe": det,
+                    "cor": aneis[-1]["tom"] if aneis else ""})
+    return out
 
 
 def localizar_paineis(rel: dict) -> list[dict]:
@@ -189,6 +207,19 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
         conta.insert(0, {"href": "/usuarios", "nome": "Usuários", "ativo": False})
     grupos.append({"nome": "Conta", "itens": conta})
     return grupos
+
+
+def pagina_inicial(perfil: str) -> str:
+    """T-0034 (Alexandre, 26/11, decisão 2 A): admin, diretor e gerente abrem no Painel Executivo; os outros, no primeiro
+    farol da área, pela ordem do menu lateral (GRUPOS_MENU)."""
+    if perfil in ("admin", "diretor", "gerente"):
+        return "/painel"
+    meus = dict(farois_do_perfil(perfil))
+    for _, rids in GRUPOS_MENU:
+        for r in rids:
+            if r in meus:
+                return f"/farol/{r}"
+    return "/senha"
 
 
 def farois_do_perfil(perfil: str) -> list[tuple[str, str]]:

@@ -154,12 +154,12 @@ def criar_app() -> FastAPI:
             velho = False
         ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, empresa=marca.EMPRESA, indisponivel=render.INDISPONIVEL,
                    gerado_em=gerado_farol, desatualizado=velho)
-        # T-0030 (Alexandre, 26/11: "BC3 para o pc e celular", "M3 aprovado"): barra lateral + faixa verde;
-        # liga por farol (render.BC3) até todos passarem para o padrão novo
-        ctx.setdefault("bc3", bool(u) and ctx.get("rid") in render.BC3)
-        if ctx["bc3"]:
+        # T-0034 (RD-0043): uma casca só (barra lateral + faixa) para toda tela com usuário; o item ativo é o farol
+        # ou, no Painel Executivo, "painel". Sem usuário (login, acesso negado): a mesma casca, sem lateral.
+        if u:
             no_pacote = (info or {}).get("farois") or {}
-            ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ctx.get("rid"),
+            ativo = ctx.get("rid") or ("painel" if request.url.path == "/painel" else None)
+            ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ativo,
                                              painel=u["perfil"] in VERES, admin=u["perfil"] == "admin")
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
 
@@ -257,17 +257,11 @@ def criar_app() -> FastAPI:
         return RedirectResponse("/", status_code=303)
 
     # ------------------------------------------------------------ home e relatórios
-    @app.get("/", response_class=HTMLResponse)
+    @app.get("/")
     async def home(request: Request):
+        """T-0034: não há mais grade de quadrados. Cada perfil cai na tela dele (a lateral é o menu)."""
         u = usuario(request)
-        menu = [{"href": "/painel", "nome": RELATORIO[1]}] if u["perfil"] in VERES else []
-        no_pacote = (ind.indice() or {}).get("farois") or {}
-        for rid, nome in render.farois_do_perfil(u["perfil"]):
-            menu.append({"href": f"/farol/{rid}" if rid in no_pacote else "", "nome": nome})
-        if u["perfil"] == "admin":
-            menu.append({"href": "/usuarios", "nome": "Usuários"})
-        menu.append({"href": "/senha", "nome": "Trocar senha"})
-        return pagina(request, "home.html", menu=menu)
+        return RedirectResponse(render.pagina_inicial(u["perfil"]), status_code=302)
 
     @app.get("/painel", response_class=HTMLResponse)
     async def painel(request: Request, aba: str = "resultado", uf: str = ""):
@@ -276,9 +270,11 @@ def criar_app() -> FastAPI:
         abas = render.localizar_abas(rel) if rel else []
         paineis = render.localizar_paineis(rel) if rel else []     # T-0022: as outras 9 abas do PC
         if not abas and not paineis:
-            return pagina(request, "painel.html", abas=[], tela=None, aba=aba)
-        nav = [{"chave": a["chave"], "titulo": a["titulo"]} for a in abas] + \
-              [{"chave": p["chave"], "titulo": p["titulo"]} for p in paineis]
+            return pagina(request, "painel.html", abas=[], tela=None, tela_f=None, aba=aba)
+        nav = [{"chave": a["chave"], "curta": render.PAINEL_CURTO.get(a["chave"], a["titulo"]), "so_bap": False}
+               for a in abas] + \
+              [{"chave": p["chave"], "curta": render.PAINEL_CURTO.get(p["chave"], p["titulo"]), "so_bap": p["so_bap"]}
+               for p in paineis]
         p_atual = next((p for p in paineis if p["chave"] == aba), None)
         if p_atual:
             dados = rel["paineis"][p_atual["chave"]]
@@ -286,16 +282,20 @@ def criar_app() -> FastAPI:
             escolhido = uf.upper()[:2] if (not p_atual["so_bap"] and uf.upper()[:2] in p_atual["ufs"]) else ""
             tela_f = render.farol_para_tela(dados, escolhido or None)
             return pagina(request, "painel.html", abas=nav, aba=p_atual["chave"], tela=None, tela_f=tela_f,
-                          filtros={"ufs": p_atual["ufs"]}, uf=escolhido,
-                          aviso_bap=render.AVISO_SO_BAP if (p_atual["so_bap"] and uf) else "")
+                          faixa_ks=render.faixa_painel(None, tela_f), uf=escolhido,
+                          filtros=None if p_atual["so_bap"] else {"ufs": p_atual["ufs"]},
+                          # aba só da BAP: o seletor fica no lugar, desligado, com os estados das outras abas (contrato §4.2)
+                          ufs_off=(p_atual["ufs"] or sorted({u for q in paineis for u in q["ufs"]})) if p_atual["so_bap"] else [])
         if not abas:
-            return pagina(request, "painel.html", abas=nav, aba=nav[0]["chave"], tela=None,
-                          tela_f=render.farol_para_tela(rel["paineis"][nav[0]["chave"]], None), filtros=None, uf="")
+            tela_f = render.farol_para_tela(rel["paineis"][nav[0]["chave"]], None)
+            return pagina(request, "painel.html", abas=nav, aba=nav[0]["chave"], tela=None, tela_f=tela_f,
+                          faixa_ks=render.faixa_painel(None, tela_f), filtros=None, uf="")
         atual = next((a for a in abas if a["chave"] == aba), abas[0])
         # T-0014: o filtro só escolhe a visão pronta do PC (por estado)
         escolhido = render.escolher_uf(atual, uf[:4] or None)
-        return pagina(request, "painel.html", abas=nav, aba=atual["chave"],
-                      tela=render.aba_para_tela(atual, escolhido),
+        tela = render.aba_para_tela(atual, escolhido)
+        return pagina(request, "painel.html", abas=nav, aba=atual["chave"], tela=tela, tela_f=None,
+                      faixa_ks=render.faixa_painel(tela, None), sub_painel=tela["sub"],
                       filtros=render.filtros(atual), uf=escolhido or "")
 
     def rel_do(rid):

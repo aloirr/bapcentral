@@ -9,10 +9,10 @@
 <link rel="stylesheet" href="/static/estilo.css">
 {% block cabeca %}{% endblock %}
 </head>
-{% if bc3 %}
-{# T-0030: visual BC3 — barra lateral com os faróis, faixa verde no conteúdo; no celular o menu abre pelo ☰ #}
-<body class="bc3">
+{# T-0034 (RD-0043): um layout só. Com usuário: barra lateral + faixa; sem usuário (login, acesso negado): a mesma casca, sem lateral #}
+<body class="bc3{{ '' if usuario else ' sem-lado' }}">
 <div class="bc3-app">
+  {% if usuario %}
   <aside class="bc3-lado" id="bc3-lado" aria-label="Menu">
     <a class="bc3-marca" href="/"><i aria-hidden="true"></i><span>BAP Central<small>{{ empresa }}</small></span></a>
     {% for g in nav %}
@@ -26,34 +26,17 @@
       <button type="submit">Sair</button>
     </form>
   </aside>
+  {% endif %}
   <div class="bc3-main">
+    {% if usuario %}
     <div class="bc3-topo-cel"><a class="bc3-marca" href="/"><i aria-hidden="true"></i><span>BAP Central<small>{{ empresa }}</small></span></a>
       <button type="button" class="bc3-menu" aria-controls="bc3-lado" aria-expanded="false" aria-label="Abrir o menu">☰</button></div>
     {% if not gerado_em %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
+    {% endif %}
     {% block faixa %}{% endblock %}
     <main class="bc3-corpo{% block mainclass2 %}{% endblock %}">{% block corpo %}{% endblock %}</main>
   </div>
 </div>
 <script src="/static/bc3.js"></script>
 </body>
-{% else %}
-<body>
-<header class="topo">
-  <a class="marca" href="/">BAP Central <small>{{ empresa }}</small></a>
-  {% if usuario %}
-  <form method="post" action="/sair" class="sair">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <span>{{ usuario.login }} · {{ usuario.perfil }}</span>
-    <button type="submit">Sair</button>
-  </form>
-  {% endif %}
-</header>
-{% if usuario %}
-  {% if gerado_em and (rid is defined or tela is defined or tela_f is defined) %}<div class="aviso info">Dados de {{ gerado_em|manaus }} (horário de Manaus){% if desatualizado %} <span class="selo-velho">Desatualizado</span>{% endif %}</div>{{ self.faixa() }}
-  {% elif not gerado_em %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
-{% endif %}
-<main{% block mainclass %}{% endblock %}>{{ self.corpo() }}</main>
-<footer>{{ empresa }} · BAP Central web v{{ versao }}</footer>
-</body>
-{% endif %}
 </html>

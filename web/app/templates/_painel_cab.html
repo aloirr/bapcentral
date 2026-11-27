@@ -1,0 +1,39 @@
+{# T-0034: cabeçalho BC3 do Painel Executivo (contrato tela-bc3 §4 e §5; parecer de UX §5.2): faixa com os números da aba,
+   abas curtas numa linha ("Indicadores ▾" leva as últimas no PC; "Mais ▾" no celular) e o filtro de estado.
+   Os números vêm prontos de `render.faixa_painel` (a web não recalcula). #}
+{% set filtro_ufs = (filtros.ufs if filtros else []) or [] %}
+<header class="bc3-faixa">
+  <div class="bc3-tt">
+    <h1>Painel Executivo</h1>
+    {% if gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}, horário de Manaus{{ ' · ' ~ sub_painel if sub_painel }}">Dados de {{ gerado_em|manaus }}{% if sub_painel %} · {{ sub_painel }}{% endif %}</span>{% endif %}
+    {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
+    {% if filtro_ufs %}
+    <nav class="bc3-uf" aria-label="Filtro por estado">
+      <a href="/painel?aba={{ aba }}" class="{{ 'on' if not uf }}">BAP</a>
+      {% for u in filtro_ufs %}<a href="/painel?aba={{ aba }}&amp;uf={{ u }}" class="{{ 'on' if u == uf }}">{{ u }}</a>{% endfor %}
+    </nav>
+    {% elif ufs_off %}
+    <nav class="bc3-uf bc3-uf-off" aria-label="Filtro por estado (esta aba é da BAP inteira)" title="Esta aba é só da BAP inteira"><a class="on">BAP</a>{% for u in ufs_off %}<span>{{ u }}</span>{% endfor %}</nav>
+    {% endif %}
+  </div>
+  {% if faixa_ks %}
+  <div class="bc3-ks">
+    {% for k in faixa_ks %}<div class="bc3-k t-{{ k.cor }}"><small>{{ k.rot }}</small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
+  </div>
+  {% endif %}
+</header>
+{% if abas %}
+{# PC: as 7 primeiras na linha e o resto em "Indicadores"; celular: a primeira, a segunda e a aberta, e o resto em "Mais" #}
+{% set chaves = abas|map(attribute='chave')|list %}
+{% set pos = chaves.index(aba) if aba in chaves else 0 %}
+{% set vis_cel = [0, 1, pos]|unique|list if pos > 1 else [0, 1, 2] %}
+<div class="bc3-sub">
+  <nav class="bc3-abas" aria-label="Abas do painel">
+    {% for a in abas %}<a href="/painel?aba={{ a.chave }}{{ ('&amp;uf=' ~ uf) if uf and not a.so_bap }}" class="{{ 'on' if a.chave == aba }}{{ ' so-pc' if loop.index0 not in vis_cel }}{{ ' so-cel' if loop.index0 >= 7 }}"{{ ' aria-current="page"'|safe if a.chave == aba }}>{{ a.curta }}</a>{% endfor %}
+    {% if abas|length > 7 %}
+    <details class="bc3-ind{{ ' on' if pos >= 7 }}"><summary>Indicadores</summary><div>{% for a in abas[7:] %}<a href="/painel?aba={{ a.chave }}{{ ('&amp;uf=' ~ uf) if uf and not a.so_bap }}"{{ ' aria-current="page"'|safe if a.chave == aba }}>{{ a.curta }}</a>{% endfor %}</div></details>
+    {% endif %}
+    <details class="bc3-mais-abas"><summary>Mais</summary><div>{% for a in abas %}{% if loop.index0 not in vis_cel %}<a href="/painel?aba={{ a.chave }}{{ ('&amp;uf=' ~ uf) if uf and not a.so_bap }}">{{ a.curta }}</a>{% endif %}{% endfor %}</div></details>
+  </nav>
+</div>
+{% endif %}
