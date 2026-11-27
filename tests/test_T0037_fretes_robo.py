@@ -151,7 +151,7 @@ def _farol(tmp_path):
                       ("Por transportadora", 11)):
         g = {}
         for x in linhas:
-            k = (x[0], x[i] or "(sem)")
+            k = (x[0], rn.rotulo_agrupa_fretes(i, x))     # o rótulo do PC
             a = g.setdefault(k, [0, 0.0, 0.0])
             a[0] += 1
             a[1] += x[8]
@@ -186,15 +186,31 @@ def test_RN_GER_011_pacote_quatro_abas_colunas_so_o_mes(tmp_path):
     cli = notas["linhas"][0][5]
     assert cli.startswith("000101") and "12.345.678" not in cli
     assert "0001-90" not in cli
-    # as outras 3 abas: só o mês, com NOTAS = linhas do mês por grupo
-    for t, n_nov in zip(tabs[1:], (3, 4, 3)):
+    # as outras 3 abas: só o mês, com NOTAS = linhas do mês por grupo; a
+    # "Por transportadora" tem 4 (FICTICIA 1, FICTICIA 2, "Sem
+    # transportadora" e "Sem acompanhamento", a nota sem CHAVE)
+    for t, n_nov in zip(tabs[1:], (3, 4, 4)):
         assert {ln[0] for ln in t["linhas"]} == {NOV}
         assert len(t["linhas"]) == n_nov
         assert [c["nome"] for c in t["colunas"]][2:] == [
             "NOTAS", "VLR NF", "VLR FRETE"]
+    # RD-0198 (contrato bcb5582 §10.7.3): o MÊS vai oculto nas 4 abas do
+    # site (só o mês do pacote; o filtro oculto precisa da coluna), mesmo com
+    # o PC mostrando a coluna nas 3 de resumo (lá o "(todos)" tem 12 meses)
+    for t in tabs:
+        mes = t["colunas"][0]
+        assert (mes["nome"], bool(mes.get("oculta"))) == ("MÊS", True), \
+            t["titulo"]
+        assert any(f.get("coluna") == "MÊS" and f.get("oculto")
+                   for f in t["filtros"] if isinstance(f, dict)), t["titulo"]
     por_uf = {ln[1]: ln[2:] for ln in tabs[1]["linhas"]}
     # PA em NOV: 2 notas, 1.000+3.000, 50+150 (a de OUT fica fora)
     assert por_uf["PA"] == [2, 4000.0, 200.0]
+    # a linha "Sem transportadora" é a nota com CHAVE e sem transportadora
+    # (= cartão, 1); a sem CHAVE vai a "Sem acompanhamento" (AM, R$ 4.000)
+    por_tr = {ln[1]: ln[2:] for ln in tabs[3]["linhas"]}
+    assert por_tr["Sem transportadora"][0] == 1
+    assert por_tr["Sem acompanhamento"] == [1, 4000.0, 0.0]
 
 
 def test_RN_POS_009_kpis_padrao_do_pacote_batem_com_o_pc(tmp_path):

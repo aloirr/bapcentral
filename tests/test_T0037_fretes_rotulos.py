@@ -23,6 +23,7 @@ COL_CIDADE, COL_UF, COL_TRANSP, COL_CHAVE = 6, 7, 11, 16
 
 def _l(cidade="", uf="", transp="", chave="X"):
     ln = [""] * 17
+    ln[8] = ln[9] = 0.0                  # VLR NF e VLR FRETE: o kpis_fretes soma
     ln[COL_CIDADE], ln[COL_UF], ln[COL_TRANSP], ln[COL_CHAVE] = (
         cidade, uf, transp, chave)
     return ln
@@ -50,12 +51,12 @@ def test_T0037_rotulo_transportadora_e_sem_acompanhamento():
 
 
 def test_RN_POS_009_sem_transportadora_bate_com_o_cartao():
-    """Cartão "Sem transportadora" = notas com CHAVE e sem TRANSPORTADORA =
-    a linha "Sem transportadora" da aba (a sem CHAVE vai a "Sem
-    acompanhamento")."""
+    """Cartão "Sem transportadora" de verdade (rn.kpis_fretes) = a linha
+    "Sem transportadora" da aba (a sem CHAVE vai a "Sem acompanhamento")."""
     ls = [_l(chave="1"), _l(chave=""),
           _l(transp="TRANSPORTADORA FICTICIA", chave="2")]
-    cartao = sum(1 for ln in ls if ln[COL_CHAVE] and not ln[COL_TRANSP])
+    cartao = int(next(k["valor"] for k in rn.kpis_fretes(ls, {})
+                      if k["rotulo"] == "Sem transportadora"))
     tab = sum(1 for ln in ls
               if rn.rotulo_agrupa_fretes(COL_TRANSP, ln) == "Sem transportadora")
     sem_acomp = sum(1 for ln in ls if rn.rotulo_agrupa_fretes(

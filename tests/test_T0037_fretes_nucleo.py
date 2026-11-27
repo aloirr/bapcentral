@@ -102,6 +102,18 @@ def test_RN_POS_007_nota_com_frete_fora_das_capitais(farol):
     assert _por_nf(t)["1"][8] == 1000.0
 
 
+def test_T0037_pc_mostra_o_mes_nas_abas_de_resumo(farol):
+    """RD-0198: no PC nada muda; o MÊS é oculto só no "Notas com frete"
+    (nas 3 de resumo o "(todos)" mostra os 12 meses). Quem o esconde nas 3
+    abas do site é o robô (contrato bcb5582 §10.7.3)."""
+    r, _t = farol
+    oculta = {t["titulo"]: bool(t["colunas"][0].get("oculta"))
+              for t in r["tabelas"]}
+    assert oculta == {"Notas com frete": True, "Por UF": False,
+                      "Por cidade": False, "Por transportadora": False}
+    assert all(t["colunas"][0]["nome"] == "MÊS" for t in r["tabelas"])
+
+
 def test_RN_GER_006_fretes_na_uf_do_cliente(farol):
     _r, t = farol
     ls = _por_nf(t)

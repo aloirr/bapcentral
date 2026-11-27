@@ -3,7 +3,7 @@
 O PC não tem painel próprio do Fretes: o robô monta o Resumo
 (`bap_automation.blocos_resumo_fretes_web`) com as barras dos 12 meses, as 3
 tabelas do mês do pacote ("Por UF (NOV/26)", "Por cidade (NOV/26)" e "Por
-transportadora (NOV/26)") e 2 frases. Valor × regra: os TOTAIS das 3 tabelas
+transportadora (NOV/26)") e 2 frases (só em `insights_painel`, RD-0192). Valor × regra: os TOTAIS das 3 tabelas
 são iguais entre si e iguais ao cartão "Notas com frete" (nº de notas e soma
 do VLR NF) e ao "Frete estimado" (RN-POS-007 e RN-POS-009); a barra do mês é
 o mesmo nº de notas. Sem dado pessoal (RN-GER-011, regra 6).
@@ -51,14 +51,13 @@ def real():
     return r, pac["relatorios"]["pl_fretes"]
 
 
-def test_T0037_resumo_tem_barras_3_tabelas_do_mes_e_frases(real):
+def test_T0037_resumo_tem_barras_e_3_tabelas_do_mes(real):
     _, f = real
     tipos = [b["tipo"] for b in f["painel"]["blocos"]]
     assert tipos.count("barras") == 1
     assert tipos.count("tabela") == 3
-    assert tipos.count("insights") == 1
+    assert tipos.count("insights") == 0     # RD-0192: frases só no painel
     assert [b["titulo"] for b in _tabelas(f)] == TITULOS_RESUMO
-    assert f["insights_painel"]
 
 
 def test_RN_POS_009_totais_das_tabelas_batem_com_o_cartao(real):
@@ -107,9 +106,7 @@ def test_RN_POS_009_totais_iguais_nas_3_tabelas(real):
 def test_T0037_resumo_so_2_frases_e_nao_repetem_cartao(real):
     _, f = real
     fr = [x for _, x in f["insights_painel"]]
-    ins = next(b for b in f["painel"]["blocos"] if b["tipo"] == "insights")
     assert len(fr) == 2
-    assert fr == [x for _, x in ins["linhas"]]
     assert re.fullmatch(r"\w\w concentra \d+% do valor das notas com "
                         r"frete\.", fr[0])
     assert re.fullmatch(r".+ leva \d+% do valor\.", fr[1])
@@ -173,15 +170,6 @@ def test_T0037_rotulo_do_pc_passa_adiante_e_sem_acompanhamento_nao_vira_frase():
     assert frases[1][1] == "TRANSPORTADORA FICTICIA leva 21% do valor."
 
 
-def test_T0037_uma_uf_sem_frase_de_uf():
-    t = {"titulo": "Por UF", "colunas": [{"nome": n} for n in (
-        "MÊS", "UF", "NOTAS", "VLR NF", "VLR FRETE")],
-         "filtros": [{"coluna": "MÊS", "padrao": "NOV/26"}],
-         "linhas": [["NOV/26", "PA", 2, 30.0, 3.0]]}
-    _, frases = ba.blocos_resumo_fretes_web({"tabelas": [t]})
-    assert frases == []
-
-
 def test_RN_GER_011_resumo_sem_dado_pessoal(real):
     r, f = real
     texto = (json.dumps(f["painel"], ensure_ascii=False)
@@ -231,8 +219,10 @@ def test_T0037_frase_da_uf_e_a_de_maior_valor_nao_a_de_mais_notas():
     assert fr == [("info", "RR concentra 75% do valor das notas com frete.")]
 
 
-def test_T0037_so_sem_uf_nao_tem_frase_de_uf():
+@pytest.mark.parametrize("rotulo", ["PA", "Sem UF"])
+def test_T0037_uma_linha_no_por_uf_sem_frase_de_uf(rotulo):
+    """Com uma linha só no "Por UF" (uma UF, ou só a "Sem UF") não há frase
+    de UF (substitui os 2 testes do mesmo ramo, RD-0203)."""
     _, fr = ba.blocos_resumo_fretes_web({"tabelas": [_tab_uf([
-        ["NOV/26", "Sem UF", 5, 100.0, 1.0]])]})
+        ["NOV/26", rotulo, 5, 100.0, 1.0]])]})
     assert fr == []
-
