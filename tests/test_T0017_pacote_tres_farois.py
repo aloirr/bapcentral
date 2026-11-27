@@ -701,25 +701,23 @@ def test_T0017_corte_em_3_passos_na_ordem(real):
 
 
 # ==================================================== lista de colunas
-# (T-0037) farol novo entra por partes (contrato, web e robô em PRs
-# separados): a lista de um farol só é comparada quando o robô já o manda
-# (FAROIS_WEB); antes disso, fica fora dos dois lados. Vale para todo farol
-# (pl_fretes da T-0037; pl_devolucoes, pl_garantias e pl_ncc da T-0023, com
-# a web no main antes do robô). Com o farol no FAROIS_WEB, a comparação é
-# inteira: o robô não entra antes do contrato e da web.
-def _rids_ignorados_web(*outros_lados):
-    """Os rids de algum lado (robô e `outros_lados`) que o robô não manda."""
-    rids = set(ba._COLUNAS_TABELAS_WEB).union(*outros_lados)
-    return {r for r in rids if r not in ba.FAROIS_WEB}
+# Quem a lista do §10.7.3 compara (título único, a forma do tabelas.COLUNAS
+# da web e do contrato): os 3 faróis (RIDS) e os que entram por partes
+# (contrato, web e robô em PRs separados; hoje o pl_fretes da T-0037, §10.12).
+# Um farol por partes só é comparado quando o robô já o manda (FAROIS_WEB);
+# antes disso, fica fora dos dois lados. Com ele no FAROIS_WEB, a comparação
+# é inteira: o robô não entra antes do contrato e da web. Os faróis com lista
+# por (rid, título) de outro capítulo (T-0023 §10.10, T-0036 §10.11) ficam
+# fora daqui (test_T0023_colunas_por_rid_e_titulo_sem_colisao e os da T-0036).
+RIDS_POR_PARTES_1073 = ("pl_fretes",)
 
 
-def _rids_do_contrato_1073():
-    arq = RAIZ / ".coord" / "contratos" / "relatorio.md"
-    txt = arq.read_text(encoding="utf-8") if arq.exists() else ""
-    if "#### 10.7.3" not in txt:
-        return set()
-    sec = txt.split("#### 10.7.3", 1)[1].split("#### 10.7.4", 1)[0]
-    return set(re.findall(r"^\*\*`([a-z_]+)`\*\*", sec, flags=re.M))
+def _rids_1073():
+    return RIDS + tuple(r for r in RIDS_POR_PARTES_1073 if r in ba.FAROIS_WEB)
+
+
+def _fora_1073():
+    return {r for r in RIDS_POR_PARTES_1073 if r not in ba.FAROIS_WEB}
 
 
 def _contrato_1073(ignorar_rids=()):
@@ -779,35 +777,58 @@ def _contrato_1073(ignorar_rids=()):
     return saida
 
 
-def _robo(ignorar_rids=()):
+def _robo_rid():
+    """{(rid, título): colunas} do robô. As colunas são por (rid, título),
+    nunca só pelo título (contrato §10.10.1): "Por supervisor" e "Por
+    vendedor" existem no Visita e na NCC (T-0023 v2)."""
+    return {(rid, titulo): [(n, tp, bool(o), s) for n, tp, o, s in cols]
+            for rid, tabs in ba._COLUNAS_TABELAS_WEB.items()
+            for titulo, cols in tabs.items()}
+
+
+def _robo():
+    """{título: colunas} dos faróis do §10.7.3 (_rids_1073), onde o título é
+    único: é a forma do `tabelas.COLUNAS` da web e do contrato."""
+    rids = _rids_1073()
     saida = {}
-    for rid, tabs in ba._COLUNAS_TABELAS_WEB.items():
-        if rid in ignorar_rids:
-            continue
-        for titulo, cols in tabs.items():
-            saida[titulo] = [(n, tp, bool(o), s) for n, tp, o, s in cols]
+    for (rid, titulo), cols in _robo_rid().items():
+        if rid in rids:
+            assert titulo not in saida, titulo        # título único no 10.7.3
+            saida[titulo] = cols
     return saida
+
+
+def test_T0023_colunas_por_rid_e_titulo_sem_colisao():
+    """O "Por supervisor" da NCC não pisa o do Visita (e vice-versa): cada
+    (rid, título) tem a sua lista no robô (§10.10.1). Sem a T-0023 no robô,
+    só o Visita existe e o teste confere que ele segue com a sua lista."""
+    r = _robo_rid()
+    vis = [n for n, *_ in r[("vc_visitas", "Por supervisor")]]
+    assert vis[:2] == ["SUPERVISOR", "REPRES."] and vis[-1] == "CHAVE"
+    if ("pl_ncc", "Por supervisor") not in r:
+        return
+    ncc = [n for n, *_ in r[("pl_ncc", "Por supervisor")]]
+    assert ncc == ["SUPERVISOR", "NCC", "CLIENTES", "0-30 DIAS", "31-90 DIAS",
+                   "91-180 DIAS", "+180 DIAS", "SALDO", "COMPENSAR JÁ"]
+    assert [n for n, *_ in r[("pl_ncc", "Por vendedor")]][0] == "VENDEDOR"
+    assert [n for n, *_ in r[("vc_visitas", "Por vendedor")]][:2] == [
+        "SUPERVISOR", "VENDEDOR"]
 
 
 def test_T0017_colunas_robo_igual_web(web_app):
     # (T-0037) título genérico ("Por UF") vem na web por (rid, título), em
-    # COLUNAS_RID
-    # (T-0037) farol que o robô ainda não manda (FAROIS_WEB): as tabelas dele
-    # ficam fora dos dois lados (na web, as do (rid, título) e as do título
-    # que só ele usa, pelas ABAS do rid)
+    # COLUNAS_RID; o farol por partes que o robô ainda não manda fica fora dos
+    # dois lados (na web, o (rid, título) e o título que só as ABAS dele usam)
+    rids, fora = _rids_1073(), _fora_1073()
     abas_web = getattr(web_app.tabelas, "ABAS", {})
-    rid_web = getattr(web_app.tabelas, "COLUNAS_RID", {})
-    fora = _rids_ignorados_web(abas_web, {r for r, _t in rid_web})
     so_dos_fora = {t for r in fora for _a, t in abas_web.get(r, ())} - {
         t for r, abas in abas_web.items() if r not in fora for _a, t in abas}
     web = {**{t: c for t, c in web_app.tabelas.COLUNAS.items()
               if t not in so_dos_fora},
            **{k: c for k, c in getattr(web_app.tabelas, "COLUNAS_RID",
-                                       {}).items() if k[0] not in fora}}
-    robo = {((rid, t) if (rid, t) in web else t): [
-        (n, tp, bool(o), s) for n, tp, o, s in cols]
-        for rid, tabs in ba._COLUNAS_TABELAS_WEB.items() if rid not in fora
-        for t, cols in tabs.items()}
+                                       {}).items() if k[0] in rids}}
+    robo = {((rid, t) if (rid, t) in web else t): cols
+            for (rid, t), cols in _robo_rid().items() if rid in rids}
     assert sorted(robo, key=str) == sorted(web, key=str), (
         f"só no robô: {sorted(set(robo) - set(web), key=str)}; só na web: "
         f"{sorted(set(web) - set(robo), key=str)} (farol novo: o robô entra "
@@ -823,10 +844,9 @@ def test_T0017_colunas_robo_igual_web(web_app):
 
 
 def test_T0017_colunas_robo_igual_contrato_1073():
-    fora = _rids_ignorados_web(_rids_do_contrato_1073())   # por partes
-    contrato = _contrato_1073(fora)
+    contrato = _contrato_1073(_fora_1073())   # (T-0037) farol por partes
     assert contrato is not None, "§10.7.3 ausente no contrato"
-    robo = _robo(fora)
+    robo = _robo()
     assert sorted(contrato) == sorted(robo), (
         f"só no robô: {sorted(set(robo) - set(contrato))}; só no contrato: "
         f"{sorted(set(contrato) - set(robo))} (farol novo: o robô entra "
@@ -842,7 +862,7 @@ def test_T0017_colunas_do_pc_batem_com_o_robo(real):
     """As tabelas que o PC monta hoje (bases congeladas) têm as colunas da
     lista, depois de tirar as que saem: nenhuma aba cai."""
     rels, _p = real
-    robo = _robo()
+    robo = _robo_rid()
     for rid in RIDS:
         for t in rels[rid]["tabelas"]:
             if t["titulo"] in ("Solicitação BAP", "Aderência dia a dia"):
@@ -850,7 +870,8 @@ def test_T0017_colunas_do_pc_batem_com_o_robo(real):
             nomes = [(c["nome"], c["tipo"], bool(c.get("oculta")))
                      for c in t["colunas"]
                      if _sem_acento(c["nome"]) not in COLUNAS_FORA]
-            assert nomes == [x[:3] for x in robo[t["titulo"]]], t["titulo"]
+            assert nomes == [x[:3] for x in robo[(rid, t["titulo"])]], \
+                t["titulo"]
 
 
 # ========================================= número do cartão × farol de origem

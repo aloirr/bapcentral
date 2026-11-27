@@ -16,7 +16,11 @@ import pytest
 ba = pytest.importorskip("bap_automation")
 
 from escopo_farois_web import (FAROIS_LOTE2, FAROIS_OBRIGATORIOS,  # noqa: E402
-                               FAROIS_PERMITIDOS, problemas_escopo)
+                               FAROIS_PERMITIDOS, FAROIS_T0023,
+                               problemas_escopo)
+
+# relatório do PC que nunca vai ao site (o pl_garantias entrou na T-0023 v2)
+FORA = "vc_markup"
 
 _NOMES = ("FAROIS_WEB", "_FONTE_BAIXADO_WEB", "_TABELA_RECORTE_WEB",
           "_UF_LINHAS_WEB", "RID_META_WEB", "selecionar_farol_web")
@@ -30,16 +34,21 @@ def _robo(**troca):
     return SimpleNamespace(**d)
 
 
-def test_RN_GER_006_trava_lista_permitida_e_os_cinco_do_lote2():
-    """Depois do #91 no main, os 5 do lote 2 são obrigatórios: a lista
-    permitida é a dos obrigatórios."""
+def test_RN_GER_006_trava_lista_permitida_os_cinco_do_lote2_e_os_tres_da_T0023():
+    """Depois do #91 no main, os 5 do lote 2 são obrigatórios; a lista
+    permitida é a dos obrigatórios mais os 3 da T-0023 v2 (FAROIS_T0023)."""
     assert set(FAROIS_LOTE2) == {"pv_indicadores", "vc_base", "vc_planner",
                                  "pl_giro", "pl_frw"}
     assert FAROIS_OBRIGATORIOS == {"pl_inadimplencia", "pv_pedidos",
                                    "pl_entregas", "vc_visitas", "vc_meta"
                                    } | set(FAROIS_LOTE2)
-    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS | {"pl_fretes"}  # T-0037
-    assert "pl_garantias" not in FAROIS_PERMITIDOS
+    assert FAROIS_T0023 == {
+        "pl_garantias": ("sem_estado",),
+        "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
+        "pl_ncc": ("tabela", "NCC pendentes", "FILIAL", "filial")}
+    assert FAROIS_PERMITIDOS == (FAROIS_OBRIGATORIOS | set(FAROIS_T0023)
+                                 | {"pl_fretes"})                # T-0037
+    assert FORA not in FAROIS_PERMITIDOS
 
 
 def test_RN_GER_006_trava_reprova_farol_do_lote2_faltando():
@@ -56,9 +65,8 @@ def test_RN_GER_006_robo_de_verdade_passa_na_trava():
 
 
 def test_RN_GER_006_trava_reprova_farol_fora_da_lista():
-    p = problemas_escopo(_robo(FAROIS_WEB=tuple(ba.FAROIS_WEB)
-                               + ("pl_garantias",)))
-    assert "pl_garantias: fora da lista PERMITIDA" in p
+    p = problemas_escopo(_robo(FAROIS_WEB=tuple(ba.FAROIS_WEB) + (FORA,)))
+    assert f"{FORA}: fora da lista PERMITIDA" in p
 
 
 def test_RN_GER_006_trava_reprova_obrigatorio_faltando_e_repetido():
@@ -99,6 +107,6 @@ def test_RN_GER_006_trava_reprova_regra_de_uf_trocada():
 
 
 def test_RN_GER_006_trava_reprova_tabela_de_recorte_sem_regra():
-    tab = dict(ba._TABELA_RECORTE_WEB, pl_garantias="Garantias")
-    assert "pl_garantias: tabela de recorte sem regra declarada" in \
+    tab = dict(ba._TABELA_RECORTE_WEB, **{FORA: "Markup"})
+    assert f"{FORA}: tabela de recorte sem regra declarada" in \
         problemas_escopo(_robo(_TABELA_RECORTE_WEB=tab))
