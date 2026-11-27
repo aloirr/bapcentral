@@ -8,7 +8,7 @@
    (`tabelas`) saem de uma vez, com o AVISO_ABAS_FORA (as abas na ordem do
    PC); os cartões, o painel e os recortes ficam; o resto do pacote segue
    inteiro; e a web aceita o farol assim, sem as abas (abre o Resumo em 200).
-   O farol é FICTÍCIO (web/tests/lote2_fixture.py).
+   O farol é FICTÍCIO (web/tests/lote2_fixture.py; sem ela, o mínimo daqui).
 2. Pacote REAL das bases congeladas (NOV/2026, hoje = 24/11/2026): os 5 faróis
    passam pelo POST por farol, abrem em 200 (o Resumo e cada aba) para quem
    vê, e em 403 para quem não vê. Não há RN de perfil para o lote 2 (a única
@@ -69,14 +69,32 @@ def _agora():
     return datetime.now(MANAUS).replace(microsecond=0).isoformat()
 
 
-def _fixture_lote2():
-    """O pacote fictício do lote 2 da web (abas, colunas e cartões reais; valores inventados)."""
+def _farol_minimo(rid):
+    """Farol fictício mínimo do lote 2 (3 abas, cartão, painel e recorte), sem a fixture da web."""
+    col = [{"nome": "FILIAL", "tipo": "texto"}, {"nome": "ITEM", "tipo": "texto"},
+           {"nome": "QTD", "tipo": "int"}]
+    return {"forma": "farol", "titulo": f"Farol fictício {rid}",
+            "kpis": [{"rotulo": "Itens", "valor": "3", "cor": "ok", "detalhe": ""}],
+            "painel": {"blocos": []}, "insights_painel": [], "avisos": [],
+            "recortes": {"AM": {"kpis": [{"rotulo": "Itens", "valor": "1", "cor": "ok", "detalhe": ""}]}},
+            "baixado_em": "2026-11-24T08:10:00-04:00",
+            "tabelas": [{"titulo": f"Aba fictícia {i}", "colunas": col,
+                         "linhas": [["FILIAL FICTICIA AM", f"ITEM {j:03d}", j] for j in range(20)],
+                         "tons": [""] * 20, "total": None, "filtros": []} for i in (1, 2, 3)]}
+
+
+def _fixture_lote2(so_web=False):
+    """O pacote fictício do lote 2 da web (abas, colunas e cartões reais; valores inventados). Sem a
+    fixture da web (PR #89 fora do main): o farol mínimo daqui, ou skip se `so_web`."""
     if str(WEB_TESTS) not in sys.path:
         sys.path.insert(0, str(WEB_TESTS))
     try:
         from lote2_fixture import pacote_lote2                # noqa: PLC0415
     except ImportError:
-        pytest.skip("sem web/tests/lote2_fixture.py (lote 2 da web, PR #89)")
+        if so_web:
+            pytest.skip("sem web/tests/lote2_fixture.py (lote 2 da web, PR #89)")
+        return {"versao_contrato": 1, "gerado_em": "2026-11-24T08:30:00-04:00", "ano": 2026, "mes": 11,
+                "relatorios": {rid: _farol_minimo(rid) for rid in LOTE2}}
     return pacote_lote2()
 
 
@@ -153,7 +171,7 @@ def test_ADR0003_10_8_7_lote2_acima_do_teto_o_resto_segue_e_a_web_aceita_sem_aba
     Resumo em 200 com os cartões; os outros 4 chegam inteiros, com as abas."""
     cli, dados, m = _web(web_mod, "teto", monkeypatch)
     _web_tem_lote2()
-    p = _fixture_lote2()
+    p = _fixture_lote2(so_web=True)
     p["gerado_em"] = _agora()
     p["relatorios"]["pl_giro"] = _inflar(p["relatorios"]["pl_giro"], ba.WEB_FAROL_TETO_MB)
     log = []

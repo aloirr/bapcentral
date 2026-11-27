@@ -31,6 +31,11 @@ MARGEM = 0.8                    # o pacote real fica abaixo de 80% do teto
 MB = 1024 * 1024
 AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
 
+# sem o lote 2 no robô (PR #91 ainda fora do main), o módulo é pulado: o PR
+# do testes passa em qualquer ordem de merge
+if not (hasattr(ba, "params_farol_web") and set(LOTE2) <= set(ba.FAROIS_WEB)):
+    pytest.skip("o robô não tem o lote 2 (PR #91)", allow_module_level=True)
+
 
 def _tam(p):
     return len(json.dumps(p, ensure_ascii=False).encode("utf-8"))

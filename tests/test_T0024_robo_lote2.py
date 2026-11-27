@@ -1,5 +1,13 @@
-"""T-0024: pacote web dos 5 faróis do lote 2 (colunas livres). Dados fictícios."""
+"""T-0024: pacote web dos 5 faróis do lote 2 (colunas livres). Dados fictícios.
+
+Sem o lote 2 no robô (PR #91 ainda fora do main), o módulo é pulado: o PR do
+testes passa em qualquer ordem de merge."""
+import pytest
+
 import bap_automation as ba
+
+if not hasattr(ba, "RIDS_LIVRES_WEB"):
+    pytest.skip("o robô não tem o lote 2 (PR #91)", allow_module_level=True)
 
 
 def test_params_por_farol():
