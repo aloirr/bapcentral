@@ -14,11 +14,12 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import VERSAO, cobranca, config, edicoes, exportar, marca, pacotes, render, tabelas
+from . import VERSAO, cobranca, config, edicoes, exportar, marca, pacotes, render, tabelas, visitas
 from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 
 log = logging.getLogger("bap_web")
@@ -28,7 +29,8 @@ VERES = render.VEEM_PAINEL          # [SUPOSIÇÃO] os 3 veem o painel
 PAINEL_RID = "vc_painel"
 FORM_MAX = 32 * 1024                               # §10.9.1: o Editar da Garantia leva 4 textos de até 600 caracteres
 FECHAR_MAX = 256 * 1024
-ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca", "/api/edicoes")   # saúde e robô seguem; as telas param
+PODEM_PEDIR, SO_ADMIN = visitas.PODEM_PEDIR, visitas.SO_ADMIN      # uma constante só (visitas.py), a mesma da lateral
+ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca", "/api/edicoes", "/api/visitas")   # saúde e robô seguem; as telas param
 
 
 def hoje_local() -> date:
@@ -88,6 +90,8 @@ def criar_app() -> FastAPI:
     modelos.env.autoescape = True
     modelos.env.filters["manaus"] = fmt_manaus
     modelos.env.filters["hhmm"] = hhmm
+    modelos.env.filters["dia_br"] = visitas.dia_br                 # T-0045: AAAAMMDD -> dd/mm
+    modelos.env.filters["dia_hora"] = visitas.dia_hora             # T-0045: "27/11 06h06", o formato único da tela
     modelos.env.filters["fone"] = cobranca.fone_bonito
     modelos.env.filters["aba_curta"] = tabelas.aba_curta           # T-0033: nomes curtos nas abas (cabem a 1366)
     modelos.env.globals["dados_popup"] = tabelas.dados_do_popup
@@ -100,6 +104,11 @@ def criar_app() -> FastAPI:
     diario = cobranca.Diario(cfg.dados)
     diario.limpar()                                   # §10.6.5: também quando o app sobe
     fila = edicoes.Fila(cfg.dados)                    # T-0021: edições da web, só acréscimo
+    vis = visitas.Visitas(cfg.dados, cfg.visitas_token)   # T-0045: visitas da Máxima no Render (ADR 0004)
+    try:
+        vis.retencao()
+    except Exception as e:                            # retenção atrasada não derruba a web
+        log.error("retenção dos lotes de visitas: %s", type(e).__name__)
 
     app = FastAPI(title="BAP Central", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(SessionMiddleware, secret_key=cfg.segredo, session_cookie="bap_sessao",
@@ -173,9 +182,11 @@ def criar_app() -> FastAPI:
         if u:
             no_pacote = (info or {}).get("farois") or {}
             # o item da lateral marcado: o farol, o painel ou, na conta, "usuarios" e "senha" (contrato §3)
-            ativo = ctx.get("rid") or {"/painel": "painel", "/usuarios": "usuarios", "/senha": "senha"}.get(request.url.path)
+            ativo = ctx.get("rid") or {"/painel": "painel", "/usuarios": "usuarios", "/senha": "senha",
+                                       "/visitas/atualizar": "visitas_atualizar"}.get(request.url.path)
             ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ativo,
                                              painel=u["perfil"] in VERES, admin=u["perfil"] == "admin")
+            ctx["pode_visitas"] = u["perfil"] in PODEM_PEDIR      # o link "Atualizar" só para quem pode apertar (UX 8)
             if u["trocar_senha"]:
                 ctx["nav"] = []             # troca obrigatória: só a casca (marca e Sair), sem links que não levam a lugar nenhum
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
@@ -208,7 +219,7 @@ def criar_app() -> FastAPI:
                 **({"aviso_pacote": aviso_disco[0]} if aviso_disco else {}),
                 "hora_manaus": datetime.now(MANAUS).strftime("%Y-%m-%d %H:%M:%S"),
                 "tz": tz, "tz_ok": motivo is None, "telas_bloqueadas": motivo is not None,
-                "motivo": motivo,
+                "motivo": motivo, "visitas": vis.saude(),
                 "ultimo_pacote": info["gerado_em"] if info else None}
 
     # ------------------------------------------------------------ login
@@ -906,14 +917,17 @@ def criar_app() -> FastAPI:
                       msg="Feito.", erro="")
 
     # ------------------------------------------------------------ pacote do robô
-    def sem_token(request: Request):
+    def bearer(request: Request, esperado: str):
+        """Bearer em tempo constante: 401 se faltar, errar ou se o segredo não estiver configurado."""
         auth = request.headers.get("authorization", "")
-        esperado = cfg.token
         entrada = auth[7:] if auth.lower().startswith("bearer ") else ""
         if not esperado or not hmac.compare_digest(entrada.encode(), esperado.encode()):
             return JSONResponse({"erro": "não autorizado"}, status_code=401,
                                 headers={"WWW-Authenticate": "Bearer"})
         return None
+
+    def sem_token(request: Request):
+        return bearer(request, cfg.token)
 
     @app.get("/api/cobranca")
     async def api_cobranca(request: Request):
@@ -968,6 +982,123 @@ def criar_app() -> FastAPI:
             return fila.confirmar(corpo.get("epoca"), corpo.get("resultados"))
         except edicoes.ErroEdicao as e:
             return JSONResponse({"erro": e.msg}, status_code=e.status)
+
+    # ------------------------------------------------------------ visitas da Máxima (T-0045, contrato visitas-nuvem)
+    def sem_token_cron(request: Request):
+        """O token do cron só abre as rotas do §3 (não o pacote, não as edições)."""
+        return bearer(request, vis.token)
+
+    @app.exception_handler(visitas.ErroVisitas)
+    async def _erro_visitas(request, e):
+        return JSONResponse(e.corpo, status_code=e.status)
+
+    async def ler_corpo(request: Request, limite: int, msg: str = "corpo grande demais") -> bytes:
+        """O corpo inteiro, em partes, com teto: passou = 413 (ErroVisitas)."""
+        bruto = b""
+        async for parte in request.stream():
+            bruto += parte
+            if len(bruto) > limite:
+                raise visitas.ErroVisitas(413, {"erro": msg})
+        return bruto
+
+    async def corpo_json(request: Request, limite: int = 65536):
+        try:
+            return json.loads((await ler_corpo(request, limite)).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            raise visitas.ErroVisitas(400, {"erro": "corpo não é JSON"})
+
+    @app.get("/api/visitas/trabalho")
+    async def api_visitas_trabalho(request: Request):
+        return sem_token_cron(request) or vis.trabalho()
+
+    @app.post("/api/visitas/rodada")
+    async def api_visitas_rodada(request: Request):
+        return sem_token_cron(request) or JSONResponse(vis.conceder(await corpo_json(request)), status_code=201)
+
+    @app.post("/api/visitas/rodada/{rid}/progresso")
+    async def api_visitas_progresso(request: Request, rid: str):
+        return sem_token_cron(request) or vis.progresso(rid, await corpo_json(request))
+
+    @app.post("/api/visitas/rodada/{rid}/dia/{dia}")
+    async def api_visitas_lote(request: Request, rid: str, dia: str):
+        negado = sem_token_cron(request)
+        if negado:
+            return negado
+        bruto = await ler_corpo(request, visitas.LOTE_GZ_MAX, "lote grande demais")
+        h = request.headers
+        # a leitura dos Excel (zip, regex) é trabalho de CPU: fora do laço de eventos, para não travar o site
+        return await run_in_threadpool(vis.receber_lote, rid, dia, h.get("content-type", ""),
+                                       h.get("content-encoding", ""), h.get("x-bap-sha256", ""), bruto)
+
+    @app.post("/api/visitas/rodada/{rid}/fim")
+    async def api_visitas_fim(request: Request, rid: str):
+        return sem_token_cron(request) or vis.fim(rid, await corpo_json(request))
+
+    # robô do PC (BAP_WEB_TOKEN): a mesma forma da /api/edicoes
+    @app.get("/api/visitas/lotes")
+    async def api_visitas_lotes(request: Request):
+        negado = sem_token(request)
+        if negado:
+            return negado
+        bruto = request.query_params.get("desde", "0")
+        if not (bruto.isascii() and bruto.isdigit()) or len(bruto) > 15:
+            return JSONResponse({"erro": "desde precisa ser inteiro >= 0"}, status_code=400)
+        return vis.lotes(int(bruto))
+
+    @app.get("/api/visitas/lote/{seq}")
+    async def api_visitas_lote_corpo(request: Request, seq: int):
+        negado = sem_token(request)
+        if negado:
+            return negado
+        achou = vis.corpo_do_lote(seq)
+        if not achou:
+            return JSONResponse({"erro": "lote não existe ou saiu pela retenção"}, status_code=404)
+        return Response(achou[0], media_type="application/json",
+                        headers={"Content-Encoding": "gzip", "X-BAP-SHA256": achou[1]})
+
+    @app.post("/api/visitas/lotes/confirmar")
+    async def api_visitas_confirmar(request: Request):
+        return sem_token(request) or vis.confirmar(await corpo_json(request, 262144))
+
+    # tela "Atualizar visitas" (Farol de Visita): sessão e perfil conferidos aqui, em toda rota
+    @app.get("/visitas/atualizar", response_class=HTMLResponse)
+    async def visitas_tela(request: Request):
+        u = usuario(request, render.FAROIS["vc_visitas"][1])
+        flash = request.session.pop("visitas_msg", None) or {}
+        return pagina(request, "visitas.html", v=vis.tela(),
+                      pode_pedir=u["perfil"] in PODEM_PEDIR, admin=u["perfil"] in SO_ADMIN,
+                      msg=flash.get("msg", ""), erro=flash.get("erro", ""))
+
+    async def acao_visitas(request: Request, perfis, fn):
+        u = usuario(request, perfis)
+        f = await formulario(request)
+        try:
+            request.session["visitas_msg"] = {"msg": fn(f, u)}
+        except visitas.ErroVisitas as e:
+            request.session["visitas_msg"] = {"erro": e.corpo.get("erro", "Não foi possível.")}
+        return RedirectResponse("/visitas/atualizar", status_code=303)
+
+    @app.post("/visitas/atualizar")
+    async def visitas_atualizar(request: Request):
+        return await acao_visitas(request, PODEM_PEDIR, lambda f, u: vis.pedir(
+            f.get("de", ""), f.get("ate", ""), False, u["perfil"]))
+
+    @app.post("/visitas/refazer")
+    async def visitas_refazer(request: Request):
+        return await acao_visitas(request, SO_ADMIN, lambda f, u: vis.pedir(
+            f.get("de", ""), f.get("ate", ""), True, u["perfil"]))
+
+    @app.post("/visitas/retomar")
+    async def visitas_retomar(request: Request):
+        return await acao_visitas(request, SO_ADMIN, lambda f, u: vis.retomar(f.get("recado", ""), u["perfil"]))
+
+    @app.post("/visitas/diagnostico")
+    async def visitas_diagnostico(request: Request):
+        return await acao_visitas(request, SO_ADMIN, lambda f, u: vis.diagnostico())
+
+    @app.post("/visitas/agenda")
+    async def visitas_agenda(request: Request):
+        return await acao_visitas(request, SO_ADMIN, lambda f, u: vis.agenda(f.get("ligar") == "1"))
 
     @app.post("/api/pacote")
     async def api_pacote(request: Request):

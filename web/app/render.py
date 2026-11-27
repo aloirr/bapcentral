@@ -11,7 +11,7 @@ import math
 import re
 import unicodedata
 
-from . import marca
+from . import marca, visitas
 
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
@@ -247,6 +247,10 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
         itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r].removeprefix("Farol de ")),
                   "ativo": r == ativo}
                  for r in rids if r in meus]
+        if "vc_visitas" in rids and perfil in visitas.PODEM_PEDIR:     # T-0045: ☰ → Atualizar visitas → botão (3 toques)
+            i = next((k for k, x in enumerate(itens) if x["nome"] == NOME_MENU.get("vc_visitas", "Visita")), None)
+            itens.insert(len(itens) if i is None else i + 1,
+                         {"href": "/visitas/atualizar", "nome": "Atualizar visitas", "ativo": ativo == "visitas_atualizar"})
         if itens:
             grupos.append({"nome": nome, "itens": itens})
     conta = [{"href": "/senha", "nome": "Trocar senha", "ativo": ativo == "senha"}]
