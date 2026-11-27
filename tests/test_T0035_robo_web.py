@@ -131,8 +131,8 @@ class _Requests:
     def get(self, url, timeout=None, **kw):
         return self.cli.get(url[len(BASE):], **kw)
 
-    def post(self, url, data=None, headers=None, timeout=None):
-        return self.cli.post(url[len(BASE):], content=data, headers=headers)
+    def post(self, url, data=None, json=None, headers=None, timeout=None):
+        return self.cli.post(url[len(BASE):], content=data, json=json, headers=headers)
 
 
 def _web(web_mod, nome, monkeypatch):

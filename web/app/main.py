@@ -197,7 +197,7 @@ def criar_app() -> FastAPI:
         except (TypeError, ValueError):
             velho = False
         ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, empresa=marca.EMPRESA, indisponivel=render.INDISPONIVEL,
-                   gerado_em=gerado_farol, desatualizado=velho)
+                   gerado_em=gerado_farol, desatualizado=velho, sem_calculo=edicoes.SEM_CALCULO)
         # T-0034 (RD-0043): uma casca só (barra lateral + faixa) para toda tela com usuário; o item ativo é o farol
         # ou, no Painel Executivo, "painel". Sem usuário (login, acesso negado): a mesma casca, sem lateral.
         if u:
@@ -633,7 +633,7 @@ def criar_app() -> FastAPI:
         rod = f"{marca.EMPRESA} · {render.FAROIS[rid][0]} · {len(t['linhas'])} linhas · dados de {fmt_manaus(ind.gerado_em(rid))}"
         return baixar(exportar.pdf_tabela(t, rod), "application/pdf", nome + ".pdf")
 
-    # ------------------------------------------------------------ T-0021: edição (só admin)
+    # ------------------------------------------------------------ T-0021: edição (admin e, nas Entregas, o pós-venda)
     def selecao(t, tab, consulta):
         """`sel` = linha (índice da tabela) escolhida com um clique; só nas tabelas com junta ligada."""
         liga = next((j["liga"][1] for j in t.get("juntas") or [] if j.get("liga")), None)
@@ -652,33 +652,34 @@ def criar_app() -> FastAPI:
         return sel
 
     def edicao_tela(rid, titulo, t_pc, linhas, u, volta, sit, recebido):
-        """Por linha da tela: botão de editar (admin com chave) e a marca "Aguardando o PC"/"O PC recusou".
+        """Por linha da tela: botão de editar (quem edita o lugar, com chave) e a marca "Aguardando o PC"/"O PC recusou".
         Sem `edicao` no pacote, ou perfil sem edição e sem marca, a coluna não aparece."""
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         if not isinstance(ed, dict):
             return None
-        admin = u["perfil"] in edicoes.EDITA
+        pode = edicoes.pode_editar(u["perfil"], (rid, titulo))
         algum = False
         for ln in linhas:
             ch = edicoes.chave_da_linha(ed, ln["k"])
             s = sit.get((titulo, ch)) if ch else None
             m = edicoes.marca(s, recebido)
             url = (f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "chave": ch, "volta": volta})
-                   if admin and ch else "")
-            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, admin), "sem_chave": admin and not ch}
+                   if pode and ch else "")
+            ln["ed"] = {"url": url, "marca": m, "dica": edicoes.dica(s, ed, m, pode), "sem_chave": pode and not ch}
             algum = algum or bool(m)
-        if not admin and not algum:
+        if not pode and not algum:
             return None
-        return {"cab": ed.get("acao") or "Editar", "admin": admin}
+        return {"cab": ed.get("acao") or "Editar", "pode": pode}
 
     SEM_ESTADO_AVISO = ("pl_garantias", "pl_devolucoes", "pl_ncc")
+    RESUMO_PELA_GRADE = SEM_ESTADO_AVISO + ("pl_entregas",)     # T-0054: "NF 900502 · CLIENTE ... · MA"
 
     def novo_tela(rid, titulo, t_pc, u, volta, sit, recebido):
-        """O botão da linha nova (`novo`, §10.9.2): só o admin, só onde o pacote traz `edicao.novo`. O servidor decide;
-        quem não é admin não recebe nem o botão nem a contagem."""
+        """O botão da linha nova (`novo`, §10.9.2): só o admin (RN-POS-011: o pós-venda edita a linha, não cria), só onde o pacote traz `edicao.novo`.
+        O servidor decide; quem não é admin não recebe nem o botão nem a contagem."""
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         nv = ed.get("novo") if isinstance(ed, dict) else None
-        if not nv or u["perfil"] not in edicoes.EDITA:
+        if not nv or not edicoes.pode_criar(u["perfil"], (rid, titulo)):
             return None
         n = edicoes.contagem_novas(sit, titulo, recebido)
         return {"rotulo": nv["rotulo"], "url": f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "novo": "1", "volta": volta}),
@@ -710,7 +711,7 @@ def criar_app() -> FastAPI:
     def resumo_da_linha(rid, titulo, cols, linha):
         """Qual linha se edita. Faróis do Pós-venda: a chave e o nome da GRADE, mais a UF ("NCC 901 · CLIENTE ... · PA");
         os outros: as 6 primeiras colunas, como na T-0021."""
-        g = tabelas.GRADE.get((rid, titulo)) if rid in SEM_ESTADO_AVISO else None
+        g = tabelas.GRADE.get((rid, titulo)) if rid in RESUMO_PELA_GRADE else None
         nomes = [str(c["nome"]).upper() for c in cols]
         if not g:
             return [render.fmt_celula(linha[i], c["tipo"]) for i, c in enumerate(cols)
@@ -724,8 +725,10 @@ def criar_app() -> FastAPI:
                     saida.append(f"{n} {v}" if rot else v)
         return saida
 
-    def form_ctx(rid, titulo, t, aba, k, sit_linha, volta):
+    def form_ctx(rid, titulo, t, aba, k, sit_linha, volta, digitado=None, erro=""):
+        """`digitado` (volta de um erro): o que a pessoa escreveu (`c_`) volta; só o campo recusado fica vazio e marcado."""
         ed = t["edicao"]
+        digitado = digitado or {}
         cols, linha = t["colunas"], t["linhas"][k]
         nomes = [c["nome"] for c in cols]
         pend = (sit_linha or {}).get("valores") or {} if (sit_linha or {}).get("status") == "pendente" else {}
@@ -736,7 +739,13 @@ def criar_app() -> FastAPI:
             ops = list(c["opcoes_linha"])
             if atual and atual not in ops and c["tipo"] == "lista":
                 ops = [atual] + ops                       # como o PC: o valor de hoje entra na lista
-            campos.append(edicoes.campo_tela(c, atual, ops, sugestao=c.get("sugestao", ""), pendente=pend.get(c["campo"])))
+            ruim = bool(erro) and erro.startswith(c["rotulo"] + ":")
+            if "c_" + c["campo"] in digitado:
+                atual = "" if ruim else str(digitado["c_" + c["campo"]])[:edicoes.MAX_TEXTO_TETO]
+                if atual and c["tipo"] == "lista" and atual not in ops:
+                    ops = [atual] + ops
+            campos.append(edicoes.campo_tela(c, atual, ops, sugestao=c.get("sugestao", ""), pendente=pend.get(c["campo"]),
+                                             invalido=ruim))
         liga = next((j for j in t.get("juntas") or [] if j.get("liga")), None)
         ver = f"/farol/{rid}?aba={aba}&sel={k}" if liga and aba else ""      # "Ver pedido", como no PC
         return dict(farol_nome=render.FAROIS[rid][0], rid=rid, tab=titulo, chave=ed["chaves"][k],
@@ -765,12 +774,14 @@ def criar_app() -> FastAPI:
     async def editar_get(request: Request, rid: str, tab: str = "", chave: str = "", volta: str = "", novo: str = ""):
         u = usuario(request)
         exige_farol(u, rid)
-        if u["perfil"] not in edicoes.EDITA:
-            raise PermissionError                       # só o admin edita (decisão de 25/11)
+        if not edicoes.pode_editar(u["perfil"], (rid, tab[:80])):
+            raise PermissionError                       # só quem a EDITA_LUGAR diz (RN-GER-012, RN-POS-011)
         volta = volta_ok(rid, volta)
         t, aba = tabela_editavel(rid, tab[:80])
         ed = (t or {}).get("edicao")
-        if novo == "1":                                 # linha nova (§10.9.2): só onde o pacote traz `edicao.novo`
+        if novo == "1":                                 # linha nova (§10.9.2): só o admin, só onde o pacote traz `edicao.novo`
+            if not edicoes.pode_criar(u["perfil"], (rid, tab)):
+                raise PermissionError
             if not (isinstance(ed, dict) and ed.get("novo")):
                 return pagina(request, "erro.html", status=404, titulo_erro=edicoes.TITULO_SEM_NOVO, msg=edicoes.MSG_SEM_NOVO)
             return pagina(request, "editar.html", erro="", aviso="", **novo_ctx(rid, tab, t, aba, volta))
@@ -787,10 +798,12 @@ def criar_app() -> FastAPI:
     async def editar_post(request: Request, rid: str):
         u = usuario(request)
         exige_farol(u, rid)
-        if u["perfil"] not in edicoes.EDITA:
+        if u["perfil"] not in edicoes.perfis_do_rid(rid):
             raise PermissionError                       # 403 antes de ler o formulário
         f = await formulario(request)                   # CSRF errado = 403
         tab, chave = str(f.get("tab", ""))[:80], str(f.get("chave", ""))[:80]
+        if not edicoes.pode_editar(u["perfil"], (rid, tab)):
+            raise PermissionError                       # o lugar exato (RN-POS-011)
         volta = volta_ok(rid, f.get("volta"))
         t, aba = tabela_editavel(rid, tab)
         ed = (t or {}).get("edicao")
@@ -806,10 +819,11 @@ def criar_app() -> FastAPI:
         sit = fila.situacao(rid).get((tab, chave))
         if erro or not mudou:
             return pagina(request, "editar.html", status=400 if erro else 200, erro=erro,
-                          aviso="" if erro else "Nada mudou.", **form_ctx(rid, tab, t, aba, k, sit, volta))
+                          aviso="" if erro else "Nada mudou.",
+                          **form_ctx(rid, tab, t, aba, k, sit, volta, digitado=f if erro else None, erro=erro))
         try:
             fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=chave,
-                           valores=mudou, antes=antes)
+                           valores=mudou, antes=antes, perfil=u["perfil"])
         except OSError:
             log.error("edição: falha ao gravar a fila")
             return pagina(request, "editar.html", status=503, erro=edicoes.MSG_FALHA_FILA,
@@ -818,7 +832,9 @@ def criar_app() -> FastAPI:
         return volta_ed(volta)
 
     async def editar_novo(request, u, rid, tab, t, aba, ed, f, volta):
-        """POST da linha nova (§10.9.2): vai só o que difere do `padrao`, mais o ticket; chave NOVO-xxxxxxxx; `antes.ticket`."""
+        """POST da linha nova (§10.9.2): só o admin; vai só o que difere do `padrao`, mais o ticket; chave NOVO-xxxxxxxx; `antes.ticket`."""
+        if not edicoes.pode_criar(u["perfil"], (rid, tab)):
+            raise PermissionError
         if not (isinstance(ed, dict) and ed.get("novo")):
             return pagina(request, "erro.html", status=409, titulo_erro=edicoes.TITULO_SEM_NOVO, msg=edicoes.MSG_SEM_NOVO)
         valores, antes, erro = edicoes.valores_do_novo(ed, f, edicoes.LUGARES_NOVO.get((rid, tab), ()))
@@ -827,7 +843,7 @@ def criar_app() -> FastAPI:
                           **novo_ctx(rid, tab, t, aba, volta, f))
         try:
             fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=edicoes.chave_nova(),
-                           valores=valores, antes=antes, novo=True)
+                           valores=valores, antes=antes, novo=True, perfil=u["perfil"])
         except OSError:
             log.error("edição: falha ao gravar a fila")
             return pagina(request, "editar.html", status=503, erro=edicoes.MSG_FALHA_FILA,
