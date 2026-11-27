@@ -8001,6 +8001,23 @@ def devolucoes(ctx):
     return r
 
 
+def rotulo_agrupa_fretes(i, l) -> str:
+    """(T-0037, A2/A3) Rotulo da linha das tabelas Por UF (i=7), Por cidade
+    (i=6) e Por transportadora (i=11) do Farol de Fretes. Funcao pura.
+    Vazio vira "Sem UF", "Sem cidade" ou "Sem transportadora"; a cidade leva
+    a UF ("SERRA BONITA / Sem UF", nunca a barra solta). Nota sem chave (sem
+    acompanhamento) e sem transportadora vai para "Sem acompanhamento": assim
+    "Sem transportadora" tem o mesmo criterio do cartao (chave e sem transp.)."""
+    v = (l[i] or "").strip() if isinstance(l[i], str) else (l[i] or "")
+    if i == 7:
+        return v or "Sem UF"
+    if i == 6:
+        return (v or "Sem cidade") + " / " + ((l[7] or "").strip() or "Sem UF")
+    if not v:
+        return "Sem transportadora" if l[16] else "Sem acompanhamento"
+    return v
+
+
 def kpis_fretes(ls, fat_por_mes_uf, uf=None) -> list:
     """Os 6 cartoes do Fretes (RN-POS-009). ls = linhas de "Notas com frete"
     (MES=0, CIDADE=6, UF=7, VLR NF=8, VLR FRETE=9, ETAPA=10, TRANSP.=11,
@@ -8121,7 +8138,7 @@ def fretes(ctx):
                             ("Por transportadora", 11, 220)):
         g = defaultdict(lambda: [0, 0.0, 0.0])
         for l in linhas:
-            k = (l[0], (l[i] or "(sem)") + (f" / {l[7]}" if i == 6 else ""))
+            k = (l[0], rotulo_agrupa_fretes(i, l))
             g[k][0] += 1
             g[k][1] += l[8]
             g[k][2] += l[9] or 0
