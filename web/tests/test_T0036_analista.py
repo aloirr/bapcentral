@@ -468,12 +468,13 @@ def _farol_pesquisa(obs):
 
 
 def test_RN_GER_011_observacao_da_pesquisa_limpa_na_web():
-    assert tabelas.limpar_texto("Ligar (92) 99999-1234, falar com a.b@c.com doc 123.456.789-01 ok") == \
-        "Ligar , falar com doc ok"
+    # RN-GER-011: o mesmo "[removido]" do robô (relatorios_nucleo.texto_sem_contato)
+    assert tabelas.limpar_texto("Ligar (92) 99999-1234, falar com a.b@c.com, doc 123.456.789-01 ok") == \
+        "Ligar [removido], falar com [removido], doc [removido] ok"
     far = pacotes.preparar_farol("vc_preco", _farol_pesquisa("Ver 12.345.678/0001-90 e 92 98888-7777"))
     t = next(t for t in far["tabelas"] if t["titulo"] == "Pesquisa de mercado")   # a aba segue (não cai por documento)
     i = [c["nome"] for c in t["colunas"]].index("OBSERVAÇÃO")
-    assert t["linhas"][0][i] == "Ver e"
+    assert t["linhas"][0][i] == "Ver [removido] e [removido]"
     assert not any(tabelas._RE_LIMPA.search(str(ln[i])) for ln in t["linhas"])
 
 

@@ -782,12 +782,13 @@ def _aba_tem_documento(t: dict) -> bool:
 # T-0036 (revisão 🟢): a OBSERVAÇÃO da Pesquisa de mercado é digitada no campo; o PC limpa e a web limpa de novo
 # (defesa em profundidade). O padrão é o do texto livre das edições (`edicoes.RE_PESSOAL`), com o e-mail inteiro.
 LIMPA_TEXTO = {("vc_preco", "Pesquisa de mercado"): ("OBSERVAÇÃO",)}
-_RE_LIMPA = re.compile(edicoes.RE_PESSOAL.pattern.replace("|@|", r"|\S*@\S*|"))
+_RE_LIMPA = re.compile(edicoes.RE_PESSOAL.pattern.replace("|@|", r"|[\w.+-]*@[\w-]+(?:\.[\w-]+)*|"))
+REMOVIDO = "[removido]"          # o mesmo texto do robô (`relatorios_nucleo.texto_sem_contato`, RN-GER-011)
 
 
 def limpar_texto(t: str) -> str:
-    """Tira CPF, CNPJ, telefone e e-mail de um texto livre (RN-GER-011, regra 6 do CLAUDE.md)."""
-    return re.sub(r"\s{2,}", " ", _RE_LIMPA.sub("", t)).strip()
+    """Troca CPF, CNPJ, telefone e e-mail de um texto livre por "[removido]" (RN-GER-011, regra 6 do CLAUDE.md)."""
+    return _RE_LIMPA.sub(REMOVIDO, t)
 
 
 def limpar_textos_livres(corpo: dict) -> int:
