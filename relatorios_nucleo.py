@@ -40,7 +40,7 @@ ANA = "Analista Comercial"
 TRADE = "Trade Marketing"
 
 VERDE_TXT, AMARELO_TXT = "#2F7D32", "#B7791F"    # texto legivel no branco
-VERDE, CINZA, VERMELHO, AZUL, AMARELO = ("#62BB47", "#A7B0AA", "#B3261E",
+VERDE, CINZA, VERMELHO, AZUL, AMARELO = ("#59BA61", "#A7B0AA", "#B42318",
                                          "#1F4FD1", "#C98A00")
 MESES = ["", "JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET",
          "OUT", "NOV", "DEZ"]
@@ -1762,13 +1762,13 @@ def _tabela_cond(it):
 def CHIP_SLA():                                         # noqa: N802
     return [(bd.PRAZO_FATURAR - 1, "#E5F3DF", "#2F7D32"),
             (bd.PRAZO_FATURAR, "#FFF1C7", "#8A5A00"),
-            (4, "#FBDDDA", "#B3261E"),
-            (None, "#B3261E", "#FFFFFF")]
+            (4, "#FDECEA", "#B42318"),
+            (None, "#B42318", "#FFFFFF")]
 
 
-BARRA_ATENDIDO = {"max": 100, "faixas": [(49.99, "#D9534F", "#B3261E"),
+BARRA_ATENDIDO = {"max": 100, "faixas": [(49.99, "#D9534F", "#B42318"),
                                          (99.98, "#E0A526", "#8A5A00"),
-                                         (None, "#62BB47", "#2F7D32")]}
+                                         (None, "#59BA61", "#2F7D32")]}
 
 
 def _edicao_autorizacao(i_chave, i_cod, i_por):
@@ -7514,7 +7514,7 @@ def _historico_de_compra(ctx):
 # (06/11, Alexandre) o PRAZO da garantia: FECHADA verde quando fechou ate a
 # DT. FECHAMENTO, "laranja esverdeado" (verde-oliva) quando fechou depois
 CORES_PRAZO_GARANTIA = {
-    "ATRASADA": ("#FBDDDA", "#B3261E"),
+    "ATRASADA": ("#FDECEA", "#B42318"),
     "NO PRAZO": ("#E5F3DF", "#2F7D32"),
     "FECHADA NO PRAZO": ("#2F7D32", "#FFFFFF"),
     "FECHADA COM ATRASO": ("#9E9D24", "#FFFFFF")}
@@ -10681,7 +10681,7 @@ def _mecanica_rv(ctx, comp, ac) -> dict:
         ("Positivação",
          f"META = {pct_pos:g}% da base visitada do vendedor. REAL = clientes "
          "com faturamento líquido > 0 no mês; os CNPJs internos do grupo "
-         "(BAP AUTO PARTS / FRW / PMZ DISTRIBUIDORA) ficam fora."),
+         "(BAP AUTOPARTS / FRW / PMZ DISTRIBUIDORA) ficam fora."),
         ("Visita",
          f"META = {du} visitas por dia útil desde a admissão (interior "
          f"{interior}), × {pct_vis:g}% (a meta RH). REAL = visitas da "
@@ -12419,7 +12419,7 @@ def giro_produtos(ctx):
         for j_ in somar:
             tot[j_] = sum(l[j_] or 0 for l in ls)
         return tot
-    _verm = ("#FBDDDA", "#B3261E")
+    _verm = ("#FDECEA", "#B42318")
     chip_est = [(0, *_verm), (None, None, None)]
     chip_cob = [(GIRO_COB_VERMELHA - 0.001, *_verm), (None, None, None)]
     for titulo, filtro, ordem in (
@@ -17866,7 +17866,7 @@ def _tabela_relampago(ctx, cfg, ano, mes, jog_v, jog_s, equipes, nomes):
             col("DESAFIO", "texto", 110), col("PTS DESAFIO", "int", 86),
             col("PTS", "int", 72)]
     cols[11]["chip"] = {"BATEU": ("#E5F3DF", "#2F7D32"),
-                        "NÃO BATEU": ("#FBDDDA", "#B3261E")}
+                        "NÃO BATEU": ("#FDECEA", "#B42318")}
 
     def cartoes(ls):
         if not ls:
@@ -18083,7 +18083,7 @@ def _ch_resumo_geral(ctx, r, cfg, comp, resumo, t_rel):
             col("CPF", "texto", 110, oculta=True),
             col("EQUIPE", "texto", 170, oculta=True)]
     cols[3]["chip"] = {CH_LIBERADO: ("#E5F3DF", "#2F7D32"),
-                       CH_BLOQUEADO: ("#FBDDDA", "#B3261E")}
+                       CH_BLOQUEADO: ("#FDECEA", "#B42318")}
 
     def cartoes(ls):
         if not ls:
@@ -18481,7 +18481,7 @@ def bap_champions(ctx):
     def tons(ls, i_sit):
         return ["ok" if x[i_sit] == CH_LIBERADO else "" for x in ls]
     chip_sit = {CH_LIBERADO: ("#E5F3DF", "#2F7D32"),
-                CH_BLOQUEADO: ("#FBDDDA", "#B3261E")}
+                CH_BLOQUEADO: ("#FDECEA", "#B42318")}
     cols_pessoa = [col("POS.", "int", 46)]
     cols_ating = [col("FAT. BRUTO", "moeda", 105),
                   col("DEVOLUÇÕES", "moeda", 100),
@@ -19332,13 +19332,13 @@ PAINEIS_PADRAO = {
 LINHA_PINTADA = ("pv_pedidos", "vc_markup", "vc_saldo")
 # (21/10) Farol de Visita: % META (>= 100 verde, >= 80 amarelo, abaixo
 # vermelho) e DU SEM VISITA (0 sem cor, 1 a 2 amarelo, 3 ou mais vermelho)
-FAIXA_PCT_META = [(79.9999, "#FBDDDA", "#B3261E"),
+FAIXA_PCT_META = [(79.9999, "#FDECEA", "#B42318"),
                   (99.9999, "#FFF1C7", "#8A5A00"), (None, "#E5F3DF", "#2F7D32")]
 FAIXA_DU_SEM = [(0, None, None), (2, "#FFF1C7", "#8A5A00"),
-                (None, "#FBDDDA", "#B3261E")]
+                (None, "#FDECEA", "#B42318")]
 COLUNAS_SINAL = ("SITUAÇÃO", "STATUS", "PRAZO", "ETAPA", "FAIXA",
                  "SITUAÇÃO PRAZO", "LEITURA", "SLA NCC")
-_VERM = ("#FBDDDA", "#B3261E")
+_VERM = ("#FDECEA", "#B42318")
 _AMAR = ("#FFF1C7", "#8A5A00")
 _VERD = ("#E5F3DF", "#2F7D32")
 CORES_SINAL = {
