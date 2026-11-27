@@ -1,7 +1,7 @@
-"""T-0036 (contrato §10.9, desenho T-0036): faróis do Analista Comercial e perfis `analista` e `trade`.
+"""T-0036 (contrato §10.11, desenho T-0036): faróis do Analista Comercial e perfis `analista` e `trade`.
 
-Dados 100% fictícios. Cada teste cita a RN. RN-GER-014 (perfis analista e trade) é a numeração proposta no desenho;
-vale a matriz do §2 do desenho, com a P1 = A (o analista vê os outros faróis como o gerente).
+Dados 100% fictícios. Cada teste cita a RN: RN-GER-017 (perfis analista e trade, a matriz do §2 do desenho, com a
+P1 = A: o analista vê os outros faróis como o gerente) e RN-GER-014 (nos faróis novos, o diretor vê só o Resumo).
 """
 import io
 import re
@@ -9,7 +9,7 @@ import zipfile
 from copy import deepcopy
 
 import pytest
-from analista_fixture import RIDS_NOVOS, correcao, pacote_analista, tabela
+from analista_fixture import RIDS_NOVOS, correcao, pacote_analista, pacote_coerente, tabela
 from conftest import postar, token_form
 from farol_fixture import pacote_tres_farois
 from test_farois import _usuario
@@ -51,12 +51,12 @@ def _recusa(cli, pacote):
 
 
 # ------------------------------------------------------------------ perfis e menu
-def test_RN_GER_014_perfis_analista_e_trade():
+def test_RN_GER_017_perfis_analista_e_trade():
     assert "analista" in usuarios.PERFIS and "trade" in usuarios.PERFIS
     assert len(usuarios.PERFIS) == 8
 
 
-def test_RN_GER_014_leitura_geral_e_fonte_unica():
+def test_RN_GER_017_leitura_geral_e_fonte_unica():
     # P1 = A: o analista entra pela constante, em todos os faróis e tabelas
     assert render.LEITURA_GERAL == ("admin", "gerente", "analista")
     for rid, (_, perfis) in render.FAROIS.items():
@@ -67,7 +67,7 @@ def test_RN_GER_014_leitura_geral_e_fonte_unica():
     assert "analista" in cobranca.VE_TABELAS and "analista" not in cobranca.COBRA
 
 
-def test_RN_GER_014_menu_do_analista_tem_o_grupo_analista_comercial():
+def test_RN_GER_017_menu_do_analista_tem_o_grupo_analista_comercial():
     no_pacote = {rid: {} for rid in render.FAROIS}
     grupos = render.menu_lateral("analista", no_pacote, None, painel=True)
     nomes = [g["nome"] for g in grupos]
@@ -80,9 +80,22 @@ def test_RN_GER_014_menu_do_analista_tem_o_grupo_analista_comercial():
     for p in ("trade", "pre_venda", "vendas", "pos_venda"):
         assert "Analista Comercial" not in [g["nome"] for g in render.menu_lateral(p, no_pacote, None)]
     assert "Analista Comercial" in [g["nome"] for g in render.menu_lateral("diretor", no_pacote, None)]
+    # o grupo "Trade" (contrato §10.10.1) existe e fica vazio até o Farol de Expositores entrar (T-0025 v2)
+    assert ("Trade", ("tm_expositores",)) in render.GRUPOS_MENU
+    assert "Trade" not in [g["nome"] for g in render.menu_lateral("trade", no_pacote, None)]
 
 
-def test_RN_GER_014_pagina_inicial_do_trade_sem_farol(admin, usu):
+def test_T0036_pacote_da_simulacao_passa_no_contrato_e_fecha_as_contas():
+    p = pacote_coerente()
+    for rid, f in p["relatorios"].items():
+        assert tabelas.validar(rid, f) == [], rid
+    t = {x["titulo"]: x for x in p["relatorios"]["vc_saldo"]["tabelas"]}["Pedido a pedido"]
+    n = [c["nome"] for c in t["colunas"]]
+    for ln in t["linhas"]:                                   # desconto = tabela − venda (a faixa soma isso)
+        assert abs(ln[n.index("VLR TABELA")] - ln[n.index("VLR VENDA")] - ln[n.index("DESC. COMERCIAL")]) < 0.02
+
+
+def test_RN_GER_017_pagina_inicial_do_trade_sem_farol(admin, usu):
     r = usu("trade").get("/")
     assert r.status_code == 200 and "Nenhum farol do Trade Marketing no site ainda." in r.text
     assert "bc3-lado" in r.text and "BAP AUTOPARTS" in r.text            # casca BC3 com a marca (UX 9, 5)
@@ -90,20 +103,20 @@ def test_RN_GER_014_pagina_inicial_do_trade_sem_farol(admin, usu):
     assert "Dados de" not in r.text and "v0.5" not in r.text and "aviso atencao" not in r.text
 
 
-def test_RN_GER_014_inicio_do_analista_abre_no_farol_de_saldo(admin, usu):
+def test_RN_GER_017_inicio_do_analista_abre_no_farol_de_saldo(admin, usu):
     r = usu("analista").get("/", follow_redirects=False)
     assert r.status_code == 302 and r.headers["location"] == "/farol/vc_saldo"
     assert usu("gerente").get("/", follow_redirects=False).status_code == 200
 
 
-def test_RN_GER_014_analista_abre_o_painel_como_o_gerente(usu):
+def test_RN_GER_017_analista_abre_o_painel_como_o_gerente(usu):
     for p in ("analista", "gerente", "diretor"):
         assert usu(p).get("/painel").status_code == 200
     assert usu("trade").get("/painel").status_code == 403
 
 
 # ------------------------------------------------------------------ matriz perfil x farol x aba
-def test_RN_GER_014_matriz_de_perfis_nos_quatro_farois(com_analista, usu):
+def test_RN_GER_017_matriz_de_perfis_nos_quatro_farois(com_analista, usu):
     for perfil in TODOS:
         c = usu(perfil)
         for rid in RIDS_NOVOS:
@@ -114,7 +127,15 @@ def test_RN_GER_014_matriz_de_perfis_nos_quatro_farois(com_analista, usu):
                 assert c.get(f"/farol/{rid}?aba={chave}").status_code == esperado, (perfil, rid, chave)
 
 
-def test_RN_GER_014_analista_ve_os_outros_farois_como_o_gerente(admin, usu):
+def test_RN_GER_014_diretor_so_resumo_nos_farois_do_analista(com_analista, usu):
+    c = usu("diretor")
+    for rid in RIDS_NOVOS:
+        assert c.get(f"/farol/{rid}").status_code == 200, rid
+        for chave, _ in tabelas.ABAS[rid]:
+            assert c.get(f"/farol/{rid}?aba={chave}").status_code == 403, (rid, chave)
+
+
+def test_RN_GER_017_analista_ve_os_outros_farois_como_o_gerente(admin, usu):
     assert postar(admin, pacote_tres_farois()).status_code == 200
     for rid in ("pv_pedidos", "pl_entregas", "vc_visitas"):
         for perfil in ("analista", "gerente"):
@@ -149,7 +170,7 @@ def test_RN_GER_001_meta_rh_fora_do_analista_e_do_trade(admin, usu):
             assert usu(p).get(url).status_code in (403, 404)
 
 
-# ------------------------------------------------------------------ colunas: lista positiva (§10.9.3)
+# ------------------------------------------------------------------ colunas: lista positiva (§10.11.3)
 def test_RN_GER_011_pacote_do_analista_aceito_e_sem_coluna_de_nome(cli, amb):
     assert postar(cli, pacote_analista()).status_code == 200
     from conftest import guardado
@@ -244,7 +265,7 @@ def test_RN_GER_006_estado_pela_coluna_uf_das_linhas(com_analista):
     assert todo.count("MANAUS") > 0 and h.count("MANAUS") == 0 and h.count("BELEM") > 0
 
 
-# ------------------------------------------------------------------ Excel de correção (§10.9.4): só admin
+# ------------------------------------------------------------------ Excel de correção (§10.11.4): só admin
 def test_RN_GER_012_correcao_so_admin(com_analista, usu):
     for p in ("gerente", "analista", "diretor", "trade", "pre_venda", "vendas", "pos_venda"):
         assert usu(p).get(CORRECAO).status_code == 403, p
@@ -323,12 +344,12 @@ def test_RN_GER_011_grade_nos_quatro_farois_sem_rolagem_lateral(com_analista):
     for (rid, titulo), cols in tabelas.COLUNAS_RID.items():
         g = tabelas.GRADE[(rid, titulo)]
         nomes = [n for n, _, o in cols if not o]
-        assert len(g["grade"]) <= 10 and len(g["cel"]) in (3, 4) and g["chave"] in g["grade"], (rid, titulo)
-        assert set(g["grade"]) <= set(nomes) and set(g["cel"]) <= set(nomes), (rid, titulo)
+        assert len(g["grade"]) <= 10 and len(g["cel"]) == 4 and g["chave"] in g["grade"], (rid, titulo)
+        assert set(g["grade"]) <= set(nomes) and set(g["cel"]) - {None} <= set(nomes), (rid, titulo)
     for rid in RIDS_NOVOS:
         for chave, _ in tabelas.ABAS[rid]:
             h = com_analista.get(f"/farol/{rid}?aba={chave}").text
-            assert "Role para o lado" not in h and "grade-lote" in h and "bc3-lista" in h, (rid, chave)
+            assert "Role para o lado" not in h and "bc3-lista" in h, (rid, chave)
 
 
 def test_T0036_abas_curtas_e_dica_da_busca_por_farol(com_analista):
@@ -351,10 +372,9 @@ def test_T0036_faixa_com_no_maximo_seis_numeros(com_analista):
         assert h.count('class="bc3-k ') == 6, rid
 
 
-def test_T0036_faixa_sem_dados_de_e_com_data_curta_no_celular(com_analista):
-    h = com_analista.get("/farol/vc_saldo").text
-    assert "Dados de" in h and 'class="bc3-quando" title="Dados de 24/11/2026 08:30"' in h   # só no title
-    assert '<span class="q-cel">24/11 08:30</span>' in h and ">Dados de" not in h
+def test_T0036_faixa_com_a_data_do_cabecalho_comum(com_analista):
+    h = com_analista.get("/farol/vc_saldo").text           # a mesma faixa dos outros faróis (tela-bc3 §4.1, T-0033)
+    assert 'class="bc3-quando" title="Dados de 24/11/2026 08:30, horário de Manaus"' in h
 
 
 def test_T0036_rotulo_da_coluna_sem_nome_do_campo_do_protheus(com_analista):
@@ -366,7 +386,7 @@ def test_T0036_rotulo_da_coluna_sem_nome_do_campo_do_protheus(com_analista):
 
 def test_T0036_casca_com_a_marca_bap(com_analista):
     h = com_analista.get("/farol/vc_saldo").text
-    assert 'class="bc3-marca"' in h and "logo_bap.png" in h and "BAP AUTOPARTS" in h
+    assert 'class="bc3-marca"' in h and "BAP AUTOPARTS" in h      # o logo vem do CSS da marca (T-0033)
     assert com_analista.get("/static/logo_bap.png").content[:4] == b"\x89PNG"
 
 
@@ -377,7 +397,7 @@ def test_T0036_faixa_do_celular_com_rotulo_curto_e_titulo_inteiro_no_title(com_a
     assert tabelas.kpi_curto("Faturamento NOV") == "Fat. NOV" and tabelas.kpi_curto("Markup") == "Markup"
     assert dict(tabelas.ABAS["an_divergencias"])["sem_coordenada"] and \
         tabelas.rotulo_aba("an_divergencias", "Sem coordenada / endereço") == "Sem coord."
-    assert tabelas.GRADE[("an_divergencias", "Clientes divergentes")]["cel"] == ("COD", "CIDADE", "SITUAÇÃO")
+    assert tabelas.GRADE[("an_divergencias", "Clientes divergentes")]["cel"] == ("COD", "CIDADE", "SITUAÇÃO", None)
 
 
 def test_T0036_titulo_da_coluna_sem_a_unidade_do_numero(com_analista):

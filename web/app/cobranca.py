@@ -18,6 +18,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import tabelas
+from .render import coluna_fora       # RD-0037: a lista de colunas fora (RN-GER-011) é uma só, a do `render`
 from .arquivos import gravar_json
 
 try:                                    # Render é Linux; sem fcntl só vale o trinco da thread
@@ -88,7 +89,6 @@ def _chip_ok(chip) -> bool:
         isinstance(k, str) and len(k) < 60 and isinstance(v, (list, tuple)) and len(v) == 2
         and all(isinstance(x, str) and RE_COR.match(x) for x in v) for k, v in chip.items())
 PROIBIDAS_TABELA = {"edicao", "editar", "abrir", "detalhe", "kpis_de", "recortes", "juntas"}
-COLUNAS_PROIBIDAS = {"TELEFONE", "CNPJ", "CPF", "E-MAIL", "EMAIL"}
 CHAVES_TABELA = {"titulo", "colunas", "linhas", "tons", "total", "filtros"}
 CHAVES_ITEM = {"cod", "nome", "nome_msg", "cidade", "uf", "vendedor", "supervisor", "em_atraso",
                "maior", "whatsapp", "aviso", "titulos", "mensagem", "ultimo"}
@@ -118,7 +118,7 @@ def _achar_proibida(o, nivel=0) -> str | None:
     if isinstance(o, dict):
         for k, v in o.items():
             if isinstance(k, str) and (k in PROIBIDAS_TABELA or k.startswith("_")
-                                       or k.startswith("exportar") or k.upper() in COLUNAS_PROIBIDAS):
+                                       or k.startswith("exportar") or coluna_fora(k)):
                 return k[:20]
             achou = _achar_proibida(v, nivel + 1)
             if achou:
@@ -151,7 +151,7 @@ def _tabela_erro(t, titulo) -> str | None:
     if not isinstance(cols, list):
         return f"tabela {titulo}: colunas ausentes"
     nomes = [str(c.get("nome", "")).upper() if isinstance(c, dict) else "" for c in cols]
-    if COLUNAS_PROIBIDAS & set(nomes):
+    if any(coluna_fora(n) for n in nomes):
         return f"tabela {titulo}: coluna proibida (telefone, CNPJ, CPF ou e-mail)"
     esperado = colunas_esperadas(titulo, cols)
     ok = len(cols) == len(esperado) and all(
@@ -549,13 +549,13 @@ def fmt_celula(v, tipo) -> str:
     return tabelas.fmt_celula(v, tipo, centavos=True)
 
 
-def tabela_para_tela(t: dict, titulo: str, consulta: dict, pagina_tam: int = 100) -> dict:
+def tabela_para_tela(t: dict, titulo: str, consulta: dict, pagina_tam: int = tabelas.PAGINA_TAM) -> dict:
     """Filtra, ordena e pagina no servidor. `consulta`: f<i> (lista de valores), ord, dir, pag.
     Desde a T-0017 (§10.7) é a tela genérica de `tabelas`, com o mesmo resultado de antes:
     cliente, nome e valor primeiro, moeda com centavos e o total sempre à mostra."""
     cols = colunas_esperadas(titulo, t["colunas"])
     return tabelas.tabela_para_tela(t, consulta, pagina_tam=pagina_tam, ordem_tela=ordem_tela(titulo, cols),
-                                    centavos=True, total_sempre=True, vazios_no_fim=False, titulo=titulo)
+                                    centavos=True, total_sempre=True, vazios_no_fim=False, titulo=titulo, rid=RID)
 
 
 def fone_bonito(n: str) -> str:

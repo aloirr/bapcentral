@@ -178,7 +178,7 @@ def _csvs_erro(rid: str, c) -> str | None:
     return None
 
 
-# T-0036 (contrato §10.9.4): Excel de correção das Divergências (só admin), sem a coluna CLIENTE
+# T-0036 (contrato §10.11.4): Excel de correção das Divergências (só admin), sem a coluna CLIENTE
 MAX_CORRECAO_BYTES = 2_000_000
 CORRECAO_COLUNAS = {
     "corrigir": ("CORRIGIR NO PROTHEUS", ("A1_FILIAL", "A1_COD", "A1_LOJA", "CIDADE", "UF", "A1_VEND ATUAL",

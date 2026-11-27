@@ -61,7 +61,7 @@ def paginas(pacote: dict, pedidos: list[tuple[str, str]]) -> list[tuple[int, str
                     sessoes[perfil] = c
                 r = sessoes[perfil].get(url)
                 html = r.text.replace('<link rel="stylesheet" href="/static/estilo.css">', f"<style>{css}</style>")
-                # T-0036: o JS (uma tela no PC, abas com "Mais") e o logo também vão dentro do HTML
+                # T-0036: o JS (uma tela no PC, lista do celular) e o logo também vão dentro do HTML
                 js = (AQUI / "app" / "static" / "bc3.js").read_text(encoding="utf-8")
                 html = html.replace('<script src="/static/bc3.js"></script>', f"<script>{js}</script>")
                 logo = base64.b64encode((AQUI / "app" / "static" / "logo_bap.png").read_bytes()).decode()

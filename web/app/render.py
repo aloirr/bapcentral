@@ -11,11 +11,13 @@ import math
 import re
 import unicodedata
 
+from . import marca
+
 R_ANEL = 34
 CIRC = 2 * math.pi * R_ANEL
-TITULOS = {"res": "Painel do Diretor · resultado",
-           "prod": "Painel do Diretor · produtividade",
-           "du": "Painel do Diretor · por dia útil"}
+TITULOS = {"res": "Painel Executivo · resultado",
+           "prod": "Painel Executivo · produtividade",
+           "du": "Painel Executivo · por dia útil"}
 
 
 def br(v, d=0) -> str:
@@ -110,7 +112,7 @@ def localizar_abas(rel: dict) -> list[dict]:
     return abas
 
 
-COMO_LER_ESTADO = ("Número do estado como na barra dele no Painel do Diretor do PC; "
+COMO_LER_ESTADO = ("Número do estado como na barra dele no Painel Executivo do PC; "
                    "% = atingimento da meta do estado, ou variação × mês anterior sem meta. "
                    "Cartão com — não tem número por estado.")
 
@@ -162,7 +164,7 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "pl_frw": ("Farol de Estoque FRW", LEITURA_GERAL + ("diretor", "pre_venda", "pos_venda")),
     # T-0022: o Farol de Metas Equipe é da área CRM e Pós-venda (vendas), como o de Visita
     "vc_meta": ("Farol de Metas Equipe", LEITURA_GERAL + ("diretor", "vendas")),
-    # T-0036 (contrato §10.9.6): Analista Comercial; o diretor vê só o Resumo
+    # T-0036 (contrato §10.11.6): Analista Comercial; o diretor vê só o Resumo
     "vc_saldo": ("Farol de Saldo", LEITURA_GERAL + ("diretor",)),
     "vc_markup": ("Farol de Markup", LEITURA_GERAL + ("diretor",)),
     "vc_preco": ("Farol de Preço", LEITURA_GERAL + ("diretor",)),
@@ -175,9 +177,8 @@ NOME_MENU = {"pv_indicadores": "Indicadores", "vc_base": "Clientes", "vc_planner
              "pl_giro": "Giro de produtos", "pl_frw": "Estoque FRW",
              # T-0036 (revisão de UX, 7): na lateral o nome é curto; o completo fica na faixa
              "vc_saldo": "Saldo", "vc_markup": "Markup", "vc_preco": "Preço", "an_divergencias": "Divergências"}
-AVISO_UF = "Resumo e gráficos: BAP inteira."
+AVISO_UF = "Os outros cartões, o resumo e os gráficos: só na BAP inteira."   # T-0033 (RD-0034): um aviso só
 SEM_DADO_UF = "Sem números de {uf} neste pacote."
-SEM_RECORTE = "só na BAP inteira"
 INDISPONIVEL = "ainda não disponível na web"
 _COR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -188,7 +189,9 @@ BC3 = set(FAROIS)                       # T-0031: todos os faróis no BC3
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
                ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_frw")),
                ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")),   # T-0024: lote 2 no menu
-               ("Analista Comercial", ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")))
+               ("Analista Comercial", ("vc_saldo", "vc_markup", "vc_preco", "an_divergencias")),
+               # T-0036 (contrato §10.10.1): o grupo do trade; aparece quando o Farol de Expositores entrar (T-0025 v2)
+               ("Trade", ("tm_expositores",)))
 
 
 def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool = False,
@@ -200,7 +203,8 @@ def menu_lateral(perfil: str, no_pacote: dict, ativo: str | None, painel: bool =
         grupos.append({"nome": "Diretoria", "itens": [{"href": "/painel", "nome": "Painel Executivo",
                                                        "ativo": ativo == "painel"}]})
     for nome, rids in GRUPOS_MENU:
-        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r]), "ativo": r == ativo}
+        itens = [{"href": f"/farol/{r}" if r in no_pacote else "", "nome": NOME_MENU.get(r, meus[r].removeprefix("Farol de ")),
+                  "ativo": r == ativo}
                  for r in rids if r in meus]
         if itens:
             grupos.append({"nome": nome, "itens": itens})
@@ -346,8 +350,8 @@ def _bloco_barras(b) -> dict:
     formato = g.get("formato", "num")
     series = []
     for s in _lista(g.get("series")):
-        series.append({"nome": str(s.get("nome", "")), "cor": _cor(s.get("cor"), "#8fa79a"),
-                       "cor_neg": _cor(s.get("cor_negativo"), "#b3261e"),
+        series.append({"nome": str(s.get("nome", "")), "cor": _cor(s.get("cor"), marca.TOKENS["--grafico-3"]),
+                       "cor_neg": _cor(s.get("cor_negativo"), marca.TOKENS["--alerta"]),
                        "vals": [_num(v) for v in _lista(s.get("valores"))],
                        "txt": [str(t) for t in _lista(s.get("rotulos"))]})
     meta = _num(g.get("meta"))
@@ -385,7 +389,7 @@ def _bloco_hbarras(b) -> dict:
         v = vals[i] if i < len(vals) else None
         linhas.append({"rot": r_, "txt": fmt_valor(v, formato),
                        "larg": 0 if not v else round(max(2.0, 100 * abs(v) / mx), 1),
-                       "cor": _cor(cores[i] if i < len(cores) else None, "#8fa79a")})
+                       "cor": _cor(cores[i] if i < len(cores) else None, marca.TOKENS["--grafico-3"])})
     return {"tipo": "hbarras", "titulo": str(b.get("titulo", "")), "linhas": linhas,
             "ref": {"pos": round(100 * abs(ref) / mx, 1), "txt": fmt_valor(ref, formato)} if ref else None}
 
@@ -592,9 +596,10 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
         r_uf = rel["recortes"][uf]
         rec = [r for r in _lista(r_uf.get("kpis")) if isinstance(r, dict)]
         todos = [k for k in _lista(rel.get("kpis")) if isinstance(k, dict)]
-        # cartão da BAP inteira que o estado não tem (ex.: fotos sem filial): "—" e a dica
+        # cartão da BAP inteira que o estado não tem (ex.: fotos sem filial): "—" sem dica (o `cartao_vazio` o tira e o
+        # AVISO_UF diz uma vez só que os outros são da BAP inteira)
         kpis = [next((r for r in rec if r.get("rotulo") == k.get("rotulo")), None)
-                or {"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro", "detalhe": SEM_RECORTE}
+                or {"rotulo": k.get("rotulo", ""), "valor": "—", "cor": "neutro"}
                 for k in todos]
         kpis += [r for r in rec if r.get("rotulo") not in {k.get("rotulo") for k in todos}]
     elif re.match(r"^[A-Z]{2}$", uf):
@@ -610,10 +615,16 @@ def farol_para_tela(rel: dict, uf: str | None = None, rid: str | None = None) ->
     if rid in LOTE2:                                    # T-0024 (R2): um cartão por métrica, Dia · Semana · Mês dentro
         blocos = sem_graficos_repetidos(agrupar_periodos(blocos))
     cartoes = [k for k in map(_kpi, _lista(kpis)) if k and not cartao_vazio(k)]
+    insights = sem_repeticao(_insights(fonte.get("insights_painel")) or ins_blocos, cartoes)
+    ditas = {i["texto"] for i in insights}                 # RD-0035: a frase fica só em "O que o painel diz"
+    for b in blocos:
+        for c in (b.get("cartoes") or []) if b.get("tipo") == "placar" else []:
+            if c.get("frase") in ditas:
+                c["frase"] = ""
     return {"titulo": str(rel.get("titulo", "")), "ufs": ufs, "uf": uf,
             "faixa": bool(rel.get("kpis_faixa")),   # cartões em faixa fina, como o PC
             "kpis": cartoes,
-            "insights": sem_repeticao(_insights(fonte.get("insights_painel")) or ins_blocos, cartoes), "blocos": blocos,
+            "insights": insights, "blocos": blocos,
             "avisos": [str(a) for a in _lista(rel.get("avisos")) if not str(a).startswith("Sem filtro por estado")],
             "avisos_info": [str(a) for a in _lista(rel.get("avisos")) if str(a).startswith("Sem filtro por estado")],
             "aviso_uf": (((SEM_DADO_UF.format(uf=uf) + " ") if sem_dado else "") + AVISO_UF

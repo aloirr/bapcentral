@@ -30,10 +30,10 @@ def test_RN_GER_013_caixa_ignorar_marcada_por_padrao_e_desmarcar_mostra(admin):
     p, ped = _pacote_com_fora_da_base()
     assert postar(admin, p).status_code == 200
     h = admin.get("/farol/pv_pedidos?aba=pedidos").text
-    assert 'class="bc3-chk" role="checkbox" aria-checked="true"' in h and "Ignorar fora da base (1)" in h
+    assert 'class="bc3-chk"' in h and '✓</i>Ignorar fora da base (1)' in h and ": ligado</span>" in h
     assert f">{ped}<" not in h.split('class="bc3-corpo"')[1]
     h = admin.get("/farol/pv_pedidos?aba=pedidos&fora=1").text
-    assert 'aria-checked="false"' in h and f">{ped}<" in h and tabelas.NOME_FORA_DA_BASE in h
+    assert ": desligado</span>" in h and "✓</i>Ignorar" not in h and f">{ped}<" in h and tabelas.NOME_FORA_DA_BASE in h
 
 
 def test_RN_GER_013_nome_antigo_do_pacote_tambem_conta():
