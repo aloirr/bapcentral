@@ -37,7 +37,7 @@ Você revisa a **tela** de todo PR que mexe em tela (web/**, templates, CSS, PDF
 
 ## Checklist de redundância
 - O mesmo número não aparece duas vezes na mesma tela (cartão e resumo gerencial, por exemplo).
-- Um só carimbo de hora por tela ("Dados de … (Manaus)"), não dois.
+- Um só carimbo de hora por tela, não dois. Na faixa, só a data e a hora ("24/11/2026 08:30" no PC, "24/11 08:30" no celular); o "Dados de …, horário de Manaus" fica só no `title`, ao parar o mouse (R-20261127-054626-po).
 - O título não repete o nome da aba; o rótulo não repete o que o filtro já diz.
 - Tabela sem colunas iguais (ex.: PEDIDO e PED. MÁX. com o mesmo valor) e sem colunas que só repetem outra.
 - Unidade ("R$", "un.") no título ou no número, não nos dois.
