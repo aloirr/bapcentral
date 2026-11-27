@@ -6,3 +6,4 @@
 2026-11-20 — T-0013 — trava do fuso (503), sessão invalidada no servidor e acertos do parecer (CSRF, tipos do pacote, login, CSS, limites)
 2026-11-26 — T-0024 / T-0032 — #89: merge do main, 5 faróis do lote 2 no BC3 (menu lateral incluído), simulação PNG; correção mobile do botão Parcial (390 px) levada ao #89 porque o #124 entrou antes
 2026-11-26 — T-0035 — pacote por farol na web (0.4.0): rotas por farol e fechar, Indice com LRU 96 MB, /saude com memória, selo Desatualizado
+2026-11-27 — T-0037 — merge do main; Fretes na GRADE (9 colunas + Editar), IRMAOS explícito (Fretes/Entregas, sem a Devolução), ABA_CURTA, DICA_BUSCA, MSG_SEM_CHAVE_POR_LUGAR; fixture coerente; simulações refeitas

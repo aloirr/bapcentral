@@ -32,8 +32,8 @@ def test_RN_POS_010_lugar_e_entradas_do_fretes():
 def test_RN_POS_010_pacote_com_as_4_abas_aceito_e_as_abas_aparecem(admin):
     _pacote_ok(admin)
     html = admin.get("/farol/pl_fretes").text
-    for nome in (TIT, "Por UF", "Por cidade", "Por transportadora"):
-        assert nome in html
+    for nome in ("Notas", "UF", "Cidade", "Transportadora"):       # ABA_CURTA (T-0033): o título do pacote não muda
+        assert f">{nome}<" in html
     for aba in ("notas", "uf", "cidade", "transportadora"):
         assert admin.get(f"/farol/pl_fretes?aba={aba}").status_code == 200
 
@@ -124,3 +124,44 @@ def test_RN_POS_010_formulario_mostra_a_data_real_da_fixture(admin):
     _pacote_ok(admin)
     url = "/farol/pl_fretes/editar?tab=Notas%20com%20frete&chave=FILIAL%20FICTICIA%7C7002%7C1"
     assert 'value="2026-11-10"' in admin.get(url).text           # DT. REAL = 10/11/2026 (ISO no campo)
+
+
+def test_RN_POS_010_marca_do_fretes_vai_ao_entregas_e_nao_a_devolucao(amb, monkeypatch):
+    """IRMAOS é lista explícita (desenho §4.4): a Devolução também é `pos_venda`, mas é outra aba do PC."""
+    dev = ("pl_devolucoes", "Devoluções")
+    monkeypatch.setitem(edicoes.LUGARES, dev, "pos_venda")        # mesmo com a Devolução no LUGARES (T-0023)
+    assert not any(dev in g for g in edicoes.IRMAOS)
+    assert edicoes.IRMAOS == (frozenset({("pl_fretes", TIT), ("pl_entregas", "Entregas"),
+                                         ("pl_entregas", "Pendências dos meses anteriores")}),)
+    f = edicoes.Fila(amb)
+    ch = "FILIAL FICTICIA|7009|1"
+    f.registrar(usuario="x", rid="pl_fretes", tabela=TIT, modulo="pos_venda", chave=ch,
+                valores={"etapa": "EM TRÂNSITO"}, antes={})
+    assert ("Entregas", ch) in f.situacao("pl_entregas")
+    assert ("Pendências dos meses anteriores", ch) in f.situacao("pl_entregas")
+    assert f.situacao("pl_devolucoes") == {}                       # a Devolução de mesma chave não é marcada
+
+
+def test_RN_POS_010_grade_do_fretes_ate_10_colunas_e_popup_sem_repetir():
+    g = tabelas.GRADE[("pl_fretes", TIT)]
+    assert g["chave"] == "NF" and g["chave"] in g["grade"] and len(g["grade"]) <= 10
+    for c in ("ETAPA", "TRANSPORTADORA", "ENTREGAR ATÉ", "ENTREGUE"):   # as editáveis ficam na grade (§7.1)
+        assert c in g["grade"]
+    no_popup = [c for _, cs in g["blocos"] for c in cs]
+    assert "RESPONSÁVEL" in no_popup and not set(no_popup) & set(g["grade"])
+    cols = {c[0] for c in tabelas.COLUNAS[TIT]}
+    assert set(g["grade"]) | set(no_popup) <= cols
+
+
+def test_RN_POS_010_aba_curta_e_dica_da_busca(admin):
+    assert tabelas.aba_curta(TIT) == "Notas" and tabelas.aba_curta("Por transportadora") == "Transportadora"
+    assert tabelas.dica_busca("pl_fretes", TIT, 50) == "Buscar NF ou cliente"
+    assert tabelas.dica_busca("pl_entregas", "Entregas", 50) is None   # os faróis antigos seguem com a dica padrão
+    _pacote_ok(admin)
+    assert 'placeholder="Buscar NF ou cliente"' in admin.get(URL).text
+
+
+def test_RN_POS_010_pacote_do_fretes_nao_traz_frete_real():
+    from fretes_fixture import pacote_fretes as pf
+    t = pf()["relatorios"]["pl_fretes"]["tabelas"][0]
+    assert "frete_real" not in [c["campo"] for c in t["edicao"]["campos"]]   # P2 A: o VLR FRETE (REAL) fica no Entregas

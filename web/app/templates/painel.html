@@ -11,7 +11,7 @@
 </nav>
 {% if filtros and filtros.ufs and not (tela_f and tela_f.so_bap) %}
 <nav class="filtros" aria-label="Filtro por estado">
-  <a href="/painel?aba={{ aba }}" class="{{ 'ativa' if not uf }}">BAP inteira</a>
+  <a href="/painel?aba={{ aba }}" class="{{ 'ativa' if not uf }}">BAP</a>
   {% for u in filtros.ufs %}<a href="/painel?aba={{ aba }}&uf={{ u }}" class="{{ 'ativa' if u == uf }}">{{ u }}</a>{% endfor %}
 </nav>
 {% endif %}
