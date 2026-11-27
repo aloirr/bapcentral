@@ -7506,8 +7506,7 @@ AVISO_ENTREGAS_RECENTES = ("A aba Entregas ficou só com as entregas mais "
                            "PC.")
 # ordem dos cortes por farol (10.8.7); no fim, qualquer farol perde as `tabelas`
 _CORTES_FAROL_WEB = {
-    "pv_pedidos": ("solicitacao_so_em_aberto", "cliente_a_cliente_fora",
-                   "tabelas"),
+    "pv_pedidos": ("solicitacao_so_em_aberto", "tabelas"),
     "pl_entregas": ("junta_pendencias_fora", "entregas_so_recentes",
                     "tabelas"),
     "vc_visitas": ("cliente_a_cliente_fora", "tabelas"),
@@ -8376,28 +8375,55 @@ def _data_linha_web(ln, ix_ped, ix_nf) -> str:
     return ""
 
 
+def _reindexar_linhas_web(t: dict, orig: dict, ficam: list) -> None:
+    """Muda `t`: fica so com as linhas `ficam` (indices da `orig`, ja em ordem
+    original) e refaz tudo que depende do indice da linha: tons, uf_linhas,
+    recortes_linhas e a edicao (chaves, grupo_linhas, sugestoes_linhas,
+    linhas dos campos). A web recusa a tabela se algum deles nao bater."""
+    import copy                                         # noqa: PLC0415
+    novo = {k: j for j, k in enumerate(ficam)}
+    t["linhas"] = [orig["linhas"][k] for k in ficam]
+    for chave in ("tons", "uf_linhas"):
+        if isinstance(orig.get(chave), list):
+            t[chave] = [orig[chave][k] for k in ficam]
+    if isinstance(orig.get("recortes_linhas"), list):
+        t["recortes_linhas"] = [
+            dict(r, linhas=[novo[k] for k in r.get("linhas", []) if k in novo])
+            for r in orig["recortes_linhas"]]
+    ed = orig.get("edicao")
+    if isinstance(ed, dict):
+        ed = copy.deepcopy(ed)
+        ed["chaves"] = [ed["chaves"][k] for k in ficam]
+        for c in ed.get("campos") or []:
+            for chave in ("grupo_linhas", "sugestoes_linhas"):
+                if isinstance(c.get(chave), list):
+                    c[chave] = [c[chave][k] for k in ficam]
+            if isinstance(c.get("linhas"), list):
+                c["linhas"] = [novo[k] for k in c["linhas"] if k in novo]
+        t["edicao"] = ed
+
+
 def _corte_linhas_entregas_web(rid: str, rel: dict, cabe) -> None:
     """Entregas: mantem so as linhas mais recentes (DT. PED), em fatias de
     _FRACOES_ENTREGAS_WEB, ate `cabe(rel)`. Tira `tons` junto. Se nem a menor
     fatia couber, devolve a aba na menor fatia (o corte seguinte tira a aba)."""
+    import copy                                         # noqa: PLC0415
     for t in rel.get("tabelas") or []:
         if t.get("titulo") != "Entregas" or not t.get("linhas"):
             continue
         nomes = [c["nome"] for c in t["colunas"]]
         ix_ped = nomes.index("DT. PED") if "DT. PED" in nomes else None
         ix_nf = nomes.index("DT. NF") if "DT. NF" in nomes else None
-        base = list(zip(t["linhas"], t.get("tons")
-                        or [""] * len(t["linhas"])))
-        base.sort(key=lambda p: _data_linha_web(p[0], ix_ped, ix_nf),
-                  reverse=True)                     # estavel: mais novas antes
-        total, cortou = len(base), False
+        chave = [_data_linha_web(ln, ix_ped, ix_nf) for ln in t["linhas"]]
+        ordem = sorted(range(len(chave)), key=lambda k: chave[k],
+                       reverse=True)                # mais novas primeiro
+        total, cortou = len(ordem), False
+        orig = copy.deepcopy(t)                     # sempre refaz do inteiro
         for fr in _FRACOES_ENTREGAS_WEB:
             n = max(1, int(total * fr))
             if n >= total:
                 continue
-            ficam = base[:n]
-            t["linhas"] = [p[0] for p in ficam]
-            t["tons"] = [p[1] for p in ficam]
+            _reindexar_linhas_web(t, orig, sorted(ordem[:n]))
             cortou = True
             if cabe(rel):
                 break
@@ -8906,7 +8932,7 @@ def enviar_pacote_por_farol(pacote: dict, url=None, token=None, log=print,
                         gzip.compress(corpo, 6))
 
     def enviar(rid) -> str:
-        """'ok', 'manter' ou 'fora'."""
+        """'ok', 'manter', 'fora' ou 'auth' (401/403: para o lote)."""
         sha, gz = prontos[rid]
         cab = {"Authorization": f"Bearer {token}",
                "Content-Type": "application/json",
@@ -8917,6 +8943,10 @@ def enviar_pacote_por_farol(pacote: dict, url=None, token=None, log=print,
                                   data=gz, headers=cab, timeout=60)
                 if 200 <= r.status_code < 300:
                     return "ok"
+                if r.status_code in (401, 403):
+                    log(f"Pacote web: token recusado ({r.status_code}); "
+                        "o lote para aqui.")
+                    return "auth"
                 if r.status_code == 404:
                     log(f"Pacote web: farol {rid} desconhecido na web (404); "
                         "fica fora.")
@@ -8941,6 +8971,8 @@ def enviar_pacote_por_farol(pacote: dict, url=None, token=None, log=print,
 
     for rid in prontos:
         res = enviar(rid)
+        if res == "auth":
+            return False
         if res == "ok":
             aceitos[rid] = prontos[rid][0]
             bytes_gz += len(prontos[rid][1])
@@ -8988,6 +9020,8 @@ def enviar_pacote_por_farol(pacote: dict, url=None, token=None, log=print,
             for rid in faltam:
                 aceitos.pop(rid, None)
                 res = enviar(rid)
+                if res == "auth":
+                    return False
                 if res == "ok":
                     aceitos[rid] = prontos[rid][0]
                 elif res == "manter":
