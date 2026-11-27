@@ -10,7 +10,7 @@ pessoal (`RE_PESSOAL`, `TIPOS_ACHADO`, `COLUNAS_PROIBIDAS`) são espelho MÍNIMO
 `juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`, `_RX_EMAIL`/`_RX_CNPJ`/`_RX_CPF`/`_RX_FONE`,
 `_FORA_DO_ESPELHO` e `TIPOS_ACHADO`): o Render publica só `web/` e não
 importa a raiz. A regra é a do núcleo (empate: a nuvem, contrato §3.1). O teste de paridade (`tests/`, do agente
-`testes`) AINDA VAI SER CRIADO: até lá, nada prende as cópias.
+`testes`, branch `testes/T-0045-testes`) prende as cópias ao núcleo.
 
 Disco (`<dados>/visitas/`): `estado.json` (gravação atômica), `lotes/` (a `Fila` e os corpos `<seq>.json.gz`),
 `pedidos.jsonl` e `rodadas.jsonl` (só acréscimo). Nenhum nome de vendedor ou de cliente em log, resposta ou arquivo
@@ -157,11 +157,6 @@ def dia_br(ymd: str) -> str:
 def dia_iso(ymd: str) -> str:
     """AAAAMMDD -> AAAA-MM-DD (o valor do `<input type="date">`; o navegador mostra no idioma dele)."""
     return f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}"
-
-
-def dia_data(ymd: str) -> str:
-    """AAAAMMDD -> dd/mm/aaaa (data em texto na tela: o formato sai do servidor)."""
-    return f"{ymd[6:]}/{ymd[4:6]}/{ymd[:4]}"
 
 
 def ymd_do_form(v) -> str:

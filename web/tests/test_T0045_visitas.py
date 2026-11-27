@@ -648,7 +648,7 @@ def test_textos_com_acao_e_sem_jargao():
 
 
 def test_formatadores_de_dia():
-    assert visitas.dia_br("20261127") == "27/11" and visitas.dia_data("20261127") == "27/11/2026"
+    assert visitas.dia_br("20261127") == "27/11"
     assert visitas.dia_iso("20261127") == "2026-11-27"
     assert visitas.ymd_do_form("27/11/2026") == "20261127" and visitas.ymd_do_form("2026-11-27") == "20261127"
     assert visitas.ymd_do_form("11/27/2026x") == "" and visitas.ymd_do_form(None) == ""
