@@ -1,6 +1,6 @@
 # ADR 0005 — Config editada pela web: por seção, com versão por hash, cópia antes e gravação pelo robô
 
-- **Status:** proposta (T-0025 v2). Primeiro arquivo: `champions_config.json`, autorizado pelo Alexandre em 26/11 (R-20261126-171559-alexandre). Os outros arquivos (T-0042) entram um por um, cada um com o "autorizo" dele (decisão 6 A do R-20261126-180314-alexandre).
+- **Status:** proposta (T-0025 v2).
 - **Data:** 2026-11-27
 - **Tarefa:** T-0025 (v2) · **Autor:** engenheiro-software
 - **Depende de:**
@@ -33,21 +33,18 @@
 
 ## 3. Decisão: C
 
-1. **No pacote** (só no farol dono da config; para o champions, o `vc_champions`): o bloco `parametros_edicao`, com as seções, o `sha` de cada uma (SHA-256 do JSON canônico, 16 dígitos hexadecimais), o valor de hoje e as listas da tela do PC. A web lê o bloco só para o admin.
-2. **Na web:** uma página por config, uma aba por seção, "Salvar" por seção. A fila é a mesma da T-0021 (`EDICOES_WEB_<AAAA-MM>.jsonl`, só acréscimo):
-   - `modulo` = o da config;
-   - `chave` = a seção;
-   - `valores` = `{"valor": "<JSON>"}`;
-   - `antes` = `{"sha": ...}`.
-3. **No robô:**
-   - confere o hash: se a seção mudou desde que a tela abriu, a edição vira `erro`;
-   - confere a forma pelo `PADRAO` do módulo do PC;
-   - troca só a seção e roda o `validar` do PC;
-   - copia o arquivo, byte a byte, para `RELATORIOS/_EDICOES_WEB/ANTES/<AAAA-MM-DD>_<arquivo>` (uma cópia por dia, antes da 1ª gravação; nunca apagada);
-   - grava com a função do PC (`gravar(raiz, cfg, por="web:<login>")`) e registra a aplicada no `APLICADAS_WEB_<máquina>.jsonl`.
-4. **No PC:** a tela da config fica só leitura (RN-GER-012), com "A edição agora é só pela BAP Central web.".
-5. **Governança:**
-   - cada arquivo novo nesta forma pede um "autorizo" do Alexandre, citado no PR que o liga (decisão 6 A);
+1. **No pacote:** o bloco `parametros_edicao`, só no farol dono da config. A web o lê só para o admin.
+2. **Na web:** uma página por config, uma aba por seção e um "Salvar" por seção, na fila da T-0021.
+3. **No robô:** troca só a seção, e só se o hash dela ainda bate. Valida e grava com as funções do PC, depois da cópia antes.
+   - O formato, a fila e os passos estão no contrato §10.9.5.
+   - A cópia antes e o `antes` no diário de aplicadas estão no §10.9.3.
+4. **No PC:** a tela da config fica só leitura (RN-GER-012), com `MSG_EDICAO_SO_WEB` (§10.9.3).
+5. **A edição no lugar é uma exceção declarada ao "só acrescentar" da regra 7 e da RN-GER-012.** A config (e, pela mesma regra, o DDR e os Expositores, §10.9.3) não tem diário: a função do PC já trocava o arquivo, ou a célula, antes do site. A exceção vale só com as duas garantias do §10.9.3:
+   - o valor anterior gravado no `APLICADAS_WEB`;
+   - a cópia antes do dia.
+   O texto da RN-GER-012 é ajustado pelo gerente-projetos.
+6. **Governança:**
+   - cada arquivo novo nesta forma pede um "autorizo" do Alexandre, citado no PR que o liga (decisão 6 A do R-20261126-180314-alexandre). O primeiro é o `champions_config.json` (R-20261126-171559-alexandre);
    - os `.json` da raiz do repositório continuam governança;
    - a rotina diária (ADR 0002) não leva config ao PC, então o robô nunca sobrescreve a config da produção com a do repositório.
 
@@ -55,7 +52,7 @@
 
 - **Sem dependência nova:** `hashlib` e `json` são da biblioteca padrão, e nada muda no PC do robô (DT-AMADMBAP-03).
 - `bap_dados.VERSAO` continua 27. A config não entra no cache: o `montar` já a lê a cada rodada.
-- **Dado pessoal:** a config do champions tem nomes da equipe, códigos e metas, e nenhum CPF nem e-mail. O CPF e o e-mail da premiação estão no `campanha_export`, que nunca vai ao site. A web recusa texto com CPF, CNPJ, telefone ou e-mail (RN-GER-011).
-- **Concorrência:** duas edições da mesma seção na mesma rodada são resolvidas na ordem do `seq`: a primeira grava, e a segunda vê o hash mudado e volta como "O PC recusou", com a frase fixa. A pessoa abre de novo e refaz.
-- **Volta atrás:** a cópia do dia, em `_EDICOES_WEB/ANTES/`, mais o diário de aplicadas. Restaurar é manual, no PC, com o "ok" do Alexandre.
-- **Teste:** um teste por passo do §3.3, com config fictícia em pasta temporária, nunca na base real.
+- **Dado pessoal:** contrato §10.9.5 (tetos e texto livre) e §10.10.3.
+- **Concorrência:** pelo hash da seção (contrato §10.9.5, passo 2). A pessoa abre de novo e refaz.
+- **Volta atrás:** o `antes` de cada troca no diário de aplicadas, mais a cópia do dia (contrato §10.9.3). Restaurar é manual, no PC, com o "ok" do Alexandre.
+- **Teste:** um teste por passo do contrato §10.9.5, com config fictícia em pasta temporária, nunca na base real.

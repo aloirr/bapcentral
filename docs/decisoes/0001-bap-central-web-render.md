@@ -438,3 +438,27 @@ Vale sobre o adendo 2 **só no `pv_pedidos`, `pl_entregas` e `vc_visitas`**. Fon
 - A limpeza de documento do núcleo (RN-GER-011) vale para as tabelas desses faróis (contrato §10.7.4). Fica a recomendação ao modulo-posvenda de usar a mesma função na Inadimplência.
 - O pacote cresce para o tamanho do contrato §10.7.8, dentro do teto do `render.yaml`, e o robô tem trava própria (§10.7.8).
 - Mais dado de cliente no disco do Render (7 pacotes). O acesso continua com login, corte no servidor, `no-store`, `noindex` e registro de acesso.
+
+## Adendo 6 (27/11/2026): cliente nas tabelas e edição no site, nos faróis da T-0023 e da T-0025
+
+Vale sobre os adendos 2 e 5. Fontes:
+- a migração completa PC → site, decisão 1 A do R-20261126-180314-alexandre;
+- RN-GER-012 ("SO TEM EDIÇÃO NA WEB", 25/11);
+- as decisões de 26/11 (R-20261126-171559-alexandre);
+- as P1 a P3 (A) do R-20261127-013010-alexandre.
+
+As regras e os formatos ficam **só** no contrato, §10.9 e §10.10 (`.coord/contratos/relatorio.md`), e na ADR 0005. Este adendo registra a decisão. **Status: aceito.**
+
+### A decisão
+1. **O item 2 do adendo 5 se estende** a `pl_garantias`, `pl_devolucoes`, `pl_ncc` e `tm_expositores`. O código e o nome do cliente vão ao Render só em `tabelas`, limpos de CPF/CNPJ (contrato §10.10.3), inclusive no "Histórico de compra" das Garantias. Telefone, e-mail, contato (`CONTATO CLIENTE`), foto e CNPJ continuam fora.
+2. **O item 4 do adendo 5 é substituído:** o site deixa de ser só leitura onde o contrato §10.9.3 lista um lugar de edição. Isso inclui os de Pedidos e Entregas, já no `main` desde a T-0021 v4.
+   - Só o admin edita.
+   - A edição chega ao PC pelo robô, gravada pela função da tela do PC.
+   - A tela do PC fica só leitura nesse lugar (RN-GER-012).
+   - Troca de loja de coleta, "Atualizar visitas", parciais e "Exportar campanha" continuam no PC.
+3. **Config editada pela web:** só com um "autorizo" do Alexandre por arquivo (6 A), na forma da ADR 0005. O primeiro é o `champions_config.json`.
+4. **Contrato v1, acréscimo compatível.** A ordem de publicação é a do contrato §10.9.6.
+
+### Consequências
+- Mais dado de cliente no disco do Render (os 4 faróis, cerca de 1,4 MB). O acesso continua com login, corte por perfil no servidor (o diretor só no Resumo), `no-store`, `noindex` e registro de acesso.
+- A fila de edições do site guarda o texto digitado pelo admin. A regra de dado pessoal do formulário é a do contrato §10.9.1.
