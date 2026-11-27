@@ -36,6 +36,13 @@ RIDS = ("pv_pedidos", "pl_entregas", "vc_visitas")
 # transição T-0037: até o #169 (testes/T-0037-fretes), que põe o pl_fretes no RIDS_1073 e volta a comparar tudo
 ABAS_FRETES_TRANSICAO = {"Notas com frete", "Por UF", "Por cidade",
                          "Por transportadora"}
+
+
+# transição T-0037: até o #169 (testes/T-0037-fretes); some junto com a constante
+def _sem_fretes(d):
+    return {t: c for t, c in d.items() if t not in ABAS_FRETES_TRANSICAO}
+
+
 ABAS = {"pv_pedidos": ["Pedidos", "Solicitação BAP"],
         "pl_entregas": ["Entregas"],
         "vc_visitas": ["Por supervisor", "Por vendedor", "Dia a dia",
@@ -789,10 +796,8 @@ def test_T0023_colunas_por_rid_e_titulo_sem_colisao():
 
 
 def test_T0017_colunas_robo_igual_web(web_app):
-    robo = {t: c for t, c in _robo().items()
-            if t not in ABAS_FRETES_TRANSICAO}
-    web = {t: c for t, c in web_app.tabelas.COLUNAS.items()
-           if t not in ABAS_FRETES_TRANSICAO}
+    robo = _sem_fretes(_robo())
+    web = _sem_fretes(web_app.tabelas.COLUNAS)
     assert sorted(robo) == sorted(web)
     for titulo, cols in robo.items():
         assert [c[:3] for c in cols] == [tuple(c) for c in web[titulo]], \
@@ -807,10 +812,8 @@ def test_T0017_colunas_robo_igual_web(web_app):
 def test_T0017_colunas_robo_igual_contrato_1073():
     contrato = _contrato_1073()
     assert contrato is not None, "§10.7.3 ausente no contrato"
-    contrato = {t: c for t, c in contrato.items()
-                if t not in ABAS_FRETES_TRANSICAO}
-    robo = {t: c for t, c in _robo().items()
-            if t not in ABAS_FRETES_TRANSICAO}
+    contrato = _sem_fretes(contrato)
+    robo = _sem_fretes(_robo())
     assert sorted(contrato) == sorted(robo)
     for titulo in robo:
         assert contrato[titulo] == robo[titulo], titulo
