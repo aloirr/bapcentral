@@ -11,9 +11,11 @@ passa de hoje.
 Também RN-VIS-007 (RD-0112, RD-0114): a rede de dado pessoal (`_REDE` /
 `RE_PESSOAL`), os `TIPOS_ACHADO` e as colunas do Espelho que nunca saem
 (`_FORA_DO_ESPELHO` / `COLUNAS_PROIBIDAS`). Um lado que muda sem o outro
-reprova. Aqui só entra a comparação núcleo × web; o que olha só o núcleo
+reprova. Entra a comparação núcleo × web; o que olha só o núcleo
 (a lista em si, as permitidas, o cabeçalho) fica em
-tests/test_T0045_visitas_nucleo.py (RD-0149).
+tests/test_T0045_visitas_nucleo.py (RD-0149). No fim, a comparação robô ×
+web das cópias de FASES, FECHADOS_PC_DIAS e dos códigos (RD-0174), que pula
+sem o robô da T-0045 no main.
 
 Datas fictícias, sem dado de cliente.
 """
@@ -194,3 +196,46 @@ def test_RN_VIS_007_colunas_fora_do_espelho_iguais_na_rota_e_na_web(web_app):
     if hasattr(web_app.visitas, "ESPELHO_PERMITIDAS"):
         assert {k: tuple(v) for k, v in web_app.visitas.ESPELHO_PERMITIDAS.items()} == \
             {k: tuple(v) for k, v in vn.ESPELHO_PERMITIDAS.items()}
+
+
+# ------------------------------------------------------------------ robô × web (RD-0174)
+# O robô (`visitas_maxima`) e a web têm cópias de FASES, FECHADOS_PC_DIAS e dos
+# códigos do contrato (§2, §3.3 e §5). Pulam enquanto o robô da T-0045 não estiver no main.
+def _robo_novo():
+    import visitas_maxima as vm
+    if not hasattr(vm, "classificar_login"):
+        pytest.skip("robô da T-0045 (modulo-robo/T-0045-nuvem-robo) ainda não está no main")
+    return vm
+
+
+def test_RN_VIS_005_fases_iguais_no_robo_e_na_web(web_app):
+    vm = _robo_novo()
+    assert tuple(vm.FASES) == tuple(web_app.visitas.FASES)
+
+
+def test_RN_VIS_002_fechados_pc_dias_igual_no_robo_e_na_web(web_app):
+    vm = _robo_novo()
+    assert vm.FECHADOS_PC_DIAS == web_app.visitas.FECHADOS_PC_DIAS == 40
+
+
+def test_RN_VIS_005_todo_codigo_do_robo_esta_na_web(web_app):
+    """Todo código que o robô escreve (literal de código no `visitas_maxima.py`, fora nome de variável de
+    ambiente e evento do Tk) e todo código que as funções puras devolvem existem em `web.CODIGOS`."""
+    import re
+    vm = _robo_novo()
+    fonte = (RAIZ / "visitas_maxima.py").read_text(encoding="utf-8")
+    literais = {m for m in re.findall(r"[\"']([A-Z]{2,}(?:_[A-Z0-9]{2,})+)[\"']", fonte)
+                if not m.startswith(("BAP_", "WM_", "PLAYWRIGHT_", "PW"))}
+    tempo = type("TimeoutError", (Exception,), {})
+    devolvidos = {vm.codigo_da_excecao(e, f)[0] for e, f in (
+        (vm.ErroRobo("x"), "grade"), (RuntimeError("Target closed"), "grade"), (RuntimeError("x"), "grade"),
+        (tempo("t"), "login"), (tempo("t"), "grade"))}
+    devolvidos |= {vm.classificar_login(u, t, c, h) for u, t, c, h in (
+        ("https://x.test/login", "Usuário ou senha inválidos", False, None), ("https://x.test/login", "", True, None),
+        ("https://x.test/login", "Enviamos um código por SMS", False, None),
+        ("https://x.test/login", "Conta bloqueada", False, None))} - {None}
+    todos = literais | devolvidos
+    assert {"MAXIMA_SENHA", "MAXIMA_CAPTCHA", "MAXIMA_CONFIRMACAO", "MAXIMA_BLOQUEIO", "TELA_MUDOU",
+            "NAVEGADOR_FALHOU", "MAXIMA_FORA", "ERRO_INTERNO"} <= todos
+    fora = sorted(todos - set(web_app.visitas.CODIGOS))
+    assert fora == [], fora

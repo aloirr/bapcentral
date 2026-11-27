@@ -66,6 +66,10 @@ CASOS_LOGIN = [
 ]
 
 
+# contrato §5.1: os 4 códigos da Máxima que o login devolve
+LOGIN_DO_CONTRATO = ("MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA", "MAXIMA_BLOQUEIO")
+
+
 @pytest.mark.parametrize("url,texto,captcha,http,esperado", CASOS_LOGIN)
 def test_RN_VIS_005_classificar_login_captcha_confirmacao_bloqueio(url, texto, captcha, http, esperado):
     assert vm.classificar_login(url, texto, captcha, http) == esperado
@@ -106,8 +110,8 @@ def test_RN_VIS_005_troca_de_senha_no_login_e_confirmacao_nao_senha_recusada(tex
 def test_RN_VIS_005_classificar_login_so_devolve_codigo_da_lista_e_da_web():
     web = _web_visitas()
     saidas = {vm.classificar_login(*c[:4]) for c in CASOS_LOGIN} - {None}
-    assert saidas == set(vm.CODIGOS_LOGIN)
-    assert set(vm.CODIGOS_LOGIN) <= set(web.PAUSAM)           # todos pausam no site (RN-VIS-005)
+    assert saidas == set(LOGIN_DO_CONTRATO)
+    assert set(LOGIN_DO_CONTRATO) <= set(web.PAUSAM)          # todos pausam no site (RN-VIS-005)
 
 
 # ------------------------------------------------------------------ contrato §5: codigo_da_excecao
@@ -141,13 +145,9 @@ def test_RN_VIS_005_codigo_da_excecao_nao_le_a_mensagem_da_maxima():
         assert vm.codigo_da_excecao(vm.ErroRobo(msg), "grade") == ("TELA_MUDOU", "grade")
 
 
-def test_RN_VIS_005_codigos_e_fases_do_robo_sao_os_do_contrato_e_da_web():
+def test_RN_VIS_005_o_que_a_web_exige_com_fase_sai_com_fase():
+    """A paridade das cópias (FASES, FECHADOS_PC_DIAS, códigos) fica em test_T0045_paridade_visitas_web.py."""
     web = _web_visitas()
-    assert vm.FASES == web.FASES
-    possiveis = {"TELA_MUDOU", "NAVEGADOR_FALHOU", "MAXIMA_FORA", "ERRO_INTERNO", *vm.CODIGOS_LOGIN}
-    assert possiveis <= set(web.CODIGOS)
-    assert vm.FECHADOS_PC_DIAS == web.FECHADOS_PC_DIAS == 40
-    # o que exige fase na web sai com fase do robô
     for exc in (vm.ErroRobo("x"), RuntimeError("y")):
         cod, fase = vm.codigo_da_excecao(exc, "grade")
         assert cod in web.PEDE_FASE and fase in web.FASES
