@@ -14481,6 +14481,27 @@ def _aplicar_aderencia_planner(ctx, regs, de, ate):
     return ad
 
 
+# RN-VIS: a faixa de cor da ADERENCIA ao Planner (a mesma do tom da linha no
+# PC): >= 80 verde, de 50 a 79,99 amarelo, abaixo de 50 vermelho.
+ADERENCIA_VERDE = 80
+ADERENCIA_AMARELO = 50
+
+
+def tom_aderencia(pct):
+    """Tom ("ok" / "atencao" / "alerta") da % de aderencia; "" sem dado."""
+    if pct is None:
+        return ""
+    return ("ok" if pct >= ADERENCIA_VERDE
+            else "atencao" if pct >= ADERENCIA_AMARELO else "alerta")
+
+
+def faixa_aderencia():
+    """A mesma regra no formato do chip em faixa (ate, fundo, texto)."""
+    return [(ADERENCIA_AMARELO - 0.0001, "#FBDDDA", "#B3261E"),
+            (ADERENCIA_VERDE - 0.0001, "#FFF1C7", "#8A5A00"),
+            (None, "#E5F3DF", "#2F7D32")]
+
+
 def _tabelas_aderencia(ctx, regs, ad, hoje):
     """(18/10) As duas visoes do Farol de Visita:
     ADERENCIA DIA A DIA: uma coluna por dia (% dos agendados do Planner que
@@ -14506,7 +14527,9 @@ def _tabelas_aderencia(ctx, regs, ad, hoje):
         n_acum = f"% ADERÊNCIA ACUM. ATÉ {ate_:%d/%m}"
         cols = [col("SUPERVISOR", "texto", 190),
                 col("VENDEDOR", "texto", 230)] + [
-            col(n_, "pct", 62) for n_ in nomes] + [col(n_acum, "pct", 150)]
+            dict(col(n_, "pct", 62), chip=faixa_aderencia())
+            for n_ in nomes] + [dict(col(n_acum, "pct", 150),
+                                     chip=faixa_aderencia())]
         ls, ts = [], []
         for cod, por_d in por_v.items():
             g = list(por_d.values())
@@ -14519,8 +14542,7 @@ def _tabelas_aderencia(ctx, regs, ad, hoje):
                            if l and l["agendados"] else None)
             tot = pct_de(na, pr)
             ls.append(list(info[cod]) + cel + [tot])
-            ts.append("" if tot is None else "ok" if tot >= 80
-                      else "atencao" if tot >= 50 else "alerta")
+            ts.append(tom_aderencia(tot))
         ordem = sorted(range(len(ls)), key=lambda i: (ls[i][0], ls[i][1]))
         ls, ts = [ls[i] for i in ordem], [ts[i] for i in ordem]
 
