@@ -109,12 +109,45 @@ def _dockerignore_exclui(padroes: list[str], caminho: str) -> bool:
     return excluido
 
 
+def _sem_comentario(linha: str) -> str:
+    """Tira o `# comentário` do fim da linha (o render.yaml não usa `#` dentro de valores)."""
+    return re.sub(r"\s+#.*$", "", linha).rstrip() if not linha.lstrip().startswith("#") else ""
+
+
 def _build_filter() -> list[str]:
-    import yaml
-    dados = yaml.safe_load((RAIZ / "render.yaml").read_text(encoding="utf-8"))
-    serv = [s for s in dados.get("services", []) if s.get("name") == SERVICO]
+    """`buildFilter.paths` do serviço `bap-visitas-maxima`, lido só com a biblioteca padrão (o CI não tem PyYAML).
+
+    Leitura por indentação: o bloco do serviço vai do `- ...` que contém `name: bap-visitas-maxima` até o próximo
+    item da lista `services`; dentro dele, os itens `- x` logo abaixo de `buildFilter:` → `paths:`."""
+    linhas = [_sem_comentario(l) for l in (RAIZ / "render.yaml").read_text(encoding="utf-8").splitlines()]
+    inicios = [i for i, l in enumerate(linhas) if re.match(r"^  - \S", l)]  # itens de `services:`
+    blocos = [linhas[a:b] for a, b in zip(inicios, inicios[1:] + [len(linhas)])]
+    serv = [b for b in blocos
+            if any(re.fullmatch(rf"""\s*(?:- )?name:\s*["']?{re.escape(SERVICO)}["']?""", l) for l in b)]
     assert len(serv) == 1, f"o render.yaml não tem o serviço {SERVICO}"
-    return list(((serv[0].get("buildFilter") or {}).get("paths")) or [])
+    paths, estado, ind_bf, ind_p = [], "fora", 0, 0
+    for l in serv[0]:
+        if not l.strip():
+            continue
+        ind = len(l) - len(l.lstrip())
+        if estado == "fora":
+            if l.strip() == "buildFilter:":
+                estado, ind_bf = "bf", ind
+        elif estado == "bf":
+            if ind <= ind_bf:
+                break
+            if l.strip() == "paths:":
+                estado, ind_p = "paths", ind
+        elif estado == "paths":
+            if ind <= ind_p and not l.lstrip().startswith("- "):
+                break
+            if ind < ind_p:
+                break
+            m = re.fullmatch(r"""\s*- \s*["']?(.+?)["']?""", l)
+            if not m:
+                break
+            paths.append(m.group(1))
+    return paths
 
 
 # ---------------------------------------------------------------------------------------------- o texto do Dockerfile
