@@ -1,4 +1,4 @@
-"""T-0033 (web 94b3440): os cartões da aba (`kpis_padrao`) só no padrão.
+"""T-0033 (web 94b3440 e f188d73): os cartões da aba (`kpis_padrao`) só no padrão.
 
 Contrato `.coord/contratos/relatorio.md`:
 - §10.7.2 (`kpis_padrao`): a web mostra os cartões da aba só com os filtros no
@@ -17,8 +17,8 @@ nenhum número da aba aparece na faixa, e a contagem de linhas com estado é a
 das `uf_linhas` (RN-GER-006).
 
 Sem fastapi (o CI da raiz), o módulo é pulado; roda no venv com a web.
-Depende da web 94b3440 (`modulo-web/T-0033-revisao-geral`): com a web do
-main a32b610, os casos do aviso falham.
+Depende da web f188d73 (`modulo-web/T-0033-revisao-geral`): com a web do
+main a32b610, os casos do aviso, do Visita e da Solicitação com `uf` falham.
 
 Nenhum valor de célula é impresso: as mensagens só têm rótulos de cartão,
 contagens e nomes de aba.
@@ -168,15 +168,11 @@ def _outro_valor(t, nome, padrao):
     return i, vals[0]
 
 
-# Defeito aberto (recado ao modulo-web, T-0033): o `_bc3_cab.html` tira da faixa todo cartão com
-# `linhas` ou `estados`. No pacote real, os 10 cartões do Visita têm `linhas`: as abas do Visita ficam
-# sem número nenhum, no padrão também (o §10.7.2 manda mostrar o cartão inteiro). Estrito: quando a
-# web corrigir, o teste passa a passar e o xfail tem de sair.
-DEFEITO_VISITA = pytest.mark.xfail(
-    strict=True, reason="T-0033: a faixa das abas do Visita tira os cartões com `linhas` (recado ao modulo-web)")
+# Visita: no pacote real os 10 cartões têm `linhas`; a faixa mostra o cartão inteiro (§10.7.2),
+# com as `linhas` ou sem elas (defeito achado no combinado e corrigido na web f188d73).
 ABAS_COM_KPIS = (("pv_pedidos", "pedidos", "Pedidos"),
                  ("pl_entregas", "entregas", "Entregas"),
-                 pytest.param("vc_visitas", "dia", "Dia a dia", marks=DEFEITO_VISITA))
+                 ("vc_visitas", "dia", "Dia a dia"))
 
 
 # ============================================================== no padrão: os cartões da aba
@@ -207,7 +203,6 @@ def test_T0033_estado_desconhecido_e_ignorado_e_os_cartoes_ficam(web, rid, aba, 
     assert _cartoes(h) == esperado and AVISO_CARTOES not in h
 
 
-@DEFEITO_VISITA
 def test_T0033_visita_nao_tem_estado_e_os_cartoes_ficam_com_uf(web):
     """D5: o Visita não tem estado; `uf=AM` na URL não tira os cartões."""
     cli, render, guardado = web
@@ -311,8 +306,6 @@ def test_T0033_solicitacao_sem_kpis_padrao_mostra_os_kpis_de_cima_sem_aviso(web)
     assert AVISO_CARTOES not in h
 
 
-@pytest.mark.xfail(strict=True, reason="T-0033: a Solicitação BAP com `uf` na URL mostra os cartões do estado "
-                                       "(o `topo` sai antes de o estado ser zerado; recado ao modulo-web)")
 def test_T0033_solicitacao_sem_estado_ignora_o_uf_da_url(web):
     """D5 e §10.1: a Solicitação BAP não tem estado (o seletor fica fora), então
     os cartões de cima são os da BAP inteira mesmo com `uf` na URL. O link da
@@ -325,7 +318,6 @@ def test_T0033_solicitacao_sem_estado_ignora_o_uf_da_url(web):
         assert not difere, f"Solicitação uf={uf}: cartões do estado em {difere}"
 
 
-@DEFEITO_VISITA
 def test_T0033_aba_sem_kpis_padrao_mostra_os_kpis_de_cima_mesmo_com_filtro(web):
     """§10.7.2: sem `kpis_padrao` (Aderência dia a dia), a aba mostra os
     `kpis` de cima, com ou sem filtro, e sem o aviso."""
