@@ -6773,7 +6773,7 @@ _FONTE_BAIXADO_WEB = {
     # (T-0036) Saldo, Markup e Preco leem a ftPedidos (Movimentos do Protheus);
     # Divergencias cruza o Planner (BASE_CLIENTE) com a dClientesBap, que vem
     # do Relatorio Clientes (a parte baixada do ERP)
-    **{r_: (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
+    **{r_: _MOVIMENTOS_WEB
        for r_ in RIDS_ANALISTA_WEB if r_ != "an_divergencias"},
     "an_divergencias": (Path(BKP_BAPTOOLS), "Relatorio_Clientes_*.xlsx"),
     # (T-0023 v2) Devolucoes e Garantias nascem dos Movimentos; a NCC, do
@@ -7940,7 +7940,8 @@ _COLUNAS_TABELAS_WEB.update({
 _CLIENTE_POR_CODIGO_WEB = {("vc_saldo", "Pedido a pedido"): "CLIENTE",
                            ("vc_markup", "Por pedido"): "CLIENTE"}
 # colunas de cliente que saem alem de _COLUNAS_FORA_WEB (nome, endereco,
-# bairro, numero e contato; do cliente ficam codigo, loja, cidade e UF)
+# bairro, numero e contato; do cliente ficam codigo, loja, cidade e UF);
+# espelha FORA_POR_TABELA de web/app/tabelas.py
 _COLUNAS_FORA_TABELA_WEB = {
     ("vc_preco", "Pesquisa de mercado"): frozenset({"CLIENTE"}),
     ("an_divergencias", "Clientes divergentes"): frozenset({"CLIENTE"}),
@@ -8598,8 +8599,7 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     kpis_padrao = None
     if callable(kpis_de) and not junta:
         try:
-            padrao = _rn.linhas_padrao(orig)
-            ks = _rn.chamar_kpis_de(kpis_de, [brutas_pc[k] for k in padrao])
+            ks = _kpis_padrao_web(orig)
         except Exception as erro:                       # noqa: BLE001
             log.warning("Pacote web: cartoes da aba '%s' do farol %s fora "
                         "(%s).", titulo, rid, type(erro).__name__)
@@ -8644,6 +8644,14 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     return val
 
 
+def _kpis_padrao_web(tab: dict):
+    """Funcao pura (T-0036, 10.11.1): os cartoes do `kpis_de` da tabela com as
+    linhas do filtro padrao (relatorios_nucleo.linhas_padrao)."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    return _rn.chamar_kpis_de(
+        tab["kpis_de"], [tab["linhas"][k] for k in _rn.linhas_padrao(tab)])
+
+
 def _cliente_por_codigo_web(t: dict, coluna: str) -> dict:
     """Funcao pura (T-0036, 10.11.2, RN-GER-011): troca a coluna "codigo -
     nome" (`coluna`) por `CÓD.` (texto, na mesma posicao) com so o codigo
@@ -8671,9 +8679,9 @@ def _cliente_por_codigo_web(t: dict, coluna: str) -> dict:
     tot = t.get("total")
     if isinstance(tot, (list, tuple)) and ix < len(tot):
         tot = list(tot)       # rotulo ("TOTAL") nao e cliente: fica
-        if (isinstance(tot[ix], str)
-                and re.match(r"\s*\d+(-\d+)?\s+-\s", tot[ix])):
-            tot[ix] = _rn.codigo_do_cliente(tot[ix])
+        cod = _rn.codigo_do_cliente(tot[ix]) if isinstance(tot[ix], str) else ""
+        if cod:
+            tot[ix] = cod
         saida["total"] = tot
     return saida
 
@@ -8858,8 +8866,7 @@ def _limitar_anexos_web(rid: str, farol: dict) -> tuple:
             novo.pop("csvs_protheus", None)
             avisos.append(AVISO_CSVS_FORA)
     cor = farol.get("correcao")
-    if isinstance(cor, dict) and len(json.dumps(
-            cor, ensure_ascii=False).encode("utf-8")) > MAX_CORRECAO_BYTES:
+    if isinstance(cor, dict) and _tamanho_pacote_web(cor) > MAX_CORRECAO_BYTES:
         novo = novo if novo is not None else dict(farol)
         novo.pop("correcao", None)
         avisos.append(AVISO_CORRECAO_FORA)
@@ -8959,15 +8966,6 @@ def _corte_markup_ativos_web(rid: str, rel: dict) -> None:
             _reindexar_linhas_web(t, copy.deepcopy(t), ficam)
             _avisar_web(rid, rel, AVISO_MARKUP_ATIVOS)
         return
-
-
-def _corte_aba_web(titulo: str):
-    def corte(rid: str, rel: dict) -> None:
-        tabs = rel.get("tabelas")
-        if tabs and any(t.get("titulo") == titulo for t in tabs):
-            rel["tabelas"] = [t for t in tabs if t.get("titulo") != titulo]
-            _abas_fora_web(rid, rel, [titulo])
-    return corte
 
 
 def _corte_junta_entregas_web(rid: str, rel: dict) -> None:
@@ -9177,9 +9175,10 @@ def _recortes_do_farol_web(rid: str, r: dict) -> dict:
 
 def _kpis_batem_web(r: dict, titulo_tabela: str) -> bool:
     """Funcao pura (T-0036, 10.11.1): o `kpis_de` da tabela, com as linhas do
-    filtro padrao (o mes; sem filtro, todas), da os mesmos cartoes (rotulo e valor) que o `kpis` do farol? Sem
-    `kpis_de`, sem tabela ou com erro: False (o farol vai sem recortes e os
-    cartoes por estado mostram "—": nunca um numero errado)."""
+    filtro padrao (o mes; sem filtro, todas), da os mesmos cartoes (rotulo e
+    valor) que o `kpis` do farol? Sem `kpis_de`, sem tabela ou com erro:
+    False (o farol vai sem recortes e os cartoes por estado mostram "—":
+    nunca um numero errado)."""
     tab = next((t for t in (r or {}).get("tabelas") or []
                 if isinstance(t, dict) and t.get("titulo") == titulo_tabela),
                None)
@@ -9187,12 +9186,9 @@ def _kpis_batem_web(r: dict, titulo_tabela: str) -> bool:
     if not callable(kpis_de):
         return False
     try:
-        import relatorios_nucleo as _rn                 # noqa: PLC0415
         # o mesmo escopo dos cartoes do topo: o filtro padrao da tabela (o
         # MES, no Saldo); no Markup, todas as linhas
-        linhas = list(tab.get("linhas") or [])
-        ks = _rn.chamar_kpis_de(
-            kpis_de, [linhas[k] for k in _rn.linhas_padrao(tab)])
+        ks = _kpis_padrao_web(tab)
     except Exception:                                   # noqa: BLE001
         return False
 
@@ -9284,7 +9280,7 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
 def _colunas_correcao_web() -> dict:
     """{"corrigir": (titulo, colunas), "analisar": (titulo, colunas)} do
     Excel de correcao, com os cabecalhos do nucleo sem a coluna CLIENTE."""
-    import relatorios_nucleo as _rn_cab
+    import relatorios_nucleo as _rn_cab                # noqa: PLC0415
     return {
         "corrigir": ("CORRIGIR NO PROTHEUS",
                      tuple(c for c in _rn_cab.CAB_CORRIGIR if c != "CLIENTE")),
