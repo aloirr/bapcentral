@@ -40,6 +40,8 @@ import bap_automation as ba
 import pos_venda as pv
 import relatorios_nucleo as rn
 import transportadoras as tr
+# transição T-0037: até o #169 (testes/T-0037-fretes)
+from escopo_farois_web import fretes_no_robo
 
 RAIZ = Path(__file__).resolve().parent.parent
 WEB = RAIZ / "web"
@@ -117,7 +119,8 @@ def test_RN_POS_011_tabela_web_igual_robo_igual_contrato(ed):
     assert ba.MOTIVO_PERFIL_WEB == "perfil sem edição neste farol"   # a frase do §10.9.7
     assert set(p for ps in contrato.values() for p in ps) <= set(PERFIS)
     # só lugares que o robô já grava, mais o Fretes (entra com a T-0037; até lá, recusado pelo lugar)
-    assert set(ba.EDITA_LUGAR_WEB) - set(ba.EDICOES_WEB) == {FRETES}
+    # transição T-0037: até o #169 (testes/T-0037-fretes): antes do robô da T-0037 sobra o Fretes; depois, nada
+    assert set(ba.EDITA_LUGAR_WEB) - set(ba.EDICOES_WEB) == (set() if fretes_no_robo(ba) else {FRETES})
 
 
 _SEM = object()
@@ -193,9 +196,19 @@ def test_RN_POS_011_linha_nova_robo_recusa_nas_entregas_e_perfil_fora(perfil):
 
 def test_RN_POS_010_notas_com_frete_robo_recusa_pelo_lugar():
     """"Notas com frete" (T-0037): enquanto o lugar não entra em `EDICOES_WEB`, o robô recusa pelo lugar
-    (nada é gravado) para qualquer perfil. A tabela de quem edita fica no teste do contrato."""
+    (nada é gravado) para qualquer perfil. A tabela de quem edita fica no teste do contrato.
+    transição T-0037: até o #169 (testes/T-0037-fretes): com o robô da T-0037, a mesma tabela das
+    Entregas (RN-POS-010 + RN-POS-011): edita ⇔ perfil ∈ {admin, pos_venda}; o frete_real cai pelo lugar
+    (quem edita) ou pelo perfil (o resto)."""
+    if not fretes_no_robo(ba):
+        for p in PERFIS:
+            assert ba.validar_edicao_web(_reg(FRETES, p), OPCOES) == ba.MOTIVO_LUGAR_WEB, p
+        return
     for p in PERFIS:
-        assert ba.validar_edicao_web(_reg(FRETES, p), OPCOES) == ba.MOTIVO_LUGAR_WEB, p
+        edita = p in ("admin", "pos_venda")
+        assert ba.validar_edicao_web(_reg(FRETES, p), OPCOES) == ("" if edita else ba.MOTIVO_PERFIL_WEB), p
+        m = ba.validar_edicao_web(_reg(FRETES, p, {"frete_real": "50,00"}), OPCOES)
+        assert m == (ba.MOTIVO_LUGAR_WEB if edita else ba.MOTIVO_PERFIL_WEB), p
 
 
 # ------------------------------------------------------------------ 2. os 6 campos (o pacote do robô, conferido pela web)

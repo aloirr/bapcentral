@@ -5,6 +5,7 @@
 - **Escopo:** o dicionário que `relatorios_nucleo.montar(rid, raiz, hoje=None, log=None, params=None, tela=False)` devolve (`relatorios_nucleo.py:19130`). É a ponte entre os núcleos e qualquer tela: Tkinter (`bap_relatorios.py`) hoje, web amanhã.
 - **Regra de versão:** acrescentar chave opcional = v1 continua. Renomear, mudar tipo ou tirar chave = **v2**, com ADR em `docs/decisoes/` e recado aos consumidores (seção 9).
 - **Como a versão é lida:** hoje o dicionário **não tem** chave de versão. A versão sai da chave de topo opcional `versao_contrato` (`int`): **ausente = 1**. Acrescentar a chave não muda a v1. Ela passa a ser obrigatória na v2: o `montar` grava `rel["versao_contrato"]` a partir de uma constante do núcleo (proposta: `relatorios_nucleo.VERSAO_CONTRATO = 1`; pedido ao modulo-farois na T-0006). A web lê essa chave e recusa, com aviso, versão maior que a que conhece (ADR 0001, §4.6). Não confundir com `bap_dados.VERSAO` (27), que é a versão do cache.
+- **Acréscimos compatíveis de 27/11/2026:** faróis do Analista Comercial (`vc_saldo`, `vc_markup`, `vc_preco`, `an_divergencias`; T-0036), §10.11; Farol de Fretes (`pl_fretes`, T-0037), §10.13.
 - **Formato do pacote** (o transporte, ADR 0003): 1 = um JSON com todos os faróis; 2 = um arquivo por farol e um índice (§10.8, T-0035, 26/11/2026). O formato não muda o `versao_contrato`.
 - Exemplos com **valores fictícios**. Nenhum dado de cliente ou vendedor.
 
@@ -737,6 +738,13 @@ Conferidas no `main` em `2d182bd`, com `montar(rid, raiz, hoje=20/11/2026, param
 - **"Indicação"** (14 de 17; saem `CONTATO`, `TELEFONE` e `CNPJ`): `DATA` data · `DIA` texto · `SUPERVISOR` texto · `VENDEDOR` texto · `SITUAÇÃO` texto · `CÓD. QUEM INDICOU` texto · `CLIENTE QUE INDICOU` texto (limpa) · `INDICADO` texto (limpa) · `CIDADE` texto · `BAIRRO` texto · `SEGMENTO` texto · `VISITADA EM` data · `OBSERVAÇÃO` texto [D6] · `REGISTRADO EM` texto.
 
 Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do cliente) e mantém o aviso "Sem filtro por estado: os cartões mostram a BAP inteira." (§10.1).
+
+**`pl_fretes`** (T-0037, §10.13; `tons` do PC: `alerta`, `ok` ou `""`)
+- **"Notas com frete"** (16; não sai nenhuma): `MÊS` texto (o) · `DATA PED.` dia · `DATA NF` dia · `NF` texto · `FILIAL` texto · `CLIENTE` texto (limpa, código e nome) · `CIDADE` texto · `UF` texto · `VLR NF` moeda · `VLR FRETE` moeda · `ETAPA` texto · `TRANSPORTADORA` texto · `ENTREGAR ATÉ` dia · `ENTREGUE` dia · `SLA ENTREGA` int · `RESPONSÁVEL` texto [D6]. A linha do PC tem uma célula a mais (a chave da entrega): o robô corta no número de colunas. Filtros: `MÊS` (padrão = mês do pacote, oculto), `UF`, `FILIAL`, `ETAPA`, `TRANSPORTADORA`. A edição vai pela §10.13.4.
+- **"Por UF"** (5): `MÊS` texto (o) · `UF` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+- **"Por cidade"** (5): `MÊS` texto (o) · `CIDADE` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+- **"Por transportadora"** (5): `MÊS` texto (o) · `TRANSPORTADORA` texto · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda.
+  - As 3 abas de resumo terminam nas mesmas 3 colunas de número (`NOTAS`, `VLR NF` e `VLR FRETE`; no robô, `bap_automation._RESUMO_FRETES_WEB`). Filtro: `MÊS` (padrão = mês do pacote, oculto). O `MÊS` vai oculto, como no "Notas com frete" e no "Entregas": com só o mês do pacote [P1 A], a coluna repetiria o mesmo valor em todas as linhas, mas o filtro oculto precisa dela (RD-0198). No PC, nada muda (lá o "(todos)" mostra os 12 meses). Os rótulos vêm prontos do PC (`relatorios_nucleo.rotulo_agrupa_fretes`, §10.13.3).
 
 **Mudou no PC?** Primeiro muda esta lista (acréscimo, PR do engenheiro-software), depois o código. Até lá, o PC deixa a aba fora (§10.7.6), e as outras seguem.
 
@@ -1566,6 +1574,160 @@ Saída da web, não entrada: o pacote não muda e o robô não muda. A regra é 
 - **Corpo:** `versao_leitura` (1), `versao_web`, `pacote` (`lote`, `gerado_em`, `dados_ate`, `du`) e, conforme a rota, `visoes` + `farois` ou `rid` + `nome` + `cartoes`. `gerado_em` é o da tela; `dados_ate` é o "Baixado do ERP em" do farol lido, no formato da tela, ou `null`; `du` é o da tela do Painel no `/painel` e `null` no `/resumo`. Os números são os textos que a tela mostra, sem recálculo.
 - Só o que o diretor vê (RN-GER-014). O que nunca sai é o da RN-GER-020, pela lista fechada do desenho §4.
 - Mudança incompatível = `versao_leitura` 2 + ADR + recado aos consumidores.
+
+### 10.13 Farol de Fretes (`pl_fretes`, T-0037): as 4 abas e a edição de "Notas com frete"
+
+Acrescentada em 27/11/2026 (T-0037; item 39 do inventário `recados/anexos/T-0033/inventario-pc-site.md`). Desenho completo, divisão por dono e perguntas: `docs/desenho/T-0037.md`.
+
+Revista em 27/11/2026 sobre o `main` em `8f0600e` (com a §10.9, a §10.10 e a `tela-bc3.md` v1). O que é genérico da edição vem da §10.9; o que é de tela, da `tela-bc3.md`. Decisões P1 A, P2 A, P3 B e P4 A (`docs/desenho/T-0037.md`, §9).
+
+**Mudança compatível: v1 e formato 2 do pacote (§10.8) continuam.**
+- Nenhuma chave nova no farol nem na `edicao`.
+- O `pl_fretes` entra nas listas que já existem: forma "farol" (§10.1), `TabelaWeb7` (§10.7.2) e a edição da T-0021.
+
+Fontes:
+- `relatorios_nucleo.fretes(ctx)` (`relatorios_nucleo.py:7881`, código do `main` em `a32b610`);
+- a fonte do PC, "TABELA_BAP › ftPedidos (VND) + cidade do cliente";
+- a aba ENTREGAS do `ACOMPANHAMENTO_POS_VENDA.xlsx` (`_entregas_por_nf`, chave filial + NF).
+
+#### 10.13.1 O que é nota com frete e de onde vem cada número
+
+- **Nota com frete** [RN-POS-007]:
+  - nota VND dos 12 meses (`ultimos_meses(hoje, 12)`, pela data da NF);
+  - cujo cliente **não** está numa cidade de `bap_dados.CIDADES_SEM_FRETE` (Manaus, Boa Vista, Belém, Santarém, São Luís, Cuiabá e Várzea Grande; `bap_dados.e_frete`);
+  - a UF é a **do cliente** (exceção de fretes na RN-GER-006).
+- **VLR FRETE** [RN-POS-008] (`_frete`, `:6367`):
+  - o FRETE REAL R$ da entrega, quando a assistente informou (`frete_real_de`);
+  - senão, o estimado `transportadoras.frete_estimado` = VLR NF × % da transportadora (o % da cidade, se cadastrado), com piso no FRETE MÍNIMO;
+  - sem transportadora, o % padrão;
+  - o cadastro é só lido: `transportadoras_config.json` não é escrito.
+- **ETAPA**: a da entrega. Sem linha no acompanhamento, "CONCLUÍDA" (NF antes de 01/10/2026, `_inicio_controle`) ou "(sem acompanhamento)".
+- **ENTREGAR ATÉ**: a DT. PREVISTA ajustada (`prevista_manual`) ou a DT. PED + o prazo do cliente em dias úteis (`ctx.mais_uteis`, RN-GER-007).
+- **SLA ENTREGA**: dias corridos da DT. PED até a entrega (ou até hoje), só com linha no acompanhamento.
+- **Tom da linha**:
+  - `alerta`: sem entrega, com prazo vencido e com linha no acompanhamento;
+  - `ok`: entregue;
+  - `""`: o resto.
+
+#### 10.13.2 Cartões (`kpis`, os mesmos do PC; `kpis_de` = `cartoes`) [RN-POS-009]
+
+Sobre as linhas do mês do pacote (`rotulo_no_periodo`):
+
+| Cartão | `valor` | `detalhe` | Cor |
+|---|---|---|---|
+| Notas com frete | nº de notas | soma do VLR NF | neutro |
+| % do faturado | soma do VLR NF das notas com frete ÷ faturado **líquido de devolução** (RN-GER-002, pela data da NF) de todas as notas dos meses visíveis, de todas as cidades [P3 B: o PC muda junto, no mesmo lote] | | info |
+| Frete estimado | soma do VLR FRETE | % do VLR NF | neutro |
+| Cidades atendidas | nº de nomes de CIDADE distintos | | neutro |
+| Entregues | notas com ENTREGUE ou com ETAPA ENTREGUE/CONCLUÍDA | "x% no prazo" = ENTREGUE ≤ ENTREGAR ATÉ, entre as que têm data de entrega | ok |
+| Sem transportadora | notas com linha no acompanhamento e sem TRANSPORTADORA | | atencao |
+
+- `recortes[UF].kpis` (§10.1) pela UF **do cliente** (`_UF_LINHAS_WEB[("pl_fretes", "Notas com frete")] = ("UF", "uf")`).
+- **Correção pedida ao PC** (não é regra nova; `docs/desenho/T-0037.md`, §3):
+  - hoje, no recorte, o denominador do "% do faturado" é o VND da BAP inteira;
+  - ele passa a ser o faturado líquido de devolução (RN-GER-002) dos clientes daquela UF;
+  - na BAP inteira, o número muda só pela troca do bruto pelo líquido (P3 B).
+- **Resumo (`painel.blocos` e `insights_painel`):** o PC do Fretes não tem `painel`. O robô monta o Resumo com a função pura `bap_automation.blocos_resumo_fretes_web(r)`, a partir dos `graficos`, das 3 tabelas de resumo e dos números do PC, sem recalcular regra. Ela devolve `(blocos, frases)`: os blocos nesta ordem (`row` 0 a 3, `col` 0), e as frases à parte:
+  1. **1 bloco `barras`** (`colspan` 3): o primeiro gráfico do PC com `rotulos`, o "Mês a mês: notas com frete" (12 meses).
+     - Cor da série no site: só vale um hex que esteja em `web/app/marca.TOKENS`; qualquer outra cor vira o `--grafico-3` (`web/app/render._cor`).
+  2. **3 blocos `tabela`**, um por aba de resumo (`_TABELAS_RESUMO_FRETES_WEB`): "Por UF (MÊS)", "Por cidade (MÊS)" e "Por transportadora (MÊS)".
+     - `MÊS` = o `padrao` do filtro `MÊS` da aba. As linhas são só desse mês. Com `(todos)` ou sem padrão, vão todas, e o título fica sem o mês.
+     - Colunas: `UF`, `CIDADE` ou `TRANSPORTADORA` (texto) · `NOTAS` int · `VLR NF` moeda · `VLR FRETE` moeda. A coluna `MÊS` sai.
+     - Ordem: maior `VLR NF` primeiro. Cada valor vai arredondado a 2 casas.
+     - `total`: `TOTAL` · soma das NOTAS · soma dos VLR NF · soma dos VLR FRETE. As somas são feitas sobre os valores sem arredondar, e só o total é arredondado: as 3 tabelas dão o mesmo total.
+     - Os rótulos vêm prontos do PC (`rotulo_agrupa_fretes`, §10.13.3); o robô não os reescreve.
+     - `tabela` entra no Fretes por `_TIPOS_BLOCO_EXTRA_WEB["pl_fretes"]`; vale a trava de coluna de pessoa do §10.1 (UF, cidade e transportadora passam).
+  3. **As frases** (`frases`), sem bloco `insights`: vão só em `insights_painel`, de onde a web lê (RD-0192). São até 2 frases `info`, só as que os cartões não dizem:
+     - a UF de maior VLR NF, só com 2 ou mais linhas no "Por UF": "<UF> concentra P% do valor das notas com frete.";
+     - a transportadora de maior VLR NF: "<TRANSPORTADORA> leva P% do valor.".
+     - A escolha da maior não considera "Sem UF", "Sem transportadora" nem "Sem acompanhamento". O total do P% inclui essas linhas (é o TOTAL da tabela).
+  - O `selecionar_farol_web` põe as frases em `insights_painel` quando o PC não mandou nenhuma. O título "Resumo gerencial" é da tela, não do pacote.
+  - Os blocos são da BAP inteira: o `recortes[UF]` leva só os `kpis` (§10.1).
+
+#### 10.13.3 Abas e colunas (`TabelaWeb7`, §10.7.2; a lista entra no §10.7.3 via `_COLUNAS_TABELAS_WEB`)
+
+Colunas, tipos, colunas ocultas e filtros das 4 abas: **§10.7.3 (`pl_fretes`)**, a fonte única. O teste `test_T0017_colunas_robo_igual_contrato_1073` lê de lá. Aqui ficam só a chave da URL e a edição:
+
+| Chave da aba (URL) | `titulo` (PC) | Edição |
+|---|---|---|
+| `notas` | "Notas com frete" | **sim** (§10.13.4) |
+| `uf` | "Por UF" | não |
+| `cidade` | "Por cidade" | não |
+| `transportadora` | "Por transportadora" | não |
+
+- **Rótulos das 3 abas de resumo** (função pura `relatorios_nucleo.rotulo_agrupa_fretes`, no PC, com as constantes `SEM_UF`, `SEM_CIDADE`, `SEM_TRANSP` e `SEM_ACOMP`; o robô usa as mesmas constantes e não reescreve o rótulo):
+  - "Por UF": a UF, ou "Sem UF";
+  - "Por cidade": "CIDADE / UF", com "Sem cidade / <UF>", "<CIDADE> / Sem UF" ou "Sem cidade / Sem UF" (nunca a barra solta);
+  - "Por transportadora": o nome; vazia, "Sem transportadora" (a nota tem linha no acompanhamento, o mesmo critério do cartão "Sem transportadora") ou **"Sem acompanhamento"** (a nota não tem chave nem transportadora). As duas linhas ficam separadas para a "Sem transportadora" bater com o cartão.
+
+- **A linha do PC de "Notas com frete" tem 17 células.**
+  - A 17ª é a CHAVE da entrega (`filial|nf|serie`, a `chave` da aba ENTREGAS); fica `""` sem acompanhamento.
+  - O robô corta a célula a mais e manda só a chave, dentro de `edicao.chaves`, como no "Entregas" (§10.7.3).
+- **As 3 tabelas de resumo** têm cartões próprios (`kpis_de`): Notas · Valor · Frete estimado.
+  - "Por UF" tem recorte por UF (coluna `UF`, UF do cliente).
+  - "Por cidade" e "Por transportadora" vão sem recorte; a tela avisa "só na BAP inteira".
+- **Período das linhas [P1 A]:** só o mês do pacote, nas 4 abas (D2 A do §10.7.9). Como "Por UF" e "Por cidade" são títulos genéricos, o `_TABELAS_SO_MES_WEB` aceita também o par `(rid, título)`.
+- **Tela (`tela-bc3.md` §6.2):** a grade do "Notas com frete" é a `web/app/tabelas.GRADE[("pl_fretes", "Notas com frete")]`, a fonte única (colunas, `blocos` do popup e `cel`). A regra: até 10 colunas, chave **NF**, as 4 editáveis (ETAPA, TRANSPORTADORA, ENTREGAR ATÉ e ENTREGUE) na grade e o RESPONSÁVEL no popup. As 3 de resumo ficam fora da `GRADE`. Abas curtas (§13.3): Resumo · Notas · UF · Cidade · Transportadora; busca "Buscar NF ou cliente".
+- **Corte acima do teto** (§10.8.7): o `pl_fretes` entra em "os outros" (todas as `tabelas` saem, com o `AVISO_ABAS_FORA`).
+
+#### 10.13.4 Edição de "Notas com frete" (a mesma linha da aba ENTREGAS)
+
+- O lugar é `("pl_fretes", "Notas com frete")`, com módulo `pos_venda`, arquivo `RELATORIOS/ACOMPANHAMENTO_POS_VENDA.xlsx`, aba `ENTREGAS` e ação "Editar".
+  - Entra em `bap_automation.EDICOES_WEB` e em `web/app/edicoes.LUGARES` (§10.9.3: mais um lugar do módulo `pos_venda`, aba `ENTREGAS`).
+  - Os campos são os 5 da tabela abaixo: os da ENTREGAS (§10.9.3) **sem** o `frete_real` [P2 A]. No robô, a lista é por lugar, em `CAMPOS_LUGAR_WEB[("pl_fretes", "Notas com frete")]` (a mesma forma da Devolução na T-0023); lugar sem entrada usa o `CAMPOS_EDICAO_WEB[modulo]`.
+- A `edicao` vem pronta do PC: a `_entrega_editavel` que o `fretes` já usa (`chave = 16`), passada pela `bap_automation.edicao_web`.
+
+| `campo` | `rotulo` | Coluna da tela | Tipo | Opções (do PC) | Conferência no robô (`validar_edicao_web`) |
+|---|---|---|---|---|---|
+| `etapa` | ETAPA | `ETAPA` | lista | `pos_venda.ETAPAS_ENTREGA` | dentro da lista |
+| `transportadora` | TRANSPORTADORA | `TRANSPORTADORA` | lista por linha (`grupos`/`grupo_linhas`: as que atuam na UF/cidade do cliente) | `transportadoras.opcoes_para` (só leitura do cadastro) | dentro de `tr.nomes(cadastro)` |
+| `prevista_manual` | DT. PREVISTA (ENTREGA) | `ENTREGAR ATÉ` | data | `datas_de_previsao(hoje)`; `""` = volta à calculada | `dd/mm/aaaa` |
+| `entregue_em` | DT. REAL (ENTREGA) | `ENTREGUE` | data | `datas_para_escolher(hoje)` | `dd/mm/aaaa` |
+| `responsavel` | RESPONSÁVEL (MOTORISTA) | `RESPONSÁVEL` | texto (sugere os já usados) | | até 60 caracteres, sem caractere de controle e sem CPF/CNPJ, e-mail ou telefone (`_RE_PESSOAL_EDICAO_WEB`) |
+
+- **`frete_real` não é campo do Fretes:** o PC não o oferece aqui; ele fica no Farol de Entregas [P2 A]. O robô recusa o `frete_real` vindo do Fretes (`MOTIVO_LUGAR_WEB`).
+- **Linha sem chave** (CONCLUÍDA antes do controle ou "(sem acompanhamento)"): `chaves[k] = ""`. A web não abre o formulário e mostra o motivo.
+- **Quem edita:** o `admin` e o `pos_venda` (RN-POS-010 e RN-POS-011; `web/app/edicoes.EDITA_LUGAR`, §10.9.7, da T-0054). Os outros perfis veem a tabela sem o botão (403 no POST).
+- **Caminho** (o da T-0021, sem mudança de formato):
+  1. A web grava a edição na fila só de acréscimo `<BAP_WEB_DADOS>/edicoes/EDICOES_WEB_<AAAA-MM>.jsonl`.
+  2. O robô puxa em `GET /api/edicoes?desde=<seq>` e confere de novo (`validar_edicao_web`).
+  3. O robô grava por `gravar_edicoes_pc` → `pos_venda.gravar_edicoes(caminho, "ENTREGAS", {chave: {campo: valor}})`. A função escreve **primeiro** uma linha no diário `_EDICOES_POS_VENDA` (só acrescenta, regra 7) e depois a célula da assistente.
+  4. O robô registra a linha em `RELATORIOS/_EDICOES_WEB/APLICADAS_WEB_<PC>.jsonl` (só acrescenta) e confirma em `POST /api/edicoes/confirmar`.
+  - **Não é troca no lugar da RN-GER-012** (a exceção do §10.9.3 é só DDR, Expositores e config): a ENTREGAS grava como hoje, primeiro o diário e depois as colunas da assistente. O diário `_EDICOES_POS_VENDA` já guarda cada valor; não há cópia `ANTES/` do dia nem `antes` obrigatório no `APLICADAS_WEB` neste lugar (igual ao `pl_entregas`).
+  - Excel aberto = "pendente": a fila espera a próxima rodada.
+  - Linha não achada = "erro" (`MOTIVO_LINHA_WEB`).
+- **A mesma linha em dois faróis:**
+  - a chave é a mesma do "Entregas" do `pl_entregas`;
+  - a marca "Aguardando o PC" e o "O PC recusou" valem nos dois faróis;
+  - para isso, a situação soma os lugares irmãos: os que gravam na **mesma aba** do PC (`web/app/edicoes.IRMAOS`, lista explícita: Fretes, Entregas e Pendências). O mesmo `modulo` não basta: as Devoluções também são `pos_venda`, mas na aba DEVOLUCOES (§10.9.3).
+- **PC só leitura:**
+  - `("pl_fretes", "Notas com frete")` entra em `bap_relatorios.EDICAO_SO_WEB`, e o duplo clique mostra o `MSG_EDICAO_SO_WEB`;
+  - isso entra no **mesmo** lote do robô que passa a mandar a `edicao` do Fretes, nunca antes.
+- Nada aqui escreve o `transportadoras_config.json` nem outro `.json` digitado. Pela RN-GER-016, o cadastro só vira editável na web com um "autorizo" para esse arquivo (pergunta futura, fora da T-0037).
+
+#### 10.13.5 Quem vê
+
+| Perfil | Resumo | Abas | Edita |
+|---|---|---|---|
+| `admin` | sim | as 4 | sim |
+| `gerente` | sim | as 4 | não |
+| `analista` | sim | as 4 (lê como o gerente, RN-GER-017) | não |
+| `pos_venda` | sim | as 4 [P4 A] | sim (RN-POS-010) |
+| `diretor` | sim | nenhuma | não |
+
+- `render.FAROIS["pl_fretes"] = ("Farol de Fretes", LEITURA_GERAL + ("diretor", "pos_venda"))`, no grupo "Pós-venda" do menu. `LEITURA_GERAL` = admin, gerente e analista (T-0036, RN-GER-017), a mesma forma do `pl_entregas`.
+- Edição do `admin` e do `pos_venda` (RN-POS-010/011, `EDITA_LUGAR` do §10.9.7): o analista, o gerente e o diretor leem e não editam.
+- O diretor vê só o Resumo (RN-GER-014).
+- Aba fora do perfil = 403.
+- Página com tabela: `no-store` e `noindex` (§10.7.5).
+
+#### 10.13.6 Ordem de publicação
+
+1. Este contrato.
+2. **Web antes** (modulo-web): o `pl_fretes` em `FAROIS`/`ACEITOS`, as 4 abas, o lugar da edição e a `GRADE` e a situação pelos lugares irmãos (`IRMAOS`). A web nova aceita pacote sem o `pl_fretes`.
+3. **Robô e PC depois, no mesmo lote** (modulo-robo e modulo-farois): o farol no pacote, com a `edicao`, e o `EDICAO_SO_WEB` do PC. Chegam à produção pela rotina diária (ADR 0002).
+4. **Testes:** citam de `test_RN_POS_007_...` a `test_RN_POS_010_...` e o `test_RN_GER_012_...`.
+   - RN-POS-007 a 010 estão livres no `03-regras.md` do `main` (ele vai até a RN-POS-006); o gerente-projetos as grava antes do PR dos testes.
 
 ## 11. Parte ação: os callables e a web v1
 

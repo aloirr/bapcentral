@@ -4420,6 +4420,7 @@ class DialogoGarantia(tk.Toplevel):
 # pos_venda.gravar_edicoes). Aqui fica so a leitura.
 AUTORIZA_EM = ()
 EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas"),
+                 ("pl_fretes", "Notas com frete"),
                  # (T-0023) NCC, Devolucoes e Garantias: so leitura no PC
                  ("pl_ncc", "NCC pendentes"), ("pl_devolucoes", "Devoluções"),
                  ("pl_garantias", "Garantias")}
