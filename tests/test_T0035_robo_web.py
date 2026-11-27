@@ -87,10 +87,10 @@ def test_ADR0003_lote_do_robo_igual_ao_da_web_em_manaus(gerado_em, lote):
     assert ba._lote_web(gerado_em) == lote
 
 
-@pytest.mark.xfail(strict=True, reason="achado T-0035 (modulo-robo): _lote_web não converte para "
-                   "Manaus; com outro fuso, o `fechar` dá 422 (nome_arquivo da web converte)")
 def test_ADR0003_lote_do_robo_converte_outro_fuso_para_manaus():
+    """Achado 1 da T-0035 (corrigido no robô f88a5ed): outro fuso vira Manaus, como no nome_arquivo da web."""
     assert ba._lote_web("2026-11-26T12:30:00+00:00") == "20261126T083000"
+    assert ba._lote_web("2026-11-26T09:30:00-03:00") == "20261126T083000"
 
 
 def test_ADR0003_farol_que_nao_montou_nao_vai_no_pacote_nem_no_manter():
