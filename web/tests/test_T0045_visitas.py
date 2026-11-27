@@ -107,19 +107,40 @@ def test_constantes_do_contrato():
     assert visitas.LOTE_GZ_MAX == 8 * 1024 * 1024 and visitas.ARQUIVO_MAX == 2 * 1024 * 1024 and visitas.ARQUIVOS_MAX == 60
 
 
+PAUSAM_CONTRATO = ("MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA", "MAXIMA_BLOQUEIO", "DADO_PESSOAL")
+
+
 def test_RN_VIS_005_007_todo_codigo_tem_status_e_os_que_pausam():
     assert set(visitas.STATUS_DO_CODIGO) == set(visitas.CODIGOS)
-    assert set(visitas.PAUSAM) == {"MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA", "MAXIMA_BLOQUEIO", "DADO_PESSOAL"}
+    assert set(visitas.PAUSAM) == set(PAUSAM_CONTRATO)
     assert visitas.STATUS_DO_CODIGO["PARCIAL_VENDEDOR"] == "parcial" and visitas.STATUS_DO_CODIGO["OK"] == "ok"
 
 
-def test_RN_VIS_002_juntar_baixado_a_maior_hora_e_dia_fechado():
-    n = {"baixado_em": "2026-11-27T06:07:41-04:00", "erros_vendedor": 2, "refeito": False}
-    j = visitas.juntar_baixado(n, "2026-11-27T07:12:03-04:00")
-    assert j["origem"] == "pc" and j["baixado_em"] == "2026-11-27T07:12:03-04:00"
-    assert visitas.juntar_baixado(n, "2026-11-26T20:00:00-04:00")["origem"] == "nuvem"
-    assert visitas.dia_fechado("20261126", "2026-11-27T06:07:41-04:00")
-    assert not visitas.dia_fechado("20261127", "2026-11-27T21:00:00-04:00")      # baixado no próprio dia: segue aberto
+def test_RN_VIS_002_espelho_juntar_baixado_empate_e_dia_fechado():
+    """Espelho de visitas_nucleo.juntar_baixado: a maior hora vale; no empate, a NUVEM (o PC anota a hora da nuvem)."""
+    n = {"20261126": {"baixado_em": "2026-11-27T06:07:41-04:00", "erros_vendedor": 2, "refeito": False}}
+    j = visitas.juntar_baixado(n, {"20261126": "2026-11-27T07:12:03-04:00"})["20261126"]
+    assert j == {"baixado_em": "2026-11-27T07:12:03-04:00", "origem": "pc"}                 # PC maior: sem erros da nuvem
+    assert visitas.juntar_baixado(n, {"20261126": "2026-11-26T20:00:00-04:00"})["20261126"]["origem"] == "nuvem"
+    e = visitas.juntar_baixado(n, {"20261126": "2026-11-27T06:07:41-04:00"})["20261126"]      # empate: nuvem, com os erros
+    assert e["origem"] == "nuvem" and e["erros_vendedor"] == 2 and e["refeito"] is False
+    assert visitas.juntar_baixado(None, {"20261126": "2026-11-27T06:00:00"})["20261126"]["baixado_em"] == "2026-11-27T06:00:00-04:00"
+    assert visitas.juntar_baixado({"20261126": "lixo"}, None) == {}
+    assert visitas.dia_fechado_no_indice({"20261126": "2026-11-27T06:07:41-04:00"}, datetime(2026, 11, 26).date())
+    assert not visitas.dia_fechado_no_indice({"20261127": "2026-11-27T21:00:00-04:00"}, datetime(2026, 11, 27).date())
+    hoje = datetime(2026, 11, 27).date()
+    assert [d.day for d in visitas.dias_a_baixar({"20261125": "2026-11-26T08:00:00-04:00"}, hoje - timedelta(days=3), hoje + timedelta(days=2), hoje)] == [24, 26, 27]
+
+
+def test_RN_VIS_002_importado_pelo_pc_com_a_mesma_hora_mantem_os_erros_da_nuvem(v, relogio):
+    """O caso comum (RN-VIS-006): o PC devolve no `fechados_pc` a hora da própria nuvem; o dia segue de origem nuvem."""
+    r = conceder(v).json()
+    enviar(v, r["id"], lote(r["id"], erros=2))
+    ep = v.get("/api/visitas/lotes?desde=0", headers=HP).json()["epoca"]
+    v.post("/api/visitas/lotes/confirmar", json={"epoca": ep, "resultados": [{"seq": 1, "status": "aplicada", "motivo": ""}],
+                                                 "fechados_pc": {"20261126": "2026-11-27T06:07:41-04:00"}}, headers=HP)
+    ind = v.get("/api/visitas/trabalho", headers=H).json()["indice"]["20261126"]
+    assert ind["origem"] == "nuvem" and ind["erros_vendedor"] == 2
 
 
 # ---------------------------------------------------------------- token (401)
@@ -222,7 +243,7 @@ def test_RN_VIS_006_retentativa_marca_refeito_na_concessao(v, relogio):
 
 
 # ---------------------------------------------------------------- pausa (RN-VIS-005/007)
-@pytest.mark.parametrize("codigo", ["MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA", "MAXIMA_BLOQUEIO", "DADO_PESSOAL"])
+@pytest.mark.parametrize("codigo", PAUSAM_CONTRATO)
 def test_RN_VIS_005_codigo_que_pausa_trava_a_nuvem(v, relogio, codigo):
     ach = [{"coluna": "ENDERECO", "tipo": "telefone", "n": 1}] if codigo == "DADO_PESSOAL" else None
     r = conceder(v).json()
@@ -467,7 +488,8 @@ def test_diagnostico_volta_a_pendente(v, admin, relogio):
 def test_tela_mostra_o_ultimo_codigo_sem_print_e_o_limite(v, admin, relogio):
     rodada_e_fim(v, relogio, "agenda", "PARCIAL_VENDEDOR", erros_vendedor=1, dias_ok=["20261126"])
     t = admin.get("/visitas/atualizar").text
-    assert "PARCIAL_VENDEDOR" in t and "1 Excel com erro (" in t
+    assert "Código para o suporte: PARCIAL_VENDEDOR" in t and "Faltou a visita de 1 vendedor em 26/11. Peça de novo esse dia." in t
+    assert "Parcial" in t
     assert "<img" not in t.split("<main")[1].split("</main>")[0]                 # nada de print da Máxima (6 B)
     for m in ("agenda", "agenda", "agenda", "pedido", "pedido", "pedido", "retentativa"):
         rodada_e_fim(v, relogio, m)
@@ -505,3 +527,129 @@ def test_estado_em_disco_sem_segredo_nem_usuario(v, admin, relogio):
     tudo = "".join(p.read_text(errors="ignore") for p in (v.app_dados / "visitas").iterdir() if p.is_file())
     assert VTOKEN not in tudo and "admin.teste" not in tudo and TOKEN not in tudo
     assert re.search(r'"perfil": "admin"', (v.app_dados / "visitas" / "pedidos.jsonl").read_text())
+
+
+# ---------------------------------------------------------------- T-0045 v2: pareceres (código, UX, redundâncias)
+def test_segunda_guarda_teto_total_de_descompressao_413(v, relogio, monkeypatch):
+    """Zip com membros que somam mais que o teto: 413 com código, sem gravar (bomba de descompressão)."""
+    r = conceder(v).json()
+    monkeypatch.setattr(visitas, "DESCOMPRESSAO_MAX", 1000)
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("xl/sharedStrings.xml", "<sst><si><t>" + "A" * 5000 + "</t></si></sst>")
+    ex = b.getvalue()
+    corpo = lote(r["id"], mudar=lambda c: c["arquivos"][0].update(sha256=hashlib.sha256(ex).hexdigest(), bytes=len(ex),
+                                                                   b64=base64.b64encode(ex).decode()))
+    x = enviar(v, r["id"], corpo)
+    assert x.status_code == 413 and x.json() == {"erro": "lote grande demais", "codigo": "DESCOMPRESSAO_TETO"}
+    assert v.get("/api/visitas/lotes", headers=HP).json()["linhas"] == []
+
+
+def test_segunda_guarda_teto_somado_entre_arquivos_do_lote(monkeypatch):
+    monkeypatch.setattr(visitas, "DESCOMPRESSAO_MAX", 3000)
+    ex = xlsx(["A" * 1500])
+    orc = [visitas.DESCOMPRESSAO_MAX]
+    visitas.achar_no_excel(ex, orc)                                    # o primeiro cabe
+    with pytest.raises(visitas.ErroVisitas) as e:
+        for _ in range(3):
+            visitas.achar_no_excel(ex, orc)                             # o total estoura, mesmo cada um sendo pequeno
+    assert e.value.status == 413 and e.value.corpo["codigo"] == "DESCOMPRESSAO_TETO"
+
+
+def test_segunda_guarda_membros_demais_413():
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w") as z:
+        for i in range(visitas.ZIP_MEMBROS_MAX + 1):
+            z.writestr(f"x/{i}.txt", "a")
+    with pytest.raises(visitas.ErroVisitas) as e:
+        visitas.achar_no_excel(b.getvalue())
+    assert e.value.status == 413
+
+
+def test_RN_VIS_007_segunda_guarda_le_celula_numerica_e_entidade_xml():
+    def com(sheet, shared="<sst/>"):
+        b = io.BytesIO()
+        with zipfile.ZipFile(b, "w") as z:
+            z.writestr("xl/sharedStrings.xml", shared)
+            z.writestr("xl/worksheets/sheet1.xml", sheet)
+        return b.getvalue()
+    assert ("cpf", "") in visitas.achar_no_excel(com('<worksheet><c><v>12345678901</v></c></worksheet>'))
+    assert ("email", "") in visitas.achar_no_excel(com("<w/>", "<sst><si><t>fulano&#64;exemplo.com.br</t></si></sst>"))
+    assert ("telefone", "") in visitas.achar_no_excel(com('<w><is><t>(92) 99999-1234</t></is></w>'))
+    assert visitas.achar_no_excel(com('<w><c><v>123456</v></c><c><v>1234.5</v></c></w>', "<sst><si><t>CLIENTE FICTICIO</t></si></sst>")) == []
+
+
+def test_paridade_minima_dos_regex_com_o_contrato():
+    """Os 4 regex são espelho dos `_RX_*` do visitas_nucleo (o teste de paridade na raiz compara o texto)."""
+    assert visitas.RE_PESSOAL["email"].pattern == r"[\w.+-]+@[\w-]+(\.[\w-]+)+"
+    assert set(visitas.TIPOS_ACHADO) == {"cnpj", "cpf", "telefone", "email", "formato"}
+    assert visitas.COLUNAS_PROIBIDAS == ("KM DIST", "BONIF", "OBSERVACAO")
+
+
+def test_UX_pausa_desabilita_o_botao_e_escreve_o_motivo_uma_vez(v, admin, relogio):
+    r = conceder(v).json()
+    fim(v, r["id"], "MAXIMA_CONFIRMACAO")
+    t = admin.get("/visitas/atualizar").text
+    assert t.count("A Máxima pediu uma confirmação") == 1                      # a frase fica só na caixa vermelha
+    assert "Pausou a atualização (motivo acima)." in t and t.count(">Retomar<") == 1
+    assert re.search(r'<button type="submit" class="bt-neutro" disabled title="Pausado: o admin retoma antes">Atualizar visitas', t)
+    assert t.count('class="bt-principal"') == 1                                               # só o Retomar é principal
+    assert "Código para o suporte: MAXIMA_CONFIRMACAO" in t and "Situação" in t and "Pausado" in t
+    admin.post("/visitas/atualizar", data={"csrf": token_form(admin, "/visitas/atualizar"), "de": "2026-11-27", "ate": "2026-11-27"})
+    assert v.get("/api/visitas/trabalho", headers=H).json()["pedido"] is None   # o servidor também recusa
+
+
+def test_UX_tela_um_periodo_um_titulo_e_hora_num_formato_so(v, admin, relogio):
+    rodada_e_fim(v, relogio, "agenda", "OK")
+    t = admin.get("/visitas/atualizar").text
+    corpo = t.split("<main")[1]
+    assert corpo.count('name="de"') == 1 and corpo.count('name="ate"') == 1                    # um par De/Até
+    assert 'formaction="/visitas/refazer"' in corpo and ">Baixar de novo<" in corpo
+    assert "<h2>Período</h2>" in corpo and "<h2>Atualizar visitas</h2>" not in corpo
+    assert "Acessos à Máxima hoje" in t and "Agenda diária" in t and "ENTRADAS" not in t
+    assert re.search(r"27/11 0\dh\d\d", t) and not re.search(r"\d{2}/\d{2}/\d{4} \d{2}:\d{2}", corpo)
+
+
+def test_UX_link_e_item_do_menu_so_para_admin_e_gerente(v, admin):
+    ger = logar(v, admin, "ger.seis", "gerente")
+    ven = logar(v, admin, "ven.dois", "vendas")
+    assert 'href="/visitas/atualizar"' in ger.get("/").text and 'href="/visitas/atualizar"' in admin.get("/").text
+    assert 'href="/visitas/atualizar"' not in ven.get("/").text                  # o vendedor não vê o atalho
+    from app import render
+    nav = lambda p: [i["nome"] for g in render.menu_lateral(p, {"vc_visitas": 1}, None) for i in g["itens"]]
+    assert "Atualizar visitas" in nav("gerente") and "Atualizar visitas" not in nav("vendas")
+    ativo = ger.get("/visitas/atualizar").text
+    assert re.search(r'<a href="/visitas/atualizar" class="on" aria-current="page">Atualizar visitas', ativo)
+
+
+def test_tela_do_admin_mostra_o_diagnostico_com_contagens_sem_nome_de_coluna(v, admin, relogio):
+    medidas = {"tempos_s": {"login": 21.4, "maxgestao": 9.8, "filtros": 30.2, "vendedor": [44.0, 51.3]}, "fonte_pico": "cgroup",
+               "chromium": "x", "espelho": {"colunas_fora": ["KM DIST", "BONIF", "OBSERVACAO"], "limpos": {"CLIENTE": 3, "JUSTIFICATIVA": 1}}}
+    rodada_e_fim(v, relogio, "diagnostico", "OK", pico_mb=618.0, medidas=medidas, duracao_s=180)
+    t = admin.get("/visitas/atualizar").text
+    for esperado in ("Duração", "180 s", "618 MB", "21 s", "44 s e 51 s", "Colunas retiradas", "Células limpas", "Achados", "sem problema"):
+        assert esperado in t, esperado
+    assert "KM DIST" not in t and "BONIF" not in t                               # só a contagem
+    ger = logar(v, admin, "ger.sete", "gerente")
+    assert "Células limpas" not in ger.get("/visitas/atualizar").text           # o diagnóstico é do admin
+
+
+def test_textos_com_acao_e_sem_jargao():
+    for c, (_, txt) in visitas.CODIGOS.items():
+        assert "Render" not in txt and "etapa" not in txt.lower() and "Excel com erro" not in txt, c
+    assert visitas.texto_do_codigo("NADA_A_FAZER", {}) == "Já estava em dia. Nada a baixar."
+    assert "2 vendedores" in visitas.texto_do_codigo("PARCIAL_VENDEDOR", {"erros_vendedor": 2, "dias": ["20261125"]})
+    assert visitas.texto_do_codigo("MAXIMA_FORA", {"proxima": "06h30"}) == "A Máxima não respondeu. Tentamos de novo às 06h30."
+    assert visitas.texto_do_codigo("SITE_FORA", {}) == "O site não respondeu. Tente mais tarde."
+    assert set(visitas.STATUS_DO_CODIGO) == set(visitas.CODIGOS)
+
+
+def test_formatadores_de_dia():
+    assert visitas.dia_br("20261127") == "27/11" and visitas.dia_iso("20261127") == "2026-11-27"
+    assert visitas.dia_hora("2026-11-27T06:06:00-04:00") == "27/11 06h06" and visitas.dia_hora("lixo") == ""
+
+
+def test_o_pedido_aceita_a_data_do_formulario_com_hifen(v, admin, relogio):
+    admin.post("/visitas/atualizar", data={"csrf": token_form(admin, "/visitas/atualizar"), "de": "2026-11-26", "ate": "2026-11-27"})
+    p = v.get("/api/visitas/trabalho", headers=H).json()["pedido"]
+    assert p["de"] == "20261126" and p["ate"] == "20261127"

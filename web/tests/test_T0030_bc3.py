@@ -32,7 +32,8 @@ def test_T0030_menu_lateral_so_com_o_que_o_perfil_ve():
     nomes = [i["nome"] for x in g for i in x["itens"]]
     assert "Painel Executivo" in nomes and "Usuários" in nomes
     # farol fora do pacote: aparece sem link (indisponível)
-    assert all(not i["href"] for x in g if x["nome"] in dict(render.GRUPOS_MENU) for i in x["itens"])
+    assert all(not i["href"] for x in g if x["nome"] in dict(render.GRUPOS_MENU) for i in x["itens"]
+               if i["nome"] != "Atualizar visitas")       # T-0045: ação (não farol), sempre com link
     assert any(x["nome"] in dict(render.GRUPOS_MENU) for x in g)
 
 

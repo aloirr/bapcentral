@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -28,6 +29,8 @@ VERES = render.VEEM_PAINEL          # [SUPOSIÇÃO] os 3 veem o painel
 PAINEL_RID = "vc_painel"
 FORM_MAX = 16 * 1024
 FECHAR_MAX = 256 * 1024
+PODEM_PEDIR = ("admin", "gerente")                  # 4 A (Alexandre): admin e gerente apertam o "Atualizar visitas"
+SO_ADMIN = ("admin",)                               # refazer, diagnóstico, agenda e Retomar
 ISENTAS_FUSO = ("/saude", "/static", "/api/pacote", "/api/cobranca", "/api/edicoes", "/api/visitas")   # saúde e robô seguem; as telas param
 
 
@@ -88,6 +91,8 @@ def criar_app() -> FastAPI:
     modelos.env.autoescape = True
     modelos.env.filters["manaus"] = fmt_manaus
     modelos.env.filters["hhmm"] = hhmm
+    modelos.env.filters["dia_br"] = visitas.dia_br                 # T-0045: AAAAMMDD -> dd/mm
+    modelos.env.filters["dia_hora"] = visitas.dia_hora             # T-0045: "27/11 06h06", o formato único da tela
     modelos.env.filters["fone"] = cobranca.fone_bonito
     modelos.env.filters["aba_curta"] = tabelas.aba_curta           # T-0033: nomes curtos nas abas (cabem a 1366)
     modelos.env.globals["dados_popup"] = tabelas.dados_do_popup
@@ -178,9 +183,11 @@ def criar_app() -> FastAPI:
         if u:
             no_pacote = (info or {}).get("farois") or {}
             # o item da lateral marcado: o farol, o painel ou, na conta, "usuarios" e "senha" (contrato §3)
-            ativo = ctx.get("rid") or {"/painel": "painel", "/usuarios": "usuarios", "/senha": "senha"}.get(request.url.path)
+            ativo = ctx.get("rid") or {"/painel": "painel", "/usuarios": "usuarios", "/senha": "senha",
+                                       "/visitas/atualizar": "visitas_atualizar"}.get(request.url.path)
             ctx["nav"] = render.menu_lateral(u["perfil"], no_pacote, ativo,
                                              painel=u["perfil"] in VERES, admin=u["perfil"] == "admin")
+            ctx["pode_visitas"] = u["perfil"] in PODEM_PEDIR      # o link "Atualizar" só para quem pode apertar (UX 8)
             if u["trocar_senha"]:
                 ctx["nav"] = []             # troca obrigatória: só a casca (marca e Sair), sem links que não levam a lugar nenhum
         return modelos.TemplateResponse(request, nome, ctx, status_code=status)
@@ -840,14 +847,17 @@ def criar_app() -> FastAPI:
                       msg="Feito.", erro="")
 
     # ------------------------------------------------------------ pacote do robô
-    def sem_token(request: Request):
+    def bearer(request: Request, esperado: str):
+        """Bearer em tempo constante: 401 se faltar, errar ou se o segredo não estiver configurado."""
         auth = request.headers.get("authorization", "")
-        esperado = cfg.token
         entrada = auth[7:] if auth.lower().startswith("bearer ") else ""
         if not esperado or not hmac.compare_digest(entrada.encode(), esperado.encode()):
             return JSONResponse({"erro": "não autorizado"}, status_code=401,
                                 headers={"WWW-Authenticate": "Bearer"})
         return None
+
+    def sem_token(request: Request):
+        return bearer(request, cfg.token)
 
     @app.get("/api/cobranca")
     async def api_cobranca(request: Request):
@@ -905,22 +915,25 @@ def criar_app() -> FastAPI:
 
     # ------------------------------------------------------------ visitas da Máxima (T-0045, contrato visitas-nuvem)
     def sem_token_cron(request: Request):
-        """O token do cron só abre as rotas do §3 (não o pacote, não as edições): 401 se faltar ou errar."""
-        auth = request.headers.get("authorization", "")
-        entrada = auth[7:] if auth.lower().startswith("bearer ") else ""
-        esperado = vis.token
-        if not esperado or not hmac.compare_digest(entrada.encode(), esperado.encode()):
-            return JSONResponse({"erro": "não autorizado"}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
-        return None
+        """O token do cron só abre as rotas do §3 (não o pacote, não as edições)."""
+        return bearer(request, vis.token)
 
-    async def corpo_json(request: Request, limite: int = 65536):
+    @app.exception_handler(visitas.ErroVisitas)
+    async def _erro_visitas(request, e):
+        return JSONResponse(e.corpo, status_code=e.status)
+
+    async def ler_corpo(request: Request, limite: int, msg: str = "corpo grande demais") -> bytes:
+        """O corpo inteiro, em partes, com teto: passou = 413 (ErroVisitas)."""
         bruto = b""
         async for parte in request.stream():
             bruto += parte
             if len(bruto) > limite:
-                raise visitas.ErroVisitas(413, {"erro": "corpo grande demais"})
+                raise visitas.ErroVisitas(413, {"erro": msg})
+        return bruto
+
+    async def corpo_json(request: Request, limite: int = 65536):
         try:
-            return json.loads(bruto.decode("utf-8"))
+            return json.loads((await ler_corpo(request, limite)).decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             raise visitas.ErroVisitas(400, {"erro": "corpo não é JSON"})
 
@@ -930,55 +943,26 @@ def criar_app() -> FastAPI:
 
     @app.post("/api/visitas/rodada")
     async def api_visitas_rodada(request: Request):
-        negado = sem_token_cron(request)
-        if negado:
-            return negado
-        try:
-            corpo = await corpo_json(request)
-            return JSONResponse(vis.conceder(corpo), status_code=201)
-        except visitas.ErroVisitas as e:
-            return JSONResponse(e.corpo, status_code=e.status)
+        return sem_token_cron(request) or JSONResponse(vis.conceder(await corpo_json(request)), status_code=201)
 
     @app.post("/api/visitas/rodada/{rid}/progresso")
     async def api_visitas_progresso(request: Request, rid: str):
-        negado = sem_token_cron(request)
-        if negado:
-            return negado
-        try:
-            return vis.progresso(rid, await corpo_json(request))
-        except visitas.ErroVisitas as e:
-            return JSONResponse(e.corpo, status_code=e.status)
+        return sem_token_cron(request) or vis.progresso(rid, await corpo_json(request))
 
     @app.post("/api/visitas/rodada/{rid}/dia/{dia}")
     async def api_visitas_lote(request: Request, rid: str, dia: str):
         negado = sem_token_cron(request)
         if negado:
             return negado
-        try:
-            if int(request.headers.get("content-length") or 0) > visitas.LOTE_GZ_MAX:
-                raise visitas.ErroVisitas(413, {"erro": "lote grande demais"})
-            bruto = b""
-            async for parte in request.stream():
-                bruto += parte
-                if len(bruto) > visitas.LOTE_GZ_MAX:
-                    raise visitas.ErroVisitas(413, {"erro": "lote grande demais"})
-            return vis.receber_lote(rid, dia, request.headers.get("content-type", ""),
-                                    request.headers.get("content-encoding", ""),
-                                    request.headers.get("x-bap-sha256", ""), bruto)
-        except ValueError:
-            return JSONResponse({"erro": "content-length inválido"}, status_code=400)
-        except visitas.ErroVisitas as e:
-            return JSONResponse(e.corpo, status_code=e.status)
+        bruto = await ler_corpo(request, visitas.LOTE_GZ_MAX, "lote grande demais")
+        h = request.headers
+        # a leitura dos Excel (zip, regex) é trabalho de CPU: fora do laço de eventos, para não travar o site
+        return await run_in_threadpool(vis.receber_lote, rid, dia, h.get("content-type", ""),
+                                       h.get("content-encoding", ""), h.get("x-bap-sha256", ""), bruto)
 
     @app.post("/api/visitas/rodada/{rid}/fim")
     async def api_visitas_fim(request: Request, rid: str):
-        negado = sem_token_cron(request)
-        if negado:
-            return negado
-        try:
-            return vis.fim(rid, await corpo_json(request))
-        except visitas.ErroVisitas as e:
-            return JSONResponse(e.corpo, status_code=e.status)
+        return sem_token_cron(request) or vis.fim(rid, await corpo_json(request))
 
     # robô do PC (BAP_WEB_TOKEN): a mesma forma da /api/edicoes
     @app.get("/api/visitas/lotes")
@@ -1004,23 +988,14 @@ def criar_app() -> FastAPI:
 
     @app.post("/api/visitas/lotes/confirmar")
     async def api_visitas_confirmar(request: Request):
-        negado = sem_token(request)
-        if negado:
-            return negado
-        try:
-            return vis.confirmar(await corpo_json(request, 262144))
-        except visitas.ErroVisitas as e:
-            return JSONResponse(e.corpo, status_code=e.status)
+        return sem_token(request) or vis.confirmar(await corpo_json(request, 262144))
 
     # tela "Atualizar visitas" (Farol de Visita): sessão e perfil conferidos aqui, em toda rota
-    PODEM_PEDIR = ("admin", "gerente")                  # 4 A (Alexandre): admin e gerente apertam o botão
-    SO_ADMIN = ("admin",)                               # refazer, diagnóstico, agenda e Retomar
-
     @app.get("/visitas/atualizar", response_class=HTMLResponse)
     async def visitas_tela(request: Request):
         u = usuario(request, render.FAROIS["vc_visitas"][1])
         flash = request.session.pop("visitas_msg", None) or {}
-        return pagina(request, "visitas.html", rid="vc_visitas", farol_nome="Atualizar visitas", v=vis.tela(),
+        return pagina(request, "visitas.html", v=vis.tela(),
                       pode_pedir=u["perfil"] in PODEM_PEDIR, admin=u["perfil"] in SO_ADMIN,
                       msg=flash.get("msg", ""), erro=flash.get("erro", ""))
 
@@ -1036,12 +1011,12 @@ def criar_app() -> FastAPI:
     @app.post("/visitas/atualizar")
     async def visitas_atualizar(request: Request):
         return await acao_visitas(request, PODEM_PEDIR, lambda f, u: vis.pedir(
-            f.get("de", "").replace("-", ""), f.get("ate", "").replace("-", ""), False, u["perfil"]))
+            f.get("de", ""), f.get("ate", ""), False, u["perfil"]))
 
     @app.post("/visitas/refazer")
     async def visitas_refazer(request: Request):
         return await acao_visitas(request, SO_ADMIN, lambda f, u: vis.pedir(
-            f.get("de", "").replace("-", ""), f.get("ate", "").replace("-", ""), True, u["perfil"]))
+            f.get("de", ""), f.get("ate", ""), True, u["perfil"]))
 
     @app.post("/visitas/retomar")
     async def visitas_retomar(request: Request):

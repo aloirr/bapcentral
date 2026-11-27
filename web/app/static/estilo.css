@@ -679,3 +679,6 @@ button:disabled{opacity:.5;cursor:not-allowed}
   .vz-linha{align-items:stretch}.vz-linha>form,.vz-linha .bt-principal,.vz-linha .bt-neutro{flex:1 1 100%}
   .vz-linha input,.vz-linha button{min-height:var(--alvo)}
 }
+.vz-cod{display:block;font-size:12px;font-weight:400;color:var(--suave);margin-top:2px}
+.vz-diag{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:6px 12px;margin:0}
+.vz-diag div{display:grid;gap:1px}.vz-diag dt{font-size:12px;color:var(--suave)}.vz-diag dd{margin:0;font-weight:600}

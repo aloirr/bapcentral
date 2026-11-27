@@ -5,26 +5,29 @@ importa o lote na volta de 30 min. Aqui ficam só a guarda e o registro: concess
 dia (RN-VIS-008), pausa por código (RN-VIS-005 e 007), índice dos dias baixados (RN-VIS-002), fila de lotes
 (`edicoes.Fila`) e o que a tela mostra. Quem baixa, filtra e monta o dia é o cron e o PC; o site nunca serve o Excel.
 
+ESPELHO: as regras de RN-VIS-002 (`_dt`, `juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`) e os regex de dado
+pessoal (`RE_PESSOAL`, `TIPOS_ACHADO`, `COLUNAS_PROIBIDAS`) são espelho MÍNIMO de `visitas_nucleo` (`_quando_manaus`,
+`juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`, `_RX_*`, `_FORA_DO_ESPELHO`): o Render publica só `web/` e
+não importa a raiz. A regra é a do núcleo (empate: a nuvem, contrato §3.1); o teste de paridade na raiz prende os dois.
+
 Disco (`<dados>/visitas/`): `estado.json` (gravação atômica), `lotes/` (a `Fila` e os corpos `<seq>.json.gz`),
 `pedidos.jsonl` e `rodadas.jsonl` (só acréscimo). Nenhum nome de vendedor ou de cliente em log, resposta ou arquivo
 de estado; o perfil, nunca o usuário, vai no registro dos pedidos.
 """
 from __future__ import annotations
 
-import gzip
 import hashlib
+import html
 import io
 import json
-import os
 import re
 import threading
 import zipfile
-import zlib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from .arquivos import gravar_json
-from .edicoes import MANAUS, ErroEdicao, Fila
+from .arquivos import GzipGrande, GzipInvalido, acrescentar_linha, descomprimir_com_teto, gravar_bytes, gravar_json
+from .edicoes import MANAUS, ErroEdicao, Fila, _int, agora
 
 try:                                    # Linux (Render); no Windows de teste só a trava de thread
     import fcntl
@@ -40,6 +43,9 @@ PEDIDO_MAX_RODADAS = 3
 FECHADOS_PC_DIAS = 40
 LOTE_GZ_MAX = 8 * 1024 * 1024
 LOTE_BRUTO_MAX = 24 * 1024 * 1024        # o JSON já descomprimido (trava de "bomba" de gzip)
+DESCOMPRESSAO_MAX = 50 * 1024 * 1024     # teto TOTAL de leitura dos Excel (por lote e por arquivo), segunda guarda
+ZIP_MEMBROS_MAX = 64
+CODIGO_TETO = "DESCOMPRESSAO_TETO"
 ARQUIVO_MAX = 2 * 1024 * 1024
 ARQUIVOS_MAX = 60
 LOTE_GUARDA_DIAS = 7                     # depois de confirmado
@@ -56,35 +62,37 @@ PAUSAM = ("MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA", "MAXIMA_BLOQUE
 PEDE_FASE = ("TELA_MUDOU", "ERRO_INTERNO")
 TELA_MUDOU_SEGUIDAS = 2
 
-_CONF = "A Máxima pediu uma confirmação. Use o Atualizar visitas do PC; o admin retoma aqui depois."
-# contrato §5: código -> (status, texto). `{h}` hora do fim, `{f}` etapa, `{d}` dia, `{n}` Excel com erro, `{c}` coluna,
-# `{t}` "Tentamos de novo às HHhMM." (ou vazio)
+_PC = "Use o Atualizar visitas do PC"
+_CONF = f"A Máxima pediu uma confirmação. {_PC}; o admin retoma aqui depois."
+_CONFIG = "A atualização pelo site está desligada por configuração. Avise o Alexandre."
+# código -> (status, texto): o que aconteceu e o que fazer, sem jargão. `{h}` hora do fim, `{d}` dia, `{n}` vendedores sem
+# visita, `{c}` coluna, `{t}` "Tentamos de novo às HHhMM." (ou "Tente mais tarde."). O código em si (e a etapa) vão
+# pequenos, "para o suporte" (decisão 6 B: o código no lugar do print).
 CODIGOS = {
     "OK": ("ok", "Atualizado às {h}."),
-    "NADA_A_FAZER": ("ok", ""),
-    "PARCIAL_VENDEDOR": ("parcial", "{n} Excel com erro ({d})."),
+    "NADA_A_FAZER": ("ok", "Já estava em dia. Nada a baixar."),
+    "PARCIAL_VENDEDOR": ("parcial", "Faltou a visita de {n} em {d}. Peça de novo esse dia."),
     "PARCIAL_TEMPO": ("parcial", "Parte dos dias veio; o resto vem na próxima volta."),
-    "MAXIMA_SENHA": ("erro", "A Máxima recusou o usuário ou a senha. Só o Alexandre troca no painel do Render; "
-                             "depois, o admin clica em Retomar."),
+    "MAXIMA_SENHA": ("erro", "A Máxima recusou a senha do site. Avise o Alexandre; depois, o admin clica em Retomar."),
     "MAXIMA_CONFIRMACAO": ("erro", _CONF),
     "MAXIMA_CAPTCHA": ("erro", _CONF),
-    "MAXIMA_BLOQUEIO": ("erro", "A Máxima bloqueou o acesso do site. Use o Atualizar visitas do PC."),
-    "DADO_PESSOAL": ("erro", "O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: {c}). "
-                             "Use o Atualizar visitas do PC."),
+    "MAXIMA_BLOQUEIO": ("erro", f"A Máxima bloqueou o acesso do site. {_PC}."),
+    "DADO_PESSOAL": ("erro", f"O Espelho da Máxima trouxe um dado que o site não pode guardar (coluna: {{c}}). {_PC}."),
     "MAXIMA_FORA": ("erro", "A Máxima não respondeu. {t}"),
-    "TELA_MUDOU": ("erro", "A tela da Máxima mudou (etapa: {f}). Use o Atualizar visitas do PC até a correção."),
+    "TELA_MUDOU": ("erro", f"A tela da Máxima mudou. {_PC} por enquanto."),
     "NAVEGADOR_FALHOU": ("erro", "O navegador do site parou. {t}"),
     "SITE_RECUSOU": ("parcial", "Um dia não foi aceito pelo site ({d})."),
-    "SITE_FORA": ("erro", "O site não foi alcançado pelo serviço de visitas."),
+    "SITE_FORA": ("erro", "O site não respondeu. {t}"),
     "RODADA_INTERROMPIDA": ("erro", "A rodada parou sem terminar. {t}"),
-    "CONFIG_FALTANDO": ("erro", "Faltam as variáveis do serviço de visitas no Render."),
-    "CONFIG_INSEGURA": ("erro", "O serviço de visitas está com depuração ligada e não roda assim."),
-    "ERRO_INTERNO": ("erro", "Erro inesperado (etapa: {f})."),
+    "CONFIG_FALTANDO": ("erro", _CONFIG),
+    "CONFIG_INSEGURA": ("erro", _CONFIG),
+    "ERRO_INTERNO": ("erro", f"Algo deu errado. {_PC} e avise o admin."),
 }
 STATUS_DO_CODIGO = {c: s for c, (s, _) in CODIGOS.items()}
-TETO_DIA_TEXTO = ("O site já entrou o máximo de vezes hoje na Máxima. Use o Atualizar visitas do PC; "
-                  "amanhã volta sozinho.")
-TIPOS_ACHADO = ("cnpj", "cpf", "telefone", "email", "formato")
+TETO_DIA_TEXTO = f"O site já acessou a Máxima o máximo de vezes hoje. {_PC}; amanhã volta sozinho."
+SITUACAO = {"ok": "Em dia", "parcial": "Parcial", "erro": "Erro"}          # a palavra que a tela mostra no lugar do código
+SITUACAO_COR = {"ok": "ok", "parcial": "atencao", "erro": "alerta"}
+TIPOS_ACHADO = ("cnpj", "cpf", "telefone", "email", "formato")      # espelho de visitas_nucleo.TIPOS_ACHADO
 
 RE_ID_RODADA = re.compile(r"^R\d{8}T\d{6}$")
 RE_DIA = re.compile(r"^\d{8}$")
@@ -95,25 +103,21 @@ RE_PASTA_MAL = re.compile(r"[\\/\x00-\x1f\x7f]|\.\.")
 RE_NOME_ARQ = re.compile(r"^VISITA-(?P<pasta>.+)-(?P<d>\d{2})-(?P<m>\d{2})-(?P<a>\d{4})-\d{2}-\d{2}(?:-\d+)?\.xlsx$")
 # varredura (RN-VIS-007): a mesma rede do cron (contrato §3.6), repetida aqui antes de gravar
 RE_PESSOAL = {
-    "email": re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"),
+    "email": re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+"),
     "cnpj": re.compile(r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|(?<!\d)\d{14}(?!\d)"),
     "cpf": re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}|(?<!\d)\d{11}(?!\d)"),
     "telefone": re.compile(r"\(?\d{2}\)?\s?9?\d{4}-\d{4}|\(\d{2}\)\s?\d{8,9}"),
 }
 # colunas do Espelho que nunca saem do contêiner (contrato §3.6): o rótulo no Excel é motivo de recusa
 COLUNAS_PROIBIDAS = ("KM DIST", "BONIF", "OBSERVACAO")
-ZIP_MEMBRO_MAX = 8 * 1024 * 1024
-_RX_TEXTO_XML = re.compile(r"<t(?:\s[^>]*)?>([^<]*)</t>")
+_RX_TEXTO_XML = re.compile(r"<(?:t(?:\s[^>]*)?|v)>([^<]*)</(?:t|v)>")      # texto e número das células
+_DIAG_PENDENTE = {"estado": "pendente", "em": None, "codigo": None}
 _ESTADO_VAZIO = {"agenda": "desligada",
-                 "diagnostico": {"estado": "pendente", "em": None, "codigo": None},
+                 "diagnostico": dict(_DIAG_PENDENTE),
                  "pausado": None, "pedido": None, "rodada_ativa": None,
                  "falhas_seguidas": {"fase": None, "n": 0}, "indice": {}, "pc": {},
                  "tentativas_hoje": {"dia": "", "total": 0, "por_motivo": {}},
                  "fechados_pc_em": None, "conhecidas": {}, "avisos": {"lotes_sem_confirmar_vencidos": 0}}
-
-
-def agora() -> datetime:
-    return datetime.now(MANAUS)
 
 
 def iso(d: datetime) -> str:
@@ -121,15 +125,41 @@ def iso(d: datetime) -> str:
 
 
 def _dt(v) -> datetime | None:
-    try:
-        d = datetime.fromisoformat(v)
-    except (TypeError, ValueError):
-        return None
+    """Espelho de `visitas_nucleo._quando_manaus`: iso, datetime ou {"baixado_em": iso} -> Manaus (sem fuso = Manaus)."""
+    if isinstance(v, dict):
+        v = v.get("baixado_em")
+    if isinstance(v, datetime):
+        d = v
+    else:
+        try:
+            d = datetime.fromisoformat(str(v))
+        except (TypeError, ValueError):
+            return None
     return d.replace(tzinfo=MANAUS) if d.tzinfo is None else d.astimezone(MANAUS)
 
 
 def dia_ymd(d: date | datetime) -> str:
     return d.strftime("%Y%m%d")
+
+
+def dia_br(ymd: str) -> str:
+    """AAAAMMDD -> dd/mm."""
+    return f"{ymd[6:]}/{ymd[4:6]}"
+
+
+def dia_iso(ymd: str) -> str:
+    """AAAAMMDD -> AAAA-MM-DD (o campo de data do formulário)."""
+    return f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}"
+
+
+def dia_hora(v) -> str:
+    """O único formato de data e hora da tela: "27/11 06h06" (Manaus)."""
+    d = _dt(v)
+    return d.strftime("%d/%m %Hh%M") if d else ""
+
+
+def _corte(agora_: datetime) -> str:
+    return dia_ymd(agora_ - timedelta(days=FECHADOS_PC_DIAS))
 
 
 def dia_valido(s) -> date | None:
@@ -139,10 +169,6 @@ def dia_valido(s) -> date | None:
         return datetime.strptime(s, "%Y%m%d").date()
     except ValueError:
         return None
-
-
-def _int(v) -> bool:
-    return isinstance(v, int) and not isinstance(v, bool)
 
 
 def hhmm_h(d: datetime | None) -> str:
@@ -158,34 +184,45 @@ class ErroVisitas(Exception):
 
 
 # ------------------------------------------------------------------ regras puras (testadas)
-def dia_fechado(dia: str, baixado_em: str | None) -> bool:
-    """RN-VIS-002: o dia fecha quando foi baixado num dia depois dele, pela hora da baixa em Manaus."""
-    d, b = dia_valido(dia), _dt(baixado_em)
-    return bool(d and b and b.date() > d)
+def juntar_baixado(nuvem: dict | None, pc: dict | None) -> dict:
+    """Espelho de `visitas_nucleo.juntar_baixado` (RN-VIS-002). Entradas {AAAAMMDD: iso | {"baixado_em", "erros_vendedor",
+    "refeito"}}. Vale a MAIOR hora entre a nuvem e o PC (empate: a nuvem, porque o PC anota o `baixado_em` da nuvem).
+    Saída {AAAAMMDD: {"baixado_em", "origem"}}; `erros_vendedor` e `refeito` só acompanham a origem "nuvem"."""
+    saida: dict = {}
+    nuvem, pc = nuvem or {}, pc or {}
+    for dia in sorted(set(nuvem) | set(pc)):
+        n, p = _dt(nuvem.get(dia)), _dt(pc.get(dia))
+        if n is None and p is None:
+            continue
+        if p is None or (n is not None and n >= p):
+            ent = {"baixado_em": iso(n), "origem": "nuvem"}
+            bruto = nuvem.get(dia)
+            if isinstance(bruto, dict):
+                ent.update({k: bruto[k] for k in ("erros_vendedor", "refeito") if k in bruto})
+        else:
+            ent = {"baixado_em": iso(p), "origem": "pc"}
+        saida[dia] = ent
+    return saida
 
 
-def juntar_baixado(nuvem: dict | None, pc: str | None) -> dict | None:
-    """RN-VIS-002: a maior das duas horas de baixa vale; `origem` é de quem é a maior (empate: o PC)."""
-    n = _dt((nuvem or {}).get("baixado_em"))
-    p = _dt(pc)
-    if n is None and p is None:
-        return None
-    if p is None or (n is not None and n > p):
-        return {"baixado_em": iso(n), "origem": "nuvem", "erros_vendedor": int(nuvem.get("erros_vendedor") or 0),
-                "refeito": bool(nuvem.get("refeito"))}
-    return {"baixado_em": iso(p), "origem": "pc", "erros_vendedor": 0, "refeito": False}
+def dia_fechado_no_indice(indice: dict | None, d: date) -> bool:
+    """Espelho de `visitas_nucleo.dia_fechado_no_indice` (RN-VIS-002): fechado = baixado num dia depois dele (Manaus)."""
+    q = _dt((indice or {}).get(dia_ymd(d)))
+    return bool(q and q.date() > d)
+
+
+def dias_a_baixar(indice: dict | None, de: date, ate: date, hoje: date, refazer: bool = False) -> list[date]:
+    """Espelho de `visitas_nucleo.dias_a_baixar`: nunca passa de hoje; sem `refazer`, pula o dia fechado."""
+    ate = min(ate, hoje)
+    n = (ate - de).days
+    return [de + timedelta(days=k) for k in range(n + 1)
+            if refazer or not dia_fechado_no_indice(indice, de + timedelta(days=k))]
 
 
 def periodo_padrao(indice: dict, hoje: date) -> tuple[str, str]:
-    """O período do botão "Atualizar visitas": do dia aberto mais antigo (até PEDIDO_MAX_DIAS) até hoje."""
-    de = hoje
-    for k in range(PEDIDO_MAX_DIAS - 1, -1, -1):
-        d = hoje - timedelta(days=k)
-        e = indice.get(dia_ymd(d))
-        if e is None or not dia_fechado(dia_ymd(d), e.get("baixado_em")):
-            de = d
-            break
-    return dia_ymd(de), dia_ymd(hoje)
+    """O período do botão: do dia aberto mais antigo (até PEDIDO_MAX_DIAS) até hoje."""
+    abertos = dias_a_baixar(indice, hoje - timedelta(days=PEDIDO_MAX_DIAS - 1), hoje, hoje)
+    return dia_ymd(abertos[0] if abertos else hoje), dia_ymd(hoje)
 
 
 def validar_periodo(de, ate, hoje: date) -> tuple[date | None, date | None, str]:
@@ -201,32 +238,37 @@ def validar_periodo(de, ate, hoje: date) -> tuple[date | None, date | None, str]
     return a, b, ""
 
 
-def _texto_xml(xml: str) -> list[str]:
-    return [t for t in _RX_TEXTO_XML.findall(xml)]
+def _teto_descompressao() -> ErroVisitas:
+    return ErroVisitas(413, {"erro": "lote grande demais", "codigo": CODIGO_TETO})
 
 
-def achar_no_excel(dados: bytes) -> list[tuple[str, str]]:
-    """RN-VIS-007 (segunda guarda): lê só o TEXTO das células (zip + XML; nunca serve nem interpreta o Excel) e
-    devolve [(tipo, coluna_ou_"")] do que não pode ficar: dado pessoal e coluna fora da lista. Nenhum valor sai."""
+def achar_no_excel(dados: bytes, orcamento: list[int] | None = None) -> list[tuple[str, str]]:
+    """RN-VIS-007, segunda guarda (rede extra: a garantia é o filtro do cron, contrato §3.6). Lê só o TEXTO e os
+    NÚMEROS das células (zip + regex; nunca serve nem interpreta o Excel) e devolve [(tipo, coluna_ou_"")] do que não
+    pode ficar: dado pessoal e coluna fora da lista. Nenhum valor sai.
+    Teto TOTAL de descompressão: `orcamento` = [bytes que ainda podem ser lidos neste lote] (DESCOMPRESSAO_MAX por
+    lote e por arquivo) e no máximo ZIP_MEMBROS_MAX membros; passou = 413 com `codigo` DESCOMPRESSAO_TETO."""
+    orcamento = orcamento if orcamento is not None else [DESCOMPRESSAO_MAX]
     achados: list[tuple[str, str]] = []
     try:
         z = zipfile.ZipFile(io.BytesIO(dados))
-        nomes = [n for n in z.namelist() if n == "xl/sharedStrings.xml" or n.startswith("xl/worksheets/")]
+        infos = [i for i in z.infolist() if i.filename == "xl/sharedStrings.xml" or i.filename.startswith("xl/worksheets/")]
+        if len(z.infolist()) > ZIP_MEMBROS_MAX:
+            raise _teto_descompressao()
+        previsto = sum(i.file_size for i in infos)           # o tamanho declarado; o zipfile corta no declarado
+        if previsto > DESCOMPRESSAO_MAX or previsto > orcamento[0]:
+            raise _teto_descompressao()
+        orcamento[0] -= previsto
         textos: list[str] = []
-        for n in nomes:
-            info = z.getinfo(n)
-            if info.file_size > ZIP_MEMBRO_MAX:
-                return [("formato", "")]
-            textos += _texto_xml(z.read(n).decode("utf-8", "replace"))
+        for i in infos:
+            textos += _RX_TEXTO_XML.findall(z.read(i).decode("utf-8", "replace"))
     except (zipfile.BadZipFile, KeyError, ValueError, OSError):
         return [("formato", "")]
     for t in textos:
-        s = t.strip().upper()
-        if s in COLUNAS_PROIBIDAS:
-            achados.append(("coluna", s))
-        for tipo, rx in RE_PESSOAL.items():
-            if rx.search(t):
-                achados.append((tipo, ""))
+        t = html.unescape(t)                                  # `&#64;` e afins não escondem nada
+        if t.strip().upper() in COLUNAS_PROIBIDAS:
+            achados.append(("coluna", t.strip().upper()))
+        achados += [(tipo, "") for tipo, rx in RE_PESSOAL.items() if rx.search(t)]
     return achados
 
 
@@ -302,30 +344,18 @@ def decodificar_arquivos(corpo: dict) -> tuple[list[tuple[int, bytes]], list[str
     return out, er[:10]
 
 
-def descomprimir(corpo_gz: bytes, limite: int = LOTE_BRUTO_MAX) -> bytes | None:
-    """Descomprime com teto (None = inválido ou grande demais)."""
-    try:
-        d = zlib.decompressobj(16 + zlib.MAX_WBITS)
-        bruto = d.decompress(corpo_gz, limite + 1)
-        if len(bruto) > limite or d.unconsumed_tail:
-            return None
-        return bruto
-    except zlib.error:
-        return None
-
-
 def texto_do_codigo(codigo: str, r: dict) -> str:
-    """O texto do contrato §5 para uma rodada do `rodadas.jsonl` (sem nome de vendedor nem de cliente)."""
+    """O texto da tela para uma rodada do `rodadas.jsonl` (sem nome de vendedor nem de cliente)."""
     _, modelo = CODIGOS.get(codigo, ("erro", "Código desconhecido."))
     dias = r.get("dias_faltando") or r.get("dias") or []
     d = dia_valido(dias[0]) if dias else None
     achados = r.get("achados") or []
+    n = int(r.get("erros_vendedor") or 0)
     prox = r.get("proxima") or ""
-    texto = modelo.format(
-        h=hhmm_h(_dt(r.get("em"))), f=r.get("fase") or "?", d=d.strftime("%d/%m") if d else "?",
-        n=int(r.get("erros_vendedor") or 0), c=(achados[0].get("coluna") if achados else "") or "?",
-        t=f"Tentamos de novo às {prox}." if prox else "Tente mais tarde.")
-    return texto.strip()
+    return modelo.format(
+        h=hhmm_h(_dt(r.get("em"))), d=dia_br(dia_ymd(d)) if d else "?",
+        n=f"{n} vendedor" + ("es" if n != 1 else ""), c=(achados[0].get("coluna") if achados else "") or "?",
+        t=f"Tentamos de novo às {prox}." if prox else "Tente mais tarde.").strip()
 
 
 # ------------------------------------------------------------------ o estado em disco
@@ -379,7 +409,7 @@ class Visitas:
         hoje = dia_ymd(agora_)
         if e["tentativas_hoje"].get("dia") != hoje:                 # RN-VIS-008: o dia de Manaus zera os contadores
             e["tentativas_hoje"] = {"dia": hoje, "total": 0, "por_motivo": {}}
-        corte = dia_ymd(agora_ - timedelta(days=FECHADOS_PC_DIAS))   # o índice só guarda os últimos 40 dias
+        corte = _corte(agora_)                                        # o índice só guarda os últimos 40 dias
         for k in ("indice", "pc"):
             e[k] = {d: v for d, v in e[k].items() if d >= corte}
         self._vencer(e, agora_)
@@ -389,11 +419,7 @@ class Visitas:
         gravar_json(self.pasta / "estado.json", e)
 
     def _acrescentar(self, nome: str, reg: dict) -> None:
-        self.pasta.mkdir(parents=True, exist_ok=True)
-        with open(self.pasta / nome, "a", encoding="utf-8") as f:
-            f.write(json.dumps(reg, ensure_ascii=False, allow_nan=False) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
+        acrescentar_linha(self.pasta / nome, reg)
 
     def _vencer(self, e: dict, agora_: datetime) -> None:
         """RN-VIS-004: a concessão sem `progresso` por CONCESSAO_MIN vira RODADA_INTERROMPIDA (gravada pelo site)."""
@@ -405,10 +431,9 @@ class Visitas:
                            agora_, interrompida=True)
             self._gravar(e)
 
-    def _tentativa(self, e: dict, motivo: str, agora_: datetime) -> dict:
-        t = e["tentativas_hoje"]
-        m = t["por_motivo"].setdefault(motivo, {"n": 0, "ultima_em": None, "codigo": None})
-        return m
+    @staticmethod
+    def _tentativa(e: dict, motivo: str) -> dict:
+        return e["tentativas_hoje"]["por_motivo"].setdefault(motivo, {"n": 0, "ultima_em": None, "codigo": None})
 
     def _proxima(self, e: dict, motivo: str, codigo: str) -> str:
         """"06h30" etc.: a próxima tentativa da agenda (contrato §3.1, item 7); só a agenda e dentro do teto."""
@@ -422,7 +447,7 @@ class Visitas:
         ra = e["rodada_ativa"]
         motivo = ra["motivo"]
         codigo = f["codigo"]
-        m = self._tentativa(e, motivo, agora_)
+        m = self._tentativa(e, motivo)
         m["codigo"] = codigo
         proxima = self._proxima(e, motivo, codigo)
         self._acrescentar("rodadas.jsonl", {
@@ -463,14 +488,9 @@ class Visitas:
         with self._tranca():
             e = self._ler(agora_)
             self._gravar(e)
-        indice = {}
-        for d in sorted(set(e["indice"]) | set(e["pc"])):
-            j = juntar_baixado(e["indice"].get(d), e["pc"].get(d))
-            if j:
-                indice[d] = j
         ra = e["rodada_ativa"]
         return {"versao": 1, "agora": iso(agora_), "agenda": e["agenda"], "diagnostico": e["diagnostico"],
-                "pausado": e["pausado"], "pedido": e["pedido"], "indice": indice,
+                "pausado": e["pausado"], "pedido": e["pedido"], "indice": juntar_baixado(e["indice"], e["pc"]),
                 "tentativas_hoje": e["tentativas_hoje"], "falhas_seguidas": e["falhas_seguidas"],
                 "fechados_pc_em": e["fechados_pc_em"],
                 "rodada_ativa": {"id": ra["id"], "vence_em": ra["vence_em"]} if ra else None}
@@ -507,7 +527,7 @@ class Visitas:
             e["rodada_ativa"] = {"id": rid, "vence_em": iso(vence), "motivo": motivo, "dias": list(dias),
                                  "fase": None, "inicio": iso(agora_)}
             t["total"] += 1                                         # RN-VIS-008: conta na concessão, cada uma é um login
-            m = self._tentativa(e, motivo, agora_)
+            m = self._tentativa(e, motivo)
             m["n"] += 1
             m["ultima_em"] = iso(agora_)
             m["codigo"] = None
@@ -563,9 +583,12 @@ class Visitas:
                 raise ErroVisitas(404, {"erro": "rodada desconhecida"})
         if len(corpo_gz) > LOTE_GZ_MAX:
             raise ErroVisitas(413, {"erro": "lote grande demais"})
-        bruto = descomprimir(corpo_gz)
-        if bruto is None:
-            raise ErroVisitas(413 if len(corpo_gz) >= 1024 else 400, {"erro": "lote grande demais ou corpo inválido"})
+        try:
+            bruto = descomprimir_com_teto(corpo_gz, LOTE_BRUTO_MAX)
+        except GzipGrande:
+            raise ErroVisitas(413, {"erro": "lote grande demais"})
+        except GzipInvalido:
+            raise ErroVisitas(400, {"erro": "gzip inválido"})
         if not (isinstance(sha_cab, str) and hashlib.sha256(bruto).hexdigest() == sha_cab.lower()):
             raise ErroVisitas(422, {"erro": "sha256"})
         try:
@@ -583,8 +606,9 @@ class Visitas:
                                     "detalhes": det})
         # RN-VIS-007, segunda guarda: coluna fora da lista ou dado pessoal = o lote não é gravado e a nuvem pausa
         achou: list[str] = []
+        orcamento = [DESCOMPRESSAO_MAX]
         for i, b in arqs:
-            for tipo_a, col in achar_no_excel(b):
+            for tipo_a, col in achar_no_excel(b, orcamento):
                 achou.append(f"arquivos[{i}]: {'coluna ' + col if tipo_a == 'coluna' else tipo_a}")
         if achou:
             with self._tranca():
@@ -602,7 +626,7 @@ class Visitas:
             reg = self.fila.registrar_item(
                 {"dia": dia_url, "rodada": rid, "baixado_em": corpo["baixado_em"], "arquivos": len(arqs),
                  "bytes_gz": len(corpo_gz), "sha256": sha_cab.lower()},
-                antes_de_gravar=lambda seq: self._gravar_corpo(seq, corpo_gz), agora_=agora_)
+                antes_de_gravar=lambda seq: gravar_bytes(self._arq_lote(seq), corpo_gz), agora_=agora_)
             e = self._ler(agora_)
             ant = e["indice"].get(dia_url) or {}
             e["indice"][dia_url] = {"baixado_em": iso(_dt(corpo["baixado_em"])), "origem": "nuvem",
@@ -611,24 +635,11 @@ class Visitas:
             self.retencao(agora_)
             return {"ok": True, "seq": reg["seq"], "arquivos": len(arqs)}
 
-    def _gravar_corpo(self, seq: int, gz: bytes) -> None:
-        import tempfile
-        pasta = self.pasta / "lotes"
-        pasta.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=pasta, prefix=".tmp-", suffix=".gz")
-        try:
-            with os.fdopen(fd, "wb") as f:
-                f.write(gz)
-                f.flush()
-                os.fsync(f.fileno())
-            os.chmod(tmp, 0o600)
-            os.replace(tmp, pasta / f"{seq}.json.gz")
-        except BaseException:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+    def _pendentes(self) -> list[dict]:
+        return [x for x in self.fila.itens() if x["status"] == "pendente"]
+
+    def _arq_lote(self, seq: int) -> Path:
+        return self.pasta / "lotes" / f"{seq}.json.gz"
 
     def _repetido(self, rid: str, dia: str, sha: str) -> dict | None:
         for r in self.fila.itens():
@@ -700,7 +711,7 @@ class Visitas:
 
     def corpo_do_lote(self, seq: int) -> tuple[bytes, str] | None:
         item = next((x for x in self.fila.itens() if x["seq"] == seq), None)
-        arq = self.pasta / "lotes" / f"{seq}.json.gz"
+        arq = self._arq_lote(seq)
         if not item or not arq.is_file():
             return None
         return arq.read_bytes(), item["sha256"]
@@ -726,7 +737,7 @@ class Visitas:
             raise ErroVisitas(ex.status, {"erro": ex.msg})
         with self._tranca():
             e = self._ler(agora_)
-            corte = dia_ymd(agora_ - timedelta(days=FECHADOS_PC_DIAS))
+            corte = _corte(agora_)
             e["pc"] = {d: iso(_dt(v)) for d, v in fpc.items() if d >= corte}
             e["fechados_pc_em"] = iso(agora_)
             for d in dias_erro:                                     # a parte da nuvem sai; a nuvem baixa de novo
@@ -740,7 +751,7 @@ class Visitas:
         agora_ = agora_ or agora()
         vencidos = 0
         for x in self.fila.itens():
-            arq = self.pasta / "lotes" / f"{x['seq']}.json.gz"
+            arq = self._arq_lote(x["seq"])
             if not arq.is_file():
                 continue
             conf = (x.get("confirmado_em") or "")
@@ -766,24 +777,24 @@ class Visitas:
     def pedir(self, de: str, ate: str, refazer: bool, perfil: str, agora_: datetime | None = None) -> str:
         """Grava o pedido do botão. Devolve o texto de sucesso; ErroVisitas(400/409) com a mensagem da tela."""
         agora_ = agora_ or agora()
-        a, b, erro = validar_periodo(de, ate, agora_.date())
+        a, b, erro = validar_periodo((de or "").replace("-", ""), (ate or "").replace("-", ""), agora_.date())
         if erro:
             raise ErroVisitas(400, {"erro": erro})
         with self._tranca():
             e = self._ler(agora_)
             if e["pedido"]:
                 self._gravar(e)
-                raise ErroVisitas(409, {"erro": "Já há um pedido na fila; espere a rodada terminar."})
+                raise ErroVisitas(409, {"erro": "Já há um pedido na fila. Espere ele terminar."})
             if e["pausado"]:
                 self._gravar(e)
-                raise ErroVisitas(409, {"erro": "A nuvem está pausada. O admin precisa retomar antes."})
+                raise ErroVisitas(409, {"erro": "A atualização está pausada. O admin retoma antes."})
             pid = "P" + agora_.strftime("%Y%m%dT%H%M%S")
             e["pedido"] = {"id": pid, "de": dia_ymd(a), "ate": dia_ymd(b), "refazer": bool(refazer),
                            "pedido_em": iso(agora_), "perfil": perfil, "rodadas": 0}
             self._acrescentar("pedidos.jsonl", {"id": pid, "de": dia_ymd(a), "ate": dia_ymd(b), "refazer": bool(refazer),
                                                 "perfil": perfil, "em": iso(agora_)})
             self._gravar(e)
-        return "Pedido na fila. A próxima volta do site na Máxima baixa os dias."
+        return "Pedido enviado."
 
     def retomar(self, recado: str, perfil: str, agora_: datetime | None = None) -> str:
         agora_ = agora_ or agora()
@@ -803,17 +814,17 @@ class Visitas:
             e["pausado"] = None
             e["falhas_seguidas"] = {"fase": None, "n": 0}
             if p["codigo"] == "DADO_PESSOAL":
-                e["diagnostico"] = {"estado": "pendente", "em": None, "codigo": None}
+                e["diagnostico"] = dict(_DIAG_PENDENTE)
             self._gravar(e)
-        return "Retomado." + (" O diagnóstico volta a rodar." if p["codigo"] == "DADO_PESSOAL" else "")
+        return "Retomado."
 
     def diagnostico(self, agora_: datetime | None = None) -> str:
         agora_ = agora_ or agora()
         with self._tranca():
             e = self._ler(agora_)
-            e["diagnostico"] = {"estado": "pendente", "em": None, "codigo": None}
+            e["diagnostico"] = dict(_DIAG_PENDENTE)
             self._gravar(e)
-        return "Diagnóstico pedido. Roda na próxima volta do site na Máxima."
+        return "Diagnóstico pedido."
 
     def agenda(self, ligar: bool, agora_: datetime | None = None) -> str:
         agora_ = agora_ or agora()
@@ -831,23 +842,53 @@ class Visitas:
             self._gravar(e)
         return "Agenda ligada." if ligar else "Agenda desligada."
 
-    def rodadas(self, n: int = RODADAS_NA_TELA) -> list[dict]:
-        """As últimas `n` rodadas fechadas (a mais recente primeiro), com o texto do contrato §5."""
+    def _linhas_rodadas(self):
+        """As rodadas fechadas do `rodadas.jsonl`, da mais recente para a mais antiga."""
         try:
             linhas = (self.pasta / "rodadas.jsonl").read_text(encoding="utf-8").splitlines()
         except OSError:
-            return []
-        out = []
+            return
         for ln in reversed(linhas):
             try:
                 r = json.loads(ln)
             except ValueError:
                 continue
             if isinstance(r, dict) and r.get("codigo") in CODIGOS and r.get("motivo"):
-                out.append({**r, "texto": texto_do_codigo(r["codigo"], r), "hora": hhmm_h(_dt(r.get("em"))),
-                            "dia_br": (_dt(r.get("em")) or agora()).strftime("%d/%m")})
+                yield r
+
+    def rodadas(self, n: int = RODADAS_NA_TELA) -> list[dict]:
+        """As últimas `n` rodadas fechadas (a mais recente primeiro), com a situação e o texto da tela."""
+        out = []
+        for r in self._linhas_rodadas():
+            out.append({**r, "texto": texto_do_codigo(r["codigo"], r), "situacao": SITUACAO.get(r.get("status"), "Erro"),
+                        "quando": dia_hora(r.get("em"))})
             if len(out) >= n:
                 break
+        return out
+
+    def diagnostico_linhas(self) -> list[tuple[str, str]]:
+        """O que o admin precisa ver do último diagnóstico (contrato §6): tempos, pico, e só a CONTAGEM do que o filtro
+        tirou, limpou ou achou. Nenhum nome de coluna, nenhum valor."""
+        r = next((x for x in self._linhas_rodadas() if x["motivo"] == "diagnostico"), None)
+        if not r:
+            return []
+        m = r.get("medidas") if isinstance(r.get("medidas"), dict) else {}
+        t = m.get("tempos_s") if isinstance(m.get("tempos_s"), dict) else {}
+        esp = m.get("espelho") if isinstance(m.get("espelho"), dict) else {}
+
+        def seg(v):
+            return f"{float(v):.0f} s" if isinstance(v, (int, float)) and not isinstance(v, bool) else "—"
+        vend = t.get("vendedor") if isinstance(t.get("vendedor"), list) else []
+        limpos = esp.get("limpos") if isinstance(esp.get("limpos"), dict) else {}
+        out = [("Duração", seg(r.get("duracao_s"))),
+               ("Memória (pico)", f"{r['pico_mb']:.0f} MB" if isinstance(r.get("pico_mb"), (int, float)) else "—"),
+               ("Login", seg(t.get("login"))), ("maxGestão", seg(t.get("maxgestao"))), ("Filtros", seg(t.get("filtros"))),
+               ("Por vendedor", " e ".join(seg(v) for v in vend[:3]) or "—")]
+        if esp:
+            out += [("Colunas retiradas", str(len(esp.get("colunas_fora") or []))),
+                    ("Células limpas", str(sum(v for v in limpos.values() if _int(v)))),
+                    ("Achados", str(sum(a.get("n", 0) for a in (r.get("achados") or []) if isinstance(a, dict)
+                                        and _int(a.get("n")))))]
         return out
 
     def tela(self, agora_: datetime | None = None) -> dict:
@@ -858,16 +899,26 @@ class Visitas:
             self._gravar(e)
         rod = self.rodadas()
         total = e["tentativas_hoje"]["total"]
-        pedidos_esp = [x for x in self.fila.itens() if x["status"] == "pendente"]
-        indice = {d: j for d in set(e["indice"]) | set(e["pc"]) if (j := juntar_baixado(e["indice"].get(d), e["pc"].get(d)))}
-        de, ate = periodo_padrao(indice, agora_.date())
-        return {"e": e, "rodadas": rod, "ultima": rod[0] if rod else None, "teto_dia": total >= LOGINS_DIA_MAX,
-                "teto_texto": TETO_DIA_TEXTO, "logins": total, "logins_max": LOGINS_DIA_MAX,
-                "a_importar": [{"hora": hhmm_h(_dt(x.get("baixado_em"))), "dia": x["dia"],
-                                "dia_br": f"{x['dia'][6:]}/{x['dia'][4:6]}"} for x in pedidos_esp],
-                "pausa_texto": self._texto_pausa(e, rod),
-                "padrao": {"de": de, "ate": ate},
-                "de_iso": f"{de[:4]}-{de[4:6]}-{de[6:]}", "ate_iso": f"{ate[:4]}-{ate[4:6]}-{ate[6:]}",
+        teto = total >= LOGINS_DIA_MAX
+        de, ate = periodo_padrao(juntar_baixado(e["indice"], e["pc"]), agora_.date())
+        ultima = rod[0] if rod else None
+        if e["pausado"]:
+            sit = ("Pausado", "alerta")
+        elif e["rodada_ativa"]:
+            sit = ("Baixando", "atencao")
+        elif ultima:
+            sit = (ultima["situacao"], SITUACAO_COR.get(ultima["status"], "alerta"))
+        else:
+            sit = ("Sem rodadas", "")
+        return {"e": e, "rodadas": rod, "ultima": ultima, "teto_dia": teto, "teto_texto": TETO_DIA_TEXTO,
+                "logins": total, "logins_max": LOGINS_DIA_MAX, "situacao": sit[0], "situacao_cor": sit[1],
+                "pode_apertar": not (e["pedido"] or e["pausado"] or teto),
+                "motivo_travado": ("Pausado: o admin retoma antes" if e["pausado"] else
+                                   "Já há um pedido na fila" if e["pedido"] else
+                                   "Limite de hoje atingido" if teto else ""),
+                "a_importar": [{"hora": hhmm_h(_dt(x.get("baixado_em"))), "dia": x["dia"]} for x in self._pendentes()],
+                "pausa_texto": self._texto_pausa(e, rod), "diag": self.diagnostico_linhas(),
+                "padrao": {"de": de, "ate": ate}, "de_iso": dia_iso(de), "ate_iso": dia_iso(ate),
                 "hoje_iso": agora_.strftime("%Y-%m-%d")}
 
     @staticmethod
@@ -890,6 +941,6 @@ class Visitas:
                 "ultima_rodada": rod[0]["em"] if rod else None, "codigo": rod[0]["codigo"] if rod else None,
                 "pausado": e["pausado"]["codigo"] if e["pausado"] else None,
                 "rodada_ativa": ra["id"] if ra else None, "fase": ra.get("fase") if ra else None,
-                "lotes_a_importar": sum(1 for x in self.fila.itens() if x["status"] == "pendente"),
+                "lotes_a_importar": len(self._pendentes()),
                 "tentativas_hoje": e["tentativas_hoje"]["total"],
                 "lotes_sem_confirmar_vencidos": e["avisos"]["lotes_sem_confirmar_vencidos"]}
