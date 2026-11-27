@@ -46,7 +46,7 @@ REGRA_UF_OBRIGATORIOS = {
     **FAROIS_LOTE2,
 }
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
-# T-0037 (Fretes, contrato §10.11): pode estar lá (permitido, não obrigatório
+# T-0037 (Fretes, contrato §10.12): pode estar lá (permitido, não obrigatório
 # até entrar no main); fretes = UF do cliente
 FAROIS_T0037 = {
     "pl_fretes": ("tabela", "Notas com frete", "UF", "uf"),

@@ -10,7 +10,7 @@ Duas partes:
   de uma UF batem com o faturado líquido do farol de origem
   (_eventos_faturamento, o mesmo do indicador "Faturamento (R$)" líquido) e
   com o pacote da web.
-Desenho: docs/desenho/T-0037.md §3 e §9 (P3 B); contrato §10.11.2.
+Desenho: docs/desenho/T-0037.md §3 e §9 (P3 B); contrato §10.12.2.
 """
 import json
 from collections import defaultdict

@@ -701,9 +701,20 @@ def test_T0017_corte_em_3_passos_na_ordem(real):
 
 
 # ==================================================== lista de colunas
-def _contrato_1073():
+# (T-0037) faróis novos que entram por partes (contrato, web e robô em PRs
+# separados): a lista deles só é comparada quando o robô já os tem em
+# FAROIS_WEB; antes disso, ficam fora dos dois lados da comparação
+_RIDS_POR_PARTES_WEB = ("pl_fretes",)
+
+
+def _rids_ignorados_web():
+    return {r for r in _RIDS_POR_PARTES_WEB if r not in ba.FAROIS_WEB}
+
+
+def _contrato_1073(ignorar_rids=()):
     """{titulo: [(nome, tipo, oculta, selo)]} do §10.7.3 do contrato (None
-    se a seção não existe: o teste falha)."""
+    se a seção não existe: o teste falha). As tabelas sob o cabeçalho
+    **`rid`** de um rid em `ignorar_rids` ficam fora."""
     arq = RAIZ / ".coord" / "contratos" / "relatorio.md"
     txt = arq.read_text(encoding="utf-8") if arq.exists() else ""
     if "#### 10.7.3" not in txt:
@@ -735,7 +746,13 @@ def _contrato_1073():
         if "As **18 de métrica**" in ln:
             metricas = itens(ln.split("nesta ordem:", 1)[1])
     saida = {}
+    rid_atual = None
     for ln in linhas:
+        if ln.startswith("**"):           # cabeçalho **`rid`** ou outro bloco
+            cab = re.match(r"^\*\*`([a-z_]+)`\*\*", ln)
+            rid_atual = cab.group(1) if cab else None
+        if rid_atual in ignorar_rids:
+            continue
         m = (re.match(r'^\s*- \*\*"([^"]+)"\*\* \([^)]*\): (.*)$', ln)
              or re.match(r'^\s*- Junta "[^"]+" → tabela "([^"]+)" '
                          r'\([^)]*\): (.*)$', ln))
@@ -751,9 +768,11 @@ def _contrato_1073():
     return saida
 
 
-def _robo():
+def _robo(ignorar_rids=()):
     saida = {}
     for rid, tabs in ba._COLUNAS_TABELAS_WEB.items():
+        if rid in ignorar_rids:
+            continue
         for titulo, cols in tabs.items():
             saida[titulo] = [(n, tp, bool(o), s) for n, tp, o, s in cols]
     return saida
@@ -762,11 +781,20 @@ def _robo():
 def test_T0017_colunas_robo_igual_web(web_app):
     # (T-0037) título genérico ("Por UF") vem na web por (rid, título), em
     # COLUNAS_RID
-    web = {**web_app.tabelas.COLUNAS,
-           **getattr(web_app.tabelas, "COLUNAS_RID", {})}
+    # (T-0037) farol por partes que o robô ainda não manda (FAROIS_WEB): as
+    # tabelas dele ficam fora dos dois lados (na web, as do (rid, título) e as
+    # do título que só ele usa, pelas ABAS do rid)
+    fora = _rids_ignorados_web()
+    abas_web = getattr(web_app.tabelas, "ABAS", {})
+    so_dos_fora = {t for r in fora for _a, t in abas_web.get(r, ())} - {
+        t for r, abas in abas_web.items() if r not in fora for _a, t in abas}
+    web = {**{t: c for t, c in web_app.tabelas.COLUNAS.items()
+              if t not in so_dos_fora},
+           **{k: c for k, c in getattr(web_app.tabelas, "COLUNAS_RID",
+                                       {}).items() if k[0] not in fora}}
     robo = {((rid, t) if (rid, t) in web else t): [
         (n, tp, bool(o), s) for n, tp, o, s in cols]
-        for rid, tabs in ba._COLUNAS_TABELAS_WEB.items()
+        for rid, tabs in ba._COLUNAS_TABELAS_WEB.items() if rid not in fora
         for t, cols in tabs.items()}
     assert sorted(robo, key=str) == sorted(web, key=str)
     for titulo, cols in robo.items():
@@ -780,9 +808,10 @@ def test_T0017_colunas_robo_igual_web(web_app):
 
 
 def test_T0017_colunas_robo_igual_contrato_1073():
-    contrato = _contrato_1073()
+    fora = _rids_ignorados_web()              # (T-0037) farol por partes
+    contrato = _contrato_1073(fora)
     assert contrato is not None, "§10.7.3 ausente no contrato"
-    robo = _robo()
+    robo = _robo(fora)
     assert sorted(contrato) == sorted(robo)
     for titulo in robo:
         assert contrato[titulo] == robo[titulo], titulo
