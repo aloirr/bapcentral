@@ -204,7 +204,7 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_visitas": ("Farol de Visita", ("admin", "diretor", "gerente", "vendas")),
     "pl_entregas": ("Farol de Entregas", ("admin", "diretor", "gerente", "pos_venda")),
     "pl_inadimplencia": ("Farol de Inadimplência", ("admin", "diretor", "gerente", "pos_venda")),
-    # T-0037: Farol de Fretes (contrato §10.11); no fim do grupo Pós-venda
+    # T-0037: Farol de Fretes (contrato §10.12); no fim do grupo Pós-venda
     "pl_fretes": ("Farol de Fretes", ("admin", "diretor", "gerente", "pos_venda")),
     # T-0024 (lote 2): o perfil de cada quadrado do PC (bap_central.py)
     "pv_indicadores": ("Painel de indicadores", ("admin", "diretor", "gerente", "pre_venda")),

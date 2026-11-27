@@ -1,4 +1,4 @@
-"""T-0037: Farol de Fretes na web (contrato §10.11): abas, perfis, edição só do admin, linha sem chave e a marca
+"""T-0037: Farol de Fretes na web (contrato §10.12): abas, perfis, edição só do admin, linha sem chave e a marca
 "Aguardando o PC" nos dois faróis que editam a mesma linha. Dados fictícios."""
 import copy
 

@@ -1,4 +1,4 @@
-"""T-0037: Farol de Fretes fictício (contrato §10.11). Nenhum dado real: "CLIENTE TESTE nn", cidades e
+"""T-0037: Farol de Fretes fictício (contrato §10.12). Nenhum dado real: "CLIENTE TESTE nn", cidades e
 transportadoras inventadas. ETAPA, datas, tom e cartões saem de UMA tabela de casos, coerente com o PC
 (`relatorios_nucleo.fretes`/`kpis_fretes`): entregue = ETAPA ENTREGUE ou data real; tom "alerta" = sem entrega,
 com acompanhamento e prazo vencido (hoje = 24/11/2026); "ok" = com data real; o resto sem tom."""
