@@ -760,9 +760,15 @@ def _robo():
 
 
 def test_T0017_colunas_robo_igual_web(web_app):
-    robo = _robo()
-    web = web_app.tabelas.COLUNAS
-    assert sorted(robo) == sorted(web)
+    # (T-0037) título genérico ("Por UF") vem na web por (rid, título), em
+    # COLUNAS_RID
+    web = {**web_app.tabelas.COLUNAS,
+           **getattr(web_app.tabelas, "COLUNAS_RID", {})}
+    robo = {((rid, t) if (rid, t) in web else t): [
+        (n, tp, bool(o), s) for n, tp, o, s in cols]
+        for rid, tabs in ba._COLUNAS_TABELAS_WEB.items()
+        for t, cols in tabs.items()}
+    assert sorted(robo, key=str) == sorted(web, key=str)
     for titulo, cols in robo.items():
         assert [c[:3] for c in cols] == [tuple(c) for c in web[titulo]], \
             titulo

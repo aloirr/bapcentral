@@ -63,21 +63,13 @@ def _k(kpis):
     return {k["rotulo"]: (k["valor"], k["detalhe"]) for k in kpis}
 
 
-def _pct_antigo(ls, fat):
-    """O "% do faturado" de antes da T-0037: VND da BAP inteira dos meses
-    visíveis (soma de todas as UFs)."""
-    meses = {l[0] for l in ls}
-    tot = sum(v for (m, _u), v in fat.items() if m in meses)
-    return rn.p(rn.pct_de(sum(l[8] for l in ls), tot))
-
-
 # ------------------------------------------------------------- cartões (PC)
 def test_RN_POS_009_kpis_bap_inteira_valor_x_regra():
     k = _k(rn.kpis_fretes(L_NOV, FAT))
     # notas = 4 linhas do mês; valor = 1000+3000+2000+4000
     assert k["Notas com frete"] == ("4", "R$ 10.000")
     # 10.000 ÷ (40.000+8.000+5.000) = 18,87% → 19%
-    assert k["% do faturado"][0] == "19%" == _pct_antigo(L_NOV, FAT)
+    assert k["% do faturado"][0] == "19%"
     # frete = 50+150+100+0 = 300; 300 ÷ 10.000 = 3%
     assert k["Frete estimado"] == ("R$ 300", "3% do valor")
     assert k["Cidades atendidas"][0] == "4"
@@ -89,11 +81,10 @@ def test_RN_POS_009_kpis_bap_inteira_valor_x_regra():
 
 def test_RN_POS_009_pct_faturado_no_recorte_usa_uf():
     pa = [l for l in L_NOV if l[7] == "PA"]
-    k = _k(rn.kpis_fretes(pa, FAT))
+    k = _k(rn.kpis_fretes(pa, FAT, uf="PA"))         # o recorte informa a UF
     assert k["Notas com frete"] == ("2", "R$ 4.000")
     # 4.000 ÷ faturado do PA em NOV (8.000) = 50% (antes: 4.000 ÷ 53.000 = 8%)
     assert k["% do faturado"][0] == "50%"
-    assert _pct_antigo(pa, FAT) == "8%"
     assert k["Frete estimado"] == ("R$ 200", "5% do valor")
     assert k["Entregues"] == ("1", "100% no prazo")
     assert k["Sem transportadora"][0] == "1"
@@ -110,15 +101,19 @@ def test_RN_GER_006_fretes_na_uf_do_cliente_sem_linhas():
     assert k["Notas com frete"][0] == "0" and k["% do faturado"][0] == "—"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFEITO relatorios_nucleo.kpis_fretes: com todas as notas do período "
-    "numa UF só, a BAP inteira usa o faturado só dessa UF (o desenho §3 diz "
-    "que na BAP inteira o número não muda)"))
 def test_RN_POS_009_bap_inteira_com_notas_de_uma_uf_so_igual_ao_antigo():
     # OUT: a única nota com frete é do PA; a BAP faturou 29.500 no mês
-    # regra: 500 ÷ 29.500 = 1,7% → 2%; o código dá 500 ÷ 9.500 = 5%
-    assert _k(rn.kpis_fretes(L_OUT, FAT))["% do faturado"][0] == \
-        _pct_antigo(L_OUT, FAT) == "2%"
+    # BAP inteira: 500 ÷ 29.500 = 1,7% → 2% (a UF não é adivinhada)
+    assert _k(rn.kpis_fretes(L_OUT, FAT))["% do faturado"][0] == "2%"
+    # recorte PA informado: 500 ÷ 9.500 = 5,3% → 5%
+    assert _k(rn.kpis_fretes(L_OUT, FAT, uf="PA"))["% do faturado"][0] == "5%"
+
+
+def _cartoes(ls, filtro=None):
+    """O cartoes(ls, filtro) do rn.fretes: a UF vem do filtro (índice 7 ou
+    "UF"); sem filtro, BAP inteira."""
+    f = filtro or {}
+    return rn.kpis_fretes(ls, FAT, f.get(7) or f.get("UF") or None)
 
 
 
@@ -145,7 +140,7 @@ def _farol(tmp_path):
         "Notas com frete", cols, [list(x) for x in linhas],
         ["ok"] * len(linhas),
         filtros=(filtro_mes, "UF", "FILIAL", "ETAPA", "TRANSPORTADORA"),
-        kpis_de=lambda ls: rn.kpis_fretes(ls, FAT),
+        kpis_de=_cartoes,
         edicao=rn._entrega_editavel(
             _ctx(tmp_path), len(cols), {
                 "etapa": 10, "transportadora": 11, "entregue_em": 13,
@@ -213,6 +208,8 @@ def test_RN_GER_006_recorte_do_estado_usa_a_uf_do_cliente(tmp_path):
     # o cartão do PA = o do PC com o filtro UF = PA (só NOV): 4.000 ÷ 8.000
     assert pa["Notas com frete"] == ("2", "R$ 4.000")
     assert pa["% do faturado"][0] == "50%"
+    # o recorte AM leva o faturado do AM (40.000), não o da BAP
+    assert _k(rec["AM"]["kpis"])["% do faturado"][0] == "10%"
     rr = _k(rec["RR"]["kpis"])
     # RR: 2.000 ÷ 5.000 = 40%
     assert rr["% do faturado"][0] == "40%"
@@ -305,3 +302,14 @@ def test_RN_GER_012_pc_so_leitura_no_fretes():
                      for t in n.targets))
     assert ("pl_fretes", "Notas com frete") in valor
     assert {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas")} <= valor
+
+
+def test_RN_POS_010_frete_real_recusado_no_fretes_aceito_no_entregas():
+    """P2 A: o VLR FRETE (REAL) só se edita no Farol de Entregas."""
+    fr = _reg(1, {"frete_real": "120,00"})
+    assert ba.validar_edicao_web(fr, OPCOES) == ba.MOTIVO_LUGAR_WEB
+    ent = dict(fr, rid="pl_entregas", tabela="Entregas")
+    assert ba.validar_edicao_web(ent, OPCOES) == ""
+    # junto com um campo válido, a edição do Fretes também cai inteira
+    mix = _reg(2, {"etapa": "ENTREGUE", "frete_real": "120,00"})
+    assert ba.validar_edicao_web(mix, OPCOES) == ba.MOTIVO_LUGAR_WEB
