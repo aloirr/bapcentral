@@ -1,0 +1,8 @@
+# Cron job bap-visitas-maxima no Render (T-0045, ADR 0004) — Python 3.12 da imagem do Playwright.
+# Só para a imagem Docker da nuvem: o PC continua no requirements.txt.
+# A versão do playwright é a MESMA da tag da imagem em nuvem/visitas/Dockerfile
+# (mcr.microsoft.com/playwright/python:v<versão>-noble). Trocar uma = trocar a outra.
+# [SUPOSIÇÃO] 1.49.1 é a versão de partida; o diagnóstico no Render confirma ou sobe.
+playwright==1.49.1
+tzdata==2025.2      # zoneinfo America/Manaus sem depender do tzdata do sistema
+openpyxl==3.1.5     # o filtro do Espelho (visitas_nucleo.filtrar_espelho, contrato §3.6) e o ler_espelho sem o xlsx_rapido
