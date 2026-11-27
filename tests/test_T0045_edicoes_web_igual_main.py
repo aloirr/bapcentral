@@ -1,7 +1,7 @@
 """T-0045 (ADR 0004, §9 item 8; contrato visitas-nuvem §4.4): o laço das
 edições do site saiu de `sincronizar_edicoes_web` para `puxar_fila_web`, que
 as visitas também usam. As edições não podem mudar: para cada cenário, o
-`bap_automation` do momento e a régua do main e1d80a8
+`bap_automation` do momento e a régua do main d2cd695
 (`tests/ref_T0045_edicoes_web_main.py`) dão o mesmo resultado, as mesmas
 chamadas ao site (método, rota, parâmetros, corpo, cabeçalho e tempo), o mesmo
 log, o mesmo estado em disco e o mesmo registro das aplicadas.
@@ -175,3 +175,18 @@ def test_RN_GER_012_funcoes_publicas_das_edicoes_continuam(tmp_path):
     assert r.ler_estado_edicoes_web(tmp_path) == ba.ler_estado_edicoes_web(tmp_path) == est
     assert ba.ler_estado_edicoes_web(tmp_path / "vazio") == r.ler_estado_edicoes_web(tmp_path / "vazio") == {
         "epoca": "", "ate_seq": 0, "a_confirmar": []}
+
+
+def test_RN_GER_012_chave_pc_da_garantia_chega_ao_registro_igual_ao_main(tmp_path, monkeypatch):
+    """d2cd695 (#171): o `_saida` do `aplicar_edicao_web` (o `chave_pc` do ticket da garantia) chega ao
+    registro das aplicadas, no main e no laço extraído (`puxar_fila_web` repassa o `extra`)."""
+    def aplicar(raiz, reg, opcoes, gravar=None, _saida=None):
+        if _saida is not None and reg["seq"] == 1:
+            _saida["chave_pc"] = "TICKET-FICTICIO-0001"
+        return "aplicada", ""
+    monkeypatch.setattr(ba, "aplicar_edicao_web", aplicar)
+    rodadas = [lambda: _Site([_reg(1), _reg(2)])]
+    novo = _rodar(ba.sincronizar_edicoes_web, tmp_path / "novo", rodadas)
+    antigo = _rodar(ref.carregar(ba).sincronizar_edicoes_web, tmp_path / "main", rodadas)
+    assert novo == antigo
+    assert [r.get("chave_pc") for r in novo["regs"]] == ["TICKET-FICTICIO-0001", None]

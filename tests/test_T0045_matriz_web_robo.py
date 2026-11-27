@@ -3,7 +3,7 @@
 O site é a `web/app/visitas.Visitas` do repositório (só biblioteca padrão),
 ligada ao robô por `visitas_nuvem_fixture.SessaoWeb` (a interface do
 `requests`, sem rede). "Robô antigo" é o robô do PC sem a T-0045: só as
-edições, pela régua do main e1d80a8 (`tests/ref_T0045_edicoes_web_main.py`),
+edições, pela régua do main d2cd695 (`tests/ref_T0045_edicoes_web_main.py`),
 e nenhuma chamada a /api/visitas. "Web antiga" é o site sem as rotas de
 visitas (404).
 
@@ -15,7 +15,7 @@ visitas (404).
 Regras: RN-VIS-002 (o dia fecha pela hora da baixa; o PC informa os dias
 dele; o erro no confirmar tira só a parte da nuvem), RN-VIS-003 (o PC nunca
 sobrescreve), RN-VIS-007 (sobe só o Espelho filtrado), RN-GER-012 (as
-edições não mudam). As células com o robô novo pulam sem ele no main.
+edições não mudam). Exige o robô da T-0045 (PR #165) no main, sem guarda.
 Dados 100% fictícios.
 """
 import json
@@ -33,8 +33,6 @@ import visitas_nuvem_fixture as fx
 from visitas_nuvem_fixture import BASE, TOKEN_CRON, TOKEN_WEB, VENDEDOR, SessaoWeb
 
 RAIZ = Path(__file__).resolve().parent.parent
-ROBO_NOVO = hasattr(vm, "classificar_login") and hasattr(ba, "sincronizar_visitas_web")
-so_robo_novo = pytest.mark.skipif(not ROBO_NOVO, reason="robô da T-0045 ainda não está no main")
 
 
 @pytest.fixture(scope="module")
@@ -89,7 +87,6 @@ def test_RN_GER_012_web_antiga_robo_antigo_edicoes_seguem(tmp_path):
 
 
 # ------------------------------------------------------------------ web antiga × robô novo
-@so_robo_novo
 def test_RN_VIS_002_web_antiga_robo_novo_404_mudo_e_edicoes_seguem(tmp_path, depois):
     s = SessaoWeb(None)
     ed, vis, logs = _volta_robo_novo(tmp_path, s)
@@ -124,7 +121,6 @@ def test_RN_VIS_002_web_nova_robo_antigo_lote_espera_o_pc(tmp_path, web):
 
 
 # ------------------------------------------------------------------ web nova × robô novo
-@so_robo_novo
 def test_RN_VIS_002_web_nova_robo_novo_importa_confirma_e_informa_o_pc(tmp_path, web, depois):
     d = fx.dia_teste(2)
     d_pc = fx.dia_teste(4)
@@ -155,7 +151,6 @@ def test_RN_VIS_002_web_nova_robo_novo_importa_confirma_e_informa_o_pc(tmp_path,
     assert s2.chamadas[-1][2]["resultados"] == []
 
 
-@so_robo_novo
 def test_RN_VIS_002_ponta_a_ponta_diario_igual_ao_do_pc(tmp_path, web, depois):
     """ADR §8: Excel de exemplo sem dado pessoal → filtro → lote → importação → diario/AAAAMMDD.csv igual ao do PC
     com o mesmo Excel sem filtro."""
@@ -179,7 +174,6 @@ def test_RN_VIS_002_ponta_a_ponta_diario_igual_ao_do_pc(tmp_path, web, depois):
     assert int(linha[14]) == va + vf == 3
 
 
-@so_robo_novo
 def test_RN_VIS_002_erro_no_confirmar_tira_so_a_parte_da_nuvem(tmp_path, web, depois):
     d = fx.dia_teste(2)
     vis = web.Visitas(tmp_path / "site", TOKEN_CRON)
@@ -201,7 +195,6 @@ def test_RN_VIS_002_erro_no_confirmar_tira_so_a_parte_da_nuvem(tmp_path, web, de
     assert not vn.pasta_analitico(pc).exists()
 
 
-@so_robo_novo
 def test_RN_VIS_003_disco_do_site_recomeca_e_o_pc_nao_duplica(tmp_path, web, depois):
     import shutil
     d = fx.dia_teste(2)
@@ -221,7 +214,6 @@ def test_RN_VIS_003_disco_do_site_recomeca_e_o_pc_nao_duplica(tmp_path, web, dep
     assert vis2.saude()["lotes_a_importar"] == 0
 
 
-@so_robo_novo
 def test_RN_VIS_002_token_do_cron_nao_abre_as_rotas_do_pc(tmp_path, web, depois, monkeypatch):
     """O robô do PC só usa o BAP_WEB_TOKEN; com o token do cron, o site (SessaoWeb) responde 401 e o PC segue."""
     vis = web.Visitas(tmp_path / "site", TOKEN_CRON)

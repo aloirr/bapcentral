@@ -1,10 +1,12 @@
 """Referência congelada do laço das edições do site no robô (T-0045).
 
-O texto abaixo é o de `bap_automation.py` no main e1d80a8 (27/11/2026), antes
+O texto abaixo é o de `bap_automation.py` no main d2cd695 (27/11/2026), antes
 de o modulo-robo extrair o laço para `puxar_fila_web`: `ler_estado_edicoes_web`,
 `gravar_estado_edicoes_web`, `baixar_edicoes_web`, `confirmar_edicoes_web` e
-`sincronizar_edicoes_web`, sem nenhuma mudança. O teste
-`tests/test_T0045_edicoes_web_igual_main.py` roda o mesmo cenário nesta cópia
+`sincronizar_edicoes_web`, sem nenhuma mudança. O d2cd695 (#171, T-0023) mudou
+o laço de propósito: o `_saida=extra` do `aplicar_edicao_web` chega ao
+`_registrar_aplicada_web` (o `chave_pc` da garantia); a régua antes era o
+e1d80a8. O teste `tests/test_T0045_edicoes_web_igual_main.py` roda o mesmo cenário nesta cópia
 e no `bap_automation` do momento e exige o mesmo resultado, as mesmas chamadas
 ao site, o mesmo log e o mesmo estado em disco.
 
@@ -16,7 +18,7 @@ régua). Se o main mudar o laço de propósito, a régua muda num PR do testes.
 """
 from types import SimpleNamespace
 
-ORIGEM = "bap_automation.py @ e1d80a8 (linhas 9538-9560 e 9601-9727)"
+ORIGEM = "bap_automation.py @ d2cd695 (linhas 9934-9954 e 10003-10130)"
 
 FONTE = r'''
 def ler_estado_edicoes_web(raiz) -> dict:
@@ -40,8 +42,6 @@ def gravar_estado_edicoes_web(raiz, estado: dict) -> None:
     tmp = alvo.with_suffix(".tmp")
     tmp.write_text(json.dumps(estado, ensure_ascii=False), encoding="utf-8")
     os.replace(tmp, alvo)
-
-
 
 
 def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
@@ -142,14 +142,16 @@ def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
             if str(reg.get("id")) in ja:
                 status, motivo = ja[str(reg.get("id"))]
             else:
-                status, motivo = aplicar_edicao_web(raiz, reg, opcoes, gravar)
+                extra = {}
+                status, motivo = aplicar_edicao_web(
+                    raiz, reg, opcoes, gravar, _saida=extra)
                 if status == "pendente":
                     cont["pendentes"] += 1
                     log(f"Edicoes web: {motivo}; a fila espera a proxima "
                         "rodada.")
                     break
                 _registrar_aplicada_web(raiz, reg, status, motivo,
-                                        res["epoca"])
+                                        res["epoca"], extra)
             cont["aplicadas" if status == "aplicada" else "erros"] += 1
             resultados[seq] = {"seq": seq, "status": status, "motivo": motivo}
             ate = seq
@@ -170,7 +172,6 @@ def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
         log(f"Edicoes web: nao terminei ({type(erro).__name__}); tento de "
             "novo na proxima rodada.")
     return cont
-
 '''
 
 

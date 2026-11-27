@@ -10,7 +10,7 @@ mentira (`visitas_nuvem_fixture.SiteFalso`).
 - o laço `puxar_fila_web` com o `aplicar` das visitas: os cenários do laço das
   edições (página, época nova, já confirmada, pendente, 409).
 
-Pula enquanto o robô da T-0045 não estiver no main. Excel e nomes 100%
+Exigem o robô da T-0045 (PR #165) no main, sem guarda. Excel e nomes 100%
 fictícios; tudo em pasta temporária; sem rede.
 """
 import json
@@ -23,10 +23,6 @@ import visitas_maxima as vm
 import visitas_nucleo as vn
 import visitas_nuvem_fixture as fx
 from visitas_nuvem_fixture import BASE, NOMES_FICTICIOS, TOKEN_WEB, VENDEDOR, VENDEDOR2, SiteFalso
-
-if not (hasattr(vm, "classificar_login") and hasattr(ba, "sincronizar_visitas_web")):
-    pytest.skip("robô da T-0045 (modulo-robo/T-0045-nuvem-robo) ainda não está no main",
-                allow_module_level=True)
 
 ZERO = {"lotes": 0, "arquivos": 0, "dias": [], "erro": None}
 

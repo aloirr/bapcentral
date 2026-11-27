@@ -14,8 +14,8 @@ Também RN-VIS-007 (RD-0112, RD-0114): a rede de dado pessoal (`_REDE` /
 reprova. Entra a comparação núcleo × web; o que olha só o núcleo
 (a lista em si, as permitidas, o cabeçalho) fica em
 tests/test_T0045_visitas_nucleo.py (RD-0149). No fim, a comparação robô ×
-web das cópias de FASES, FECHADOS_PC_DIAS e dos códigos (RD-0174), que pula
-sem o robô da T-0045 no main.
+web das cópias de FASES, FECHADOS_PC_DIAS e dos códigos (RD-0174), que exige
+o robô da T-0045 no main.
 
 Datas fictícias, sem dado de cliente.
 """
@@ -200,11 +200,9 @@ def test_RN_VIS_007_colunas_fora_do_espelho_iguais_na_rota_e_na_web(web_app):
 
 # ------------------------------------------------------------------ robô × web (RD-0174)
 # O robô (`visitas_maxima`) e a web têm cópias de FASES, FECHADOS_PC_DIAS e dos
-# códigos do contrato (§2, §3.3 e §5). Pulam enquanto o robô da T-0045 não estiver no main.
+# códigos do contrato (§2, §3.3 e §5). Exigem o robô da T-0045 (PR #165) no main.
 def _robo_novo():
     import visitas_maxima as vm
-    if not hasattr(vm, "classificar_login"):
-        pytest.skip("robô da T-0045 (modulo-robo/T-0045-nuvem-robo) ainda não está no main")
     return vm
 
 

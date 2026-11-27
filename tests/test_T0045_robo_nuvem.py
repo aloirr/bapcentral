@@ -12,8 +12,8 @@
 - `depois_de_baixar` fora do `executar`, uma vez;
 - o aviso do botão do PC pelo `/saude` (com a tela Tkinter, só com display).
 
-Os testes pulam enquanto o robô da T-0045 (modulo-robo/T-0045-nuvem-robo) não
-estiver no main. Dados 100% fictícios; nada de rede nem de navegador.
+Exigem o robô da T-0045 (PR #165) no main: o #166 entra depois dele, sem guarda
+que pule em silêncio. Dados 100% fictícios; nada de rede nem de navegador.
 """
 import os
 import re
@@ -28,10 +28,6 @@ import pytest
 import visitas_maxima as vm
 import visitas_nucleo as vn
 from visitas_nuvem_fixture import NOMES_FICTICIOS, VENDEDOR, espelho_xlsx, nome_arquivo
-
-if not hasattr(vm, "classificar_login"):
-    pytest.skip("robô da T-0045 (modulo-robo/T-0045-nuvem-robo) ainda não está no main",
-                allow_module_level=True)
 
 RAIZ = Path(__file__).resolve().parent.parent
 USUARIO = "usuario.ficticio.robo"
@@ -393,8 +389,9 @@ def test_RN_VIS_003_conferir_importado_regra_unica_do_nome(pasta, nome, dia, mot
         assert dq is None
 
 
-def test_RN_VIS_003_conferir_importado_e_o_mesmo_no_robo_e_na_gravacao(tmp_path):
-    """O mesmo motivo sai da importação (`_validar_lote_visitas_web`) e da última trava (`gravar_excel_importado`)."""
+def test_RN_VIS_003_gravar_excel_importado_levanta_o_motivo_do_conferir_importado(tmp_path):
+    """RD-0201: a última trava (`gravar_excel_importado`) levanta `ValueError` com o motivo que o
+    `conferir_importado` devolve para o mesmo nome ("pasta" ou "nome")."""
     for pasta, nome in (("../FORA", "VISITA-../FORA-26-11-2026-06-07.xlsx"),
                         (VENDEDOR, "VISITA-OUTRO VENDEDOR FICTICIO-26-11-2026-06-07.xlsx")):
         motivo, _ = vm.conferir_importado(pasta, nome)
