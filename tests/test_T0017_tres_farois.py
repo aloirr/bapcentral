@@ -24,8 +24,8 @@ from zoneinfo import ZoneInfo
 
 import bap_automation as ba
 import relatorios_nucleo as rn
-from escopo_farois_web import (FAROIS_OBRIGATORIOS, FAROIS_PERMITIDOS,
-                               problemas_escopo)
+from escopo_farois_web import (FAROIS_LOTE2, FAROIS_OBRIGATORIOS,
+                               FAROIS_PERMITIDOS, problemas_escopo)
 
 HOJE = date(2026, 11, 24)                 # terça-feira, NOV/2026
 AVISO_SEM_ESTADO = "Sem filtro por estado: os cartões mostram a BAP inteira."
@@ -96,6 +96,10 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
                                 "pv_pedidos": "Pedidos",
                                 "pl_entregas": "Entregas"}
     assert set(ba._TABELA_RECORTE_WEB) - quatro <= FAROIS_PERMITIDOS
+    # T-0024: o lote 2 (quando estiver lá) nasce dos Movimentos do Protheus,
+    # o mesmo "baixado em" das Metas
+    for rid in set(ba.FAROIS_WEB) & set(FAROIS_LOTE2):
+        assert ba._FONTE_BAIXADO_WEB[rid] == ba._FONTE_BAIXADO_WEB["vc_meta"], rid
     # a coluna e a regra da UF: filial da nota no Pedidos, UF do cliente no
     # Entregas (a mesma do uf_linhas)
     assert ba._UF_LINHAS_WEB[("pv_pedidos", "Pedidos")] == ("FILIAL",
