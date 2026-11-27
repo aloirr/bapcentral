@@ -6995,7 +6995,7 @@ def blocos_resumo_fretes_web(r: dict):
     # so as frases que os cartoes nao dizem (a web tira a que repete cartao)
     frases = []
     ufs = agreg.get("Por UF") or []
-    ufs_ok = [x for x in ufs if x[0] != "Sem UF"]
+    ufs_ok = [x for x in ufs if x[0] != _rn.SEM_UF]
     if len(ufs) > 1 and ufs_ok:
         v_ = sum(x[2] for x in ufs)
         topo = max(ufs_ok, key=lambda x: x[2])
@@ -7003,8 +7003,7 @@ def blocos_resumo_fretes_web(r: dict):
                        f"{_rn.p(_rn.pct_de(topo[2], v_))} do valor das notas "
                        "com frete."))
     trs = agreg.get("Por transportadora") or []
-    tr = [x for x in trs if x[0] not in ("Sem transportadora",
-                                         "Sem acompanhamento")]
+    tr = [x for x in trs if x[0] not in (_rn.SEM_TRANSP, _rn.SEM_ACOMP)]
     if tr:
         v_ = sum(x[2] for x in trs)
         t0 = max(tr, key=lambda x: x[2])
