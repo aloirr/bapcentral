@@ -220,7 +220,7 @@ def _da_tabela_uf(ctx, ano, mes, ate, top):
         if not d or d.year != ano or d.month != mes or d > ate:
             continue
         v = rn._liquido(it)
-        if v is None:
+        if v is None or not rn._conta_valida(it):       # RN-GER-005
             continue
         uf = rn.uf_da_filial(it.get("filial")) or "?"
         fat[uf] += v
@@ -378,7 +378,7 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
         m_ = metas.get(k)
         if not m_ or real is None:
             return []
-        n_ = ndp if k in _rn().GRUPO_B_CARTOES else ndp_a    # A: hoje conta
+        n_ = _rn().du_corridos(k, ndp, ndp_a)
         ma = meta_ate if meta_ate else m_ * n_ / ndm if ndm else None
         out = []
         if ma:
@@ -594,8 +594,8 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
 
     # ============================== POR DIA UTIL
     def du_card(k, titulo, fmt, vals_uf, com_meta=True, n_=None):
-        n_ = n_ or (ndp if k in _rn().GRUPO_B_CARTOES else ndp_a)
-        rest = max(0, ndm - n_)         # A: ndm - ndp_a; B: ndm - ndp
+        n_ = n_ or _rn().du_corridos(k, ndp, ndp_a)
+        rest = max(0, ndm - n_)         # DU que faltam do cartao
         v = V[k][at]
         r_ = v / n_ if (v is not None and n_) else None
         fx = []

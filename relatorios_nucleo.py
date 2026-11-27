@@ -2838,6 +2838,12 @@ def sufixo_periodo(d) -> str:
     return SUFIXO_PERIODO.format(d)
 
 
+def du_corridos(chave, ndp, ndp_a):
+    """Os DU corridos do cartao `chave`: o grupo B (ate ontem) usa `ndp`; o
+    resto (hoje conta, decisao 43) usa `ndp_a`."""
+    return ndp if chave in GRUPO_B_CARTOES else ndp_a
+
+
 def _conta_valida(it) -> bool:
     """Fora a conta 000040 (teste); os CNPJs internos ja saem da tabela."""
     return _cod6(it.get("vend")) != CONTA_TESTE
@@ -3190,10 +3196,11 @@ def _somar_d(ds, com_rv=True):
 
 def _valores_farol(d, mix, total_real, resta, tipo="pessoa"):
     """Os valores na MESMA ordem de _cols_farol(tipo)."""
-    def nec(meta, real):
-        if meta is None or not resta:
+    def nec(meta, real, dias=None):
+        dias = resta if dias is None else dias
+        if meta is None or not dias:
             return None
-        return max(0.0, (meta or 0) - (real or 0)) / resta
+        return max(0.0, (meta or 0) - (real or 0)) / dias
     meta, rh, real = d["meta"], d.get("meta_rh"), d["real"]
     mv, rv_ = d.get("mv"), d.get("rv")
     v = [] if tipo == "familia" else [d.get("ativos")]
@@ -3208,7 +3215,8 @@ def _valores_farol(d, mix, total_real, resta, tipo="pessoa"):
         v += [d.get("mp"), d.get("rp"), pct_de(d.get("rp") or 0, d.get("mp")),
               nec(d.get("mp"), d.get("rp"))]
         if tipo == "pessoa":
-            v += [mv, rv_, pct_de(rv_ or 0, mv) if mv else None, nec(mv, rv_)]
+            v += [mv, rv_, pct_de(rv_ or 0, mv) if mv else None,
+                  nec(mv, rv_, getattr(resta, "b", resta))]   # visita: grupo B
             mc, rc = d.get("mc"), d.get("rc")
             v += [mc, rc, pct_de(rc or 0, mc) if mc else None]
             mci, rci = d.get("mcid"), d.get("rcid")
@@ -3297,8 +3305,7 @@ def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
                f"do mês {fmt(meta)}", linhas)
 
 
-def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
-                   resta_b=None):
+def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False):
     """Os cartoes de cima de uma vista (pelos nomes das colunas dela): um
     por indicador - faturamento (meta comercial e meta RH), positivacao,
     visita, pecas e cadastro com compra (hoje conta na projecao, decisao
@@ -3324,11 +3331,11 @@ def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
                            ("CAD.", "Cad. com compra", False)):
         if f"{nome} META" in idx:
             r_ = soma(f"{nome} REAL")
-            # a visita e do grupo B: o Nec./dia usa os DU do B (como a tabela)
+            # a visita e do grupo B: o Nec./dia usa os DU do B (`resta.b`)
             saida.append(_cartao_indicador(
                 rot, soma(f"{nome} META"), r_,
-                resta_b if nome == "VISITA" and resta_b is not None
-                else resta, esperado, din, ultimo_dia=ultimo_dia))
+                getattr(resta, "b", resta) if nome == "VISITA" else resta,
+                esperado, din, ultimo_dia=ultimo_dia))
     if "CID. META" in idx and soma("CID. META"):
         # (15/10) e estoque, nao ritmo: sem projecao nem nec./dia
         m_, r_ = soma("CID. META"), soma("CID. REAL")
@@ -3576,9 +3583,8 @@ def acompanhamento_meta(ctx):
     ger = next((t for t in r["tabelas"] if t["titulo"] == "Por gerente"), None)
     if ger:
         cart_ger = _cartoes_farol(ger["linhas"], ger["colunas"],
-                                  ac.get("dias_restantes") or 0, _esperado(ac),
-                                  ultimo_dia=_ultimo_dia(ac),
-                                  resta_b=_resta_b(ac))
+                                  _restas(ac), _esperado(ac),
+                                  ultimo_dia=_ultimo_dia(ac))
         # (14/10) AUDITORIA: o cartao de POSITIVACAO e o numero de clientes
         # DISTINTOS que compraram no mes (= Painel, Farol de Clientes e
         # Indicadores Executivos). A soma das linhas contava duas vezes o
@@ -3757,6 +3763,22 @@ def _juntar_equipe(r, ctx, ac, comp, txt, V, T, sup):
     r["tabelas"] = novas
 
 
+class _Resta(int):
+    """DU restantes do grupo A, levando os do grupo B em `.b` (hoje ainda e
+    dia a vencer): passa por todas as tabelas sem mudar as assinaturas; a
+    visita (grupo B) le `.b`."""
+    b = 0
+
+    def __new__(cls, a, b):
+        x = super().__new__(cls, a)
+        x.b = b
+        return x
+
+
+def _restas(ac):
+    return _Resta(ac.get("dias_restantes") or 0, _resta_b(ac))
+
+
 def _resta_b(ac) -> int:
     """DU restantes do grupo B (meta RH, RV): hoje ainda e dia a vencer.
     Usa `dias_restantes_b` do acompanhamento (meta_nucleo, modulo-metas); se
@@ -3849,7 +3871,7 @@ def vistas_do_farol(ctx, ac, comp, corte=None, sem=()):
     """As vistas do Farol de Metas, a equipe inteira (sem recorte):
     gerente, supervisor, vendedor, UF, cidade, bairro, segmento, zona e
     familia. corte: no maximo tantas linhas nos territorios (o PDF)."""
-    resta = ac.get("dias_restantes") or 0
+    resta = _restas(ac)
     esperado = _esperado(ac)
     mix = _mix_das_linhas(ctx, comp, ac)
     rh_por = ac.get("rh_por") or {}
@@ -4025,7 +4047,7 @@ def vistas_escopo(ctx, ac, comp, V=None, T=None, sup=None, corte=None,
     (pela nota, e a carteira deles); T = o territorio do cliente. Sem
     territorio, as linhas de pessoa sao as do acompanhamento (com visita e
     RV); com territorio, saem da soma dos clientes e das notas."""
-    resta = ac.get("dias_restantes") or 0
+    resta = _restas(ac)
     esperado = _esperado(ac)
     equipe = ac.get("equipe_vend") or {}
     nomes = _nomes_vendedor(ac)
@@ -11299,7 +11321,7 @@ def _exportar_rh(ctx, parcial=None):
             # paga a RV), positivacao e visita
             # cada linha: (indicador, meta, real, % ating., RV, projecao,
             # % ating. projetado, GAP do mes, nec./dia) - ja formatados
-            resta_ = ac.get("dias_restantes") or 0
+            resta_ = _resta_b(ac)           # RV/meta RH: grupo B
             corrido_ = (_esperado(ac) or 0.0) / 100.0
 
             def resumo_(rot, meta, real, fmt, rv_txt, inteiro=False):
@@ -11345,8 +11367,7 @@ def _exportar_rh(ctx, parcial=None):
             if chave_p != "gerente":
                 ls_p = ls_p[:1] if chave_p == "supervisor" else ls_p
             r["kpis"] = _cartoes_farol(ls_p, tab_p["colunas"],
-                                       ac.get("dias_restantes") or 0,
-                                       _esperado(ac))
+                                       _restas(ac), _esperado(ac))
         # (10/10) o resumo dos PEDIDOS EM ABERTO na 1a pagina
         r["kpis"].append(_kpi_abertos_da_parcial(
             ctx, _escopo_da_parcial(ac, parcial)[1]))

@@ -320,7 +320,7 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
         pj = (cards_m[at].get(c) or {}).get("projecao") if c else None
         if pj is not None:
             return pj
-        n_ = ndp_a if k not in _rn().GRUPO_B_CARTOES else ndp
+        n_ = _rn().du_corridos(k, ndp, ndp_a)
         return v / n_ * ndm if n_ else None
 
     proj_mes = corre                 # mes em curso: ha projecao
@@ -338,7 +338,7 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
                 out.append((r, None, vazio, am == at))
                 continue
             if por_du:
-                n = (ndp_a if k not in _rn().GRUPO_B_CARTOES else ndp) if am == at \
+                n = _rn().du_corridos(k, ndp, ndp_a) if am == at \
                     else du_m.get(am)
                 v = v / n if n else None
                 if v is None:
@@ -515,8 +515,8 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
 
     def du_card(k, titulo, fmt, com_meta, extra=None, regra=""):
         v = V[k][at]
-        n_ = ndp_a if k not in _rn().GRUPO_B_CARTOES else ndp
-        rest = max(0, ndm - n_)         # A: ndm - ndp_a; B: ndm - ndp
+        n_ = _rn().du_corridos(k, ndp, ndp_a)
+        rest = max(0, ndm - n_)         # DU que faltam do cartao
         r_ = v / n_ if (v is not None and n_) else None
         vars_ = []
         for am, r in zip(meses[1:], rot[1:]):
