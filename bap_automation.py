@@ -6938,20 +6938,6 @@ def _kpis_com_estados(r: dict, sem_dado_fora: bool = False) -> list:
     return saida
 
 
-def _rotulo_sem_fretes_web(rot: str, v):
-    """(T-0037) o "(sem)" do PC vira texto de gente nas tabelas do Resumo."""
-    v = str(v if v is not None else "(sem)")
-    if rot == "CIDADE":                # "CIDADE / " sem UF: sem a barra solta
-        v = v.rstrip()
-        if v.endswith("/"):
-            v = v[:-1].rstrip()
-    if not v.startswith("(sem)"):
-        return v
-    resto = v[len("(sem)"):]
-    return {"UF": "Sem UF", "CIDADE": "Sem cidade",
-            "TRANSPORTADORA": "Sem transportadora"}.get(rot, v) + resto
-
-
 def blocos_resumo_fretes_web(r: dict):
     """Funcao pura (T-0037, contrato §10.12.2): o Resumo do Farol de Fretes, que no
     PC nao tem painel proprio (so `graficos` e `tabelas`). Devolve
@@ -6984,7 +6970,7 @@ def blocos_resumo_fretes_web(r: dict):
         mes = next((f.get("padrao") for f in t.get("filtros") or []
                     if isinstance(f, dict) and f.get("coluna") == "MÊS"), None)
         im, ir = nomes.index("MÊS"), nomes.index(rot)
-        ls = [[_rotulo_sem_fretes_web(rot, l[ir]), l[nomes.index("NOTAS")],
+        ls = [[l[ir], l[nomes.index("NOTAS")],   # rotulo pronto do PC
                l[nomes.index("VLR NF")] or 0,
                l[nomes.index("VLR FRETE")] or 0]
               for l in t.get("linhas") or []
@@ -7016,7 +7002,8 @@ def blocos_resumo_fretes_web(r: dict):
                        f"{_rn.p(_rn.pct_de(topo[2], v_))} do valor das notas "
                        "com frete."))
     trs = agreg.get("Por transportadora") or []
-    tr = [x for x in trs if x[0] != "Sem transportadora"]
+    tr = [x for x in trs if x[0] not in ("Sem transportadora",
+                                         "Sem acompanhamento")]
     if tr:
         v_ = sum(x[2] for x in trs)
         t0 = max(tr, key=lambda x: x[2])
