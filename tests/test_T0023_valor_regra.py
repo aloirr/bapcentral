@@ -258,6 +258,36 @@ def test_RN_POS_006_sla_ncc_3_du(real, fer):
     assert _kpi(pcs["pl_ncc"]["kpis"], f"SLA atrasado ({nc.SLA_NCC} d.u.)")["valor"] == rn.br(atrasadas)
 
 
+def _du_fechados(de, ate, fer):
+    """Dias úteis depois de `de` até `ate` (inclusive), contados à mão."""
+    n, d = 0, de
+    while d < ate:
+        d += timedelta(days=1)
+        n += d.weekday() < 5 and d not in fer
+    return n
+
+
+def test_RN_GER_007_du_sem_mov_da_ncc_nao_conta_o_hoje(real, fer):
+    """D.U. S/ MOV. = dias úteis depois da última movimentação (ou da
+    emissão) até ONTEM: hoje (24/11, terça, dia útil) fica fora. Em cada
+    linha não encerrada, a conta até hoje daria 1 a mais."""
+    _pcs, f = real
+    t = _tab(f, "pl_ncc", "NCC pendentes")
+    ontem = HOJE - timedelta(days=1)
+    assert HOJE.weekday() < 5 and HOJE not in fer
+    conferidas = 0
+    for i, (sla, mov, emi, du) in enumerate(_linhas(t, "SLA NCC", "DT. ÚLT. MOV.", "EMISSÃO",
+                                                    "D.U. S/ MOV.")):
+        if sla == nc.SLA_ENCERRADO:
+            continue
+        base = _iso(mov) or _iso(emi)
+        assert du == _du_fechados(base, ontem, fer), i
+        if base < HOJE:
+            assert du == _du_fechados(base, HOJE, fer) - 1, i          # sem o hoje
+            conferidas += 1
+    assert conferidas >= 1
+
+
 def test_RN_GER_006_ncc_saldo_bate_em_todas_as_abas_e_os_estados_somam_a_bap(real):
     """Saldo a compensar = soma do SALDO das NCC não encerradas = TOTAL das
     abas Por filial, Por vendedor, Por supervisor e Por cliente; as faixas de
@@ -345,21 +375,35 @@ def _vnd_dev_por_mes():
     return vnd, dev
 
 
-@pytest.mark.xfail(strict=False, reason=(
-    "defeito do núcleo (recado ao modulo-farois, T-0023): relatorios_nucleo.devolucoes divide a "
-    "devolução pelo VND bruto (fat_mes/fat_vend), e não pelo faturado líquido VND − DEV (RN-GER-002)"))
 def test_RN_GER_002_pct_do_faturado(real):
     """Desenho 5.2: "% do faturado" = devolução ÷ faturado líquido (VND −
-    DEV) pela data da NF, no cartão e em cada mês do gráfico."""
+    DEV) pela data da NF, no cartão, em cada mês do gráfico e no detalhe do
+    cartão "Devoluções" do Painel Executivo (o número do diretor). Setembro
+    é o mês que separa as contas: 12,0% (líquido) contra 10,7% (bruto)."""
     pcs, _f = real
     vnd, dev = _vnd_dev_por_mes()
     g = next(x for x in pcs["pl_devolucoes"]["graficos"] if x["titulo"] == "Mês a mês: % do faturado")
     meses = rn.ultimos_meses(HOJE, 12)
     esperado = [rn.pct_de(dev[m], vnd[m] - dev[m]) or 0 for m in meses]
     assert [round(v, 6) for v in g["series"][0]["valores"]] == [round(v, 6) for v in esperado]
+    set_ = meses.index("2026-09")
+    assert round(g["series"][0]["valores"][set_], 1) == 12.0
+    assert round(100 * dev["2026-09"] / vnd["2026-09"], 1) == 10.7         # a conta antiga, bruta
     m = rn.mes_de(HOJE)
     assert _kpi(pcs["pl_devolucoes"]["kpis"], "% do faturado")["valor"] == \
         rn.p(rn.pct_de(dev[m], vnd[m] - dev[m]))
+    # o cartão do mês de setembro (filtro de período), pelas linhas da aba
+    t = next(x for x in pcs["pl_devolucoes"]["tabelas"] if x["titulo"] == "Devoluções")
+    nomes = [c["nome"] for c in t["colunas"]]
+    i_m, i_v = nomes.index("MÊS"), nomes.index("VALOR")
+    v_set = sum(ln[i_v] for ln in t["linhas"] if ln[i_m] == "SET/26")
+    assert math.isclose(v_set, dev["2026-09"], abs_tol=0.01)
+    assert rn.p(rn.pct_de(v_set, vnd["2026-09"] - dev["2026-09"])) == "12%"
+    # Painel Executivo, aba Faturamento: o detalhe usa a mesma regra
+    painel = rn.montar("vc_painel", RAIZ, hoje=HOJE, params={"ANO": "2026", "MÊS": "11"})
+    fat = next(p for p in painel["paineis"] if p["titulo"] == "Faturamento")
+    assert _kpi(fat["kpis"], "Devoluções")["detalhe"] == \
+        f"{rn.br(rn.pct_de(dev[m], vnd[m] - dev[m]), 1)}% do faturado"
 
 
 def test_RN_GER_002_devolucao_do_mes_pela_data_da_nf(real):
