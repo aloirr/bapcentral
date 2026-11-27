@@ -175,7 +175,7 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 - **O site confere** (função pura `validar_lote(dia_url, corpo) -> list[str]`, modulo-web): as regras da tabela; `dia` igual ao da URL; dia válido e não futuro; até `ARQUIVOS_MAX` arquivos; cada Excel até `ARQUIVO_MAX` e com o `sha256` certo. O site **nunca abre o Excel no Excel** (nem em biblioteca de planilha) e **nunca** o serve ao navegador.
 - **Conferência no site** (defesa extra contra dado pessoal, depois da do cron no §3.6): o site lê **só o texto e os números das células** de cada Excel, direto do zip/XML (`sharedStrings.xml` e as planilhas, biblioteca padrão), e aplica neles a mesma varredura do §3.6.
   - O que ele lê vai até `DESCOMPRESSAO_MAX` no lote e em cada arquivo, com até `ZIP_MEMBROS_MAX` membros por Excel. Passou, ele para na hora e responde 413 `{"erro": "lote grande demais", "codigo": "DESCOMPRESSAO_TETO"}`.
-  - Achou dado pessoal ou coluna fora da lista: 422 `{"erro": "dado pessoal", "detalhes": [...]}` (até 10, só o índice do arquivo e o tipo ou a coluna, **nunca o valor**). O lote do dia não é gravado, e o site grava a pausa `DADO_PESSOAL` (RN-VIS-007).
+  - Achou dado pessoal ou coluna fora da lista: 422 `{"erro": "dado pessoal", "achados": [{"coluna": "<rótulo>", "tipo": "cnpj|cpf|telefone|email|formato", "n": int}]}` (a forma do §3.5, até 20 itens, **nunca o valor**). Coluna fora da lista = `{"coluna": "<rótulo>", "tipo": "formato"}`; dado numa célula = `{"coluna": "CELULA", "tipo": "<tipo>"}`. O lote do dia não é gravado, e o site grava a pausa `DADO_PESSOAL` (RN-VIS-007).
 - **Idempotência:** o mesmo `<id>` + dia + `X-BAP-SHA256` devolve o mesmo `seq`, sem gravar de novo.
 
 | Resposta | Quando |
@@ -187,7 +187,8 @@ O cron decide com a função pura `deve_rodar(agora, trabalho) -> Motivo | None`
 | 413 `{"erro": "lote grande demais"}` | acima de `LOTE_GZ_MAX`, de `LOTE_BRUTO_MAX`, de `ARQUIVO_MAX` ou de `ARQUIVOS_MAX` |
 | 413 `{"erro": "lote grande demais", "codigo": "DESCOMPRESSAO_TETO"}` | a conferência passou de `DESCOMPRESSAO_MAX` ou de `ZIP_MEMBROS_MAX` |
 | 415 | `Content-Type` ou `Content-Encoding` errado |
-| 422 `{"erro": "sha256"}`, `{"erro": "esquema inválido", "detalhes": [...]}` ou `{"erro": "dado pessoal", "detalhes": [...]}` | até 10 detalhes, **sem nome**: só a chave e o índice (`arquivos[3].nome`) |
+| 422 `{"erro": "sha256"}` ou `{"erro": "esquema inválido", "detalhes": [...]}` | até 10 detalhes, **sem nome**: só a chave e o índice (`arquivos[3].nome`) |
+| 422 `{"erro": "dado pessoal", "achados": [{"coluna", "tipo", "n"}]}` | a conferência achou dado pessoal ou coluna fora da lista; **nunca o valor** |
 
 ### 3.5 `POST /api/visitas/rodada/<id>/fim`
 
