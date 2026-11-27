@@ -18,7 +18,7 @@
 - **Regra de versão:**
   - acrescentar uma tabela à `GRADE` (§6), um nome curto (§13) ou um texto de estado (§9) é acréscimo: a v1 continua;
   - mudar uma regra (altura da faixa, teto de colunas, rolagem, breakpoint, tokens) é **v2**. Antes vem a simulação PNG (regra 10) e o "aprovo" do Alexandre, e depois um recado aos consumidores.
-- **Valores com [A CONFIRMAR PELA MARCA]:** os tokens da §12 têm nome e papel fixos aqui. O valor vem do design-de-marca (MC-0012: o rascunho do manual). Até lá, valem os valores candidatos da tabela, tirados do `bap_visual.py` e do que o Alexandre já viu nas simulações.
+- **Valores de cor e de fonte:** este contrato só diz **qual token** cada parte da tela usa (§12). O valor (hex, família, tamanho) está num lugar só: `docs/marca/manual.md` (§4 paleta, §5 tipografia), aprovado pelo Alexandre (R-20261126-182227-alexandre). Nenhum hex neste contrato.
 
 ---
 
@@ -62,7 +62,7 @@
 ### 4.1 Forma
 
 ```
-┌─ faixa (fundo --faixa-ini → --faixa-fim) ───────────────────────────────────────────┐
+┌─ faixa (fundo --faixa-inicio → --faixa-fim) ────────────────────────────────────────┐
 │ <Título completo>   <dd/mm/aaaa hh:mm> [Desatualizado]              [BAP|AM|MA|PA]   │  linha 1
 │ RÓTULO 1    RÓTULO 2    RÓTULO 3    RÓTULO 4    RÓTULO 5    RÓTULO 6                 │  linha 2
 │ valor       valor       valor       valor       valor       valor                    │
@@ -269,72 +269,79 @@ Um texto por situação, igual em todas as telas. O texto não explica o sistema
 
 - **O que pode ser aviso:** só o que muda a leitura do número ou da tabela.
   - Exemplos: aba fora por tamanho; dado parcial do dia; "O PC recusou" na edição.
-  - Fica numa linha curta acima da tabela, no tom atenção (`--amarelo-claro` com texto `--texto`).
+  - Fica numa linha curta acima da tabela, no tom atenção (`--atencao-claro` com texto `--texto`).
   - **No máximo 2 visíveis.** Os outros ficam atrás de "+N avisos".
 - **O que não é aviso** (sai do corpo):
   - frase que explica o sistema: `AVISO_SEM_ESTADO`, `AVISO_SO_BAP` no corpo, "gravada pela mesma função da tela do PC" (`editar.html:42`, que vira "Chega ao PC em até 30 min.") e a faixa azul do Cobrar (`farol.html:6`, que vai para a linha 1 da faixa, §4.1);
   - a contagem repetida (§5).
 - **Erro de formulário:** fica junto do campo, com `role="alert"` (login, senha, Editar).
 - **Confirmação de ação:** uma linha no topo da caixa, no tom ok, que some sozinha em 5 s (`aria-live="polite"`). Ex.: "Edição enviada. Chega ao PC em até 30 min."
-- **Cores de aviso:** só os tokens da §12. Saem `#fff3bf`, `#ffc9c9`, `#d0ebff` e `.faixa-pc #a5d8ff`.
+- **Cores de aviso:** só os tokens da §12. As cores soltas de aviso do visual antigo saem (lista no manual, §4.2).
 
 ## 11. Botões e ações
 
 | Nível | Aparência | Regra |
 |---|---|---|
-| Principal | fundo `--verde-escuro`, texto branco (5:1 ou mais) | **um só por tela**. Ex.: "Baixar imagem" (Parcial), "Novo usuário" (Usuários), "Salvar" (Editar). No cartão de fila, um por cartão ("Abrir WhatsApp") |
-| Neutro | contorno `--grade`, texto `--texto` | todo o resto: "Pular", "Trocar senha", "Cancelar" |
-| Perigo | texto `--vermelho`, sem fundo | **sempre com confirmação**. O diálogo diz o verbo e o alvo ("Desativar o usuário fulano.web?"), e o botão de confirmar repete o verbo |
+| Principal | fundo `--verde-escuro`, texto `--faixa-texto` (contraste no manual, §4.3) | **um só por tela**. Ex.: "Baixar imagem" (Parcial), "Novo usuário" (Usuários), "Salvar" (Editar). No cartão de fila, um por cartão ("Abrir WhatsApp") |
+| Neutro | contorno `--borda`, texto `--texto` | todo o resto: "Pular", "Trocar senha", "Cancelar" |
+| Perigo | texto `--erro`, sem fundo | **sempre com confirmação**. O diálogo diz o verbo e o alvo ("Desativar o usuário fulano.web?"), e o botão de confirmar repete o verbo |
 | Menu | "Exportar ▾", "Filtros ▾", "Mais ▾" | o mesmo ▾ em todos |
 
 - **Rótulo com verbo.** Botão só com ícone leva `aria-label`.
 - **A coluna Editar do admin** fica à esquerda da grade e não conta no teto de 10 colunas.
-- **Foco visível** em tudo que recebe foco: `:focus-visible` com contorno de 2 px em `--foco`, e `.bc3-busca:focus-within` também. Nada de `outline: 0` sem substituto (`estilo.css:379`).
+- **Foco visível** em tudo que recebe foco: `:focus-visible` com contorno de 2 px em `--verde-escuro`, e `.bc3-busca:focus-within` também. Nada de `outline: 0` sem substituto (`estilo.css:379`).
 - **Movimento:** `@media (prefers-reduced-motion: reduce)` desliga as transições da lateral e do popup.
 - **Ação destrutiva ou que vai ao PC** (editar, desativar, cobrar) só para o perfil que pode. O corte é no servidor, antes do HTML; esconder o botão não basta.
 
 ## 12. Tokens: cor, fonte e medida num lugar só
 
-- **Onde ficam:** um bloco `:root` só, no topo de `web/app/static/estilo.css`.
+- **Fonte única dos valores:** `docs/marca/manual.md` (§4 paleta em tokens, com o contraste de cada par; §5 tipografia). Este contrato não repete valor: muda o manual, muda a tela, sem mexer aqui.
+- **Onde ficam no código:** um bloco `:root` só, no topo de `web/app/static/estilo.css`, com os nomes do manual.
   - Nenhuma cor em hex fora desse bloco. O teste lê o CSS e falha se achar `#` + hex fora do `:root`.
-  - O PDF e o Excel do site (`web/app/exportar.py`) não leem CSS: usam as constantes de um módulo só, `web/app/marca.py`, com os mesmos nomes. Um teste confere que os valores de `marca.py` e do `:root` são iguais.
-- **Saem** os restos do visual antigo: `--azul`, `--lar`, `--ok/--at/--al` locais (`.rc`, `.kpi`) e os 7 verdes soltos (MC-0006).
-- **Valores:** todos [A CONFIRMAR PELA MARCA] (design-de-marca, MC-0012). Os candidatos vêm do `bap_visual.py` e das simulações que o Alexandre já aprovou. Trocar um valor que ele já viu pede simulação (regra 10).
+  - O PDF e o Excel do site (`web/app/exportar.py`) não leem CSS: usam as constantes de um módulo só, `web/app/marca.py`, com os mesmos nomes. Um teste confere que `marca.py`, o `:root` e o manual têm os mesmos valores.
+- **Saem** as sobras do visual antigo e as cores "quase iguais" que o manual lista (§4.2).
 
-### 12.1 Cor
+### 12.1 Cor (os valores estão no manual, §4)
 
-| Token | Papel | Candidato |
-|---|---|---|
-| `--verde` | destaque da marca, barras ok | `#62BB47` |
-| `--verde-escuro` | botão principal, foco, item ativo, ok em texto | `#2F7D32` |
-| `--verde-claro` | fundo de ok, linha selecionada | `#E5F3DF` |
-| `--texto` | texto | `#1E2722` |
-| `--suave` | rótulo, texto secundário | `#69736D` |
-| `--fundo` | fundo da página | `#F3F4F2` |
-| `--grade` | bordas e linhas da tabela | `#ECEEEB` |
-| `--branco` | cartões, caixas | `#FFFFFF` |
-| `--vermelho` | alerta em texto, perigo | `#B3261E` |
-| `--vermelho-claro` | fundo de alerta | `#FBE3E1` |
-| `--amarelo` | atenção em texto | `#B7791F` |
-| `--amarelo-claro` | fundo de atenção, avisos | `#FFF4D6` |
-| `--faixa-ini` | início do degradê da faixa | `#2F7D32` (sai o `#3C9440`, MC-0005) |
-| `--faixa-fim` | fim do degradê da faixa | `#1B4D1F` |
-| `--faixa-texto` | título, data, rótulos e números da faixa | `#FFFFFF` |
-| `--faixa-ok` / `--faixa-atencao` / `--faixa-alerta` | o número em farol, na faixa | `#BDEBC0` / `#FFE7A3` / `#FFC2B8` (proposta da UX). A marca propõe número branco com um ponto de farol (MC-0015). **Decide o Alexandre, pela simulação** |
-| `--barra-1` / `--barra-2` / `--barra-3` | as barras de comparação dos cartões (o mês / o anterior / a média) | `#7DB46A` / `#D8B56E` / `#8FA79A` |
-| `--foco` | contorno de foco | `= --verde-escuro` |
+| Token | Papel na tela |
+|---|---|
+| `--verde-marca` | logo, selo e destaque grande; nunca texto em fundo claro |
+| `--verde-escuro` | botão principal, item ativo da lateral, aba ativa, contorno de foco, texto verde |
+| `--verde-claro` | fundo de destaque (grupo, total, linha selecionada), só com `--texto` |
+| `--preto-bap` | a placa do logo |
+| `--texto` | texto principal |
+| `--suave` | rótulo, data, texto de apoio (inclui o "BAP AUTOPARTS" da lateral) |
+| `--fundo` | fundo da página |
+| `--cartao` | cartões, caixas e tabelas |
+| `--borda` | contorno de cartão, de campo e do botão neutro |
+| `--grade` | linhas internas da tabela |
+| `--erro` / `--erro-claro` | mensagem e campo com erro, ação de perigo (Desativar) / fundo da caixa de erro |
+| `--alerta` / `--alerta-claro` | número e ponto vermelhos do farol / fundo da linha em alerta |
+| `--atencao` | só ponto, ícone e barra amarelos (nunca texto) |
+| `--atencao-texto` | número e texto em atenção |
+| `--atencao-claro` | fundo da linha em atenção e dos avisos (§10) |
+| `--ok` / `--ok-claro` | número e ponto verdes do farol / fundo da linha boa |
+| `--faixa-inicio` / `--faixa-fim` | o degradê da faixa (§4) |
+| `--faixa-texto` | todo o texto da faixa, inclusive o pequeno |
+| `--faixa-ok` / `--faixa-atencao` / `--faixa-alerta` | o número em farol na faixa, só em número grande e negrito |
+| `--grafico-1` / `--grafico-2` / `--grafico-3` | as barras de comparação dos cartões, sempre com o número ao lado |
 
-### 12.2 Fonte
+- O contraste mínimo de cada par (texto 4,5:1; texto grande e ícone 3:1) é o do manual, §4.3. Par fora da tabela do manual pede parecer do design-de-marca antes do PR.
 
-| Token | Papel | Candidato |
-|---|---|---|
-| `--fonte` | toda a tela | `"Segoe UI", system-ui, -apple-system, Roboto, sans-serif` (sai a `Inter`, MC-0008) |
-| `--fonte-titulo` | título e números da faixa | `= --fonte`. A Poppins, servida pelo próprio site, é proposta da marca (MC-0017), com 2 opções em imagem e o "aprovo" |
-| `--t-faixa-titulo` | título da faixa | 21 px (1366) · 24 px (1920) |
-| `--t-faixa-numero` | número da faixa | 20 px · 22 px |
-| `--t-rotulo` | rótulos, data, `small` | 11 px no mínimo |
-| `--t-corpo` | texto da tela | 14 px |
-| `--t-tabela` | células e cabeçalho da tabela | 13 px |
+### 12.2 Fonte (a família, os tamanhos e os pesos estão no manual, §5)
+
+| Token | Papel na tela |
+|---|---|
+| `--fonte` | toda a tela (a pilha do manual) |
+| `--t-faixa-titulo` | título da faixa |
+| `--t-numero` | número de destaque (faixa e cartão) |
+| `--t-bloco` | título de bloco ou de cartão |
+| `--t-corpo` | texto, menu, botão |
+| `--t-tabela` | células da tabela (algarismos de mesma largura) |
+| `--t-apoio` | apoio, data, rodapé |
+| `--t-rotulo` | rótulo de coluna e de número: o menor tamanho permitido |
+
+- O mesmo papel usa sempre o mesmo token, em todas as telas. Os pesos são só os do manual.
 
 ### 12.3 Medida (valores da UX; a marca só confere)
 
@@ -423,9 +430,7 @@ O testes mede e o PR traz o resultado. Sem ele, o revisor-codigo marca 🟡.
 
 ## 16. Pendências
 
-- **Valores dos tokens (§12):** design-de-marca, no rascunho do manual (MC-0012), com o "aprovo" do Alexandre.
-- **Cor dos números de farol na faixa:** a proposta da UX (tons claros) × a da marca (número branco com ponto, MC-0015). Vai em imagem ao Alexandre.
-- **Poppins nos títulos** (MC-0017): proposta da marca, com 2 opções em imagem.
+- **Valores dos tokens:** decididos no `docs/marca/manual.md` (R-20261126-182227-alexandre). O modulo-web aplica no `:root` e no `marca.py`, com simulação antes (regra 10), porque alguns tons mudam o que o Alexandre já viu (o canto da faixa, o vermelho, o cinza de apoio).
 - **Perfis sem Painel e perfis novos** (§14): decisões 2 e 3 do R-20261126-175814-gerente-projetos.
 - **O botão verde "Cobrar no WhatsApp", que repete a aba** (decisão 7 do mesmo recado): se ficar, conta como o principal da tela.
 - **As 3 colunas a mais da grade do Pedidos** (§6.3): a medição da simulação da T-0033 decide quais descem para o popup.
