@@ -9,14 +9,12 @@ Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
   UF escritas aqui, à mão;
 - depois do robô da T-0023 v2 (PR #171), os 3 faróis do pós-venda (contrato
   §10.10, FAROIS_T0023) também são OBRIGATÓRIOS, com as mesmas exigências;
-- um farol a mais da T-0036 (FAROIS_T0036, os 4 do Analista Comercial) só
-  passa com a regra de UF dos cartões e a das linhas de cada aba
-  (UF_LINHAS_T0036), escritas aqui à mão a partir do contrato §10.11.1/§10.11.3;
-  os 4 são permitidos e não obrigatórios (os testes, #177, entram antes do
-  robô, #159; a tolerância sai no testes/T-0036-sem-tolerancia depois do
-  #159), mas vão juntos: só parte deles reprova;
-- a lista PERMITIDA é a dos obrigatórios mais os 4 da T-0036 (e, na
-  transição T-0037 até o #169, o pl_fretes): um farol fora dela reprova.
+- depois do robô da T-0036 (PR #159), os 4 do Analista Comercial
+  (FAROIS_T0036) também são OBRIGATÓRIOS, com a regra de UF dos cartões e a
+  das linhas de cada aba (UF_LINHAS_T0036), escritas aqui à mão a partir do
+  contrato §10.11.1/§10.11.3;
+- a lista PERMITIDA é a dos obrigatórios (e, na transição T-0037 até o
+  #169, o pl_fretes): um farol fora dela reprova.
 
 Regra citada: RN-GER-006 (estado do faturamento e do estoque = filial da
 nota; fretes e carteira = UF do cliente; sem a UF, o farol vai sem recortes e
@@ -56,17 +54,6 @@ FAROIS_T0023 = {
     "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
     "pl_ncc": ("tabela", "NCC pendentes", "FILIAL", "filial"),
 }
-# os faróis do main: T-0017, o vc_meta da T-0022, o lote 2 da T-0024 e os 3
-# da T-0023
-REGRA_UF_OBRIGATORIOS = {
-    "pl_inadimplencia": ("tabela", "Títulos", "FILIAL", "filial"),
-    "pv_pedidos": ("tabela", "Pedidos", "FILIAL", "filial"),
-    "pl_entregas": ("tabela", "Entregas", "UF", "uf"),
-    "vc_visitas": ("sem_estado",),
-    "vc_meta": ("meta",),
-    **FAROIS_LOTE2,
-    **FAROIS_T0023,
-}
 # T-0036 (contrato §10.11.1): os 4 do Analista Comercial. Cartões por estado
 # só no Saldo e no Markup (filial da nota, com a conferência do kpis_de);
 # Preço e Divergências sem recortes (aviso "Sem filtro por estado")
@@ -75,6 +62,18 @@ FAROIS_T0036 = {
     "vc_markup": ("tabela_conferida", "Por pedido", "FILIAL", "filial"),
     "vc_preco": ("sem_estado",),
     "an_divergencias": ("sem_estado",),
+}
+# os faróis do main: T-0017, o vc_meta da T-0022, o lote 2 da T-0024, os 3
+# da T-0023 e os 4 da T-0036
+REGRA_UF_OBRIGATORIOS = {
+    "pl_inadimplencia": ("tabela", "Títulos", "FILIAL", "filial"),
+    "pv_pedidos": ("tabela", "Pedidos", "FILIAL", "filial"),
+    "pl_entregas": ("tabela", "Entregas", "UF", "uf"),
+    "vc_visitas": ("sem_estado",),
+    "vc_meta": ("meta",),
+    **FAROIS_LOTE2,
+    **FAROIS_T0023,
+    **FAROIS_T0036,
 }
 # T-0036 (§10.11.3, RN-GER-006): o estado das linhas de cada aba. Faturamento
 # e preço praticado pela filial da nota; Pesquisa e Divergências pela UF do
@@ -119,11 +118,12 @@ def fretes_no_robo(ba) -> bool:
 
 
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
-REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_T0036,
+REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS,
                        **FAROIS_FRETES_TRANSICAO}   # transição T-0037: até o #169 (testes/T-0037-fretes)
 FAROIS_PERMITIDOS = frozenset(REGRA_UF_PERMITIDOS)
-assert len(REGRA_UF_OBRIGATORIOS) == 5 + len(FAROIS_LOTE2) + len(FAROIS_T0023)   # sem repetição
-assert len(REGRA_UF_PERMITIDOS) == (len(REGRA_UF_OBRIGATORIOS) + len(FAROIS_T0036)
+assert len(REGRA_UF_OBRIGATORIOS) == (5 + len(FAROIS_LOTE2) + len(FAROIS_T0023)
+                                      + len(FAROIS_T0036))   # sem repetição
+assert len(REGRA_UF_PERMITIDOS) == (len(REGRA_UF_OBRIGATORIOS)
                                     + len(FAROIS_FRETES_TRANSICAO))   # transição T-0037: até o #169
 
 _KPI_FICTICIO = [{"rotulo": "Itens", "valor": "1", "cor": "ok"}]
@@ -195,11 +195,6 @@ def problemas_escopo(ba) -> list:
         saida.append(f"{rid}: obrigatório e fora de FAROIS_WEB")
     for rid in sorted(set(farois) - FAROIS_PERMITIDOS):
         saida.append(f"{rid}: fora da lista PERMITIDA")
-    # T-0036: os 4 do Analista são permitidos e não obrigatórios, mas vão juntos
-    t0036 = set(FAROIS_T0036) & set(farois)
-    if t0036 and t0036 != set(FAROIS_T0036):
-        saida.append("T-0036: os 4 do Analista vão juntos; faltam "
-                     + ", ".join(sorted(set(FAROIS_T0036) - t0036)))
     for rid in sorted(set(farois) & FAROIS_PERMITIDOS):
         if not _fonte_ok(fontes.get(rid)):
             saida.append(f"{rid}: sem a fonte do 'baixado em'")

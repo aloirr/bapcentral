@@ -5,7 +5,8 @@ importa o lote na volta de 30 min. Aqui ficam só a guarda e o registro: concess
 dia (RN-VIS-008), pausa por código (RN-VIS-005 e 007), índice dos dias baixados (RN-VIS-002), fila de lotes
 (`edicoes.Fila`) e o que a tela mostra. Quem baixa, filtra e monta o dia é o cron e o PC; o site nunca serve o Excel.
 
-ESPELHO: as regras de RN-VIS-002 (`_dt`, `juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`) e os regex de dado
+ESPELHO: as regras de RN-VIS-002 (`_dt`, `juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`), as do pedido (`dias_do_pedido` e `_refeito_depois`,
+espelho de `nuvem/visitas/agenda.dias_da_rodada("pedido", ...)`) e os regex de dado
 pessoal (`RE_PESSOAL`, `TIPOS_ACHADO`, `COLUNAS_PROIBIDAS`) são espelho MÍNIMO de `visitas_nucleo` (`_quando_manaus`,
 `juntar_baixado`, `dia_fechado_no_indice`, `dias_a_baixar`, `_RX_EMAIL`/`_RX_CNPJ`/`_RX_CPF`/`_RX_FONE`,
 `_FORA_DO_ESPELHO` e `TIPOS_ACHADO`): o Render publica só `web/` e não
@@ -63,6 +64,9 @@ NOVA_TENTATIVA = ("MAXIMA_FORA", "TELA_MUDOU", "NAVEGADOR_FALHOU", "SITE_RECUSOU
 # o pedido do botão continua nas voltas seguintes (até PEDIDO_MAX_RODADAS) com estes códigos; os outros o encerram
 PEDIDO_CONTINUA = tuple(c for c in NOVA_TENTATIVA if c != "MAXIMA_FORA")
 PAUSAM = ("MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA", "MAXIMA_BLOQUEIO", "DADO_PESSOAL")   # RN-VIS-005/007
+# RN-VIS-005: login recusado pela Máxima = nenhum 2º login da nuvem no mesmo dia (derivado de PAUSAM, sem o dado pessoal)
+BARRAM_LOGIN_DIA = tuple(c for c in PAUSAM if c.startswith("MAXIMA_"))
+FASES_SEM_LOGIN = (None, "login")        # concessão vencida nestas fases = o login não foi confirmado
 PEDE_FASE = ("TELA_MUDOU", "ERRO_INTERNO")
 TELA_MUDOU_SEGUIDAS = 2
 
@@ -95,8 +99,19 @@ CODIGOS = {
 }
 STATUS_DO_CODIGO = {c: s for c, (s, _) in CODIGOS.items()}
 TETO_DIA_TEXTO = f"O site já acessou a Máxima o máximo de vezes hoje. {_PC}; amanhã volta sozinho."
+LOGIN_BARRADO_TEXTO = f"{_PC}; amanhã o site volta sozinho."          # neutro: vale também para a rodada que parou no login
 TRAVADO = {"pausado": "Pausado: o admin retoma antes.", "pedido": "Já há um pedido na fila.",       # um motivo, uma redação:
-           "teto": "Limite de hoje atingido."}                                                     # botão (title) e erro do servidor
+           "login": "Sem acesso à Máxima hoje.",                                                    # botão (title) e erro do servidor
+           "teto": "Limite de hoje atingido."}
+
+
+def periodo_br(de: str, ate: str) -> str:
+    """AAAAMMDD, AAAAMMDD -> "24/11 a 25/11" (um dia só: "24/11")."""
+    return dia_br(de) if de == ate else f"{dia_br(de)} a {dia_br(ate)}"
+
+
+def pedido_em_dia(de: str, ate: str) -> str:
+    return f"{periodo_br(de, ate)} já {'está' if de == ate else 'estão'} em dia."
 SITUACAO = {"ok": "Em dia", "parcial": "Parcial", "erro": "Erro"}          # a palavra que a tela mostra no lugar do código
 SITUACAO_COR = {"ok": "ok", "parcial": "atencao", "erro": "alerta"}
 TIPOS_ACHADO = ("email", "cnpj", "cpf", "telefone", "formato")      # espelho de visitas_nucleo.TIPOS_ACHADO (mesma ordem)
@@ -121,7 +136,7 @@ _RX_TEXTO_XML = re.compile(r"<(?:t(?:\s[^>]*)?|v)>([^<]*)</(?:t|v)>")      # tex
 _DIAG_PENDENTE = {"estado": "pendente", "em": None, "codigo": None}
 _ESTADO_VAZIO = {"agenda": "desligada",
                  "diagnostico": dict(_DIAG_PENDENTE),
-                 "pausado": None, "pedido": None, "rodada_ativa": None,
+                 "pausado": None, "pedido": None, "rodada_ativa": None, "login_barrado": None,
                  "falhas_seguidas": {"fase": None, "n": 0}, "indice": {}, "pc": {},
                  "tentativas_hoje": {"dia": "", "total": 0, "por_motivo": {}},
                  "fechados_pc_em": None, "conhecidas": {}, "avisos": {"lotes_sem_confirmar_vencidos": 0}}
@@ -230,6 +245,32 @@ def dias_a_baixar(indice: dict | None, de: date, ate: date, hoje: date, refazer:
     n = (ate - de).days
     return [de + timedelta(days=k) for k in range(n + 1)
             if refazer or not dia_fechado_no_indice(indice, de + timedelta(days=k))]
+
+
+def _refeito_depois(item, em: datetime) -> bool:
+    """Espelho de `nuvem.visitas.agenda._refeito_depois`: a nuvem já refez o dia depois do pedido."""
+    b = _dt(item.get("baixado_em")) if isinstance(item, dict) else None
+    return bool(b and b >= em and item.get("origem") == "nuvem")
+
+
+def dias_do_pedido(indice: dict | None, ped: dict | None, hoje: date) -> list[date]:
+    """Espelho de `nuvem.visitas.agenda.dias_da_rodada("pedido", ...)` (RN-VIS-004): os dias que o pedido ainda tem a
+    baixar. `indice` é o índice JÁ juntado (nuvem + PC), como o `trabalho` entrega ao cron. Vazio = o pedido sai da fila."""
+    ped = ped or {}
+    try:
+        de = datetime.strptime(str(ped.get("de")), "%Y%m%d").date()
+        ate = datetime.strptime(str(ped.get("ate")), "%Y%m%d").date()
+    except ValueError:
+        return []
+    if ate < de:
+        return []
+    refazer = bool(ped.get("refazer"))
+    dias = dias_a_baixar(indice, de, ate, hoje, refazer)
+    if refazer:
+        em = _dt(ped.get("pedido_em"))
+        if em is not None:
+            dias = [d for d in dias if not _refeito_depois((indice or {}).get(dia_ymd(d)), em)]
+    return dias[:PEDIDO_MAX_DIAS]
 
 
 def periodo_padrao(indice: dict, hoje: date) -> tuple[str, str]:
@@ -372,6 +413,11 @@ def texto_do_codigo(codigo: str, r: dict) -> str:
 
 
 # ------------------------------------------------------------------ o estado em disco
+def _pedido_sem_dia(r: dict) -> bool:
+    """A linha do pedido que saiu da fila sem nada a baixar (não é uma rodada de verdade)."""
+    return r.get("motivo") == "pedido" and r.get("codigo") == "NADA_A_FAZER"
+
+
 class _Trava:
     """Thread + flock: a concessão e os contadores não podem se atropelar entre processos."""
 
@@ -426,7 +472,37 @@ class Visitas:
         for k in ("indice", "pc"):
             e[k] = {d: v for d, v in e[k].items() if d >= corte}
         self._vencer(e, agora_)
+        self._tirar_pedido_parado(e, agora_)
         return e
+
+    @staticmethod
+    def _barrado_hoje(e: dict, agora_: datetime) -> dict | None:
+        """RN-VIS-005: o login recusado de hoje, só `{"dia","codigo"}` (vale se `dia` é hoje, Manaus); senão None."""
+        lb = e.get("login_barrado")
+        if isinstance(lb, dict) and lb.get("dia") == dia_ymd(agora_):
+            return {"dia": lb["dia"], "codigo": lb.get("codigo")}
+        return None
+
+    @staticmethod
+    def _registro_rodada(rid: str, motivo: str, codigo: str, agora_: datetime, **campos) -> dict:
+        """A linha do `rodadas.jsonl`, com os padrões de uma rodada sem nada a contar; `campos` troca ou acrescenta."""
+        return {"id": rid, "motivo": motivo, "codigo": codigo, "status": STATUS_DO_CODIGO.get(codigo, "erro"),
+                "fase": None, "dias": [], "dias_ok": [], "dias_faltando": [], "erros_vendedor": 0, "duracao_s": None,
+                "pico_mb": None, "achados": None, "medidas": None, "proxima": "", **campos, "em": iso(agora_)}
+
+    def _sair_da_fila(self, pid: str, de: str, ate: str, agora_: datetime) -> None:
+        """O pedido sem dia a baixar sai com NADA_A_FAZER (sem login, não conta em `tentativas_hoje`)."""
+        self._acrescentar("rodadas.jsonl", self._registro_rodada(pid, "pedido", "NADA_A_FAZER", agora_, de=de, ate=ate))
+
+    def _tirar_pedido_parado(self, e: dict, agora_: datetime) -> None:
+        """Sem rodada ativa, o pedido da fila cujos dias já fecharam (ex.: o PC fechou depois) sai da fila."""
+        ped = e.get("pedido")
+        if not ped or e.get("rodada_ativa"):
+            return
+        if not dias_do_pedido(juntar_baixado(e["indice"], e["pc"]), ped, agora_.date()):
+            self._sair_da_fila(ped.get("id") or "P", ped.get("de") or "", ped.get("ate") or "", agora_)
+            e["pedido"] = None
+            self._gravar(e)
 
     def _gravar(self, e: dict) -> None:
         gravar_json(self.pasta / "estado.json", e)
@@ -463,17 +539,19 @@ class Visitas:
         m = self._tentativa(e, motivo)
         m["codigo"] = codigo
         proxima = self._proxima(e, motivo, codigo)
-        self._acrescentar("rodadas.jsonl", {
-            "id": rid, "motivo": motivo, "codigo": codigo, "status": STATUS_DO_CODIGO.get(codigo, "erro"),
-            "fase": f.get("fase"), "dias": ra.get("dias") or [], "dias_ok": f.get("dias_ok") or [],
-            "dias_faltando": f.get("dias_faltando") or [], "erros_vendedor": f.get("erros_vendedor") or 0,
-            "duracao_s": f.get("duracao_s"), "pico_mb": f.get("pico_mb"), "achados": f.get("achados"),
-            "medidas": f.get("medidas"), "proxima": proxima, "em": iso(agora_)})
+        self._acrescentar("rodadas.jsonl", self._registro_rodada(
+            rid, motivo, codigo, agora_, fase=f.get("fase"), dias=ra.get("dias") or [], dias_ok=f.get("dias_ok") or [],
+            dias_faltando=f.get("dias_faltando") or [], erros_vendedor=f.get("erros_vendedor") or 0,
+            duracao_s=f.get("duracao_s"), pico_mb=f.get("pico_mb"), achados=f.get("achados"), medidas=f.get("medidas"),
+            proxima=proxima))
         e["rodada_ativa"] = None
         e["conhecidas"][rid] = codigo
         for k in sorted(e["conhecidas"])[:-100]:
             del e["conhecidas"][k]
         pausa = False
+        if codigo in BARRAM_LOGIN_DIA or (interrompida and ra.get("fase") in FASES_SEM_LOGIN):   # RN-VIS-005
+            ini = _dt(ra.get("inicio")) or agora_
+            e["login_barrado"] = {"dia": dia_ymd(ini), "codigo": codigo, "em": iso(agora_)}
         if codigo in PAUSAM:                                        # RN-VIS-005/007: sem segunda tentativa
             e["pausado"] = {"codigo": codigo, "desde": iso(agora_)}
             pausa = True
@@ -502,7 +580,9 @@ class Visitas:
             e = self._ler(agora_)
             self._gravar(e)
         ra = e["rodada_ativa"]
+        lb = self._barrado_hoje(e, agora_)
         return {"versao": 1, "agora": iso(agora_), "agenda": e["agenda"], "diagnostico": e["diagnostico"],
+                "login_barrado": lb,
                 "pausado": e["pausado"], "pedido": e["pedido"], "indice": juntar_baixado(e["indice"], e["pc"]),
                 "tentativas_hoje": e["tentativas_hoje"], "falhas_seguidas": e["falhas_seguidas"],
                 "fechados_pc_em": e["fechados_pc_em"],
@@ -529,6 +609,10 @@ class Visitas:
             if e["pausado"]:
                 self._gravar(e)
                 raise ErroVisitas(423, {"erro": "pausado", "codigo": e["pausado"]["codigo"]})
+            lb = self._barrado_hoje(e, agora_)
+            if lb:                                                  # RN-VIS-005: nenhum 2º login no dia, sem exceção
+                self._gravar(e)
+                raise ErroVisitas(429, {"erro": "login barrado hoje", "motivo": corpo["motivo"]})
             t = e["tentativas_hoje"]
             if t["total"] >= LOGINS_DIA_MAX or t["por_motivo"].get(motivo, {}).get("n", 0) >= TENTATIVAS_DIA[motivo]:
                 self._gravar(e)
@@ -647,7 +731,7 @@ class Visitas:
             e["indice"][dia_url] = {"baixado_em": iso(_dt(corpo["baixado_em"])), "origem": "nuvem",
                                     "erros_vendedor": corpo["erros_vendedor"], "refeito": bool(ant.get("refeito"))}
             self._gravar(e)
-            self.retencao(agora_)
+            self._retencao(agora_)
             return {"ok": True, "seq": reg["seq"], "arquivos": len(arqs)}
 
     def _pendentes(self) -> list[dict]:
@@ -758,11 +842,16 @@ class Visitas:
             for d in dias_erro:                                     # a parte da nuvem sai; a nuvem baixa de novo
                 e["indice"].pop(d, None)
             self._gravar(e)
-            self.retencao(agora_)
+            self._retencao(agora_)
         return {"ok": True, **{k: v for k, v in r.items() if k == "gravados"}}
 
     def retencao(self, agora_: datetime | None = None) -> None:
-        """LOTE_GUARDA_DIAS: o corpo sai 7 dias depois de confirmado e 30 sem confirmação (esse conta no /saude)."""
+        """A retenção de fora (a rotina do `main.py`): pega a trava, porque o `_ler` pode gravar o estado e o rodadas.jsonl."""
+        with self._tranca():
+            self._retencao(agora_)
+
+    def _retencao(self, agora_: datetime | None = None) -> None:
+        """Sem trava: quem chama já a tem (a trava não é reentrante entre arquivos). LOTE_GUARDA_DIAS: o corpo sai 7 dias depois de confirmado e 30 sem confirmação (esse conta no /saude)."""
         agora_ = agora_ or agora()
         vencidos = 0
         for x in self.fila.itens():
@@ -803,11 +892,17 @@ class Visitas:
             if e["pausado"]:
                 self._gravar(e)
                 raise ErroVisitas(409, {"erro": TRAVADO["pausado"]})
+            if self._barrado_hoje(e, agora_):
+                self._gravar(e)
+                raise ErroVisitas(409, {"erro": TRAVADO["login"]})
             pid = "P" + agora_.strftime("%Y%m%dT%H%M%S")
-            e["pedido"] = {"id": pid, "de": dia_ymd(a), "ate": dia_ymd(b), "refazer": bool(refazer),
-                           "pedido_em": iso(agora_), "perfil": perfil, "rodadas": 0}
-            self._acrescentar("pedidos.jsonl", {"id": pid, "de": dia_ymd(a), "ate": dia_ymd(b), "refazer": bool(refazer),
-                                                "perfil": perfil, "em": iso(agora_)})
+            ped = {"id": pid, "de": dia_ymd(a), "ate": dia_ymd(b), "refazer": bool(refazer), "perfil": perfil}
+            self._acrescentar("pedidos.jsonl", {**ped, "em": iso(agora_)})
+            if not dias_do_pedido(juntar_baixado(e["indice"], e["pc"]), {**ped, "pedido_em": iso(agora_)}, agora_.date()):
+                self._sair_da_fila(pid, ped["de"], ped["ate"], agora_)          # não entra na fila: nada a baixar
+                self._gravar(e)
+                return pedido_em_dia(ped["de"], ped["ate"])
+            e["pedido"] = {**ped, "pedido_em": iso(agora_), "rodadas": 0}
             self._gravar(e)
         return "Pedido enviado."
 
@@ -871,12 +966,24 @@ class Visitas:
             if isinstance(r, dict) and r.get("codigo") in CODIGOS and r.get("motivo"):
                 yield r
 
+    @staticmethod
+    def _com_texto(r: dict) -> dict:
+        return {**r, "texto": texto_do_codigo(r["codigo"], r), "situacao": SITUACAO.get(r.get("status"), "Erro"),
+                "quando": dia_hora(r.get("em"))}
+
+    def _ultima_real(self) -> dict | None:
+        """A última rodada de verdade (com texto e situação): o pedido que saiu sem dia a baixar não conta."""
+        return next((self._com_texto(r) for r in self._linhas_rodadas() if not _pedido_sem_dia(r)), None)
+
     def rodadas(self, n: int = RODADAS_NA_TELA) -> list[dict]:
         """As últimas `n` rodadas fechadas (a mais recente primeiro), com a situação e o texto da tela."""
         out = []
         for r in self._linhas_rodadas():
-            out.append({**r, "texto": texto_do_codigo(r["codigo"], r), "situacao": SITUACAO.get(r.get("status"), "Erro"),
-                        "quando": dia_hora(r.get("em"))})
+            linha = {**self._com_texto(r), "sem_dia": _pedido_sem_dia(r), "msg_pedido": ""}
+            if linha["sem_dia"] and dia_valido(r.get("de")) and dia_valido(r.get("ate")):
+                linha["texto"] = f"Pedido de {periodo_br(r['de'], r['ate'])}: nada a baixar."
+                linha["msg_pedido"] = pedido_em_dia(r["de"], r["ate"])      # a resposta que o POST deu a este pedido
+            out.append(linha)
             if len(out) >= n:
                 break
         return out
@@ -913,10 +1020,15 @@ class Visitas:
             e = self._ler(agora_)
             self._gravar(e)
         rod = self.rodadas()
+        real = self._ultima_real()
+        primeira_real = next((i for i, r in enumerate(rod) if not r["sem_dia"]), None)   # a que pausa/barra marca
         total = e["tentativas_hoje"]["total"]
         teto = total >= LOGINS_DIA_MAX
+        lb = self._barrado_hoje(e, agora_)
         de, ate = periodo_padrao(juntar_baixado(e["indice"], e["pc"]), agora_.date())
-        ultima = rod[0] if rod else None
+        ultima = real                                           # a "Situação" ignora o pedido que saiu sem rodada
+        motivo = (TRAVADO["pausado"] if e["pausado"] else TRAVADO["pedido"] if e["pedido"] else
+                  TRAVADO["login"] if lb else TRAVADO["teto"] if teto else "")
         if e["pausado"]:
             sit = ("Pausado", "alerta")
         elif e["rodada_ativa"]:
@@ -926,10 +1038,9 @@ class Visitas:
         else:
             sit = ("—", "")
         return {"e": e, "rodadas": rod, "ultima": ultima, "teto_dia": teto, "teto_texto": TETO_DIA_TEXTO,
+                "login_barrado": lb, "primeira_real": primeira_real, "login_barrado_texto": LOGIN_BARRADO_TEXTO,
                 "logins": total, "logins_max": LOGINS_DIA_MAX, "situacao": sit[0], "situacao_cor": sit[1],
-                "pode_apertar": not (e["pedido"] or e["pausado"] or teto),
-                "motivo_travado": (TRAVADO["pausado"] if e["pausado"] else TRAVADO["pedido"] if e["pedido"] else
-                                   TRAVADO["teto"] if teto else ""),
+                "pode_apertar": not motivo, "motivo_travado": motivo,
                 "a_importar": [{"hora": hhmm_h(_dt(x.get("baixado_em"))), "dia": x["dia"]} for x in self._pendentes()],
                 "pausa_texto": self._texto_pausa(e, rod), "diag": self.diagnostico_linhas(),
                 "padrao": {"de": de, "ate": ate}, "de_iso": dia_iso(de), "ate_iso": dia_iso(ate), "hoje_iso": agora_.strftime("%Y-%m-%d"),
@@ -963,10 +1074,10 @@ class Visitas:
         agora_ = agora_ or agora()
         with self._tranca():
             e = self._ler(agora_)
-        rod = self.rodadas(1)
+        ult = self._ultima_real()
         ra = e["rodada_ativa"]
         return {"agenda": e["agenda"], "diagnostico": e["diagnostico"]["estado"],
-                "ultima_rodada": rod[0]["em"] if rod else None, "codigo": rod[0]["codigo"] if rod else None,
+                "ultima_rodada": ult["em"] if ult else None, "codigo": ult["codigo"] if ult else None,
                 "pausado": e["pausado"]["codigo"] if e["pausado"] else None,
                 "rodada_ativa": ra["id"] if ra else None, "fase": ra.get("fase") if ra else None,
                 "lotes_a_importar": len(self._pendentes()),
