@@ -1308,9 +1308,9 @@ class Tabela(tk.Frame if tk else object):
                     else ""
                 cores = {"ok": ("#F0F7EC", "#2F7D32"),
                          "atencao": ("#FFF4D6", "#8A5A00"),
-                         "alerta": ("#B42318", "#FFFFFF"),
+                         "alerta": ("#FDECEA", "#B42318"),
                          # (06/11) o SLA que parou de contar (fechada)
-                         "cinza": ("#E4E7E4", "#5E6B63")}.get(t_)
+                         "cinza": ("#E3E8E4", "#5E6B63")}.get(t_)
                 if not cores:
                     cv.create_text(w - 8, h / 2, text=txt, anchor="e",
                                    fill=TEXTO, font=fonte(self._tam))
