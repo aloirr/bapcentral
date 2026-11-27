@@ -14,8 +14,11 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 - RN-GER-009 · Nome nos materiais: "BAP AUTOPARTS".
 - RN-GER-010 · O cadastro em lote de 16/10 não conta como visita.
 - RN-GER-011 · No site, nome e texto de cliente vão sem CPF/CNPJ (no começo, no meio ou no fim do nome) e o texto livre vai sem telefone, e-mail e documento (trocados por "[removido]"); o código do cliente fica (25/11, T-0017; base: regra 6 e o 2 A do R-20261124-192008-alexandre).
-- RN-GER-012 · Edição só no site e só pelo admin, por enquanto; chega ao PC pelo robô, gravada pela mesma função da tela do PC, só acrescentando linha; a tela do PC fica só leitura nessa edição ("A edição agora é só pela BAP Central web."). O robô oficial é o notebook NT-AMADMVD13 (25/11; "SO TEM EDIÇÃO NA WEB. NINGUEM MAIS MEXE NO PC. USUARIO QUE MEXE NISSO: ADMIN por enquanto.", R-20261125-104000-alexandre).
+- RN-GER-012 · Edição só no site e só pelo admin, por enquanto; chega ao PC pelo robô, gravada pela mesma função da tela do PC, só acrescentando linha; a tela do PC fica só leitura nessa edição ("A edição agora é só pela BAP Central web."). O robô oficial é o notebook do Alexandre (25/11; "SO TEM EDIÇÃO NA WEB. NINGUEM MAIS MEXE NO PC. USUARIO QUE MEXE NISSO: ADMIN por enquanto.", R-20261125-104000-alexandre).
 - RN-GER-013 · Pedido de cliente fora da base de clientes da BAP (o robô grava "NÃO LOCALIZADO NA BASE" no ftPedidos; hoje, os pedidos internos de MT) aparece no Farol de Pedidos como "CLIENTE FORA DA BASE", sem casar o código com zeros (o "6171" não vira o cliente "006171"); no site, a caixa "Ignorar fora da base" vem marcada e tira essas linhas, e os números do farol (calculados no PC) já vêm sem eles ("A", 26/11); não entra na demanda da Solicitação BAP (CD, lojas e FRW). Alexandre, 26/11: "mudar para cliente fora da base e deixar um checkbox no farol de pedidos para ignorar eles, pois são pedidos internos e não pode ir para solicitação de lojas".
+- RN-GER-014 · Nos faróis novos do site, o diretor vê só o Resumo (cartões e gráficos); as abas de tabela ficam para admin, gerente e a área do farol (26/11, R-20261126-171559-alexandre; T-0023 v2 e T-0025 v2).
+- RN-GER-015 · O TOTAL A PAGAR das Campanhas só aparece para admin, gerente e diretor. O corte é no servidor e vale também para o Excel, o PDF e os cartões (26/11, plano R-20261126-175814; T-0025 v2).
+- RN-GER-016 · Arquivo de configuração editado pelo site: só o admin edita; o robô grava no PC com a mesma função da tela do PC, depois de guardar uma cópia; cada arquivo só passa a ser editável pelo site com um "autorizo" do Alexandre para aquele arquivo (6 A do R-20261126-180314-alexandre; ADR 0005). O primeiro é o `champions_config.json` (T-0025 v2).
 
 ## Rota (RN-ROT): item 0 do `docs/legado/INSTALACAO_ROTA_1710.md`
 - Teto 12/dia; sexta 12 desde NOV/26.
@@ -37,8 +40,8 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 
 ## Pós-venda (RN-POS)
 - SLA de entrega em dias corridos; DT. PREVISTA a partir da data do pedido.
-- Garantia: DT. FECHAMENTO = solicitação + 15 dias úteis.
-- NCC: SLA de 3 dias úteis.
+- RN-POS-005 · Garantia: DT. FECHAMENTO = solicitação + 15 dias úteis.
+- RN-POS-006 · NCC: SLA de 3 dias úteis.
 - Frete: o mínimo vale quando o % da nota dá menos.
 - RN-POS-001 · Cobrança no WhatsApp (PC e site): a fila é o cliente INADIMPLENTE da aba "Por cliente" com títulos VENCIDOS, ordenada pelo valor em atraso; a mensagem e o número são montados pelo PC (celular: 55 + DDD + 9 dígitos; fixo sai com aviso; número repetido ou ausente fica vazio, com aviso); a pessoa envia pelo link (sem disparo automático).
 - RN-POS-002 · Situação da cobrança: ENVIADO HOJE, ENVIADO dd/mm (menos de 7 dias) ou PULADO HOJE, pelo último registro do cliente em qualquer diário.
