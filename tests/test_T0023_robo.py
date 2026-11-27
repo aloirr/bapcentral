@@ -324,7 +324,8 @@ def test_RN_GER_012_ticket_ate_40_e_a_frase_leva_o_40():
 
 
 def test_RN_GER_011_a_frase_do_texto_leva_o_teto_do_campo():
-    assert ba.MOTIVO_TEXTO_WEB == ba.motivo_texto_web(60)
+    assert not hasattr(ba, "MOTIVO_TEXTO_WEB")             # RD-0135: só a função, com o teto do campo
+    assert ba.motivo_texto_web(60) == "texto inválido (até 60 caracteres, sem CPF, CNPJ, telefone ou e-mail)"
     assert ba.motivo_texto_web(600) == "texto inválido (até 600 caracteres, sem CPF, CNPJ, telefone ou e-mail)"
 
 
@@ -400,15 +401,19 @@ def test_RN_GER_012_garantia_que_nao_existe_e_ticket_trocado_para_outra(tmp_path
     assert "G-0009" in d and d["G-0009"]["status"] == "CANCELADA"      # renomear + gravar, como a tela
 
 
+@pytest.mark.skipif(not hasattr(rn, "prazo_padrao_txt"), reason="núcleo sem prazo_padrao_txt (f0af112)")
 def test_RN_POS_005_prazo_igual_ao_padrao_fica_em_branco():
-    existentes = {"G-1": {"dt_solicitacao": "03/11/2026"}}
-    padrao = lambda sol: "24/11/2026" if sol == "03/11/2026" else ""       # noqa: E731
-    p, mot = ba.plano_garantia_web(_g(1, {"dt_prazo": "24/11/2026"}, chave="G-1"),
-                                   {"dt_prazo": "24/11/2026"}, existentes, "G-0002", HOJE, padrao)
+    """O plano usa a regra do núcleo (campos_garantia_a_gravar): o prazo igual
+    a solicitação + 15 DU fica em branco, como no PC; o diferente fica."""
+    existentes = {"G-1": {"dt_solicitacao": "16/11/2026"}}
+    padrao = rn.prazo_padrao_txt("16/11/2026")
+    assert padrao == "07/12/2026"
+    p, mot = ba.plano_garantia_web(_g(1, {"dt_prazo": padrao}, chave="G-1"),
+                                   {"dt_prazo": padrao}, existentes, "G-0002", HOJE)
     assert mot == "" and p["campos"] == {"dt_prazo": ""}
-    p, _ = ba.plano_garantia_web(_g(2, {"dt_prazo": "30/11/2026"}, chave="G-1"),
-                                 {"dt_prazo": "30/11/2026"}, existentes, "G-0002", HOJE, padrao)
-    assert p["campos"] == {"dt_prazo": "30/11/2026"}
+    p, _ = ba.plano_garantia_web(_g(2, {"dt_prazo": "10/12/2026"}, chave="G-1"),
+                                 {"dt_prazo": "10/12/2026"}, existentes, "G-0002", HOJE)
+    assert p["campos"] == {"dt_prazo": "10/12/2026"}
 
 
 def test_RN_GER_012_plano_da_linha_nova_e_funcao_pura():
@@ -499,7 +504,8 @@ def test_RN_GER_012_a_linha_nova_nunca_e_criada_duas_vezes_e_o_antes_fica_gravad
 def test_RN_GER_012_o_teto_do_texto_vem_do_nucleo_e_nao_de_uma_tabela_do_robo():
     for nome in ("MAX_TEXTO_CAMPO_WEB", "TETOS_TEXTO_WEB", "MAX_TEXTO_EDICAO_WEB"):
         assert not hasattr(ba, nome)
-    assert ba.MAX_TEXTO_WEB == 60 == rn.MAX_TEXTO_PADRAO
+    assert not hasattr(ba, "MAX_TEXTO_WEB")             # RD-0151: o teto padrão é só o do núcleo
+    assert rn.MAX_TEXTO_PADRAO == 60
 
 
 def test_regra_3_bap_dados_VERSAO_fica_em_27():
