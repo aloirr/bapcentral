@@ -108,12 +108,6 @@ def test_spec_que_nao_bate_com_o_pc_nao_vai():
     assert ba.edicao_web("vc_visitas", "Por vendedor", ed, [], [], []) is None
 
 
-# a frase do texto com o teto padrão de 60: a função do robô da T-0023
-# (motivo_texto_web, RD-0135) ou, no main de hoje, a constante antiga
-_MOTIVO_TEXTO_60 = (ba.motivo_texto_web(60) if hasattr(ba, "motivo_texto_web")
-                    else ba.MOTIVO_TEXTO_WEB)
-
-
 # ------------------------------------------------------------------ conferência no robô (função pura)
 @pytest.mark.parametrize("reg, motivo", [
     (_reg(1), ""),
@@ -132,8 +126,8 @@ _MOTIVO_TEXTO_60 = (ba.motivo_texto_web(60) if hasattr(ba, "motivo_texto_web")
     (_ent(1, {"entregue_em": "2026-11-23"}), ba.MOTIVO_DATA_WEB),
     (_ent(1, {"frete_real": "abc"}), ba.MOTIVO_VALOR_WEB),
     (_ent(1, {"frete_real": "-5"}), ba.MOTIVO_VALOR_WEB),
-    (_ent(1, {"responsavel": "FULANO 123.456.789-00"}), _MOTIVO_TEXTO_60),
-    (_ent(1, {"responsavel": "x" * 61}), _MOTIVO_TEXTO_60),
+    (_ent(1, {"responsavel": "FULANO 123.456.789-00"}), ba.motivo_texto_web()),
+    (_ent(1, {"responsavel": "x" * 61}), ba.motivo_texto_web()),
 ])
 def test_RN_GER_012_validar_edicao_web(reg, motivo):
     assert ba.validar_edicao_web(reg, OPCOES) == motivo
