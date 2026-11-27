@@ -18,6 +18,7 @@ ba = pytest.importorskip("bap_automation")
 from escopo_farois_web import (FAROIS_LOTE2, FAROIS_OBRIGATORIOS,  # noqa: E402
                                FAROIS_PERMITIDOS, FAROIS_T0023, FAROIS_T0036,
                                problemas_escopo)
+from escopo_farois_web import FAROIS_FRETES_TRANSICAO  # noqa: E402  transição T-0037: até o #169 (testes/T-0037-fretes)
 
 # rid inventado, que nunca entra na lista (o pl_garantias entrou na T-0023 v2
 # e o vc_markup na T-0036; um rid real pode entrar amanhã)
@@ -54,7 +55,10 @@ def test_RN_GER_006_trava_lista_permitida_os_cinco_do_lote2_e_os_da_T0023_e_T003
     # T-0036: + os 4 do Analista Comercial (contrato §10.11.1)
     assert set(FAROIS_T0036) == {"vc_saldo", "vc_markup", "vc_preco",
                                  "an_divergencias"}
-    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS
+    # transição T-0037: até o #169 (testes/T-0037-fretes): + o pl_fretes, opcional
+    assert FAROIS_FRETES_TRANSICAO == {
+        "pl_fretes": ("tabela", "Notas com frete", "UF", "uf")}
+    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS | set(FAROIS_FRETES_TRANSICAO)
     assert FORA not in FAROIS_PERMITIDOS
 
 
@@ -110,6 +114,25 @@ def test_RN_GER_006_trava_reprova_regra_de_uf_trocada():
     assert p == ["pl_frw: regra de UF ('UF', 'uf'), esperado "
                  "('FILIAL', 'filial')"]
 
+
+# transição T-0037: até o #169 (testes/T-0037-fretes): opcional, mas com a regra
+def test_RN_GER_006_trava_reprova_fretes_pela_filial():
+    """Fretes é da UF do cliente (RN-GER-006), não da filial: com o pl_fretes
+    em FAROIS_WEB, a regra trocada reprova (com ou sem o robô da T-0037)."""
+    farois = tuple(r for r in ba.FAROIS_WEB if r != "pl_fretes") + ("pl_fretes",)
+    fontes = dict(ba._FONTE_BAIXADO_WEB,
+                  pl_fretes=ba._FONTE_BAIXADO_WEB["pv_pedidos"])
+    tab = dict(ba._TABELA_RECORTE_WEB, pl_fretes="Notas com frete")
+    uf = dict(ba._UF_LINHAS_WEB)
+    uf[("pl_fretes", "Notas com frete")] = ("FILIAL", "filial")
+    p = problemas_escopo(_robo(FAROIS_WEB=farois, _FONTE_BAIXADO_WEB=fontes,
+                               _TABELA_RECORTE_WEB=tab, _UF_LINHAS_WEB=uf))
+    assert p == ["pl_fretes: regra de UF ('FILIAL', 'filial'), esperado "
+                 "('UF', 'uf')"]
+    uf[("pl_fretes", "Notas com frete")] = ("UF", "uf")
+    assert problemas_escopo(_robo(FAROIS_WEB=farois, _FONTE_BAIXADO_WEB=fontes,
+                                  _TABELA_RECORTE_WEB=tab,
+                                  _UF_LINHAS_WEB=uf)) == []
 
 def test_RN_GER_006_trava_reprova_tabela_de_recorte_sem_regra():
     tab = dict(ba._TABELA_RECORTE_WEB, **{FORA: "Tabela inventada"})
