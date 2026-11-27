@@ -14,3 +14,4 @@
 - 2026-11-27 — T-0035 — reteste dos 2 achados (robô f88a5ed, web 7799904): fuso do lote ✅ (xfail tirado), pico_mb = VmHWM com lançador de 300 MB ✅; tests/ 546 ✅ 5 skip; web 329 ✅
 - 2026-11-27 — T-0035 — revisão 🟡: teste do Entregas cortado com uf_linhas, recortes_linhas, validação da web e ordem original; falha no robô f88a5ed (recortes_linhas fora de linhas), como esperado
 - 2026-11-27 — T-0035 — reteste final (contrato b3d9258, web 8a3ddac, robô 1610667): Entregas cortado ✅; tests/ 552 ✅ (com fastapi, sem skip); web 331 ✅; o teste do robô deixado no scratchpad não acrescenta nada aos daqui
+- 2026-11-27 — T-0024 — #97 com o main a32b610 (escopo pela lista permitida da #130); teste do lote 2 acima de 8 MB (§10.8.7) e do pacote real pelo formato 2 com 200/403 por perfil; testes do lote 2 pulam sem o #91; combinado #89+#91+#97: tests/ 576 ✅, web 353 ✅, smoke só [3] ftPedidos; ordens main+#89 e main+#91 verdes (lote 2 sem web = 404 e fica fora)
