@@ -133,15 +133,19 @@ TABELAS_RESUMO = (("Por UF", "UF"), ("Por cidade", "CIDADE"), ("Por transportado
 
 
 def _rotulo_sem(rot, v):
-    """Espelho de bap_automation._rotulo_sem_fretes_web (robô, T-0037 f361173): o "(sem)" do PC vira texto de gente."""
+    """Espelho de bap_automation._rotulo_sem_fretes_web (robô, T-0037 4370d2d): o "(sem)" do PC vira texto de gente."""
     v = str(v if v is not None else "(sem)")
+    if rot == "CIDADE":                # "CIDADE / " sem UF: sem a barra solta (robô 4370d2d)
+        v = v.rstrip()
+        if v.endswith("/"):
+            v = v[:-1].rstrip()
     if not v.startswith("(sem)"):
         return v
     return {"UF": "Sem UF", "CIDADE": "Sem cidade", "TRANSPORTADORA": "Sem transportadora"}.get(rot, v) + v[len("(sem)"):]
 
 
 def blocos_resumo_web(r):
-    """Espelho de bap_automation.blocos_resumo_fretes_web (robô, T-0037 f361173), campo a campo: o gráfico de 12 meses
+    """Espelho de bap_automation.blocos_resumo_fretes_web (robô, T-0037 4370d2d), campo a campo: o gráfico de 12 meses
     como `barras`; as tabelas do mês padrão como `tabela` (sem MÊS, com TOTAL); e as 2 frases como `insights`."""
     import relatorios_nucleo as rn
     blocos, linha = [], 0
