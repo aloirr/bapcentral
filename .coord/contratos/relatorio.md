@@ -5,6 +5,7 @@
 - **Escopo:** o dicionário que `relatorios_nucleo.montar(rid, raiz, hoje=None, log=None, params=None, tela=False)` devolve (`relatorios_nucleo.py:19130`). É a ponte entre os núcleos e qualquer tela: Tkinter (`bap_relatorios.py`) hoje, web amanhã.
 - **Regra de versão:** acrescentar chave opcional = v1 continua. Renomear, mudar tipo ou tirar chave = **v2**, com ADR em `docs/decisoes/` e recado aos consumidores (seção 9).
 - **Como a versão é lida:** hoje o dicionário **não tem** chave de versão. A versão sai da chave de topo opcional `versao_contrato` (`int`): **ausente = 1**. Acrescentar a chave não muda a v1. Ela passa a ser obrigatória na v2: o `montar` grava `rel["versao_contrato"]` a partir de uma constante do núcleo (proposta: `relatorios_nucleo.VERSAO_CONTRATO = 1`; pedido ao modulo-farois na T-0006). A web lê essa chave e recusa, com aviso, versão maior que a que conhece (ADR 0001, §4.6). Não confundir com `bap_dados.VERSAO` (27), que é a versão do cache.
+- **Formato do pacote** (o transporte, ADR 0003): 1 = um JSON com todos os faróis; 2 = um arquivo por farol e um índice (§10.8, T-0035, 26/11/2026). O formato não muda o `versao_contrato`.
 - Exemplos com **valores fictícios**. Nenhum dado de cliente ou vendedor.
 
 ## 1. Como o dicionário nasce
@@ -365,7 +366,7 @@ relatorios["pl_inadimplencia"] = {
 
 Acrescentada em 24/11/2026 e revista em 25/11/2026 (revisão do PR #56). Fontes: ADR 0001, adendo 3; pedido R-20261124-181913-alexandre; decisões R-20261124-192008-alexandre ("1 A … 7 A"); RN-POS-001 a RN-POS-004. **Acréscimo compatível: o contrato continua na v1** (`versao_contrato = 1`). Vale sobre o §10.1, **só** em `relatorios["pl_inadimplencia"]`. Em qualquer outro `rid`, `cobranca` continua proibida, e `tabelas` também, fora os três faróis do §10.7; a web recusa o pacote.
 
-**Como citar:** os itens numerados do §10 se citam "§10, item N" (ex.: `web/app/pacotes.py:202`, "chaves com `_`" = §10, item 2). As subseções são §10.1 (forma "farol"), §10.6 (esta) e §10.7 (as abas de Pedidos, Entregas e Visita). Os números 10.2 a 10.5 não são usados como subseção.
+**Como citar:** os itens numerados do §10 se citam "§10, item N" (ex.: `web/app/pacotes.py:202`, "chaves com `_`" = §10, item 2). As subseções são §10.1 (forma "farol"), §10.6 (esta), §10.7 (as abas de Pedidos, Entregas e Visita) e §10.8 (o formato 2 do pacote, por farol). Os números 10.2 a 10.5 não são usados como subseção.
 
 Donos: o PC monta (modulo-posvenda: `cobranca_whatsapp.pacote_web`, `historico_origem` e `importar_web`; modulo-robo: o 4f). A web valida e desenha (modulo-web).
 
@@ -386,7 +387,7 @@ relatorios["pl_inadimplencia"] = {
 
 Sem as duas chaves, o farol se comporta como no §10.1 (robô antigo).
 
-**Pacotes guardados no Render ("3 A"):** a web passa a guardar os **7** últimos pacotes, de qualquer conteúdo (hoje guarda 15: `web/app/pacotes.py`, `GUARDAR = 15` → `GUARDAR = 7`).
+**Pacotes guardados no Render ("3 A"):** a web passa a guardar os **7** últimos pacotes, de qualquer conteúdo (hoje guarda 15: `web/app/pacotes.py`, `GUARDAR = 15` → `GUARDAR = 7`). No formato 2 (§10.8.2), são os 7 últimos **lotes**.
 
 #### 10.6.2 `TabelaWeb`: a parte dado da tabela do PC
 
@@ -553,7 +554,7 @@ A tela mostra "situação do PC até hh:mm" (o `gerado_em`).
 | `em_atraso` | `float` | do item (§10.6.4) |
 | `titulos` | `int` | `len(item["titulos"])` |
 | `acao` | `"ENVIADO" \| "PULADO"` | |
-| `pacote_sha` | `str` | o sha256 (hex) do pacote de onde o item saiu |
+| `pacote_sha` | `str` | o sha256 (hex) de onde o item saiu: no formato 2, o `sha256` do farol `pl_inadimplencia` no índice (§10.8.6); no formato 1, o do pacote inteiro |
 
 **Retenção ("3 A"), por arquivo:**
 - Só arquivo de **mês já fechado** pode sair.
@@ -785,6 +786,11 @@ Visita não tem recorte por estado (RN-GER-006: a tabela não traz a UF do clien
 |---|---|---|
 | `AVISO_ABAS_FORA` | o robô, em `avisos` do farol | `Abas fora desta atualização: {lista}. Veja no PC.` `{lista}` = os títulos das abas que ficaram fora, na ordem do §10.7.1, separados por `", "`. Ex.: "Abas fora desta atualização: Dia a dia, Prospecção. Veja no PC." Um aviso só, mesmo com uma aba |
 | `AVISO_CARTOES` | a web, na aba de tabela | `Cartões sem filtro. Com filtro, veja as linhas na tabela.` Aparece no lugar dos cartões da aba quando há filtro fora do padrão, recorte ou estado (§10.7.2, `kpis_padrao`) |
+| `AVISO_PARCIAIS_FORA` | o robô, em `avisos` do farol (§10.8.7) | `As parciais em imagem ficaram fora desta atualização (pacote grande). Veja no PC.` |
+| `AVISO_CSVS_FORA` | o robô, em `avisos` do `pv_pedidos` (§10.8.7) | `Os CSVs do Protheus ficaram fora desta atualização (pacote grande). Veja no PC.` |
+| `AVISO_SOLICITACAO_ABERTO` | o robô, em `avisos` do `pv_pedidos` (§10.7.8, §10.8.7) | `A Solicitação BAP foi reduzida aos pedidos em aberto para caber no pacote.` |
+| `AVISO_JUNTA_ENTREGAS` | o robô, em `avisos` do `pl_entregas` (§10.8.7) | `A junta de pendências dos meses anteriores ficou fora desta atualização (pacote grande). Veja no PC.` |
+| `AVISO_ENTREGAS_RECENTES` | o robô, em `avisos` do `pl_entregas` (§10.8.7) | `A aba Entregas ficou só com as entregas mais recentes para caber no pacote. Veja o resto no PC.` |
 
 **Ordem dos avisos do farol** (decisão do gerente, achado 13; o robô grava `avisos` já nesta ordem, nos três `rid`):
 1. `AVISO_ABAS_FORA` (falta de dado é o mais importante);
@@ -828,7 +834,8 @@ Medido nas bases do repositório (NOV/26, dados até 20/11), JSON compacto, com 
 
 - **Total estimado no fim do mês, com as recomendações: cerca de 2,2 MB** (2,5 MB com os espaços do `json.dumps` padrão do robô). Com D2 B e D3 A: cerca de 3,5 MB. O teto é `BAP_WEB_PACOTE_MAX_MB = 25` (`render.yaml`): folga de 7 a 10 vezes. Disco: 7 pacotes guardados (§10.6.1) = cerca de 25 MB.
 - **Trava do robô:** `bap_automation.WEB_PACOTE_TETO_MB = 20`. Se o pacote serializado passar disso, o robô corta, nesta ordem, até caber, com um aviso no farol e uma linha no log: (1) "Solicitação BAP" só com as linhas de pedido EM ABERTO; (2) "Cliente a cliente" fora; (3) todas as `tabelas` dos três faróis fora (cai no §10.1). Nunca manda pacote que a web recusaria pelo tamanho.
-- A web pagina no servidor (100 linhas por página, como no §10.6). A página leva só a página da tabela, não o pacote.
+- **Formato 2 (§10.8):** o teto passa a ser **por farol** (`WEB_FAROL_TETO_MB = 8` no robô e `FAROL_JSON_MAX` = 10 MB na web, no JSON sem anexos), e o corte é farol a farol (§10.8.7). O teto de 25 MB e a trava de 20 MB acima valem só para o formato 1.
+- **Sem páginas** (contrato `tela-bc3.md`, §7.2, que substitui as 100 linhas por página): a página leva até 500 linhas da tabela, e o resto vem em blocos de 500 ao rolar, com o mesmo corte de perfil e de estado. A página lê só o farol dela do disco (§10.8), nunca o pacote inteiro.
 
 #### 10.7.9 Decisões em aberto (do Alexandre) e a regra
 
@@ -851,6 +858,170 @@ Medido nas bases do repositório (NOV/26, dados até 20/11), JSON compacto, com 
 4. **Robô depois:** o "instale" no PC (regra 11 do `CLAUDE.md`), só com o `/saude` na versão nova.
 
 A versão do contrato fica em 1. Renomear ou tirar chave desta seção = v2 com ADR.
+
+### 10.8 Formato 2 do pacote: um arquivo por farol e um índice (T-0035, ADR 0003)
+
+Acrescentada em 26/11/2026 (T-0035). Fontes: ADR 0003; o risco 1 do inventário (`recados/anexos/T-0033/inventario-pc-site.md`, §4); o plano R-20261126-175814-gerente-projetos.
+
+**O que muda:** só o **transporte e a guarda**. O conteúdo de cada `relatorios[rid]` é exatamente o das §10.1 a §10.7, sem chave nova nem tirada.
+- O "formato do pacote" passa a ter versão própria: 1 = um JSON com todos os faróis (`POST /api/pacote`, como até aqui); 2 = um corpo por farol mais o `fechar` (esta seção).
+- O `versao_contrato` continua **1**, e a web nova aceita os dois formatos.
+- Renomear ou tirar chave ou rota desta seção = formato 3, com ADR.
+
+Donos: o robô manda (modulo-robo, `bap_automation.enviar_pacote_web`). A web recebe, guarda e lê (modulo-web, `web/app/pacotes.py` e `main.py`).
+
+#### 10.8.1 Quem fala qual formato: `/saude`
+
+```json
+{"status": "ok", "versao": "0.4.0", ...,
+ "pacote": {"formatos": [1, 2], "lote": "20261126T083000", "farois": 9, "origem": "por_farol"},
+ "memoria": {"rss_mb": 182.4, "pico_mb": 251.0, "limite_mb": 512.0, "cache_mb": 41.2, "cache_farois": 3}}
+```
+
+| Chave | Tipo | Regra |
+|---|---|---|
+| `pacote.formatos` | `list[int]` | os formatos que a web recebe. A web antiga não tem a chave = só o 1 |
+| `pacote.lote` | `str` ou `null` | o lote vigente (`AAAAMMDDTHHMMSS`, Manaus); `null` sem pacote |
+| `pacote.farois` | `int` | quantos faróis o lote vigente tem |
+| `pacote.origem` | `"por_farol"`, `"inteiro"` ou `"convertido"` | como o lote vigente chegou: formato 2, formato 1 dividido, ou convertido do disco antigo na partida |
+| `memoria.*` | `float` ou `null` | ADR 0003, §4.6. `null` quando o sistema não informa. `memoria_alerta: true` aparece com `pico_mb` acima de 400 |
+| `ultimo_pacote` | `str` ou `null` | continua: o `gerado_em` do lote vigente |
+
+- O robô decide o formato pelo `pacote.formatos`. Sem a chave, ou se o GET falhar, ele manda o formato 1.
+
+#### 10.8.2 Disco e índice
+
+- **Disco:** `<BAP_WEB_DADOS>/pacotes/<lote>/`, com o `indice.json`, um `<rid>.json.gz` por farol e os anexos.
+  - `<lote>` = `pacotes.nome_arquivo(gerado_em)`.
+  - O lote vigente é a maior pasta com `indice.json`.
+  - A pasta só aparece pronta: o recebimento acontece em `pacotes/_recebendo/<lote>/` e termina num `os.replace`.
+- **Retenção:** os **7** lotes mais novos (`GUARDAR = 7`, RN-POS-003), contando junto os `pacotes/*.json` do formato 1.
+
+```json
+{"formato": 2, "lote": "20261126T083000", "origem": "por_farol",
+ "versao_contrato": 1, "gerado_em": "2026-11-26T08:30:00-04:00", "ano": 2026, "mes": 11,
+ "recebido_em": "2026-11-26T08:31:12-04:00",
+ "farois": {
+   "pv_pedidos": {"arquivo": "pv_pedidos.json.gz", "sha256": "9a1c…e0", "bytes_gz": 81234, "bytes_json": 912345,
+                  "titulo": "Farol de Pedidos", "baixado_em": "2026-11-26T07:12:00-04:00",
+                  "gerado_em": "2026-11-26T08:30:00-04:00", "recebido_em": "2026-11-26T08:31:12-04:00",
+                  "herdado_de": null,
+                  "anexos": {"parciais": {"acum": "pv_pedidos.parcial-acum.png"}, "csvs": "pv_pedidos.csvs.json.gz"}}}}
+```
+
+| Chave do farol | Regra |
+|---|---|
+| `sha256` | o sha256 (hex) dos bytes JSON **descomprimidos** que o robô mandou (`X-BAP-SHA256`). É o "sha do farol" da cobrança (§10.6.5) |
+| `bytes_gz`, `bytes_json` | os tamanhos guardados (o JSON sem os anexos). O `bytes_json` é a base do custo estimado no cache (ADR 0003, §4.5) |
+| `titulo`, `baixado_em` | copiados do farol (§10.1), para o menu e a faixa sem abrir o arquivo. O `vc_painel` leva `baixado_em: null` |
+| `gerado_em`, `recebido_em` | os do lote, ou os do lote de origem quando `herdado_de` não é `null` |
+| `herdado_de` | `null`, ou o lote de onde o farol foi copiado (§10.8.4, `manter`) |
+| `anexos` | só quando o farol trouxe `parciais` ou `csvs_protheus`. Os arquivos ficam na mesma pasta |
+
+- **O `<rid>.json.gz` é o farol como validado,** com duas diferenças:
+  - sem `parciais` e sem `csvs_protheus`, que viram anexos;
+  - depois do `tabelas.tirar_abas_com_documento`, que pode tirar uma aba.
+- **Na leitura,** a web devolve os anexos às rotas da parcial e do CSV, a partir do disco. O dicionário do farol na memória não leva os anexos.
+
+#### 10.8.3 `POST /api/pacote/<lote>/farol/<rid>`
+
+- **Cabeçalhos:**
+  - `Authorization: Bearer <BAP_WEB_TOKEN>`;
+  - `Content-Type: application/json`;
+  - `Content-Encoding: gzip` (ou ausente, para o corpo sem compressão);
+  - `X-BAP-SHA256: <sha256 hex dos bytes JSON descomprimidos>`.
+- **Corpo:** `relatorios[rid]` do pacote, serializado com `json.dumps(..., ensure_ascii=False, allow_nan=False, separators=(",", ":"))` em UTF-8.
+- **Regras:**
+  - `<lote>` = `^\d{8}T\d{6}$`, e `<rid>` está em `pacotes.ACEITOS`;
+  - validação = `pacotes.validar_relatorio(rid, corpo)`, a mesma regra do formato 1, farol a farol;
+  - o mesmo `rid` de novo no mesmo lote substitui o anterior;
+  - no máximo 3 lotes em `_recebendo/` ao mesmo tempo (o mais velho sai).
+
+| Resposta | Quando |
+|---|---|
+| 200 `{"ok": true, "rid": str, "sha256": str, "bytes_json": int}` | aceito em `_recebendo/<lote>/` |
+| 400 | `<lote>` ou `X-BAP-SHA256` mal formado |
+| 401 | token ausente ou errado (`WWW-Authenticate: Bearer`) |
+| 404 | `<rid>` fora do `ACEITOS` |
+| 413 `{"erro": "farol grande demais"}` | gzip acima de `FAROL_GZ_MAX` (24 MB), descomprimido acima de `FAROL_CORPO_MAX` (24 MB) ou JSON sem anexos acima de `FAROL_JSON_MAX` (10 MB) |
+| 415 | `Content-Type` diferente de `application/json`, ou `Content-Encoding` diferente de `gzip`/ausente |
+| 422 `{"erro": "sha256"}` | o sha256 não bate |
+| 422 `{"erro": "esquema inválido", "detalhes": [...]}` | a validação recusou (até 10 erros, sem dado pessoal) |
+
+#### 10.8.4 `POST /api/pacote/<lote>/fechar`
+
+```json
+{"versao_contrato": 1, "gerado_em": "2026-11-26T08:30:00-04:00", "ano": 2026, "mes": 11,
+ "farois": {"vc_painel": "5d1f…", "pv_pedidos": "9a1c…e0"},
+ "manter": ["vc_visitas"]}
+```
+
+- **O que a web confere:**
+  - `pacotes.validar_topo` (as regras do topo do formato 1) e `nome_arquivo(gerado_em) == <lote>`;
+  - cada `rid` de `farois` está em `_recebendo/<lote>/` com aquele `sha256`. Um `rid` recebido e fora de `farois` é descartado;
+  - `farois` tem de 1 a `LOTE_FAROIS_MAX` (60) itens.
+- **`manter`:** opcional. São os faróis que o robô montou, mas não conseguiu entregar (413, 422 ou rede depois das 3 tentativas).
+  - A web copia o farol do lote vigente para o novo, com `herdado_de`. Isso só acontece se ele existe lá e se o `gerado_em` dele tem até 26 h. Sem isso, o farol fica fora.
+  - O farol que **não montou** no PC (`erro_montagem`) nunca vai no `manter`.
+  - Vale pela decisão da ADR 0003, §4.4 (A, R-20261126-182227-alexandre).
+- **Depois do `fechar`:** grava o `indice.json` e move a pasta para `pacotes/<lote>/`. Em seguida, roda a retenção e a limpeza (`_recebendo` com mais de 2 h sai).
+
+| Resposta | Quando |
+|---|---|
+| 200 `{"ok": true, "lote": str, "farois": int, "herdados": [rid], "vigente": bool}` | fechado. `vigente: false` quando já existe um lote mais novo. O `fechar` repetido de um lote fechado responde igual |
+| 400 | corpo fora do formato |
+| 409 `{"erro": "faltam", "farois": [rid]}` | um `rid` não foi recebido ou tem outro `sha256` (só os `rid`, sem conteúdo). O robô reenvia esses faróis e fecha de novo |
+| 422 `{"erro": "esquema inválido", "detalhes": [...]}` | o topo não passou |
+
+#### 10.8.5 Formato 1 na web nova
+
+- O `POST /api/pacote` (§10, ADR 0001, §4.3) continua, com o mesmo teto (`BAP_WEB_PACOTE_MAX_MB`) e a mesma validação (`pacotes.validar`).
+- A web divide o pacote aceito num lote (`origem: "inteiro"`), com as mesmas funções do §10.8.3, e ele vira o vigente.
+- Ele sai numa ADR futura, depois de 2 semanas sem uso no log.
+
+#### 10.8.6 Diários (cobrança e edições)
+
+- Os formatos dos dois diários e das APIs do robô (§10.6.5, §10.6.6, `/api/edicoes`) **não mudam**.
+- **Cobrança:** o `pacote_sha` de cada registro passa a ser o `sha256` do farol `pl_inadimplencia` no índice (§10.8.2).
+  - O item da página sai do farol daquele sha (se o lote ainda está entre os 7); senão, do farol vigente; senão, 404 (§10.6.4).
+  - Um sha do formato 1 (do pacote inteiro) não é achado e cai no vigente.
+  - O PC não lê o campo.
+- **Edições:** a marca "Aguardando o PC" compara a confirmação com o `recebido_em` **do farol** (§10.8.2), não com o do pacote.
+
+#### 10.8.7 Tetos e cortes no robô
+
+**Teto do farol.** `WEB_FAROL_TETO_MB = 8`, medido no JSON do farol sem anexos.
+- Acima dele entra `_cortar_farol_web(rid, farol, teto_mb)`, uma função pura que devolve outro dicionário.
+- O robô corta na ordem de `_CORTES_FAROL_WEB[rid]` e para assim que o farol cabe.
+- Todo corte deixa o aviso dele em `avisos`, com o texto do §10.7.6.
+
+| `rid` | Cortes, nesta ordem | Aviso |
+|---|---|---|
+| `pv_pedidos` | 1. a "Solicitação BAP" fica só com as linhas EM ABERTO (as listas de exclusão vão inteiras) | `AVISO_SOLICITACAO_ABERTO` |
+| | 2. todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+| `pl_entregas` | 1. a junta "Pendências dos meses anteriores" sai | `AVISO_JUNTA_ENTREGAS` |
+| | 2. a aba "Entregas" fica só com as linhas mais recentes. A ordem é pela `DT. PED` (ISO); sem ela, pela `DT. NF`. O robô tenta 75%, 50% e 25% das linhas, nesta ordem, e para na primeira que cabe. Os `tons` saem junto, linha a linha. As colunas não mudam | `AVISO_ENTREGAS_RECENTES` (um só, qualquer que seja a fatia) |
+| | 3. todas as `tabelas` saem (o farol cai no §10.1) | `AVISO_ABAS_FORA` |
+| `vc_visitas` | 1. "Cliente a cliente" sai | `AVISO_ABAS_FORA` |
+| | 2. todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+| os outros | todas as `tabelas` saem | `AVISO_ABAS_FORA` |
+
+**Anexos acima do teto** (nos dois formatos; antes do teto do farol). Os tetos são os mesmos da web (`web/app/pacotes.py`). A web recusaria o farol inteiro (422), então o robô tira **só o anexo** e o farol segue.
+
+| Anexo | Teto | O que sai | Aviso |
+|---|---|---|---|
+| `parciais` | `MAX_PNG_B64` = 3.000.000 caracteres base64, por imagem | só a imagem acima do teto. As outras ficam; sem nenhuma, a chave sai | `AVISO_PARCIAIS_FORA` |
+| `csvs_protheus` | até 60 CSVs; até 200.000 bytes UTF-8 por CSV; `MAX_CSVS_TOTAL` = 1.500.000 bytes somados | se **qualquer** teto estoura, **todos** os CSVs saem (a lista do Protheus não vai pela metade) | `AVISO_CSVS_FORA` |
+
+**Formato 1 (web antiga).** Continuam o `_cortar_pacote_web` e o `WEB_PACOTE_TETO_MB = 20` do §10.7.8. O corte dos anexos acima do teto vale também aqui.
+
+#### 10.8.8 Ordem de publicação
+
+1. Este contrato e a ADR 0003.
+2. **Web antes** (modulo-web): as rotas do §10.8.3 e do §10.8.4, o formato 1 dividido, o `/saude` com `pacote` e `memoria`, e `VERSAO = "0.4.0"`. Sobe com o merge (ADR 0001, adendo 4).
+3. **Robô depois** (modulo-robo): o envio por farol, com a volta ao formato 1 pelo §10.8.1. Ele chega à produção pela rotina diária, só com o `/saude` na versão do `main` (ADR 0002, limite 3).
+
+A matriz robô × web está na ADR 0003, §4.7: as quatro combinações funcionam.
 
 ## 11. Parte ação: os callables e a web v1
 

@@ -24,6 +24,8 @@ from zoneinfo import ZoneInfo
 
 import bap_automation as ba
 import relatorios_nucleo as rn
+from escopo_farois_web import (FAROIS_OBRIGATORIOS, FAROIS_PERMITIDOS,
+                               problemas_escopo)
 
 HOJE = date(2026, 11, 24)                 # terça-feira, NOV/2026
 AVISO_SEM_ESTADO = "Sem filtro por estado: os cartões mostram a BAP inteira."
@@ -79,13 +81,21 @@ def test_RN_GER_006_FAROIS_WEB_tem_os_quatro_farois_com_fonte_e_tabela():
     de recorte por estado em todos, menos a Visita (RN-GER-006: nenhuma
     tabela da Visita traz a UF do cliente)."""
     quatro = {"pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas"}
-    # T-0022 soma o Farol de Metas (vc_meta): aceita o estado antigo e o novo
-    assert set(ba.FAROIS_WEB) in (quatro, quatro | {"vc_meta"})
+    # T-0022 soma o Farol de Metas (vc_meta); a T-0024 pode somar os 5 do
+    # lote 2. Obrigatórios lá, nada fora da lista PERMITIDA, e cada farol a
+    # mais com fonte, tabela de recorte (ou aviso) e regra de UF
+    # (tests/escopo_farois_web.py)
+    assert quatro | {"vc_meta"} <= FAROIS_OBRIGATORIOS <= set(ba.FAROIS_WEB)
+    assert set(ba.FAROIS_WEB) <= FAROIS_PERMITIDOS
+    assert problemas_escopo(ba) == []
     for rid in quatro:
         assert rid in ba._FONTE_BAIXADO_WEB
-    assert ba._TABELA_RECORTE_WEB == {"pl_inadimplencia": "Títulos",
-                                      "pv_pedidos": "Pedidos",
-                                      "pl_entregas": "Entregas"}
+    # as tabelas de recorte dos 4: as de sempre (outras só as do lote 2)
+    assert {r: t for r, t in ba._TABELA_RECORTE_WEB.items()
+            if r in quatro} == {"pl_inadimplencia": "Títulos",
+                                "pv_pedidos": "Pedidos",
+                                "pl_entregas": "Entregas"}
+    assert set(ba._TABELA_RECORTE_WEB) - quatro <= FAROIS_PERMITIDOS
     # a coluna e a regra da UF: filial da nota no Pedidos, UF do cliente no
     # Entregas (a mesma do uf_linhas)
     assert ba._UF_LINHAS_WEB[("pv_pedidos", "Pedidos")] == ("FILIAL",
