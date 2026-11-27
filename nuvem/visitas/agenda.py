@@ -1,4 +1,4 @@
-"""T-0045 (contrato visitas-nuvem v1.1, §2 e §3.1): quando o cron roda e quais dias baixa.
+"""T-0045 (contrato visitas-nuvem v1.2, §2 e §3.1): quando o cron roda e quais dias baixa.
 
 Só funções puras e constantes: sem rede, sem relógio, sem ambiente, sem disco. Importar este
 arquivo não faz nada. O relógio e o `trabalho` (resposta do `GET /api/visitas/trabalho`) vêm de fora.
@@ -65,9 +65,12 @@ def deve_rodar(agora: datetime, trabalho: dict) -> str | None:
     """Contrato §3.1, na ordem: o motivo da rodada ("diagnostico", "pedido", "agenda", "retentativa") ou None."""
     agora = agora.astimezone(MANAUS) if agora.tzinfo else agora.replace(tzinfo=MANAUS)
     hoje = agora.date()
-    if trabalho.get("pausado"):                                                              # 1
+    barrado = trabalho.get("login_barrado")
+    if (trabalho.get("pausado")                                                              # 1
+            or (isinstance(barrado, dict) and str(barrado.get("dia")) == f"{hoje:%Y%m%d}")):  # RN-VIS-005: login recusado hoje, sem 2º login
         return None
-    if not (hora(JANELA[0]) <= agora.time().replace(tzinfo=None) <= hora(JANELA[1]).replace(second=59)):   # 2
+    fim_janela = (datetime.combine(hoje, hora(JANELA[1])) + timedelta(minutes=1)).time()    # o último minuto da JANELA vale inteiro (JANELA[1] não pode ser 23:59)
+    if not (hora(JANELA[0]) <= agora.time().replace(tzinfo=None) < fim_janela):              # 2
         return None
     if int((trabalho.get("tentativas_hoje") or {}).get("total", 0)) >= LOGINS_DIA_MAX:       # 3
         return None

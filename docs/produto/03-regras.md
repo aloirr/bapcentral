@@ -38,6 +38,15 @@ Fonte: as decisões do Alexandre registradas em `docs/legado/` (diário do Maest
 
 ## Visitas (RN-VIS)
 - RN-VIS-001 · Aderência à rota (Farol de Visita, aba "Aderência dia a dia"): verde a partir de 80%, amarelo de 50% a menos de 80%, vermelho abaixo de 50%. A mesma regra pinta a linha (% acumulada) e cada dia, no PC e no site (regra que já existia na tela do PC, registrada na T-0033; `relatorios_nucleo.tom_aderencia`/`faixa_aderencia`).
+- RN-VIS-002 · O dia está fechado quando foi baixado num dia depois dele, **pela hora da baixa** (nuvem ou PC), em Manaus. A importação não fecha o dia. Entre a hora do PC e a da nuvem, vale a maior (`visitas_nucleo.juntar_baixado`, função pura; no empate, vale a nuvem), e o PC e o site usam o mesmo resultado (ADR 0004 §5.1, item 4; contrato §3.1).
+- RN-VIS-003 · A importação só acrescenta: nunca sobrescreve nem apaga Excel do `ANALITICO`, e o acompanhamento só ganha linha de dia fechado (regra 7; ADR 0004 §5.2; contrato §4.4).
+- RN-VIS-004 · Uma rodada da nuvem por vez (concessão de 10 min). O pedido do botão espera na fila (ADR 0004 §5.2; contrato §3.2 e `CONCESSAO_MIN`).
+- RN-VIS-005 · Senha recusada, confirmação, captcha ou bloqueio pedidos pela Máxima **pausam** as rodadas da nuvem até o "Retomar" do admin. Depois de um login recusado pela Máxima, ou de uma rodada cuja concessão venceu antes de o login ser confirmado, a nuvem não faz outro login no mesmo dia de Manaus, sem exceção, nem com "Retomar" nem com "Pedir diagnóstico"; volta no dia seguinte (ADR 0004 §5.2 e adendo 1, item 3; contrato v1.2, §3.1, §3.2 e §5).
+- RN-VIS-006 · Dia com vendedor que falhou é baixado de novo **uma vez**, com sucesso ou falha; depois disso, fica como está ("Baixar de novo" pelo admin ou pelo PC). A retentativa vale para os últimos 7 dias e fica marcada como feita já na concessão (ADR 0004 §3 e §5.2; contrato §3.1, passo 8, e §3.2).
+- RN-VIS-007 · Do Espelho, só as colunas da lista de permitidas saem do contêiner, e o nome do cliente e o texto livre saem limpos pela RN-GER-011. CNPJ, CPF, telefone, e-mail ou valor fora do formato que sobrarem **não sobem** e pausam a agenda e o botão. O "Retomar" fica registrado com o id da decisão do Alexandre e volta ao diagnóstico (ADR 0004 §5.2 e §7; contrato §3.6 e §4.5).
+- RN-VIS-008 · No máximo 8 logins da nuvem na Máxima por dia de Manaus, somando todos os motivos, com teto por motivo (agenda 4 = 1 + 3 novas tentativas; pedido 3; retentativa 1; diagnóstico 2); o site conta na concessão, porque cada concessão é um login. Chegou ao teto, a nuvem para até o dia seguinte, e o botão do PC continua (ADR 0004 §3 e §5.2; contrato §2, `TENTATIVAS_DIA` e `LOGINS_DIA_MAX`).
+
+Decisões do Alexandre por trás das RN-VIS-002 a 008 (T-0045): R-20261127-005437-alexandre e R-20261127-094157-alexandre.
 
 ## Metas e RV (RN-MET)
 - NOV/26: desafio de R$ 1,5 mi.

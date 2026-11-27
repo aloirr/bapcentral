@@ -45,33 +45,22 @@ MB = 1024 * 1024
 HOJE = date(2026, 11, 24)
 LOTE2 = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")
 AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
-PERFIS = ("admin", "diretor", "gerente", "pos_venda", "pre_venda", "vendas")
-# quem abre o farol (o quadrado do PC) e quem vê as abas (D1 A: o diretor só o Resumo)
+PERFIS = ("admin", "diretor", "gerente", "analista", "trade", "pos_venda", "pre_venda", "vendas")
+# quem abre o farol (o quadrado do PC) e quem vê as abas (D1 A: o diretor só o Resumo).
+# T-0036 (desenho §2, P1 = A): o analista vê como o gerente; o trade não vê nenhum dos 5 (403).
 VE_FAROL = {
-    "pv_indicadores": {"admin", "diretor", "gerente", "pre_venda"},
-    "vc_base": {"admin", "diretor", "gerente", "vendas"},
-    "vc_planner": {"admin", "diretor", "gerente", "vendas"},
-    "pl_giro": {"admin", "diretor", "gerente", "vendas"},
-    "pl_frw": {"admin", "diretor", "gerente", "pre_venda", "pos_venda"},
+    "pv_indicadores": {"admin", "diretor", "gerente", "analista", "pre_venda"},
+    "vc_base": {"admin", "diretor", "gerente", "analista", "vendas"},
+    "vc_planner": {"admin", "diretor", "gerente", "analista", "vendas"},
+    "pl_giro": {"admin", "diretor", "gerente", "analista", "vendas"},
+    "pl_frw": {"admin", "diretor", "gerente", "analista", "pre_venda", "pos_venda"},
 }
 VE_ABAS = {rid: p - {"diretor"} for rid, p in VE_FAROL.items()}
-
-
-def _matriz_com_analista(com_analista):
-    """T-0036 (P1 = A): o analista vê o farol e as abas onde o gerente vê. Sem a web da T-0036, a matriz
-    do lote 2 fica como era."""
-    if not com_analista:
-        return VE_FAROL, VE_ABAS, PERFIS
-    mais = lambda m: {rid: p | {"analista"} if "gerente" in p else p for rid, p in m.items()}  # noqa: E731
-    return mais(VE_FAROL), mais(VE_ABAS), PERFIS + ("analista",)
+assert not any("trade" in p for p in VE_FAROL.values())
 
 # o harness da web real (TestClient + o `requests` de mentira) é o da T-0035
 from test_T0035_robo_web import BASE, TOKEN, _cartoes, _indice, _web, web_mod  # noqa: E402,F401
-
-
-def _tam_sem_anexos(f):
-    return len(ba._json_farol_web({k: v for k, v in f.items()
-                                   if k not in ba._ANEXOS_FAROL_WEB}))
+from pacote_web_util import tam_sem_anexos  # noqa: E402
 
 
 def _agora():
@@ -112,7 +101,7 @@ def _inflar(farol, mb):
     f = copy.deepcopy(farol)
     t = f["tabelas"][0]
     base_l, base_t = list(t["linhas"]), list(t.get("tons") or [""] * len(t["linhas"]))
-    while _tam_sem_anexos(f) <= mb * MB:
+    while tam_sem_anexos(f) <= mb * MB:
         t["linhas"] += [list(ln) for ln in base_l] * 50
         t["tons"] = (t.get("tons") or []) + base_t * 50
     return f
@@ -153,10 +142,10 @@ def test_ADR0003_10_8_7_lote2_acima_do_teto_perde_todas_as_abas_com_aviso(rid):
     p = _fixture_lote2()
     grande = _inflar(p["relatorios"][rid], ba.WEB_FAROL_TETO_MB)
     antes = json.dumps(grande, ensure_ascii=False, sort_keys=True)
-    assert _tam_sem_anexos(grande) > ba.WEB_FAROL_TETO_MB * MB
+    assert tam_sem_anexos(grande) > ba.WEB_FAROL_TETO_MB * MB
     out = ba._cortar_farol_web(rid, grande)
     assert "tabelas" not in out
-    assert _tam_sem_anexos(out) <= ba.WEB_FAROL_TETO_MB * MB
+    assert tam_sem_anexos(out) <= ba.WEB_FAROL_TETO_MB * MB
     fora = [a for a in out["avisos"] if a.startswith(AVISO_ABAS_FORA.split("{")[0])]
     assert fora == [AVISO_ABAS_FORA.format(lista=", ".join(t["titulo"] for t in grande["tabelas"]))]
     assert out["avisos"][0] == fora[0]                   # abas fora em 1º (§10.7.6)
@@ -170,7 +159,7 @@ def test_ADR0003_10_8_7_lote2_abaixo_do_teto_nao_muda():
     p = _fixture_lote2()
     for rid in LOTE2:
         f = p["relatorios"][rid]
-        assert _tam_sem_anexos(f) <= ba.WEB_FAROL_TETO_MB * MB, rid
+        assert tam_sem_anexos(f) <= ba.WEB_FAROL_TETO_MB * MB, rid
         assert ba._cortar_farol_web(rid, f) is f, rid
 
 
@@ -236,12 +225,10 @@ def test_T0024_pacote_real_do_lote2_pelo_formato2_abre_em_200_e_403_por_perfil(w
     cli, dados, m = _web(web_mod, "real", monkeypatch)
     _web_tem_lote2()
     from app import render, tabelas                                   # noqa: PLC0415
-    # T-0036 (desenho §2, P1 = A): com a web do Analista, o analista vê como o gerente
-    ve_farol, ve_abas, perfis = _matriz_com_analista("analista" in getattr(render, "LEITURA_GERAL", ()))
     # a matriz da web é a escrita aqui (mudar o perfil exige mudar o teste)
     for rid in LOTE2:
-        assert set(render.FAROIS[rid][1]) == ve_farol[rid], rid
-        assert set(tabelas.VE_TABELAS[rid]) == ve_abas[rid], rid
+        assert set(render.FAROIS[rid][1]) == VE_FAROL[rid], rid
+        assert set(tabelas.VE_TABELAS[rid]) == VE_ABAS[rid], rid
     p = copy.deepcopy(pacote_real)
     p["gerado_em"] = _agora()
     log = []
@@ -251,7 +238,7 @@ def test_T0024_pacote_real_do_lote2_pelo_formato2_abre_em_200_e_403_por_perfil(w
     ind = _indice(dados)
     assert set(ind["farois"]) == set(LOTE2)
     idx = m["pacotes"].Indice(dados)
-    clis = {pf: _usuario(cli, pf) for pf in perfis}
+    clis = {pf: _usuario(cli, pf) for pf in PERFIS}
     for rid in LOTE2:
         e = ind["farois"][rid]
         corpo = ba._json_farol_web(ba._cortar_farol_web(rid, p["relatorios"][rid]))
@@ -263,7 +250,7 @@ def test_T0024_pacote_real_do_lote2_pelo_formato2_abre_em_200_e_403_por_perfil(w
         txt = json.dumps(p["relatorios"][rid], ensure_ascii=False)
         for pf, c in clis.items():
             h = c.get(f"/farol/{rid}")
-            esperado = 200 if pf in ve_farol[rid] else 403
+            esperado = 200 if pf in VE_FAROL[rid] else 403
             assert h.status_code == esperado, (rid, pf, h.status_code)
             if esperado == 200:
                 cart = _cartoes(h.text)
@@ -271,5 +258,5 @@ def test_T0024_pacote_real_do_lote2_pelo_formato2_abre_em_200_e_403_por_perfil(w
                 assert all(x.split(" | ")[-1] in txt for x in cart), (rid, pf, "cartão fora do pacote")
             for chave, _tit in abas:
                 r = c.get(f"/farol/{rid}?aba={chave}")
-                esp = 200 if pf in ve_abas[rid] else 403
+                esp = 200 if pf in VE_ABAS[rid] else 403
                 assert r.status_code == esp, (rid, pf, chave, r.status_code)
