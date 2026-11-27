@@ -285,7 +285,9 @@ def test_aplicadas_ficam_num_arquivo_so_de_acrescimo(tmp_path):
 
 # ------------------------------------------------------------------ PC só leitura nessas edições
 def test_RN_GER_012_pc_so_leitura_na_autorizacao_e_nas_entregas(monkeypatch):
-    import bap_relatorios as br
+    # sem tkinter (Python sem Tk), o bap_relatorios não importa: pula com o motivo
+    br = pytest.importorskip("bap_relatorios", reason="sem tkinter neste Python: o "
+                             "bap_relatorios não importa (rode com /usr/bin/python3.12)")
     assert br.MSG_EDICAO_SO_WEB == "A edição agora é só pela BAP Central web."
     assert br.AUTORIZA_EM == ()                       # a janela do pedido só mostra a autorização
     avisos, abertas = [], []

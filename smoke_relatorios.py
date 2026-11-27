@@ -4168,7 +4168,7 @@ checar(_s06a["prevista"] == date(2026, 11, 24) and _s06a["sla"] == 17
 # (06/11, Alexandre: "Acrescente para poder editar o ticket") a troca do
 # numero e uma linha do diario; a garantia segue no numero novo. (T-0023) a
 # troca agora vem so da BAP Central web (garantias.renomear, pelo robo); no
-# PC o ticket e so leitura (o check do DialogoGarantia, mais abaixo)
+# PC o ticket e so leitura (tests/test_T0023_pc_so_leitura.py)
 with _tfv.TemporaryDirectory() as _dgm6:
     _gm14.gravar(_dgm6, "374504", {"dt_solicitacao": "08/07/2026"},
                  agora=datetime(2026, 11, 1, 10))
@@ -4216,116 +4216,8 @@ checar({"STATUS", "RESULTADO ANÁLISE", "DT. SOLICITAÇÃO", "DT. FECHAMENTO",
        and rn.CORES_SINAL["ATRASADA"] == ("#FDECEA", "#B42318"),  # T-0033
        "Farol de Garantias (colunas, duplo clique, nova garantia); linhas "
        "sem cor fora de Pedidos/Markup/Saldo")
-# (T-0023, RN-GER-012, P2 A) PC SO LEITURA na NCC, nas Devolucoes e nas
-# Garantias: os 3 lugares no EDICAO_SO_WEB; na janela da garantia so o
-# CONTATO (nome e telefone) se edita, e o "Salvar contato" grava so ele
-# (diario ficticio numa pasta temporaria: +1 linha, o resto igual)
-_so_web23 = any(r_ == "pl_ncc" for r_, _ in _br14.EDICAO_SO_WEB)
-if not _so_web23:
-    print("  pula  PC só leitura (T-0023): o EDICAO_SO_WEB deste "
-          "bap_relatorios não tem o pl_ncc (o código está na branch "
-          "modulo-farois/T-0023-pc-so-leitura)")
-else:
-    _tres23 = {("pl_ncc", "NCC pendentes"), ("pl_devolucoes", "Devoluções"),
-               ("pl_garantias", "Garantias")}
-    _rn23 = rn.montar("pl_ncc", AQUI)
-    _rd23 = rn.montar("pl_devolucoes", AQUI)
-    _ed23 = {(rid_, t_["titulo"])
-             for rid_, r_ in (("pl_ncc", _rn23), ("pl_devolucoes", _rd23),
-                              ("pl_garantias", _rg14))
-             for t_ in r_["tabelas"] if t_.get("edicao")}
-    checar(_tres23 <= _br14.EDICAO_SO_WEB and _ed23 <= _br14.EDICAO_SO_WEB
-           and _br14.MSG_EDICAO_SO_WEB
-           == "A edição agora é só pela BAP Central web."
-           and tuple(_br14.DialogoGarantia.CAMPOS_PC)
-           == ("contato_nome", "contato_fone"),
-           "PC só leitura (T-0023): NCC pendentes, Devoluções e Garantias no "
-           "EDICAO_SO_WEB (toda aba com edição dos 3 faróis); só o contato da "
-           "garantia fica no PC")
-    if not tem_tela:
-        print("  pula  janela da garantia só leitura (sem tela)")
-    else:
-        import hashlib as _hl23
-        import tkinter as _tk23
-        from tkinter import ttk as _ttk23
-        _aqui23 = _br14.AQUI
-        _r23 = _tk23.Tk()
-        _r23.withdraw()
-        try:
-            with _tfv.TemporaryDirectory() as _d23:
-                _gm14.gravar(_d23, "G-9001", {
-                    "dt_solicitacao": "03/11/2026", "cod_cliente": "900001",
-                    "cliente": "CLIENTE FICTICIO", "qtd": "1",
-                    "contato_nome": "CONTATO FICTICIO",
-                    "contato_fone": "(00) 00000-0001",
-                    "status": "EM TRATATIVA", "resultado": "PENDENTE",
-                    "observacao": "obs ficticia"},
-                    agora=datetime(2026, 11, 3, 9))
-                _arq23 = _gm14.pasta(_d23) / f"GARANTIAS_{_gm14.maquina()}.csv"
-                _b23 = _arq23.read_bytes()
-                _sha23 = _hl23.sha256(_b23).hexdigest()
-                _antes23 = _gm14.ler(_d23)["G-9001"]
-                _g23 = {"dados": lambda tk_: {
-                            "g": _gm14.ler(_d23).get(tk_, {}),
-                            "base": {"_nome": "CLIENTE FICTICIO"},
-                            "situacao": _gm14.situacao(
-                                _gm14.ler(_d23).get(tk_, {}),
-                                date(2026, 11, 24))},
-                        "campos_cliente": list(_gm14.CAMPOS_CLIENTE),
-                        "cliente_base": lambda cod: {},
-                        "produto": lambda cod: ""}
-                _br14.AQUI = Path(_d23)
-                _dg23 = _br14.DialogoGarantia(_r23, _g23, "G-9001")
-                _dg23.update()
-
-                def _filhos23(w):
-                    for c_ in w.winfo_children():
-                        yield c_
-                        yield from _filhos23(c_)
-                _ws23 = list(_filhos23(_dg23))
-                _nome_var23 = {str(v_): k_ for k_, v_ in
-                               list(_dg23.vars.items())
-                               + list(_dg23.vars_cli.items())}
-                _edit23 = {_nome_var23.get(str(w_.cget("textvariable")), "?")
-                           for w_ in _ws23
-                           if isinstance(w_, (_ttk23.Entry, _tk23.Entry))
-                           and str(w_.cget("state")) not in ("readonly",
-                                                             "disabled")}
-                _txt23 = [str(w_.cget("state")) for w_ in _ws23
-                          if isinstance(w_, _tk23.Text)]
-                _bot23 = {str(w_.cget("text")) for w_ in _ws23
-                          if isinstance(w_, (_ttk23.Button, _tk23.Button))}
-                _avi23 = any(_br14.MSG_EDICAO_SO_WEB in str(w_.cget("text"))
-                             for w_ in _ws23 if isinstance(w_, _tk23.Label))
-                _sem_comb23 = not any(isinstance(w_, _ttk23.Combobox)
-                                      for w_ in _ws23)
-                # a assistente mexe no status (por baixo da tela) e no fone
-                _dg23.vars["status"].set("FINALIZADA")
-                _dg23.vars["contato_fone"].set("(00) 00000-0002")
-                _dg23.salvar()
-                _dg23.destroy()
-                _b23d = _arq23.read_bytes()
-                _depois23 = _gm14.ler(_d23)["G-9001"]
-                _ok_sal23 = (
-                    _b23d.startswith(_b23)
-                    and len(_b23d.splitlines()) == len(_b23.splitlines()) + 1
-                    and _depois23["contato_fone"] == "(00) 00000-0002"
-                    and all(_depois23.get(c_, "") == _antes23.get(c_, "")
-                            for c_ in _gm14.CAMPOS if c_ != "contato_fone")
-                    and _hl23.sha256(_b23d[:len(_b23)]).hexdigest()
-                    == _sha23)
-        finally:
-            _br14.AQUI = _aqui23
-            _r23.destroy()
-        checar(_edit23 == {"contato_nome", "contato_fone"}
-               and _txt23 and all(x_ == "disabled" for x_ in _txt23)
-               and "Salvar contato" in _bot23 and "Salvar" not in _bot23
-               and _avi23 and _sem_comb23,
-               "Garantia no PC só leitura (T-0023): só o contato (nome e "
-               "telefone) editável; ticket, cadastro, status e textos só "
-               "leitura; aviso da web na janela")
-        checar(_ok_sal23, "Garantia: \"Salvar contato\" grava só o contato "
-               "(+1 linha no diário, só acrescenta; os outros campos iguais)")
+# (T-0023, RN-GER-012) PC só leitura na NCC, Devoluções e Garantias:
+# tests/test_T0023_pc_so_leitura.py
 
 # (15/10) FAROL DE PRECO: faturamento x volume x preco mes a mes; o efeito
 # preco (mesmo item) + volume + mix fecha a variacao do faturamento
