@@ -7535,9 +7535,8 @@ _ABAS_TABELAS_WEB = {
 TITULO_SOLICITACAO_WEB = "Solicitação BAP"
 # tabelas que o PC carrega com 12 meses e a web recebe so do mes (D2 A)
 # (titulo generico, como "Por UF", entra por par (rid, titulo): T-0037 P1 A)
-_TABELAS_SO_MES_WEB = ("Pedidos", "Entregas", ("pl_fretes", "Notas com frete"),
-                       ("pl_fretes", "Por UF"), ("pl_fretes", "Por cidade"),
-                       ("pl_fretes", "Por transportadora"))
+_TABELAS_SO_MES_WEB = ("Pedidos", "Entregas",
+                       *(("pl_fretes", t) for t in _ABAS_TABELAS_WEB["pl_fretes"]))
 
 
 def _so_mes_web(rid, titulo) -> bool:
@@ -7585,6 +7584,9 @@ _METRICAS_VISITA_WEB = (
     _c("TMA", "hora"), _c("TMD", "hora"), _c("KM", "num"),
     _c("KM/CLIENTE", "num1"))
 
+# Fretes: as 3 colunas de numero das abas de resumo
+_RESUMO_FRETES_WEB = (_c("NOTAS", "int"), _c("VLR NF", "moeda"),
+                      _c("VLR FRETE", "moeda"))
 # contrato 10.7.3: {rid: {titulo da tabela: colunas depois do corte}}
 _COLUNAS_TABELAS_WEB = {
     "pv_pedidos": {
@@ -7675,16 +7677,13 @@ _COLUNAS_TABELAS_WEB = {
             _c("TRANSPORTADORA", "texto"), _c("ENTREGAR ATÉ", "dia"),
             _c("ENTREGUE", "dia"), _c("SLA ENTREGA", "int"),
             _c("RESPONSÁVEL", "texto")),
-        "Por UF": (_c("MÊS", "texto"), _c("UF", "texto"),
-                   _c("NOTAS", "int"), _c("VLR NF", "moeda"),
-                   _c("VLR FRETE", "moeda")),
-        "Por cidade": (_c("MÊS", "texto"), _c("CIDADE", "texto"),
-                       _c("NOTAS", "int"), _c("VLR NF", "moeda"),
-                       _c("VLR FRETE", "moeda")),
+        "Por UF": (_c("MÊS", "texto"), _c("UF", "texto"))
+        + _RESUMO_FRETES_WEB,
+        "Por cidade": (_c("MÊS", "texto"), _c("CIDADE", "texto"))
+        + _RESUMO_FRETES_WEB,
         "Por transportadora": (_c("MÊS", "texto"),
-                               _c("TRANSPORTADORA", "texto"),
-                               _c("NOTAS", "int"), _c("VLR NF", "moeda"),
-                               _c("VLR FRETE", "moeda"))}}
+                               _c("TRANSPORTADORA", "texto"))
+        + _RESUMO_FRETES_WEB}}
 # "Aderência dia a dia": as colunas dos dias mudam com o mes (padrao de nome)
 _ADERENCIA_WEB = ("Aderência dia a dia",
                   r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$",
@@ -7892,19 +7891,15 @@ def _conferir_tabela_web(t: dict) -> None:
 # e confirma. Generico por (rid, tabela, modulo): NCC, Garantias, DDR e
 # Expositores entram acrescentando o lugar aqui e na web (edicoes.LUGARES).
 _ARQ_POS_VENDA_WEB = "RELATORIOS/ACOMPANHAMENTO_POS_VENDA.xlsx"
+_ED_ENTREGAS_WEB = {"modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
+                    "aba": "ENTREGAS", "acao": "Editar"}
 EDICOES_WEB = {
     ("pv_pedidos", "Pedidos"): {
         "modulo": "autorizacoes", "arquivo": "RELATORIOS/_AUTORIZACOES",
         "aba": "", "acao": "Autorização"},
-    ("pl_entregas", "Entregas"): {
-        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
-        "aba": "ENTREGAS", "acao": "Editar"},
-    ("pl_entregas", "Pendências dos meses anteriores"): {
-        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
-        "aba": "ENTREGAS", "acao": "Editar"},
-    ("pl_fretes", "Notas com frete"): {
-        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
-        "aba": "ENTREGAS", "acao": "Editar"}}
+    ("pl_entregas", "Entregas"): _ED_ENTREGAS_WEB,
+    ("pl_entregas", "Pendências dos meses anteriores"): _ED_ENTREGAS_WEB,
+    ("pl_fretes", "Notas com frete"): _ED_ENTREGAS_WEB}
 # os campos de cada modulo e o tipo de conferencia no robo
 CAMPOS_EDICAO_WEB = {
     "autorizacoes": {"codigo": "livre", "por": "lista"},
