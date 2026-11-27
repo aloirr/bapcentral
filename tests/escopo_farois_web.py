@@ -7,15 +7,15 @@ Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
   FAROIS_LOTE2) têm de estar em FAROIS_WEB, cada um com a fonte do "baixado
   em", a tabela de recorte (ou o aviso "Sem filtro por estado") e a regra de
   UF escritas aqui, à mão;
+- depois do robô da T-0023 v2 (PR #171), os 3 faróis do pós-venda (contrato
+  §10.10, FAROIS_T0023) também são OBRIGATÓRIOS, com as mesmas exigências;
 - um farol a mais da T-0036 (FAROIS_T0036, os 4 do Analista Comercial) só
   passa com a regra de UF dos cartões e a das linhas de cada aba
   (UF_LINHAS_T0036), escritas aqui à mão a partir do contrato §10.11.1/§10.11.3;
   os 4 são permitidos e não obrigatórios (o PR dos testes entra antes do robô),
   mas vão juntos: só parte deles reprova;
-- os 3 faróis do pós-venda da T-0023 v2 (contrato §10.10, FAROIS_T0023) são
-  permitidos, não obrigatórios, até o robô da T-0023 entrar no main, cada um
-  com a fonte, a tabela de recorte (ou o aviso) e a regra de UF;
-- um farol fora da lista PERMITIDA reprova.
+- a lista PERMITIDA é a dos obrigatórios mais os 4 da T-0036: um farol fora
+  dela reprova.
 
 Regra citada: RN-GER-006 (estado do faturamento e do estoque = filial da
 nota; fretes e carteira = UF do cliente; sem a UF, o farol vai sem recortes e
@@ -47,7 +47,16 @@ FAROIS_LOTE2 = {
     "pl_giro": ("tabela", "Todos os produtos", "FILIAL", "filial"),
     "pl_frw": ("tabela", "Estoque FRW", "FILIAL", "filial"),
 }
-# os faróis do main: T-0017, o vc_meta da T-0022 e o lote 2 da T-0024
+# T-0023 v2 (contrato §10.10.1, P3 A): Garantias, Devoluções e NCC. Estado =
+# FILIAL da nota (RN-GER-006); a Garantia não tem filial: vai sem estado e com
+# o aviso. Obrigatórios desde o robô da T-0023 (PR #171).
+FAROIS_T0023 = {
+    "pl_garantias": ("sem_estado",),
+    "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
+    "pl_ncc": ("tabela", "NCC pendentes", "FILIAL", "filial"),
+}
+# os faróis do main: T-0017, o vc_meta da T-0022, o lote 2 da T-0024 e os 3
+# da T-0023
 REGRA_UF_OBRIGATORIOS = {
     "pl_inadimplencia": ("tabela", "Títulos", "FILIAL", "filial"),
     "pv_pedidos": ("tabela", "Pedidos", "FILIAL", "filial"),
@@ -55,14 +64,7 @@ REGRA_UF_OBRIGATORIOS = {
     "vc_visitas": ("sem_estado",),
     "vc_meta": ("meta",),
     **FAROIS_LOTE2,
-}
-# T-0023 v2 (contrato §10.10.1, P3 A): Garantias, Devoluções e NCC. Estado =
-# FILIAL da nota (RN-GER-006); a Garantia não tem filial: vai sem estado e com
-# o aviso. Permitidos (não obrigatórios) até o robô da T-0023 entrar no main.
-FAROIS_T0023 = {
-    "pl_garantias": ("sem_estado",),
-    "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
-    "pl_ncc": ("tabela", "NCC pendentes", "FILIAL", "filial"),
+    **FAROIS_T0023,
 }
 # T-0036 (contrato §10.11.1): os 4 do Analista Comercial. Cartões por estado
 # só no Saldo e no Markup (filial da nota, com a conferência do kpis_de);
@@ -89,11 +91,10 @@ UF_LINHAS_T0036 = {
 # Vazio: o defeito dos 4 do Analista (T-0036, modulo-robo) foi corrigido.
 FONTE_PENDENTE = frozenset()
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
-REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_T0023, **FAROIS_T0036}
+REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_T0036}
 FAROIS_PERMITIDOS = frozenset(REGRA_UF_PERMITIDOS)
-assert len(REGRA_UF_OBRIGATORIOS) == 5 + len(FAROIS_LOTE2)   # sem repetição
-assert len(REGRA_UF_PERMITIDOS) == (len(REGRA_UF_OBRIGATORIOS)
-                                    + len(FAROIS_T0023) + len(FAROIS_T0036))
+assert len(REGRA_UF_OBRIGATORIOS) == 5 + len(FAROIS_LOTE2) + len(FAROIS_T0023)   # sem repetição
+assert len(REGRA_UF_PERMITIDOS) == len(REGRA_UF_OBRIGATORIOS) + len(FAROIS_T0036)
 
 _KPI_FICTICIO = [{"rotulo": "Itens", "valor": "1", "cor": "ok"}]
 

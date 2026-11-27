@@ -45,34 +45,34 @@ def _robo(**troca):
 
 
 def test_RN_GER_006_trava_lista_permitida_os_cinco_do_lote2_e_os_da_T0023_e_T0036():
-    """Depois do #91 no main, os 5 do lote 2 são obrigatórios; a lista
-    permitida é a dos obrigatórios mais os 3 da T-0023 v2 (FAROIS_T0023) e os
-    4 do Analista (T-0036)."""
+    """Depois do #91, os 5 do lote 2 são obrigatórios; depois do robô da
+    T-0023 v2 (#171), os 3 do pós-venda (FAROIS_T0023) também. A lista
+    permitida é a dos obrigatórios mais os 4 do Analista (T-0036)."""
     assert set(FAROIS_LOTE2) == {"pv_indicadores", "vc_base", "vc_planner",
                                  "pl_giro", "pl_frw"}
     assert FAROIS_OBRIGATORIOS == {"pl_inadimplencia", "pv_pedidos",
                                    "pl_entregas", "vc_visitas", "vc_meta"
-                                   } | set(FAROIS_LOTE2)
-    # T-0036: + os 4 do Analista Comercial (contrato §10.11.1)
-    assert set(FAROIS_T0036) == {"vc_saldo", "vc_markup", "vc_preco",
-                                 "an_divergencias"}
+                                   } | set(FAROIS_LOTE2) | set(FAROIS_T0023)
     assert FAROIS_T0023 == {
         "pl_garantias": ("sem_estado",),
         "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
         "pl_ncc": ("tabela", "NCC pendentes", "FILIAL", "filial")}
-    assert FAROIS_PERMITIDOS == (FAROIS_OBRIGATORIOS | set(FAROIS_T0023)
-                                 | set(FAROIS_T0036))
+    # T-0036: + os 4 do Analista Comercial (contrato §10.11.1)
+    assert set(FAROIS_T0036) == {"vc_saldo", "vc_markup", "vc_preco",
+                                 "an_divergencias"}
+    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS | set(FAROIS_T0036)
     assert FORA not in FAROIS_PERMITIDOS
     # a folga da fonte do "baixado em" vale só para os 4 do Analista
     assert FONTE_PENDENTE <= set(FAROIS_T0036)
 
 
-def test_RN_GER_006_trava_reprova_farol_do_lote2_faltando():
-    """Um farol do lote 2 que sai de FAROIS_WEB reprova (obrigatório)."""
-    for rid in sorted(FAROIS_LOTE2):
-        sem = tuple(r for r in ba.FAROIS_WEB if r != rid)
-        assert f"{rid}: obrigatório e fora de FAROIS_WEB" in \
-            problemas_escopo(_robo(FAROIS_WEB=sem)), rid
+@pytest.mark.parametrize("rid", sorted(FAROIS_OBRIGATORIOS))
+def test_RN_GER_006_trava_reprova_obrigatorio_faltando(rid):
+    """Qualquer farol obrigatório (T-0017, T-0022, lote 2 da T-0024, T-0023 v2)
+    que sai de FAROIS_WEB reprova."""
+    sem = tuple(r for r in ba.FAROIS_WEB if r != rid)
+    assert f"{rid}: obrigatório e fora de FAROIS_WEB" in \
+        problemas_escopo(_robo(FAROIS_WEB=sem))
 
 
 def test_RN_GER_006_robo_de_verdade_passa_na_trava():
@@ -85,10 +85,7 @@ def test_RN_GER_006_trava_reprova_farol_fora_da_lista():
     assert f"{FORA}: fora da lista PERMITIDA" in p
 
 
-def test_RN_GER_006_trava_reprova_obrigatorio_faltando_e_repetido():
-    sem = tuple(r for r in ba.FAROIS_WEB if r != "vc_visitas")
-    assert "vc_visitas: obrigatório e fora de FAROIS_WEB" in \
-        problemas_escopo(_robo(FAROIS_WEB=sem))
+def test_RN_GER_006_trava_reprova_farol_repetido():
     dup = tuple(ba.FAROIS_WEB) + ("pv_pedidos",)
     assert any(x.startswith("FAROIS_WEB com repetição")
                for x in problemas_escopo(_robo(FAROIS_WEB=dup)))
