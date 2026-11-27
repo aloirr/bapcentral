@@ -168,7 +168,7 @@ def test_render_painel_abas_aneis_barras_rodapes(admin):
     postar(admin, pacote_ficticio())
     r = admin.get("/painel").text
     assert "Dados de 20/11/2026 08:30" in r and "BAP AUTOPARTS" in r
-    for t in ("Painel · resultado", "Painel · produtividade", "Painel do Diretor · resultado",
+    for t in ("Painel · resultado", "Painel · produtividade", "Painel Executivo · resultado",
               "visão absoluta · novembro até 19/11 (13 de 19 dias úteis)",
               "FATURAMENTO LÍQUIDO · PROJ.", "R$ 165 mil", "projeção do mês 66", "POSITIVAÇÃO",
               "PEDIDOS FATURADOS · PROJ.", "jul (bench.)", "−74%", "R$ 626 mil",
@@ -183,8 +183,8 @@ def test_render_painel_abas_aneis_barras_rodapes(admin):
     assert "height:92.0%" in r                      # a maior barra
     assert "Visitas" not in r
     r = admin.get("/painel?aba=produtividade").text
-    assert "Painel do Diretor · produtividade" in r and "VISITAS" in r and "FATURAMENTO" not in r
-    assert "Painel do Diretor · resultado" in admin.get("/painel?aba=qualquer").text
+    assert "Painel Executivo · produtividade" in r and "VISITAS" in r and "FATURAMENTO" not in r
+    assert "Painel Executivo · resultado" in admin.get("/painel?aba=qualquer").text
 
 
 def test_pacote_sem_vc_painel_422(cli):
@@ -418,7 +418,7 @@ def test_T0014_filtro_mostra_a_visao_pronta_sem_calcular(admin):
     from conftest import postar
     assert postar(admin, _pacote_com_recortes()).status_code == 200
     html = admin.get("/painel?aba=resultado").text
-    assert "BAP inteira" in html and "R$ 165 mil" in html          # sem filtro: o total
+    assert ">BAP</a>" in html and "R$ 165 mil" in html          # sem filtro: o total
     html = admin.get("/painel?aba=resultado&uf=MA").text
     assert "R$ 87,0 mil" in html and "R$ 165 mil" not in html       # a barra do MA, como veio
     assert "rrm-recorte" in html                                     # cartão compacto no recorte

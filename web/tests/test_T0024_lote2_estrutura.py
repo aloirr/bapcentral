@@ -60,6 +60,8 @@ def test_web_mostra_as_abas_reais_para_admin(admin):
 def test_GRADE_do_lote2_tem_ate_10_colunas_e_so_colunas_do_robo():
     p = pacote_lote2()["relatorios"]
     for (rid, titulo), g in tabelas.GRADE.items():
+        if rid not in tabelas.FAROIS_LIVRES:      # a GRADE de Pedidos, Entregas, Inadimplência e Visita é da T-0033
+            continue
         t = next(x for x in p[rid]["tabelas"] if x["titulo"] == titulo)
         nomes = [c["nome"] for c in t["colunas"] if not c.get("oculta")]
         assert len(g["grade"]) <= 10, (rid, titulo)
@@ -106,7 +108,7 @@ def test_resumo_um_cartao_por_metrica_com_dia_semana_mes(admin):
 def test_grade_esconde_colunas_e_abre_popup_na_chave(admin):
     assert postar(admin, pacote_lote2()).status_code == 200
     h = admin.get("/farol/pl_giro?aba=necessidade-de-compra").text
-    assert 'class="sel-link pop-chave"' in h and 'data-titulo="900001"' in h
+    assert 'class="sel-link"' in h and re.search(r'data-tit="[^"]*900001"', h)   # T-0033: o popup é o `popup_linha.js`
     cab = re.search(r"<thead>.*?</thead>", h.split('class="bc3-corpo"')[1], re.S).group(0)
     assert cab.count('class="oc') + cab.count(' oc"') >= 1            # colunas fora da grade ficam só no popup
     assert "SUGESTÃO" in re.sub(r'<th class="[^"]*\boc\b[^"]*">.*?</th>', "", cab, flags=re.S)
