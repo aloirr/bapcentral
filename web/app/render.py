@@ -88,14 +88,20 @@ PAINEL_CURTO = {"resultado": "Resultado", "produtividade": "Produtividade", "por
 
 
 _DU = re.compile(r"\((\d+) de (\d+) dias úteis\)")
+_DU_FECHADO = re.compile(r"fechado \((\d+) dias úteis\)")
 
 
 def du_do_painel(abas: list[dict]) -> str:
-    """U8: "13 de 19 DU", lido do `sub` que o PC mandou nas abas RRM (nada é recalculado); vazio se o PC não mandou."""
+    """U8/U11: os dias úteis da faixa, lidos do `sub` que o PC mandou nas abas RRM (nada é recalculado). Mês aberto:
+    "13 de 19 DU"; mês fechado ("outubro fechado (22 dias úteis)"): "22 DU · mês fechado". Vazio se o PC não mandou."""
     for a in abas or []:
-        m = _DU.search(str((a.get("dados") or {}).get("sub", {}).get(a["visao"], "")))
+        sub = str((a.get("dados") or {}).get("sub", {}).get(a["visao"], ""))
+        m = _DU.search(sub)
         if m:
             return f"{m.group(1)} de {m.group(2)} DU"
+        m = _DU_FECHADO.search(sub)
+        if m:
+            return f"{m.group(1)} DU · mês fechado"
     return ""
 
 

@@ -1,6 +1,7 @@
 """T-0034: a página inicial é o Painel Executivo no formato dos faróis (decisão 2 A do Alexandre, 26/11/2026); uma casca só
 (barra lateral + faixa) para toda tela logada; Login, Trocar senha, Usuários e Parcial no BC3. Fixture 100% fictícia."""
 import re
+from pathlib import Path
 
 import pytest
 from conftest import postar
@@ -169,3 +170,14 @@ def test_troca_obrigatoria_mostra_so_a_casca_sem_menu(cli):
     assert entrar(cli, ADMIN, SENHA0).status_code == 303
     h = cli.get("/senha").text
     assert "bc3-lado" in h and "bc3-grupo" not in h and ">Sair<" in h
+
+
+def test_dias_uteis_do_mes_fechado_e_o_css_do_numero_do_cartao():
+    # U11: o PC manda "outubro fechado (22 dias úteis)" no 1º dia útil do mês; o DU não pode sumir da faixa
+    aba = lambda sub: [{"visao": "res", "dados": {"sub": {"res": sub}}}]
+    assert render.du_do_painel(aba("outubro fechado (22 dias úteis)")) == "22 DU · mês fechado"
+    assert render.du_do_painel(aba("visão absoluta · novembro até 19/11 (13 de 19 dias úteis)")) == "13 de 19 DU"
+    # U10: enquanto o template usar `rc-valor` e `rc-leg`, o CSS tem as duas regras (o número do 4º cartão em diante é o maior)
+    css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
+    assert ".rc-valor{" in css and "font-size:1.5rem;font-weight:700" in css and ".rc-leg{" in css
+    assert "minmax(380px,1fr)" in css                                           # U12: a linha seguinte aparece sem cortar cartão
