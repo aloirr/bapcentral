@@ -1552,11 +1552,19 @@ Conferidas no `main` em `a32b610`, com `montar(rid, raiz)` nas bases do reposit�
 
 ### 10.12 Porta de leitura da web (leitura v1, T-0055, RN-GER-020)
 
-Saída da web, não entrada: o pacote não muda e o robô não muda. O desenho completo está em `docs/desenho/T-0055.md`.
+Saída da web, não entrada: o pacote não muda e o robô não muda. Este parágrafo é a fonte da interface; a implementação, a lista fechada de chaves (§4) e os limites (§5) estão em `docs/desenho/T-0055.md`.
 
-- Rotas: `GET /api/leitura/painel` e `GET /api/leitura/resumo/{rid}`, com `Authorization: Bearer` igual a `BAP_WEB_LEITURA_TOKEN`, que é separado do `BAP_WEB_TOKEN`. Sem a variável, 404; com token ausente ou errado, 401; com outro método, 405. Acima de 30/min por IP ou 120/min no total, 429: proteção técnica, recomendação do gerente (plano R-20261127-100915), não RN.
-- Corpo: `versao_leitura` (1), `versao_web`, `pacote` (`lote`, `gerado_em`, `dados_ate`, `du`) e, conforme a rota, `visoes` + `farois` ou `rid` + `nome` + `cartoes`. As chaves são só as da lista fechada do desenho, §4.
-- Só o que o perfil `diretor` vê (RN-GER-014). Nunca tabela, nome, documento (CPF/CNPJ), telefone ou e-mail (RN-GER-011), meta RH (RN-GER-001) nem TOTAL A PAGAR (RN-GER-015).
+- **Rotas:** `GET /api/leitura/painel` (carimbo + visões do Painel Executivo + índice dos faróis do diretor) e `GET /api/leitura/resumo/{rid}` (carimbo + cartões do Resumo do farol `rid`). Autenticação: `Authorization: Bearer` igual a `BAP_WEB_LEITURA_TOKEN`, separado do `BAP_WEB_TOKEN`, do `BAP_VISITAS_TOKEN` e do `SESSION_SECRET`.
+- **Respostas, nesta ordem** (a primeira que vale responde, em qualquer método):
+  1. **404** `{"erro":"não encontrado"}`: porta desligada (sem a variável, token curto ou repetido);
+  2. **429** `{"erro":"muitas chamadas"}` + `Retry-After: 60`: limite estourado (proteção técnica, recomendação do gerente, plano R-20261127-100915, não RN; números no desenho §5);
+  3. **405** `{"erro":"só leitura"}` + `Allow: GET`: método que não seja GET;
+  4. **401** `{"erro":"não autorizado"}` + `WWW-Authenticate: Bearer`: token ausente ou errado;
+  5. **404** `{"erro":"não encontrado"}`: `rid` que o diretor não vê ou que não é farol;
+  6. **503** `{"erro":"sem pacote"}`: o lote ou o farol ainda não chegou (também com o fuso errado, como as telas);
+  7. **200** `application/json; charset=utf-8`.
+- **Corpo:** `versao_leitura` (1), `versao_web`, `pacote` (`lote`, `gerado_em`, `dados_ate`, `du`) e, conforme a rota, `visoes` + `farois` ou `rid` + `nome` + `cartoes`. `gerado_em` e `dados_ate` são os da tela; os números são os textos que a tela mostra, sem recálculo.
+- **Só o que o diretor vê** (RN-GER-014), pela lista fechada do desenho §4. Nunca tabela, nome, documento (CPF/CNPJ), telefone ou e-mail (RN-GER-011), meta RH (RN-GER-001) nem TOTAL A PAGAR (RN-GER-015).
 - Mudança incompatível = `versao_leitura` 2 + ADR + recado aos consumidores.
 
 ## 11. Parte ação: os callables e a web v1
