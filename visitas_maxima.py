@@ -458,7 +458,7 @@ def classificar_login(url, texto, tem_captcha, http_status) -> str | None:
         # caminho de verificacao (so o caminho da URL): com qualquer redacao,
         # a Maxima pediu confirmacao; nunca repete o login (§5.1)
         return "MAXIMA_CONFIRMACAO"
-    if no_login and t.strip() and _RX_CREDENCIAL.search(t):
+    if t.strip() and _RX_CREDENCIAL.search(t):
         return "MAXIMA_SENHA"
     return None
 
@@ -824,8 +824,6 @@ class Robo:
             cod = classificar_login(url, texto, captcha, None)
             if cod:
                 return f"cod:{cod}:{msg}"
-            if not no_login:
-                return "ok"
             return f"erro:{msg}" if msg else None
         r = self._esperar(pronto, 45)
         if not r:
