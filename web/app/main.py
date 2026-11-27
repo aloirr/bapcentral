@@ -25,7 +25,7 @@ from .usuarios import PERFIS, Erro, Usuarios, MAX_ERROS
 log = logging.getLogger("bap_web")
 AQUI = Path(__file__).parent
 MANAUS = ZoneInfo("America/Manaus")
-VERES = render.VEEM_PAINEL          # [SUPOSIÇÃO] os 3 veem o painel
+VERES = render.VEEM_PAINEL          # T-0036 (P1 = A, RD-0003): admin, gerente e analista (LEITURA_GERAL) e o diretor
 PAINEL_RID = "vc_painel"
 FORM_MAX = 32 * 1024                               # §10.9.1: o Editar da Garantia leva 4 textos de até 600 caracteres
 FECHAR_MAX = 256 * 1024
@@ -90,6 +90,10 @@ def criar_app() -> FastAPI:
     modelos.env.autoescape = True
     modelos.env.filters["manaus"] = fmt_manaus
     modelos.env.filters["hhmm"] = hhmm
+    modelos.env.globals["kpi_curto"] = tabelas.kpi_curto
+    modelos.env.globals["selo_curto"] = tabelas.selo_curto
+    modelos.env.globals["titulo_cel"] = tabelas.TITULO_CEL
+    modelos.env.globals["analista"] = tabelas.RIDS_ANALISTA        # T-0036: faróis do Analista Comercial
     modelos.env.filters["dia_br"] = visitas.dia_br                 # T-0045: AAAAMMDD -> dd/mm
     modelos.env.filters["dia_hora"] = visitas.dia_hora             # T-0045: "27/11 06h06", o formato único da tela
     modelos.env.filters["fone"] = cobranca.fone_bonito
@@ -289,6 +293,9 @@ def criar_app() -> FastAPI:
     async def home(request: Request):
         """T-0034: não há mais grade de quadrados. Cada perfil cai na tela dele (a lateral é o menu)."""
         u = usuario(request)
+        if u["perfil"] == "trade" and not render.farois_do_perfil("trade"):
+            # T-0036 (2 A, UX 9): até a T-0025-v2 o Trade Marketing não tem farol; casca BC3, uma frase neutra
+            return pagina(request, "trade_inicio.html", bc3=True, sem_pacote_ok=True)
         return RedirectResponse(render.pagina_inicial(u["perfil"]), status_code=302)
 
     @app.get("/painel", response_class=HTMLResponse)
@@ -383,7 +390,9 @@ def criar_app() -> FastAPI:
                    # T-0032 (Alexandre, 26/11: "assim como tem no bap central do python"): o botão aparece sempre
                    # para quem pode; sem imagem no pacote, a página da parcial diz que ainda não chegou
                    parcial=perfil in PERFIS_PARCIAL.get(rid, ()),
-                   csvs=csvs_de(rel, rid, perfil) if aba in ("pedidos", "solicitacao") else [])
+                   csvs=csvs_de(rel, rid, perfil) if aba in ("pedidos", "solicitacao") else [],
+                   correcao=(rid == "an_divergencias" and perfil == "admin"
+                             and bool(((ind.entrada(rid) or {}).get("anexos") or {}).get("correcao"))))
         topo = render.farol_para_tela(rel, (uf[:4] if aba == "resumo" else uf_ok) or None, rid)   # uma vez só
         if aba == "resumo":
             return pagina(request, "farol.html", tela=topo, **ctx)
@@ -409,6 +418,7 @@ def criar_app() -> FastAPI:
                                            excluir=frozenset() if mostrar_fora else fora_base, rid=rid)
             tab["fora_base"] = {"qtd": len(fora_base), "mostrar": mostrar_fora} if fora_base else None
             # T-0024 (R4): a dica da busca dos faróis do lote 2 (GRADE, contrato tela-bc3 §6.2)
+            tabelas.aplicar_rotulos(tab, rid)                  # T-0036: sem unidade repetida no título da coluna
             tab["dica_busca"] = tabelas.dica_busca(rid, t["titulo"], len(t["linhas"]))
             sel = selecao(t, tab, consulta)              # um clique no pedido: as de baixo só com ele (PC)
             juntas = tabelas.juntas_para_tela(t, [sel] if sel is not None else tab["idxs"], uf_ok or None, rid=rid)
@@ -477,6 +487,18 @@ def criar_app() -> FastAPI:
             return JSONResponse({"erro": "arquivo indisponível"}, status_code=404)
         cobranca.registrar_acesso(cfg.dados, u["login"], "pv_pedidos", "csv-protheus", "baixar")
         return baixar(c["conteudo"].encode("utf-8"), "text/csv; charset=utf-8", c["nome"])
+
+    @app.get("/farol/an_divergencias/correcao.xlsx")
+    async def correcao_xlsx(request: Request):
+        """T-0036 (contrato §10.11.4): o Excel de correção do A1_VEND, só para o admin; sem cliente (RN-GER-011)."""
+        u = usuario(request, ("admin",))
+        c = ind.correcao("an_divergencias")
+        if not c:
+            return JSONResponse({"erro": "arquivo indisponível"}, status_code=404)
+        cobranca.registrar_acesso(cfg.dados, u["login"], "an_divergencias", "correcao", "baixar")
+        return baixar(exportar.xlsx_correcao(c),
+                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                      f"correcao_divergencias_{datetime.now(MANAUS):%Y%m%d_%H%M}.xlsx")
 
     def baixar(dados: bytes, tipo: str, nome: str, anexo: bool = True):
         cab = {"Content-Disposition": f'{"attachment" if anexo else "inline"}; filename="{nome}"',
