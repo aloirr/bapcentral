@@ -58,7 +58,7 @@ def test_RN_GER_012_so_o_admin_edita_e_gerente_e_posvenda_veem(admin):
         assert c.post("/farol/pl_fretes/editar", data={}).status_code == 403
 
 
-def test_RN_GER_012_diretor_so_o_resumo(admin):
+def test_RN_GER_014_diretor_so_o_resumo(admin):
     _pacote_ok(admin)
     c = _como(admin, "diretor")
     assert c.get("/farol/pl_fretes").status_code == 200
