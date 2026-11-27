@@ -1,10 +1,13 @@
 """Trava do escopo de bap_automation.FAROIS_WEB (T-0013, T-0017, T-0022,
-T-0024): a lista PERMITIDA dos faróis que o robô leva ao site, num lugar só.
+T-0024, T-0023): a lista PERMITIDA dos faróis que o robô leva ao site, num
+lugar só.
 
-Vale com e sem o lote 2 da T-0024 (PR #91):
+Vale com e sem o lote 2 da T-0024 (PR #91) e com e sem os 3 faróis do
+pós-venda da T-0023 v2 (contrato §10.10):
 - os faróis OBRIGATÓRIOS (os do main) têm de estar em FAROIS_WEB, cada um com
   a fonte do "baixado em" e a regra de UF de sempre;
-- um farol a mais só passa se estiver em FAROIS_LOTE2, com a fonte, a tabela
+- um farol a mais só passa se estiver em FAROIS_LOTE2 ou FAROIS_T0023, com a
+  fonte, a tabela
   de recorte (ou o aviso "Sem filtro por estado") e a regra de UF escritas
   aqui, à mão;
 - um farol fora da lista PERMITIDA reprova.
@@ -44,10 +47,21 @@ FAROIS_LOTE2 = {
     "pl_giro": ("tabela", "Todos os produtos", "FILIAL", "filial"),
     "pl_frw": ("tabela", "Estoque FRW", "FILIAL", "filial"),
 }
+# T-0023 v2 (contrato §10.10.1, P3 A): Garantias, Devoluções e NCC. Estado =
+# FILIAL da nota (RN-GER-006); a Garantia não tem filial: vai sem estado e com
+# o aviso. Permitidos (não obrigatórios) até o robô da T-0023 entrar no main.
+FAROIS_T0023 = {
+    "pl_garantias": ("sem_estado",),
+    "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
+    "pl_ncc": ("tabela", "NCC pendentes", "FILIAL", "filial"),
+}
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
-REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_LOTE2}
+REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_LOTE2,
+                       **FAROIS_T0023}
 FAROIS_PERMITIDOS = frozenset(REGRA_UF_PERMITIDOS)
-assert not FAROIS_OBRIGATORIOS & set(FAROIS_LOTE2)       # sem repetição
+# sem repetição entre as listas
+assert len(REGRA_UF_PERMITIDOS) == (len(REGRA_UF_OBRIGATORIOS)
+                                    + len(FAROIS_LOTE2) + len(FAROIS_T0023))
 
 _KPI_FICTICIO = [{"rotulo": "Itens", "valor": "1", "cor": "ok"}]
 
