@@ -129,8 +129,6 @@ def abas_no_celular(chaves: list, atual) -> list[int]:
     return [0, 1, pos] if pos > 1 else [0, 1, 2]
 
 
-
-
 def faixa_painel(tela_f: dict | None) -> list[dict]:
     """T-0034 / T-0052: os números da faixa do Painel Executivo, prontos do pacote (nada é recalculado). Aba RRM: a faixa
     fica SEM números (só quando, DU e filtro): todo cartão mostra o seu valor grande, e repeti-lo no topo seria o mesmo
