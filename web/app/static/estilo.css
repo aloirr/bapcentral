@@ -344,7 +344,8 @@ button{background:var(--verde-escuro);border-color:var(--verde-escuro)}
 .bt-ed{display:inline-block;background:var(--verde-escuro);color:var(--branco);border-radius:6px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none}
 .ed-nao{color:var(--suave)}
 .ed-marca{display:inline-block;margin-left:.3rem;border-radius:6px;padding:.05rem .4rem;font-size:.75rem;font-weight:600}
-.ed-col .ed-marca{display:block;margin:.2rem 0 0;white-space:normal}
+.ed-col .ed-marca{display:block;margin:.2rem 0 0;white-space:nowrap}
+.ed-campo [aria-invalid="true"]{border-color:var(--alerta);box-shadow:0 0 0 1px var(--alerta)}
 .ed-pend{background:var(--atencao-claro);color:var(--atencao-texto)}.ed-erro{background:var(--alerta);color:var(--branco)}
 .tab-dados tr.sel td{background:var(--verde-claro)!important}
 .sel-link{color:var(--verde-escuro);font-weight:600;text-decoration:underline dotted}
