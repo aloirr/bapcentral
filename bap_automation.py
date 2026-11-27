@@ -9562,11 +9562,6 @@ def ler_estado_edicoes_web(raiz) -> dict:
                                 / ARQ_ESTADO_EDICOES_WEB)
 
 
-def gravar_estado_edicoes_web(raiz, estado: dict) -> None:
-    _gravar_estado_fila_web(_pasta_edicoes_web(raiz)
-                            / ARQ_ESTADO_EDICOES_WEB, estado)
-
-
 def _arq_aplicadas_web(raiz) -> Path:
     maq = re.sub(r"[^A-Za-z0-9_-]", "_", os.environ.get("COMPUTERNAME")
                  or __import__("platform").node() or "PC")
@@ -9672,21 +9667,6 @@ def _confirmar_fila_web(rota: str, rotulo: str, epoca: str, resultados: list,
         log(f"{rotulo}: falha ao confirmar ({type(erro).__name__}); "
             "confirmo de novo na proxima rodada.")
     return None
-
-
-def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
-                       log=print) -> dict | None:
-    """GET <base>/api/edicoes?desde=<seq> (Bearer), repetindo enquanto
-    `mais`. {"epoca", "linhas", "ate_seq"} ou None (404 = web antiga, 401,
-    rede...). Log sem dado pessoal e sem token."""
-    return _baixar_fila_web("/api/edicoes", "Edicoes web", desde, base,
-                            token, sessao, log)
-
-
-def confirmar_edicoes_web(epoca: str, resultados: list, base: str,
-                          token: str, sessao=None, log=print) -> bool:
-    return _confirmar_fila_web("/api/edicoes", "Edicoes web", epoca,
-                               resultados, base, token, sessao, log) == 200
 
 
 def puxar_fila_web(raiz, rota, arq_estado, aplicar, ja_feitos, registrar,
@@ -9868,10 +9848,8 @@ def _corpo_do_lote_visitas_web(r, reg):
 def _validar_lote_visitas_web(raiz, reg, corpo):
     """(lista de (pasta, nome, bytes), None) ou (None, motivo). Confere tudo
     ANTES de gravar qualquer Excel. motivo em sha256, nome, pasta, dia."""
-    import base64                                       # noqa: PLC0415
     import hashlib                                      # noqa: PLC0415
     vm = _importar_do_pc("visitas_maxima", raiz)
-    vn = _importar_do_pc("visitas_nucleo", raiz)
     dia = str(corpo.get("dia") or "")
     if (corpo.get("versao") != 1 or dia != str(reg.get("dia"))
             or not _RX_DIA_VISITAS_WEB.match(dia)):
@@ -9890,16 +9868,9 @@ def _validar_lote_visitas_web(raiz, reg, corpo):
         if not isinstance(a, dict):
             return None, "nome"
         pasta, nome = a.get("pasta"), a.get("nome")
-        if (not isinstance(pasta, str) or not pasta
-                or re.search(r"[/\\\x00-\x1f]|\.\.", pasta)
-                or vm.nome_limpo(pasta) != pasta):
-            return None, "pasta"
-        m = vn._RX_ARQ_ANALITICO.match(nome) if isinstance(nome, str) else None
-        if (not m or re.search(r"[/\\\x00-\x1f]|\.\.", nome)
-                or not nome.startswith(f"VISITA-{pasta}-")
-                or m.group("nome") != pasta
-                or f"{m.group('a')}{m.group('m')}{m.group('d')}" != dia):
-            return None, "nome"
+        motivo, _ = vm.conferir_importado(pasta, nome, dia)
+        if motivo:
+            return None, motivo
         try:
             dados = base64.b64decode(a.get("b64") or "", validate=True)
         except Exception:                               # noqa: BLE001
@@ -9958,11 +9929,8 @@ def _aplicar_lote_visitas_web(raiz, reg, base, token, sessao, res):
                                 eq.get("representantes") or {})
         d = datetime.strptime(corpo["dia"], "%Y%m%d").date()
         vn.montar_dia(raiz, d, corpo.get("extras") or {})
-        try:
-            quando = datetime.fromisoformat(str(corpo["baixado_em"]))
-            quando = quando.replace(tzinfo=None)    # a hora de Manaus, como o indice
-        except (KeyError, ValueError):
-            quando = _agora_manaus().replace(tzinfo=None)
+        q = vn._quando_manaus(corpo.get("baixado_em"))   # RN-VIS-002
+        quando = (q or _agora_manaus()).replace(tzinfo=None)  # o indice: Manaus sem fuso
         _anotar_maior_visitas_web(vn, raiz, corpo["dia"], quando)
         if vn.montar_mes(raiz, d.year, d.month):
             _anotar_maior_visitas_web(vn, raiz, f"{d.year}{d.month:02d}",
@@ -10015,8 +9983,8 @@ def sincronizar_visitas_web(raiz, base: str, token: str, log=print,
             mudo_404=True)
         if res["lotes"]:
             vm.depois_de_baixar(raiz, log)      # uma vez por importacao
-            log(f"Visitas web: {res['lotes']} lote(s), "
-                f"{res['arquivos']} Excel, {len(res['dias'])} dia(s).")
+            log(f"Visitas web: {res['arquivos']} Excel de "
+                f"{len(res['dias'])} dia(s).")
     except Exception as erro:                           # noqa: BLE001
         res["erro"] = type(erro).__name__
         log(f"Visitas web: nao terminei ({type(erro).__name__}); tento de "

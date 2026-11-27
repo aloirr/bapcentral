@@ -280,6 +280,35 @@ def nome_limpo(nome: str) -> str:
     return nome or "SEM NOME"
 
 
+def _base_analitico(nome: str, dia: date, quando: datetime) -> str:
+    """O nome do Excel sem sufixo nem extensao (um lugar so)."""
+    return f"VISITA-{nome}-{dia:%d-%m-%Y}-{quando:%H-%M}"
+
+
+_RX_PERIGO_NOME = re.compile(r"[/\\\x00-\x1f]|\.\.")
+
+
+def conferir_importado(pasta, nome, dia=None):
+    """A regra unica do Excel que vem da nuvem (RN-VIS-003, contrato §4.4).
+    Funcao pura. Devolve (motivo, None) com motivo "pasta" ou "nome", ou
+    (None, (dia, quando)). `dia` (AAAAMMDD) opcional: o nome tem de ser dele."""
+    if (not isinstance(pasta, str) or not pasta
+            or _RX_PERIGO_NOME.search(pasta) or nome_limpo(pasta) != pasta):
+        return "pasta", None
+    m = vn._RX_ARQ_ANALITICO.match(nome) if isinstance(nome, str) else None
+    if (not m or _RX_PERIGO_NOME.search(nome) or m.group("nome") != pasta
+            or (dia is not None
+                and f"{m.group('a')}{m.group('m')}{m.group('d')}" != dia)):
+        return "nome", None
+    try:
+        d = date(int(m.group("a")), int(m.group("m")), int(m.group("d")))
+        q = datetime(d.year, d.month, d.day, int(m.group("h")),
+                     int(m.group("mi")))
+    except ValueError:
+        return "nome", None
+    return None, (d, q)
+
+
 def arquivo_analitico(raiz, nome: str, dia: date, quando: datetime,
                       ext: str = ".xlsx") -> Path:
     """RELATORIOS/Visitas/ANALITICO/<NOME>/VISITA-<NOME>-DD-MM-AAAA-HH-MM.xlsx
@@ -287,7 +316,7 @@ def arquivo_analitico(raiz, nome: str, dia: date, quando: datetime,
     existir um no mesmo minuto, acrescenta -2, -3...)."""
     nome = nome_limpo(nome)
     pasta = vn.pasta_analitico(raiz) / nome
-    base = f"VISITA-{nome}-{dia:%d-%m-%Y}-{quando:%H-%M}"
+    base = _base_analitico(nome, dia, quando)
     arq = pasta / f"{base}{ext}"
     n = 2
     while arq.exists():
@@ -304,17 +333,14 @@ def gravar_excel_importado(raiz, pasta: str, nome: str, conteudo: bytes):
     (caminho, "novo" | "igual") ou levanta ValueError se pasta/nome nao
     casam (o chamador ja conferiu; e a ultima trava)."""
     import hashlib                                       # noqa: PLC0415
-    m = vn._RX_ARQ_ANALITICO.match(nome or "")
-    if (not m or nome_limpo(pasta) != pasta or m.group("nome") != pasta
-            or any(c in nome for c in "/\\") or ".." in nome):
-        raise ValueError("nome")
-    dia = date(int(m.group("a")), int(m.group("m")), int(m.group("d")))
-    quando = datetime(dia.year, dia.month, dia.day, int(m.group("h")),
-                      int(m.group("mi")))
+    motivo, dq = conferir_importado(pasta, nome)
+    if motivo:
+        raise ValueError(motivo)
+    dia, quando = dq
     ext = Path(nome).suffix.lower()
     dest_dir = vn.pasta_analitico(raiz) / pasta
     sha = hashlib.sha256(conteudo).hexdigest()
-    base = f"VISITA-{pasta}-{dia:%d-%m-%Y}-{quando:%H-%M}"
+    base = _base_analitico(pasta, dia, quando)
     if dest_dir.is_dir():
         for f in sorted(dest_dir.iterdir()):
             if (f.suffix.lower() == ext and re.fullmatch(
@@ -367,8 +393,6 @@ class Cancelado(Exception):
 # =========================================================================
 FASES = ("login", "inicio", "maxgestao", "menu", "filtros", "grade",
          "espelho", "filtro", "salvar", "envio")
-CODIGOS_LOGIN = ("MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA",
-                 "MAXIMA_BLOQUEIO")
 FECHADOS_PC_DIAS = 40
 AVISO_SITE_BAIXANDO = ("O site está baixando agora; baixar aqui também pode "
                        "derrubar a sessão da Máxima. Continuar?")
@@ -403,6 +427,12 @@ def _caminho(url) -> str:
         return ""
 
 
+def _no_login(url) -> tuple:
+    """(esta no /login, esta em caminho de verificacao): so o caminho da URL."""
+    c = _caminho(url)
+    return "/login" in c.lower(), bool(_RX_URL_VERIFICACAO.search(c))
+
+
 def _sem_acento_min(txt) -> str:
     return vn._sem_acento(str(txt or "")).lower()
 
@@ -414,9 +444,8 @@ def classificar_login(url, texto, tem_captcha, http_status) -> str | None:
     Nunca tenta resolver captcha nem repete o login."""
     if http_status == 403:
         return "MAXIMA_BLOQUEIO"
-    url = _caminho(url)
-    no_login = "/login" in url.lower()
-    if not (no_login or _RX_URL_VERIFICACAO.search(url)):
+    no_login, verif = _no_login(url)
+    if not (no_login or verif):
         return None
     if tem_captcha:
         return "MAXIMA_CAPTCHA"
@@ -471,12 +500,11 @@ def fechados_pc(indice: dict, hoje: date, dias: int = FECHADOS_PC_DIAS
             continue
         try:
             dia = datetime.strptime(chave, "%Y%m%d").date()
-            quando = datetime.fromisoformat(str(v))
         except ValueError:
             continue
-        if corte <= dia <= hoje:
-            saida[chave] = quando.replace(tzinfo=None).isoformat(
-                timespec="seconds") + "-04:00"
+        quando = vn._quando_manaus(v)       # a regra do nucleo (RN-VIS-002)
+        if quando is not None and corte <= dia <= hoje:
+            saida[chave] = quando.isoformat(timespec="seconds")
     return saida
 
 
@@ -691,11 +719,15 @@ class Robo:
         self._saida(" ".join(partes))
 
     def _fase(self, fase, dia=None, feitos=None, total=None):
+        if fase not in FASES:
+            raise ValueError(f"fase fora do contrato: {fase}")
         mudou = fase != self.fase
         self.fase = fase
         if dia is not None:
             self.dia_atual = dia
-        if mudou:
+        if feitos is not None:           # um vendedor pronto (uma linha so)
+            self.evento("vendedor", fase=fase, dia=self.dia_atual, n=feitos)
+        elif mudou:
             self.evento("fase", fase=fase, dia=self.dia_atual)
         if self.ao_fase and (mudou or feitos is not None):
             self.ao_fase(fase, self.dia_atual, feitos, total)
@@ -776,8 +808,8 @@ class Robo:
 
         def pronto():
             url = pg.url
-            if ("/login" not in _caminho(url).lower()
-                    and not _RX_URL_VERIFICACAO.search(_caminho(url))):
+            no_login, verif = _no_login(url)
+            if not (no_login or verif):
                 return "ok"
             msg = pg.evaluate("""() => { const e = document.querySelector(
               'simple-snack-bar, .mat-mdc-snack-bar-label, mat-error, '
@@ -786,13 +818,13 @@ class Robo:
               return e ? e.innerText.trim() : ''; }""")
             captcha = pg.evaluate(CAPTCHA_JS)
             texto = msg
-            if not msg and "/login" not in _caminho(url).lower():
+            if not msg and not no_login:
                 texto = pg.evaluate(
                     "() => (document.body.innerText || '').slice(0, 3000)")
             cod = classificar_login(url, texto, captcha, None)
             if cod:
                 return f"cod:{cod}:{msg}"
-            if "/login" not in _caminho(url).lower():
+            if not no_login:
                 return "ok"
             return f"erro:{msg}" if msg else None
         r = self._esperar(pronto, 45)
@@ -1325,12 +1357,10 @@ class Robo:
                 except Exception:                        # noqa: BLE001
                     pass
             self.vendedores = len(feitos)
-            self.evento("vendedor", fase="grade", n=len(feitos))
             self._fase("grade", feitos=len(feitos),
                        total=len(feitos) + max(0, len(falta) - 1))
             if progresso:
                 progresso()
-        self.vendedores = len(feitos)
         if erros and not ok:
             raise ErroRobo(f"{d:%d/%m/%Y}: nenhum vendedor salvo. Primeiro "
                            f"erro: {erros[0][1]}")
