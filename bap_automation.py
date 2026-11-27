@@ -6743,29 +6743,27 @@ def _com_fuso_manaus(quando=None) -> datetime:
 # de onde vem o "baixado em" de cada farol: (subpasta da raiz, padrao do arquivo
 # que o robo baixou do ERP; vale o de nome mais novo). Os proximos farois
 # (Pedidos, Entregas, Visita) ganham a propria fonte aqui.
+_MOVIMENTOS_WEB = (Path(BKP_BAPTOOLS),
+                   "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
 _FONTE_BAIXADO_WEB = {
     "pl_inadimplencia": (Path(BKP_BAPTOOLS),
                          "Relatorio_Titulos_em_Abertos_*.xlsx"),
     # Pedidos e Entregas nascem dos Movimentos do Protheus (aba ftPedidos)
-    "pv_pedidos": (Path(BKP_BAPTOOLS),
-                   "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
-    "pl_entregas": (Path(BKP_BAPTOOLS),
-                    "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pv_pedidos": _MOVIMENTOS_WEB,
+    "pl_entregas": _MOVIMENTOS_WEB,
     # Visita: o "Atualizar visitas" e manual no PC; vale a ultima gravacao do
     # VISITAS_POR_CLIENTE (o passo final do visitas_maxima)
     "vc_visitas": (Path(SUBPASTA_RELATORIOS) / "Visitas",
                    "VISITAS_POR_CLIENTE.xlsx"),
     # (T-0024) os faroes do lote 2 nascem dos Movimentos do Protheus
-    **{r_: (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
+    **{r_: _MOVIMENTOS_WEB
        for r_ in RIDS_LIVRES_WEB},
     # Metas (T-0022): nasce dos mesmos Movimentos do Protheus (ftPedidos)
-    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "vc_meta": _MOVIMENTOS_WEB,
     # (T-0023 v2) Devolucoes e Garantias nascem dos Movimentos; a NCC, do
     # relatorio de NCC pendentes
-    "pl_devolucoes": (Path(BKP_BAPTOOLS),
-                      "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
-    "pl_garantias": (Path(BKP_BAPTOOLS),
-                     "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pl_devolucoes": _MOVIMENTOS_WEB,
+    "pl_garantias": _MOVIMENTOS_WEB,
     "pl_ncc": (Path(BKP_BAPTOOLS), "Relatorio_NCC_Pendentes*.xlsx")}
 
 
