@@ -56,6 +56,15 @@ VE_FAROL = {
 }
 VE_ABAS = {rid: p - {"diretor"} for rid, p in VE_FAROL.items()}
 
+
+def _matriz_com_analista(com_analista):
+    """T-0036 (P1 = A): o analista vê o farol e as abas onde o gerente vê. Sem a web da T-0036, a matriz
+    do lote 2 fica como era."""
+    if not com_analista:
+        return VE_FAROL, VE_ABAS, PERFIS
+    mais = lambda m: {rid: p | {"analista"} if "gerente" in p else p for rid, p in m.items()}  # noqa: E731
+    return mais(VE_FAROL), mais(VE_ABAS), PERFIS + ("analista",)
+
 # o harness da web real (TestClient + o `requests` de mentira) é o da T-0035
 from test_T0035_robo_web import BASE, TOKEN, _cartoes, _indice, _web, web_mod  # noqa: E402,F401
 
@@ -227,10 +236,12 @@ def test_T0024_pacote_real_do_lote2_pelo_formato2_abre_em_200_e_403_por_perfil(w
     cli, dados, m = _web(web_mod, "real", monkeypatch)
     _web_tem_lote2()
     from app import render, tabelas                                   # noqa: PLC0415
+    # T-0036 (desenho §2, P1 = A): com a web do Analista, o analista vê como o gerente
+    ve_farol, ve_abas, perfis = _matriz_com_analista("analista" in getattr(render, "LEITURA_GERAL", ()))
     # a matriz da web é a escrita aqui (mudar o perfil exige mudar o teste)
     for rid in LOTE2:
-        assert set(render.FAROIS[rid][1]) == VE_FAROL[rid], rid
-        assert set(tabelas.VE_TABELAS[rid]) == VE_ABAS[rid], rid
+        assert set(render.FAROIS[rid][1]) == ve_farol[rid], rid
+        assert set(tabelas.VE_TABELAS[rid]) == ve_abas[rid], rid
     p = copy.deepcopy(pacote_real)
     p["gerado_em"] = _agora()
     log = []
@@ -240,7 +251,7 @@ def test_T0024_pacote_real_do_lote2_pelo_formato2_abre_em_200_e_403_por_perfil(w
     ind = _indice(dados)
     assert set(ind["farois"]) == set(LOTE2)
     idx = m["pacotes"].Indice(dados)
-    clis = {pf: _usuario(cli, pf) for pf in PERFIS}
+    clis = {pf: _usuario(cli, pf) for pf in perfis}
     for rid in LOTE2:
         e = ind["farois"][rid]
         corpo = ba._json_farol_web(ba._cortar_farol_web(rid, p["relatorios"][rid]))
@@ -252,7 +263,7 @@ def test_T0024_pacote_real_do_lote2_pelo_formato2_abre_em_200_e_403_por_perfil(w
         txt = json.dumps(p["relatorios"][rid], ensure_ascii=False)
         for pf, c in clis.items():
             h = c.get(f"/farol/{rid}")
-            esperado = 200 if pf in VE_FAROL[rid] else 403
+            esperado = 200 if pf in ve_farol[rid] else 403
             assert h.status_code == esperado, (rid, pf, h.status_code)
             if esperado == 200:
                 cart = _cartoes(h.text)
@@ -260,5 +271,5 @@ def test_T0024_pacote_real_do_lote2_pelo_formato2_abre_em_200_e_403_por_perfil(w
                 assert all(x.split(" | ")[-1] in txt for x in cart), (rid, pf, "cartão fora do pacote")
             for chave, _tit in abas:
                 r = c.get(f"/farol/{rid}?aba={chave}")
-                esp = 200 if pf in VE_ABAS[rid] else 403
+                esp = 200 if pf in ve_abas[rid] else 403
                 assert r.status_code == esp, (rid, pf, chave, r.status_code)
