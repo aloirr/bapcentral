@@ -69,9 +69,15 @@ def _barras(est) -> dict | None:
     return {"barras": out, "legenda": est.get("legenda") or ""}
 
 
+def legenda_do_cartao(legenda) -> str:
+    """T-0052 (RD-0238): a legenda do cartão só aparece com número próprio; sem número, o rótulo já diz (RD-0063)."""
+    leg = str(legenda or "")
+    return leg if any(ch.isdigit() for ch in leg) else ""
+
+
 def cartao(c: dict) -> dict:
     return {"titulo": str(c.get("titulo", "")).upper(), "valor": c.get("valor", ""),
-            "legenda": c.get("legenda") or "",
+            "legenda": legenda_do_cartao(c.get("legenda")),
             "aneis": [_anel(a) for a in c.get("aneis") or []],
             "faixa": [_faixa(f) for f in (c.get("faixa") or [])[:3]],
             "estados": _barras(c.get("estados")), "ajuda": c.get("ajuda") or ""}
@@ -123,21 +129,11 @@ def abas_no_celular(chaves: list, atual) -> list[int]:
     return [0, 1, pos] if pos > 1 else [0, 1, 2]
 
 
-NA_FAIXA = 3          # os 3 primeiros cartões RRM levam o número à faixa; os outros (o PC manda 10, 10 e 6) mantêm o deles no cartão
-
-
-def faixa_painel(tela: dict | None, tela_f: dict | None) -> list[dict]:
-    """T-0034: os números da faixa do Painel Executivo, prontos do pacote (nada é recalculado). Aba RRM: os 3 cartões de
-    cabeça (os anéis MTD e MÊS ficam só no cartão, RD-0063); aba de painel: os cartões comuns (os ricos ficam no corpo)."""
-    if tela_f:
-        return kpis_da_faixa(tela_f["kpis"])
-    out = []
-    for c in ((tela or {}).get("cartoes") or [])[:NA_FAIXA]:
-        aneis = [a for a in c["aneis"] if a["tem"]]
-        det = c["legenda"] if any(ch.isdigit() for ch in c["legenda"]) else ""     # sem número próprio, o rótulo já diz
-        out.append({"rot": c["titulo"], "valor": c["valor"], "detalhe": det,
-                    "cor": aneis[-1]["tom"] if aneis else ""})
-    return out
+def faixa_painel(tela_f: dict | None) -> list[dict]:
+    """T-0034 / T-0052: os números da faixa do Painel Executivo, prontos do pacote (nada é recalculado). Aba RRM: a faixa
+    fica SEM números (só quando, DU e filtro): todo cartão mostra o seu valor grande, e repeti-lo no topo seria o mesmo
+    número duas vezes na tela (RD-0063). Aba de painel: os cartões comuns (os ricos ficam no corpo)."""
+    return kpis_da_faixa(tela_f["kpis"]) if tela_f else []
 
 
 def localizar_paineis(rel: dict) -> list[dict]:
@@ -192,7 +188,7 @@ def aba_para_tela(aba: dict, uf: str | None = None) -> dict:
         cartoes = ((aba.get("recortes") or {}).get("uf") or {}).get(uf, {}).get("cartoes") or []
         sub = f"{uf} · estado = filial da nota · {sub}" if sub else f"{uf} · estado = filial da nota"
     return {"sub": sub, "uf": uf,
-            "cartoes": [{**cartao(c), "na_faixa": i < NA_FAIXA} for i, c in enumerate(cartoes)],
+            "cartoes": [cartao(c) for c in cartoes],
             "como_ler": como_ler, "avisos": d.get("avisos") or []}
 
 
