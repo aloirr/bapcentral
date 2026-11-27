@@ -3,7 +3,7 @@ import os
 import time
 from pathlib import Path
 
-from conftest import ADMIN, SENHA0, TOKEN, entrar, pacote_ficticio, postar, token_form
+from conftest import ADMIN, SENHA0, TOKEN, entrar, guardado, guardado_txt, pacote_ficticio, postar, token_form
 
 from app import config, pacotes, render
 from app.main import criar_app
@@ -115,7 +115,7 @@ def test_pacote_ok_grava_atomico_e_mantem_7(cli, amb):
 
 def test_pacote_gerado_em_saneado(cli, amb):
     assert postar(cli, pacote_ficticio("2026-11-20T08:30:00-04:00")).status_code == 200
-    assert (amb / "pacotes" / "20261120T083000.json").exists()
+    assert (amb / "pacotes" / "20261120T083000" / "indice.json").exists()
     assert postar(cli, pacote_ficticio("../../etc/passwd")).status_code == 422
     # nome pela hora de Manaus (UTC-4): 23:30-04:00 e 03:30Z do dia seguinte dão o mesmo nome
     assert pacotes.nome_arquivo("2026-11-20T23:30:00-04:00") == "20261120T233000"
@@ -155,7 +155,7 @@ def test_pacote_remove_chaves_internas(cli, amb):
     p = pacote_ficticio()
     p["relatorios"]["vc_painel"]["_champions"] = {"vendedores": ["Pessoa Fictícia"]}
     assert postar(cli, p).status_code == 200
-    assert "_champions" not in (next((amb / "pacotes").glob("*.json"))).read_text()
+    assert "_champions" not in guardado_txt(amb)
 
 
 # ---------------------------------------------------------------- telas
@@ -208,7 +208,7 @@ def test_pacote_guarda_so_o_que_a_tela_le(cli, amb):
     a["diretor"] = {"cliente": "Cliente Fictício 01"}
     a["painel"]["blocos"][0]["dados"]["du"] = [{"titulo": "x"}]
     assert postar(cli, p).status_code == 200
-    txt = next((amb / "pacotes").glob("*.json")).read_text()
+    txt = guardado_txt(amb)
     assert "Cliente Fictício 01" not in txt and '"du"' not in txt
 
 
@@ -400,8 +400,7 @@ def test_T0014_pacote_com_recortes_aceito_e_guardado(cli, amb):
     from conftest import postar
     assert postar(cli, _pacote_com_recortes()).status_code == 200
     import json
-    arq = sorted((amb / "pacotes").glob("*.json"))[-1]
-    g = json.loads(arq.read_text(encoding="utf-8"))
+    g = guardado(amb)
     assert set(g["relatorios"]["vc_painel"]["abas"]["resultado"]["recortes"]["uf"]) == {"PA", "MA"}
 
 

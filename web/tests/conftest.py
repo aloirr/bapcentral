@@ -107,3 +107,43 @@ def postar(cli, corpo=None, token=TOKEN, **kw):
     h = {"Authorization": f"Bearer {token}"} if token else {}
     return cli.post("/api/pacote", json=corpo if corpo is not None else pacote_ficticio(),
                     headers=h, **kw)
+
+
+def guardado(amb) -> dict:
+    """T-0035: o que a web guardou do lote vigente, remontado: {"gerado_em", "recebido_em", "relatorios": {rid: farol}}."""
+    import gzip
+    import json
+    lote = sorted(d for d in (amb / "pacotes").iterdir() if (d / "indice.json").is_file())[-1]
+    ind = json.loads((lote / "indice.json").read_text(encoding="utf-8"))
+    rels = {}
+    for rid, e in ind["farois"].items():
+        with gzip.open(lote / e["arquivo"], "rb") as f:
+            rels[rid] = json.loads(f.read().decode("utf-8"))
+    return {"gerado_em": ind["gerado_em"], "recebido_em": ind["recebido_em"], "relatorios": rels, "indice": ind}
+
+
+def guardado_txt(amb) -> str:
+    import json
+    return json.dumps(guardado(amb)["relatorios"], ensure_ascii=False)
+
+
+def por_farol(cli, pacote, omitir=(), manter=(), gz=True, token=TOKEN):
+    """T-0035: envia o pacote no formato 2 (um POST por farol e o `fechar`). Devolve (resposta do fechar, lote)."""
+    import gzip
+    import hashlib
+    from app import pacotes
+    lote = pacotes.nome_arquivo(pacote["gerado_em"])
+    h = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    shas = {}
+    for rid, farol in pacote["relatorios"].items():
+        if rid in omitir:
+            continue
+        corpo = pacotes.json_compacto(farol)
+        sha = hashlib.sha256(corpo).hexdigest()
+        hh = {**h, "X-BAP-SHA256": sha, **({"Content-Encoding": "gzip"} if gz else {})}
+        r = cli.post(f"/api/pacote/{lote}/farol/{rid}", content=gzip.compress(corpo) if gz else corpo, headers=hh)
+        assert r.status_code == 200, r.text
+        shas[rid] = sha
+    topo = {k: pacote[k] for k in ("versao_contrato", "gerado_em", "ano", "mes")}
+    r = cli.post(f"/api/pacote/{lote}/fechar", json={**topo, "farois": shas, "manter": list(manter)}, headers=h)
+    return r, lote

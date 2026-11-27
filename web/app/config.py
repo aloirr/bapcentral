@@ -22,6 +22,8 @@ class Config:
     admin_senha: str
     pacote_max: int
     cookie_seguro: bool
+    farol_max: int = 10 * 1024 * 1024      # T-0035: JSON do farol sem anexos (BAP_WEB_FAROL_MAX_MB)
+    cache_mb: float = 96.0                 # T-0035: orçamento estimado do cache de faróis (BAP_WEB_CACHE_MB)
 
 
 def carregar() -> Config:
@@ -39,6 +41,11 @@ def carregar() -> Config:
         mb = float(os.environ.get("BAP_WEB_PACOTE_MAX_MB", str(PACOTE_MAX_MB_PADRAO)))
     except ValueError as e:
         raise ConfigErro("BAP_WEB_PACOTE_MAX_MB inválido.") from e
+    try:
+        farol_mb = float(os.environ.get("BAP_WEB_FAROL_MAX_MB", "10"))
+        cache_mb = float(os.environ.get("BAP_WEB_CACHE_MB", "96"))
+    except ValueError as e:
+        raise ConfigErro("BAP_WEB_FAROL_MAX_MB ou BAP_WEB_CACHE_MB inválido.") from e
     return Config(
         dados=Path(dados),
         segredo=segredo,
@@ -47,4 +54,6 @@ def carregar() -> Config:
         admin_senha=os.environ.get("BAP_ADMIN_SENHA_INICIAL", ""),
         pacote_max=int(mb * 1024 * 1024),
         cookie_seguro=os.environ.get("BAP_WEB_COOKIE_SEGURO", "1") != "0",
+        farol_max=int(farol_mb * 1024 * 1024),
+        cache_mb=cache_mb,
     )

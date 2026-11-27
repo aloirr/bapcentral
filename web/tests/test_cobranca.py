@@ -1,5 +1,6 @@
 """T-0017 entrega 2: Títulos, Por cliente e "Cobrar no WhatsApp" (contrato §10.6; RN-POS-001 a 004).
 Fixture fictícia: nada de cliente, CNPJ ou telefone real."""
+from conftest import guardado
 import json
 from datetime import datetime, timedelta
 
@@ -282,7 +283,7 @@ def test_tabela_na_tela_cliente_nome_e_valor_primeiro_sem_mudar_o_pacote(admin, 
     cab = _tela(admin, "cliente").text
     cab = cab[cab.index("<thead>"):cab.index("</thead>")]
     assert cab.index("CLIENTE") < cab.index("NOME") < cab.index("EM ATRASO") < cab.index("SITUAÇÃO")
-    g = json.loads(sorted((amb / "pacotes").glob("*.json"))[-1].read_text(encoding="utf-8"))
+    g = guardado(amb)
     assert [c["nome"] for c in g["relatorios"]["pl_inadimplencia"]["tabelas"][0]["colunas"]][:3] == \
         ["SITUAÇÃO", "FAIXA", "FILIAL"]                              # o pacote segue a ordem do PC
 
@@ -558,7 +559,7 @@ def test_registro_de_acesso_sem_cliente_e_sem_telefone(admin):
 def test_pacote_guardado_e_so_os_7_ultimos(cli, amb):
     for i in range(9):
         assert postar(cli, pacote_cobranca(gerado_em=f"2026-11-{i + 1:02d}T08:30:00-04:00")).status_code == 200
-    assert len(list((amb / "pacotes").glob("*.json"))) == 7
+    assert len(list((amb / "pacotes").glob("*/indice.json"))) == 7
 
 
 def test_colunas_ocultas_vem_no_pacote_mas_nao_na_tela_e_marca_diferente_do_pc_recusa(admin, cli):
