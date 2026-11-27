@@ -92,7 +92,7 @@ def test_perfis_do_painel_e_do_farol_de_metas(com_painel):
         c = _cli_de(com_painel, perfil)
         assert c.get("/painel").status_code == painel, perfil
         assert c.get("/farol/vc_meta").status_code == meta, perfil
-    assert [r for r, _ in render.farois_do_perfil("vendas")] == ["vc_visitas", "vc_meta"]
+    assert [r for r, _ in render.farois_do_perfil("vendas")] == ["vc_visitas", "vc_base", "vc_planner", "pl_giro", "vc_meta"]   # T-0024: + faróis do lote 2
 
 
 def test_farol_de_metas_resumo_com_estado(com_painel):

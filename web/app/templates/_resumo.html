@@ -1,6 +1,19 @@
 {# Cartões, resumo e gráficos de um farol ou de uma aba do Painel Executivo: `tela` = render.farol_para_tela #}
 {% from "_estados.html" import cartoes %}
 {% from "_grade.html" import grade with context %}
+{% macro barras_cols(b) %}
+    {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
+    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}{{ ' gb-vert' if b.vert }}{{ ' gb-rotv' if b.rotv }}">
+      {% for c in b.cols %}
+      <div class="gb-col">
+        <div class="gb-area">{% for x in c.barras %}<div class="gb-b" title="{{ x.titulo }}"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
+        {% set pr = 5 if (b.cols|length) > 14 else (2 if (b.cols|length) > 9 else 1) %}
+        <div class="gb-rot">{{ c.rot if ((not b.denso and pr == 1) or loop.index0 % pr == 0 or loop.last) else '' }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if b.meta %}<p class="como">Meta: {{ b.meta.txt }}</p>{% endif %}
+{% endmacro %}
 {# T-0034: só o BC3. Os cartões comuns vão para a faixa; no corpo ficam os com barras por estado ou linhas de detalhe #}
 {% set ricos = kpis_do_corpo(tela.kpis) %}{% if ricos %}{{ cartoes(ricos, tela.faixa) }}{% endif %}
 {% if tela.insights %}
@@ -9,20 +22,18 @@
 </section>
 {% endif %}
 <section class="graficos">
-{% for b in tela.blocos if b.tipo in ("barras", "hbarras", "tabela", "placar") %}
-<article class="graf{{ ' graf-tab' if b.tipo == 'tabela' }}{{ ' graf-placar' if b.tipo == 'placar' }}">
+{% for b in tela.blocos if b.tipo in ("barras", "hbarras", "tabela", "placar", "periodos") %}
+{% set bi = loop.index %}
+<article class="graf{{ ' graf-tab' if b.tipo == 'tabela' }}{{ ' graf-placar' if b.tipo == 'placar' }}{{ ' graf-per' if b.tipo == 'periodos' }}">
   {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
-  {% if b.tipo == "barras" %}
-    {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
-    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}{{ ' gb-vert' if b.vert }}{{ ' gb-rotv' if b.rotv }}">
-      {% for c in b.cols %}
-      <div class="gb-col">
-        <div class="gb-area">{% for x in c.barras %}<div class="gb-b" title="{{ x.titulo }}"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
-        <div class="gb-rot">{{ c.rot if (not b.denso or loop.index0 % 2 == 0) else '' }}</div>
-      </div>
-      {% endfor %}
+  {% if b.tipo == "periodos" %}
+    <div class="per">
+      {% for v in b.vistas %}<input type="radio" class="per-r per-r{{ loop.index }}" name="per-{{ bi }}" id="per-{{ bi }}-{{ loop.index }}" aria-label="{{ v.nome }}"{{ ' checked' if loop.first }}>{% endfor %}
+      <div class="per-bt" role="group" aria-label="Período">{% for v in b.vistas %}<label for="per-{{ bi }}-{{ loop.index }}" class="per-l per-l{{ loop.index }}">{{ v.nome }}</label>{% endfor %}</div>
+      {% for v in b.vistas %}<div class="per-p per-p{{ loop.index }}">{{ barras_cols(v.b) }}</div>{% endfor %}
     </div>
-    {% if b.meta %}<p class="como">Meta: {{ b.meta.txt }}</p>{% endif %}
+  {% elif b.tipo == "barras" %}
+    {{ barras_cols(b) }}
   {% elif b.tipo == "hbarras" %}
     <div class="hb">
       {% for l in b.linhas %}

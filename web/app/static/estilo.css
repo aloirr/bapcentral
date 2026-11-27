@@ -614,3 +614,43 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
   .bc3-faixa.simples .bc3-ks{min-height:0}
   .d-pc{display:none}.d-cel{display:inline}
 }
+/* T-0024: filtro com opção longa (SEMANA do Planner) não passa da tela */
+.filtros-tab select,.filtro select,form select{max-width:100%}
+.filtros-tab label{min-width:0;max-width:100%}.filtros-tab select{width:100%;max-width:100%;box-sizing:border-box}
+
+/* T-0024 (parecer de UX): Resumo dos faróis do lote 2 — um cartão por métrica com Dia · Semana · Mês dentro (sem JS), abas sem quebra de linha, chave da tabela com popup */
+.bc3-abas a{white-space:nowrap}
+.per{display:flex;flex-direction:column;gap:6px}
+.per-r{position:absolute;opacity:0;pointer-events:none}
+.per-bt{display:inline-flex;align-self:flex-start;background:var(--grade);border-radius:8px;padding:2px;order:-1}
+.per-l{padding:3px 11px;border-radius:6px;font-size:12px;font-weight:600;color:var(--suave);cursor:pointer}
+.per-p{display:none}
+.per-r1:checked~.per-p1,.per-r2:checked~.per-p2,.per-r3:checked~.per-p3{display:block}
+.per-r1:checked~.per-bt .per-l1,.per-r2:checked~.per-bt .per-l2,.per-r3:checked~.per-bt .per-l3{background:var(--branco);color:var(--texto);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.per-r:focus-visible~.per-bt{outline:2px solid var(--verde-escuro);outline-offset:2px}
+@media(min-width:701px){
+  .bc3 .graficos{grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin:.5rem 0}
+  .bc3 .graficos .graf{max-height:calc(100vh - 345px);min-height:280px;overflow:auto;padding:10px 12px}
+  .bc3 .graf-per .gb{height:150px}
+  .bc3 .graf .hb{gap:.2rem}.bc3 .graf .hb-l{grid-template-columns:minmax(60px,38%) 1fr auto;font-size:.72rem}
+  .bc3 .graf .hb-rot{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+.pop-chave{cursor:default}
+@media(min-width:701px){.bc3-ks:has(>.bc3-k:nth-child(7)) .bc3-k em{display:none}.bc3-ks:has(>.bc3-k:nth-child(7)){gap:6px 26px}}
+@media(max-width:700px){.bc3 .filtros.recortes{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.bc3 .filtros.recortes::-webkit-scrollbar{display:none}.bc3 .filtros.recortes>*{flex:none;white-space:nowrap}}
+/* T-0024 (reteste de UX, N1): os gráficos de colunas cabem no cartão, sem rolagem lateral e sem esconder os dias recentes */
+@media(min-width:701px){
+  .bc3 .graf .gb,.bc3 .graf .gb-largo,.bc3 .graf .gb-denso{grid-auto-columns:minmax(0,1fr);gap:2px;overflow:hidden;padding-right:0}
+  .bc3 .graf .gb-col,.bc3 .graf .gb-b{min-width:0}
+  .bc3 .graf .gb-rot{overflow:hidden;font-size:.62rem}
+}
+/* a linha TOTAL fica por cima da 1ª coluna fixa (T-0024, reteste de UX) */
+.rolagem-dados .tab-dados tfoot td{z-index:4;background:var(--fundo)}
+.rolagem-dados .tab-dados tfoot td:first-child{z-index:5;background:var(--fundo)}
+.rolagem-dados .tab-dados tbody td:first-child{z-index:1}
+@media(min-width:701px){
+  .bc3 .graf .gb{padding-right:14px}
+  .bc3 .graf .gb-rot{overflow:visible;text-overflow:clip;text-align:left;position:relative;z-index:1}
+  .bc3 .graf .hb-l{grid-template-columns:minmax(60px,46%) 1fr auto}
+}
+.rolagem-dados.sem-rolagem .tab-dados tfoot td:first-child{position:sticky;bottom:0;left:auto}

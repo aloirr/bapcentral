@@ -9,11 +9,11 @@
 {% set ks_todos = (kpis if (kpis is defined and kpis) else (tela.kpis if tela else [])) or [] %}
 {# Resumo: o cartão com barras por estado ou linhas fica no corpo e a faixa leva só os números. Aba de tabela: a faixa leva o cartão
    inteiro, com `linhas` ou não (o Visita manda os 10 com `linhas`; sem isso a faixa ficava vazia no padrão) #}
-{% set ks = ks_todos if e_tab else kpis_da_faixa(ks_todos) %}
+{% set ks = ks_todos if (e_tab and kpis_da_aba is defined and kpis_da_aba) else kpis_da_faixa(ks_todos) %}
 {% set sub_q = ('&sub=' ~ sub) if (sub is defined and sub is not none) else '' %}
 {% set base_uf = '/farol/' ~ rid ~ ('?aba=' ~ aba if aba != 'resumo' else '?') %}
 {# RD-0023/RD-0039: sem seletor de estado, o aviso é um só, na própria faixa (não em cada aba) #}
-{% set sem_uf = (not lista_uf) and (rid == 'vc_visitas' or (tela and tela.avisos_info)) %}
+{% set sem_uf = (not lista_uf) and (rid == 'vc_visitas' or (tela and tela.avisos_info and rid not in livres)) %}
 {% set dicas = {"pv_pedidos": "Buscar pedido ou cliente", "pl_entregas": "Buscar NF ou cliente", "pl_inadimplencia": "Buscar cliente ou NF", "vc_visitas": "Buscar vendedor ou cliente", "vc_meta": "Buscar nome"} %}
 {% from "_faixa.html" import quando, selo_velho, filtro_uf, filtro_uf_off, numeros %}
 <header class="bc3-faixa">
@@ -28,7 +28,7 @@
   {{ numeros(ks) }}
   {% if not ks and aviso_kpis is defined and aviso_kpis %}<p class="bc3-aviso-k">{{ aviso_kpis }}</p>{% endif %}
 </header>
-<div class="bc3-sub">
+{% if abas or e_tab or (parcial is defined and parcial) %}<div class="bc3-sub">
   {% if abas %}
   {# celular: 3 abas (as duas primeiras e a aberta) + "Mais ▾" com as outras; no PC, todas na linha #}
   {% set nomes_abas = abas|map('first')|list %}
@@ -42,7 +42,7 @@
     <a class="bc3-chk" title="Pedidos internos"
        href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}{{ '' if fb.mostrar else '&fora=1' }}"><i aria-hidden="true">{{ '' if fb.mostrar else '✓' }}</i>Ignorar fora da base ({{ fb.qtd }})<span class="sr">{{ ': ligado' if not fb.mostrar else ': desligado' }}</span></a>
     {% endif %}
-    {% if e_tab %}
+    {% if e_tab and not (tabela.dica_busca is defined and tabela.dica_busca == "") %}
     <form method="get" action="/farol/{{ rid }}" class="bc3-busca{{ ' tem' if tabela.busca }}" role="search">
       <input type="hidden" name="aba" value="{{ aba }}">
       {% if sub is defined and sub is not none %}<input type="hidden" name="sub" value="{{ sub }}">{% endif %}
@@ -50,7 +50,7 @@
       {% if tabela.rec is not none %}<input type="hidden" name="rec" value="{{ tabela.rec }}">{% endif %}
       {% for f in tabela.filtros %}{% for v in f.sel %}<input type="hidden" name="{{ f.chave }}" value="{{ v }}">{% endfor %}{% endfor %}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ dicas.get(rid, 'Buscar') }}" maxlength="60" autocomplete="off" aria-label="Buscar">
+      <input type="search" name="busca" value="{{ tabela.busca or '' }}" placeholder="{{ tabela.dica_busca if (tabela.dica_busca is defined and tabela.dica_busca) else dicas.get(rid, 'Buscar') }}" maxlength="60" autocomplete="off" aria-label="Buscar">
       {% if tabela.busca %}<a href="/farol/{{ rid }}?aba={{ aba }}{{ sub_q }}{{ ('&uf=' ~ uf_at) if uf_at }}" title="Limpar busca" aria-label="Limpar busca">×</a>{% endif %}
     </form>
     {% endif %}
@@ -70,4 +70,4 @@
     </details>
     {% endif %}
   </div>
-</div>
+</div>{% endif %}
