@@ -191,6 +191,9 @@ MAX_RECORTES = 20
 MAX_OPCOES = 300
 JUNTA_MAX = 200
 # T-0033 (RD-0032): a tela rola por dentro da tabela, sem páginas de 100; a página traz até 500 linhas e o navegador pede mais 500 ao rolar (contrato visual §7.2)
+# textos do contrato do relatório (§10.7.6), mantidos para o contrato; o layout BC3 diz o mesmo na faixa ("sem o filtro", "BAP inteira")
+AVISO_SEM_ESTADO = "Sem filtro por estado: esta tabela mostra a BAP inteira."
+AVISO_CARTOES = "Cartões sem filtro. Com filtro, veja as linhas na tabela."
 PAGINA_TAM = 500
 RE_UF = re.compile(r"^[A-Z]{2}$")
 RE_COR = re.compile(r"^#[0-9A-Fa-f]{6}$")

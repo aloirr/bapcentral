@@ -467,6 +467,7 @@ body.bc3{margin:0;background:var(--fundo);color:var(--texto);font-family:var(--f
 .bc3 .rolagem-dados{background:var(--branco);border:1px solid var(--borda);border-radius:10px;box-shadow:none;max-height:75vh;overflow:auto}
 .bc3 .tab-dados th{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--suave);background:var(--branco);border-bottom:1px solid var(--borda);position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--borda)}
 .bc3 .tab-dados td{border-bottom:1px solid var(--c-f0f2f0)}
+.bc3-selo,.selo-velho{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--atencao-texto);background:var(--atencao-claro);border:1px solid var(--atencao);border-radius:999px;padding:1px 8px;margin-bottom:3px}
 .bc3 .filtros-det,.bc3 .recortes{margin:0 0 8px}
 .bc3 .filtros-det>summary{list-style:none}.bc3 .filtros-det>summary::-webkit-details-marker{display:none}.bc3 .filtros-det>summary::before{content:none}.bc3 .filtros-det>summary::after{content:"▾";margin-left:6px;font-size:11px}.bc3 .filtros-det[open]>summary::after{content:"▴"}
 .bc3-mais[hidden]{display:none!important}

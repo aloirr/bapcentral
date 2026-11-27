@@ -1,4 +1,5 @@
 """T-0017: faróis na web (só leitura). Fixture sem dado pessoal."""
+from conftest import guardado
 import json
 
 from conftest import entrar, postar, token_form
@@ -21,7 +22,7 @@ def _usuario(admin, login, perfil):
 
 def test_farol_aceito_e_guardado_sem_abas(cli, amb):
     assert postar(cli, pacote_farol()).status_code == 200
-    g = json.loads(sorted((amb / "pacotes").glob("*.json"))[-1].read_text(encoding="utf-8"))
+    g = guardado(amb)
     r = g["relatorios"]["pl_inadimplencia"]
     assert r["forma"] == "farol" and r["recortes"]["AM"]["kpis"] and "abas" not in r
 

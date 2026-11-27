@@ -49,7 +49,7 @@
   {% endif %}
 </header>
 {% if usuario %}
-  {% if gerado_em %}<div class="aviso info">Dados de {{ gerado_em|manaus }} (horário de Manaus)</div>{{ self.faixa() }}
+  {% if gerado_em %}<div class="aviso info">Dados de {{ gerado_em|manaus }} (horário de Manaus){% if desatualizado %} <span class="selo-velho">Desatualizado</span>{% endif %}</div>{{ self.faixa() }}
   {% else %}<div class="aviso atencao">Ainda não chegou nenhum pacote do PC.</div>{% endif %}
 {% endif %}
 <main{% block mainclass %}{% endblock %}>{{ self.corpo() }}</main>

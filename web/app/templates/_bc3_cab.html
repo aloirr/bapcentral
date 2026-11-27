@@ -18,6 +18,7 @@
     <h1>{{ farol_nome }}</h1>
     {% if fila is defined and pc_ate %}<span class="bc3-quando" title="Situação do PC; o que você marcar chega ao PC às 08h e às 14h">Cobranças do PC até {{ pc_ate|hhmm }}</span>
     {% elif gerado_em %}<span class="bc3-quando" title="Dados de {{ gerado_em|manaus }}, horário de Manaus">Dados de {{ gerado_em|manaus }}{% if tela and tela.baixado_em and not datas_proximas(tela.baixado_em, gerado_em) %} · Baixado do ERP em {{ tela.baixado_em|manaus }}{% endif %}{% if sem_uf %} · <span class="bc3-sem-uf">Sem filtro por estado</span>{% endif %}</span>{% endif %}
+    {% if desatualizado %}<span class="bc3-selo" title="Este farol não foi atualizado na última rodada do PC" aria-label="Este farol não foi atualizado na última rodada do PC">Desatualizado</span>{% endif %}
     {% if lista_uf %}
     <nav class="bc3-uf" aria-label="Filtro por estado">
       <a href="{{ base_uf }}{{ sub_q }}" class="{{ 'on' if not uf_at }}">BAP</a>
