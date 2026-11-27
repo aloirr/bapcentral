@@ -20,6 +20,7 @@ sys.path.insert(0, RAIZ)
 # RELATORIOS/painel_diretor_hist.json; na suíte, o histórico do repositório
 # é lido de uma cópia numa pasta temporária, e a gravação vai para a cópia.
 # Outra raiz (pasta fictícia de um teste) segue o caminho normal.
+import contextlib  # noqa: E402
 import shutil  # noqa: E402
 
 import pytest  # noqa: E402
@@ -46,19 +47,36 @@ def _historico_do_diretor_fora_do_repositorio(tmp_path_factory):
 
 
 # ---------------------------------------------------------------------------
-# RD-0257 (T-0036): web/app (pacotes e tabelas) deste checkout para os testes
-# que conferem o pacote do robô na validação da web; sai do sys.modules no fim.
-@pytest.fixture()
-def web_app():
-    import types                                        # noqa: PLC0415
+# A web/app deste checkout para os testes da raiz: entra no sys.path e sai do
+# sys.path e do sys.modules no fim (o padrão do T-0017), para não vazar o
+# pacote `app` da web.
+@contextlib.contextmanager
+def _web_do_checkout(*modulos):
+    import importlib                                    # noqa: PLC0415
     web = str(Path(RAIZ) / "web")
     antes = set(sys.modules)
     sys.path.insert(0, web)
     try:
-        from app import pacotes, tabelas                # noqa: PLC0415
-        yield types.SimpleNamespace(pacotes=pacotes, tabelas=tabelas)
+        yield [importlib.import_module(f"app.{m}") for m in modulos]
     finally:
         sys.path.remove(web)
         for k in set(sys.modules) - antes:
             if k == "app" or k.startswith("app."):
                 del sys.modules[k]
+
+
+# RD-0257 (T-0036): web/app (pacotes e tabelas) para os testes que conferem o
+# pacote do robô na validação da web.
+@pytest.fixture()
+def web_app():
+    import types                                        # noqa: PLC0415
+    with _web_do_checkout("pacotes", "tabelas") as (pacotes, tabelas):
+        yield types.SimpleNamespace(pacotes=pacotes, tabelas=tabelas)
+
+
+# T-0045: a `web/app/visitas` de verdade para os testes da raiz que juntam a
+# web com o robô do PC ou com o cron.
+@pytest.fixture(scope="module")
+def web_visitas():
+    with _web_do_checkout("visitas") as (visitas,):
+        yield visitas
