@@ -113,6 +113,12 @@ LIMPAR_JS = r"""
 })()
 """
 
+CAPTCHA_JS = r"""
+() => !!document.querySelector(
+  'iframe[src*="captcha" i], iframe[title*="captcha" i], '
+  + '.g-recaptcha, .h-captcha, [class*="captcha" i], [id*="captcha" i]')
+"""
+
 CARTOES_JS = r"""
 () => {
   const out = [];
@@ -281,6 +287,42 @@ def arquivo_analitico(raiz, nome: str, dia: date, quando: datetime,
     return arq
 
 
+def gravar_excel_importado(raiz, pasta: str, nome: str, conteudo: bytes):
+    """Grava um Excel que veio da nuvem no ANALITICO (RN-VIS-003, contrato
+    §4.4): `.tmp` + `os.replace`; mesmo sha256 que ja existe (com ou sem
+    sufixo -2, -3...) = pula; outro conteudo no mesmo nome = sufixo novo
+    (`arquivo_analitico`). NUNCA sobrescreve nem apaga. Devolve
+    (caminho, "novo" | "igual") ou levanta ValueError se pasta/nome nao
+    casam (o chamador ja conferiu; e a ultima trava)."""
+    import hashlib                                       # noqa: PLC0415
+    m = vn._RX_ARQ_ANALITICO.match(nome or "")
+    if (not m or nome_limpo(pasta) != pasta or m.group("nome") != pasta
+            or any(c in nome for c in "/\\") or ".." in nome):
+        raise ValueError("nome")
+    dia = date(int(m.group("a")), int(m.group("m")), int(m.group("d")))
+    quando = datetime(dia.year, dia.month, dia.day, int(m.group("h")),
+                      int(m.group("mi")))
+    ext = Path(nome).suffix.lower()
+    dest_dir = vn.pasta_analitico(raiz) / pasta
+    sha = hashlib.sha256(conteudo).hexdigest()
+    base = f"VISITA-{pasta}-{dia:%d-%m-%Y}-{quando:%H-%M}"
+    if dest_dir.is_dir():
+        for f in sorted(dest_dir.iterdir()):
+            if (f.suffix.lower() == ext and re.fullmatch(
+                    re.escape(base) + r"(-\d+)?", f.stem)):
+                try:
+                    if hashlib.sha256(f.read_bytes()).hexdigest() == sha:
+                        return f, "igual"
+                except OSError:
+                    continue
+    destino = arquivo_analitico(raiz, pasta, dia, quando, ext)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    tmp = destino.with_name(destino.name + ".tmp")
+    tmp.write_bytes(conteudo)
+    os.replace(tmp, destino)
+    return destino, "novo"
+
+
 def nome_do_vendedor(texto: str, conhecidos) -> str:
     """O nome do vendedor na janela do olho: o nome da equipe da Maxima que
     aparece no texto (o mais comprido); senao, a primeira linha."""
@@ -296,11 +338,150 @@ def nome_do_vendedor(texto: str, conhecidos) -> str:
 
 
 class ErroRobo(Exception):
-    """Erro com recado para o usuario."""
+    """Erro com recado para o usuario. `codigo` (um dos do contrato, §5) e
+    `fase` (§3.3) so existem quando quem levantou sabe; o PC ignora."""
+
+    def __init__(self, msg="", codigo: str | None = None,
+                 fase: str | None = None):
+        super().__init__(msg)
+        self.codigo = codigo
+        self.fase = fase
 
 
 class Cancelado(Exception):
     pass
+
+
+# =========================================================================
+# T-0045: codigos e fases fixos (contrato visitas-nuvem v1, §3.3 e §5). A
+# nuvem nao tira print: manda so o codigo e a fase.
+# =========================================================================
+FASES = ("login", "inicio", "maxgestao", "menu", "filtros", "grade",
+         "espelho", "filtro", "salvar", "envio")
+CODIGOS_LOGIN = ("MAXIMA_SENHA", "MAXIMA_CONFIRMACAO", "MAXIMA_CAPTCHA",
+                 "MAXIMA_BLOQUEIO")
+FECHADOS_PC_DIAS = 40
+AVISO_SITE_BAIXANDO = ("O site está baixando agora; baixar aqui também pode "
+                       "derrubar a sessão da Máxima. Continuar?")
+
+_RX_URL_VERIFICACAO = re.compile(
+    r"verific|confirm|mfa|2fa|otp|autentic|dispositivo|device|termo|"
+    r"redefin|trocar-?senha|alterar-?senha", re.I)
+_RX_BLOQUEIO = re.compile(
+    r"conta bloquead|usuario bloquead|acesso (foi )?(negado|bloquead)|"
+    r"bloquead[ao] (por|temporari)|403 forbidden|forbidden", re.I)
+_RX_CONFIRMACAO = re.compile(
+    r"codigo (de )?(verificacao|seguranca|confirmacao|acesso|enviado)|"
+    r"(enviamos|enviado|informe|digite).{0,40}codigo|\bsms\b|"
+    r"novo dispositivo|dispositivo (nao )?(reconhecid|confiavel)|"
+    r"confirm(e|ar|acao) (o |seu |sua )?(dispositivo|acesso|identidade|"
+    r"e-?mail)|autenticacao (em|de) (dois|2)|aceit(e|ar) (o |os )?termo|"
+    r"termos? (de uso|e condicoes)|trocar? (a |sua )?senha|"
+    r"(altere|redefina|crie) (a |sua |uma nova )?senha|senha (expirou|"
+    r"expirada)|primeiro acesso", re.I)
+_RX_CREDENCIAL = re.compile(
+    r"senha|usuario|credencia|invalid|incorret|inexistente|nao (foi )?"
+    r"(encontrad|autorizad)|erro ao (entrar|autentic)|login", re.I)
+
+
+def _sem_acento_min(txt) -> str:
+    return vn._sem_acento(str(txt or "")).lower()
+
+
+def classificar_login(url, texto, tem_captcha, http_status) -> str | None:
+    """Depois do "Entrar" (contrato §5.1). Funcao pura. Devolve o codigo da
+    Maxima que pede parada ou None (saiu do /login, segue). `texto` = a
+    mensagem de erro da tela (ou o texto da pagina de verificacao).
+    Nunca tenta resolver captcha nem repete o login."""
+    if http_status == 403:
+        return "MAXIMA_BLOQUEIO"
+    url = str(url or "")
+    no_login = "/login" in url.lower()
+    if not (no_login or _RX_URL_VERIFICACAO.search(url)):
+        return None
+    if tem_captcha:
+        return "MAXIMA_CAPTCHA"
+    t = _sem_acento_min(texto)
+    if _RX_BLOQUEIO.search(t):
+        return "MAXIMA_BLOQUEIO"
+    if _RX_CONFIRMACAO.search(t):
+        return "MAXIMA_CONFIRMACAO"
+    if no_login and t.strip() and _RX_CREDENCIAL.search(t):
+        return "MAXIMA_SENHA"
+    return None
+
+
+_RX_NAVEGADOR_CAIU = re.compile(
+    r"target (page, context or browser has been )?closed|browser has been "
+    r"closed|browser (has )?crash|page crashed|out of memory|"
+    r"cannot allocate memory|connection closed", re.I)
+
+
+def codigo_da_excecao(exc, fase: str | None = None):
+    """(codigo, fase) do contrato §5 para uma excecao do Robo. Funcao pura.
+    Nunca olha a mensagem da Maxima para o codigo, so a classe e as marcas
+    do proprio navegador."""
+    if isinstance(exc, ErroRobo):
+        if exc.codigo:
+            return exc.codigo, exc.fase or fase
+        return "TELA_MUDOU", exc.fase or fase
+    nome = type(exc).__name__
+    if fase == "navegador" or _RX_NAVEGADOR_CAIU.search(str(exc) or ""):
+        return "NAVEGADOR_FALHOU", fase
+    if nome == "TimeoutError" and fase == "login":
+        return "MAXIMA_FORA", fase
+    if nome == "TimeoutError":
+        return "TELA_MUDOU", fase
+    return "ERRO_INTERNO", fase
+
+
+def fechados_pc(indice: dict, hoje: date, dias: int = FECHADOS_PC_DIAS
+                ) -> dict:
+    """{AAAAMMDD: iso com -04:00} dos dias dos ultimos `dias` dias que o
+    `_baixados.json` do PC conhece (contrato §4.3). Funcao pura. Chave de
+    mes (AAAAMM) e data torta ficam fora. [SUPOSICAO] o relogio do PC e o de
+    Manaus."""
+    saida = {}
+    corte = hoje - timedelta(days=dias)
+    for chave, v in (indice or {}).items():
+        if not re.fullmatch(r"\d{8}", str(chave)):
+            continue
+        try:
+            dia = datetime.strptime(chave, "%Y%m%d").date()
+            quando = datetime.fromisoformat(str(v))
+        except ValueError:
+            continue
+        if corte <= dia <= hoje:
+            saida[chave] = quando.replace(tzinfo=None).isoformat(
+                timespec="seconds") + "-04:00"
+    return saida
+
+
+def aviso_site_baixando(saude) -> str | None:
+    """O aviso do botao do PC (contrato §4.5) quando o /saude diz que o site
+    esta com a rodada ativa. Funcao pura."""
+    try:
+        if (saude or {}).get("visitas", {}).get("rodada_ativa"):
+            return AVISO_SITE_BAIXANDO
+    except AttributeError:
+        pass
+    return None
+
+
+def consultar_saude(base=None, sessao=None, tempo=5):
+    """GET <site>/saude (sem login). None se nao der (sem URL, rede, 404):
+    o botao do PC segue sem aviso. Nunca levanta."""
+    try:
+        if not base:
+            import bap_automation as ba                   # noqa: PLC0415
+            base = ba._base_web(ba._segredo_web("BAP_WEB_URL", "url"))
+        if not base:
+            return None
+        sessao = sessao or __import__("requests")
+        r = sessao.get(f"{base}/saude", timeout=tempo)
+        return r.json() if r.status_code == 200 else None
+    except Exception:                                    # noqa: BLE001
+        return None
 
 
 # =========================================================================
@@ -395,7 +576,26 @@ def instalar_playwright(log) -> bool:
     return ok
 
 
-def _abrir_navegador(p, visivel, log):
+ARGS_NUVEM = ["--disable-dev-shm-usage"]
+
+
+def _abrir_navegador(p, visivel, log, canal: str | None = None):
+    """Sem `canal`: Edge, Chrome e o Chromium do Playwright (o PC, como
+    sempre). Com `canal` (T-0045): so ele; "chromium" = o Chromium da imagem
+    da nuvem (sem instalar nada, com --disable-dev-shm-usage)."""
+    if canal:
+        kw = {"headless": not visivel}
+        if canal.lower() == "chromium":
+            kw["args"] = list(ARGS_NUVEM)
+        else:
+            kw["channel"] = canal
+        try:
+            nav = p.chromium.launch(**kw)
+        except Exception as e:                           # noqa: BLE001
+            raise ErroRobo("Não consegui abrir o navegador.",
+                           "NAVEGADOR_FALHOU") from e
+        log(f"Navegador: {canal}")
+        return nav
     erros = []
     for canal in ("msedge", "chrome", None):
         try:
@@ -419,16 +619,67 @@ def _abrir_navegador(p, visivel, log):
 # =========================================================================
 class Robo:
     def __init__(self, raiz, log, parar: threading.Event | None = None,
-                 visivel=False):
+                 visivel=False, canal: str | None = None, foto=True,
+                 eventos=False, ao_fechar_dia=None, ao_fase=None):
+        """PC: so (raiz, log, parar, visivel), como sempre. Nuvem (T-0045):
+        `canal="chromium"` (o da imagem), `foto=False` (sem print),
+        `eventos=True` (o log vira uma linha por evento, sem nome de
+        pessoa; as frases livres ficam mudas), `ao_fechar_dia(d, resultado)`
+        (chamado quando o dia termina, depois do sintetico) e
+        `ao_fase(fase, dia, feitos, total)` (a cada troca de fase e a cada
+        vendedor: o progresso do contrato §3.3)."""
         self.raiz = Path(raiz)
-        self.log = log
+        self._saida = log
+        self.eventos = bool(eventos)
+        self.log = (lambda *_a, **_k: None) if self.eventos else log
         self.parar = parar or threading.Event()
         self.visivel = visivel
+        self.canal = canal
+        self.usar_foto = bool(foto)
+        self.ao_fechar_dia = ao_fechar_dia
+        self.ao_fase = ao_fase
         self.page = None
         self.foto = None
         self.onde = ""
         self.ctx = None
         self.analitico = None
+        self.fase = None
+        self.dia_atual = None
+        self.codigo = None            # o codigo do contrato, se a rodada caiu
+        self.fase_erro = None
+        self.equipe = {}              # os 3 dicionarios lidos nos filtros
+        self.vendedores = 0           # o que a grade mostrou, no ultimo dia
+
+    # ---------------------------------------------------------- eventos
+    @staticmethod
+    def _campo(v) -> str:
+        return re.sub(r"[^A-Za-z0-9_.:-]", "", str(v))[:40]
+
+    def evento(self, nome, **campos):
+        """Uma linha `evento=<nome> fase=.. dia=.. n=.. codigo=..` (so com
+        `eventos=True`). So valor de lista fixa, numero e data: nunca nome."""
+        if not self.eventos:
+            return
+        partes = [f"evento={self._campo(nome)}"]
+        for k in ("fase", "dia", "n", "codigo"):
+            if campos.get(k) not in (None, ""):
+                partes.append(f"{k}={self._campo(campos[k])}")
+        self._saida(" ".join(partes))
+
+    def _fase(self, fase, dia=None, feitos=None, total=None):
+        mudou = fase != self.fase
+        self.fase = fase
+        if dia is not None:
+            self.dia_atual = dia
+        if mudou:
+            self.evento("fase", fase=fase, dia=self.dia_atual)
+        if self.ao_fase and (mudou or feitos is not None):
+            self.ao_fase(fase, self.dia_atual, feitos, total)
+
+    def _registrar_falha(self, exc):
+        """Guarda o codigo e a fase do contrato para quem chamou."""
+        self.codigo, self.fase_erro = codigo_da_excecao(exc, self.fase)
+        self.evento("erro", fase=self.fase_erro, codigo=self.codigo)
 
     # ---------------------------------------------------------- ajudantes
     def _checar(self):
@@ -464,7 +715,7 @@ class Robo:
         return None
 
     def foto_do_erro(self) -> Path | None:
-        if not self.page:
+        if not self.page or not self.usar_foto:
             return None
         try:
             pasta = vn.pasta_visitas(self.raiz) / "_erros"
@@ -484,8 +735,13 @@ class Robo:
     # ---------------------------------------------------------- passos
     def entrar(self, usuario, senha):
         pg = self.page
+        self._fase("login")
         self.log("Abrindo o login da Máxima…")
-        pg.goto(URL_LOGIN, wait_until="domcontentloaded", timeout=60000)
+        resp = pg.goto(URL_LOGIN, wait_until="domcontentloaded",
+                       timeout=60000)
+        if getattr(resp, "status", None) == 403:
+            raise ErroRobo("A Máxima negou o acesso à página de login "
+                           "(HTTP 403).", "MAXIMA_BLOQUEIO", "login")
         pg.wait_for_selector("input[name=username]", timeout=40000)
         pg.fill("input[name=username]", usuario)
         pg.fill("input[name=password]", senha)
@@ -493,23 +749,54 @@ class Robo:
         self.log("Entrando…")
 
         def pronto():
-            if "/login" not in pg.url:
+            url = pg.url
+            if "/login" not in url and not _RX_URL_VERIFICACAO.search(url):
                 return "ok"
             msg = pg.evaluate("""() => { const e = document.querySelector(
               'simple-snack-bar, .mat-mdc-snack-bar-label, mat-error, '
               + '.mat-mdc-form-field-error, .toast-message, '
               + '.swal2-html-container, .alert-danger');
               return e ? e.innerText.trim() : ''; }""")
+            captcha = pg.evaluate(CAPTCHA_JS)
+            texto = msg
+            if not msg and "/login" not in url:
+                texto = pg.evaluate(
+                    "() => (document.body.innerText || '').slice(0, 3000)")
+            cod = classificar_login(url, texto, captcha, None)
+            if cod:
+                return f"cod:{cod}:{msg}"
+            if "/login" not in url:
+                return "ok"
             return f"erro:{msg}" if msg else None
         r = self._esperar(pronto, 45)
         if not r:
             raise ErroRobo("O login não respondeu em 45 s.")
+        if r.startswith("cod:"):
+            _, cod, msg = r.split(":", 2)
+            raise ErroRobo(self._texto_login(cod, msg), cod, "login")
         if r.startswith("erro:"):
-            raise ErroRobo(f"A Máxima recusou o login: {r[5:]}")
+            # mensagem de erro na tela de login que nao casou com nada:
+            # tratada como credencial recusada (pausa; nunca repete o login)
+            raise ErroRobo(self._texto_login("MAXIMA_SENHA", r[5:]),
+                           "MAXIMA_SENHA", "login")
         self.log("Login ok.")
+
+    def _texto_login(self, cod, msg) -> str:
+        if cod == "MAXIMA_SENHA":
+            # no PC a mensagem da Maxima ajuda a pessoa; na nuvem ela nunca
+            # sai do navegador (contrato §5)
+            return ("A Máxima recusou o login" +
+                    ("" if self.eventos or not msg else f": {msg}"))
+        return {"MAXIMA_CONFIRMACAO": "A Máxima pediu uma confirmação (código, "
+                "novo dispositivo, termo ou troca de senha); faça o login "
+                "uma vez à mão e tente de novo.",
+                "MAXIMA_CAPTCHA": "A Máxima pediu captcha.",
+                "MAXIMA_BLOQUEIO": "A Máxima bloqueou ou negou o acesso."
+                }.get(cod, "A Máxima não deixou entrar.")
 
     def abrir_maxgestao(self):
         pg = self.page
+        self._fase("inicio")
         if not self._esperar(lambda: pg.locator("mat-card").count(), 40):
             raise ErroRobo("A página inicial da Máxima não carregou os "
                            "cartões dos sistemas.")
@@ -534,6 +821,7 @@ class Robo:
         if not url:
             raise ErroRobo("Não achei o cartão do maxGestão na página "
                            "inicial (o usuário tem licença do maxGestão?).")
+        self._fase("maxgestao")
         self.log("Abrindo o maxGestão…")
         if url != pg.url:
             pg.goto(url, wait_until="domcontentloaded", timeout=60000)
@@ -656,6 +944,7 @@ class Robo:
 
     def abrir_auditoria(self):
         pg = self.page
+        self._fase("menu")
         self.log("Abrindo o Painel Auditoria…")
         # (13/10) primeiro pelo MENU, como sempre foi feito na mao (3
         # listras > Geolocalizacao > Painel de Auditoria); se o menu
@@ -671,6 +960,7 @@ class Robo:
                         "O Painel de Auditoria não abriu (menu ☰ > "
                         "Geolocalização > Painel de Auditoria).")
         self._limpar()
+        self._fase("filtros")
         self._marcar_todos()
         self._ler_equipe()
 
@@ -781,6 +1071,8 @@ class Robo:
                 rep[c] = {"nome": re.sub(r"\s*\(Supervisor:.*\)\s*$", "",
                                          n).strip(),
                           "supervisor": m.group(1) if m else ""}
+        self.equipe = {"filiais": fil, "supervisores": sup,
+                       "representantes": rep}
         try:
             vn.gravar_equipe_maxima(self.raiz, fil, sup, rep)
         except OSError:
@@ -857,6 +1149,7 @@ class Robo:
         """Clica IMPRIMIR na janela do vendedor e espera o visualizador do
         Espelho de Rotas (barra com Imprimir / Salvar). Devolve a pagina."""
         pg = self.page
+        self._fase("espelho")
         pg.evaluate("window.__bapAbertos = []")
         pg.locator('[data-bap-imprimir="1"]').first.click(timeout=10000)
 
@@ -885,6 +1178,7 @@ class Robo:
     def _salvar_excel(self, vpg, nome, dia: date) -> Path:
         """Salvar > Arquivo Microsoft Excel… (e o OK das opções, se a tela
         pedir) e grava o download no arquivo do vendedor."""
+        self._fase("salvar")
         sal = self._visivel(self.SALVAR_RX, [vpg])
         if not sal:
             raise ErroRobo("Não achei o Salvar no relatório.")
@@ -949,6 +1243,7 @@ class Robo:
         "extras": {nome_chave: {"gps", "versao"}}}."""
         pg = self.page
         self._checar()
+        self._fase("filtros", dia=f"{d:%Y%m%d}")
         if not self._todos_ok():
             self._marcar_todos()
         self._datas(d, d)
@@ -956,6 +1251,7 @@ class Robo:
         _time.sleep(1.5)
         conhecidos = self._nomes_equipe()
         feitos, ok, erros, extras = set(), [], [], {}
+        self._fase("grade")
         pg.evaluate(TOPO_GRADE_JS)
         for _ in range(80):                      # trava contra laco infinito
             self._checar()
@@ -991,6 +1287,8 @@ class Robo:
                 raise
             except Exception as e:                       # noqa: BLE001
                 msg = str(e).splitlines()[0] if str(e) else type(e).__name__
+                if self.eventos:         # a mensagem crua da Maxima nao sai
+                    msg = type(e).__name__
                 erros.append((nome or o["txt"], msg))
                 self.foto = self.foto_do_erro() or self.foto
                 self.log(f"  ✖ {nome or o['txt'][:40]}: {msg}")
@@ -999,8 +1297,13 @@ class Robo:
                     self._fechar_janelas(vpg)
                 except Exception:                        # noqa: BLE001
                     pass
+            self.vendedores = len(feitos)
+            self.evento("vendedor", fase="grade", n=len(feitos))
+            self._fase("grade", feitos=len(feitos),
+                       total=len(feitos) + max(0, len(falta) - 1))
             if progresso:
                 progresso()
+        self.vendedores = len(feitos)
         if erros and not ok:
             raise ErroRobo(f"{d:%d/%m/%Y}: nenhum vendedor salvo. Primeiro "
                            f"erro: {erros[0][1]}")
@@ -1009,13 +1312,25 @@ class Robo:
     # ---------------------------------------------------------- tudo
     def rodar(self, usuario, senha, dias, meses, progresso=None):
         """Para cada dia: o Excel de cada representante (ANALITICO), e com
-        eles o diario/AAAAMMDD.csv; no fim de cada mes, o AAAAMM.csv."""
+        eles o diario/AAAAMMDD.csv; no fim de cada mes, o AAAAMM.csv.
+        Se cair, `self.codigo` e `self.fase_erro` dizem o codigo e a fase do
+        contrato (a nuvem manda so isso)."""
+        self._fase("navegador")
+        try:
+            return self._rodada(usuario, senha, dias, meses, progresso)
+        except Cancelado:
+            raise
+        except Exception as e:                           # noqa: BLE001
+            self._registrar_falha(e)
+            raise
+
+    def _rodada(self, usuario, senha, dias, meses, progresso=None):
         from playwright.sync_api import sync_playwright   # noqa: PLC0415
         progresso = progresso or (lambda *_: None)
         feitos, linhas = 0, {}
         self.erros_vendedor = []
         with sync_playwright() as p:
-            nav = _abrir_navegador(p, self.visivel, self.log)
+            nav = _abrir_navegador(p, self.visivel, self.log, self.canal)
             try:
                 ctx = nav.new_context(accept_downloads=True, locale="pt-BR",
                                       viewport={"width": 1440, "height": 900})
@@ -1047,6 +1362,13 @@ class Robo:
                         n = vn.montar_dia(self.raiz, d, r["extras"])
                         vn.anotar_baixado(self.raiz, f"{d:%Y%m%d}")
                         linhas[d] = n
+                        self.evento("dia_fechado", dia=f"{d:%Y%m%d}",
+                                    n=len(r["ok"]))
+                        if self.ao_fechar_dia:
+                            # a nuvem manda o lote do dia aqui; ela pode
+                            # ligar o `parar` (o proximo dia nao comeca)
+                            self.ao_fechar_dia(d, dict(
+                                r, linhas=n, vendedores=self.vendedores))
                         self.log(f"{d:%d/%m/%Y}: {len(r['ok'])} Excel salvo(s)"
                                  f"; sintético do dia com {n} "
                                  f"representante(s).")
@@ -1093,6 +1415,16 @@ def executar(raiz, de, ate, usuario, senha, log, parar=None, visivel=False,
         res["erros_vendedor"] = getattr(robo, "erros_vendedor", [])
         if robo.onde:
             log(f"Parou em: {robo.onde}")
+    res.update(depois_de_baixar(raiz, log))
+    return res
+
+
+def depois_de_baixar(raiz, log) -> dict:
+    """O que vem depois do download, igual para o botao do PC e para a
+    importacao dos lotes da nuvem (contrato §4.4): atualiza o acompanhamento
+    (Excel), o VISITAS_POR_CLIENTE e a prospeccao do Forms. Cada parte falha
+    sozinha. Devolve {"excel", "por_cliente", "prospeccao"}."""
+    res = {}
     try:
         res["excel"] = vn.atualizar_acompanhamento(raiz, log)
     except Exception as e:                               # noqa: BLE001
@@ -1317,6 +1649,13 @@ def janela(pai=None, raiz=None, ao_terminar=None):
                     "Falta instalar o Playwright (o componente que controla "
                     "o navegador). Instalar agora? Precisa de internet.",
                     parent=w):
+                return
+        if precisa:
+            # (T-0045, contrato §4.5) o site pode estar baixando agora: dois
+            # logins ao mesmo tempo derrubam a sessao da Maxima
+            aviso = aviso_site_baixando(consultar_saude())
+            if aviso and not messagebox.askyesno("Atualizar visitas", aviso,
+                                                 parent=w):
                 return
         gravar_usuario(usuario)
         v_senha.set("")                          # a senha so fica na memoria
