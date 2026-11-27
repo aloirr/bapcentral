@@ -6096,7 +6096,7 @@ CARD_HTML = """<!doctype html><html lang="pt-br"><meta charset="utf-8">
 </style>
 <body>
   <div class="topo">
-    <div class="marca">BAP AUTO PARTS &middot; TRADE</div>
+    <div class="marca">BAP AUTOPARTS &middot; TRADE</div>
     <h1>Alterações de preço</h1>
     <div class="quando">{periodo}</div>
   </div>
@@ -8001,7 +8001,7 @@ def _esperado_web(rid: str, titulo: str, nomes: list):
                 or not re.match(_ADERENCIA_WEB[2], nomes[-1])):
             raise _TabelaTortaWeb("colunas")
         return ((_c("SUPERVISOR", "texto"), _c("VENDEDOR", "texto"))
-                + tuple(_c(n, "pct") for n in nomes[2:]))
+                + tuple(_c(n, "pct", selo="faixa_opc") for n in nomes[2:]))
     esperado = _COLUNAS_TABELAS_WEB.get(rid, {}).get(titulo)
     if esperado is None:
         raise _TabelaTortaWeb("titulo")
@@ -8015,6 +8015,10 @@ def _selo_web(col: dict, selo, nomes_pc: list, ocultas_pc: set) -> dict:
     chip, barra, tom = col.get("chip"), col.get("barra"), col.get("chip_tom")
     if selo is None:
         return saida                       # selo fora da lista: nao vai
+    if selo == "faixa_opc":                # Aderencia (T-0033, RN-VIS-001)
+        if chip is None:
+            return saida                   # PC sem a cor: a web usa o tom
+        selo = "faixa"
     if selo == "faixa":
         if not (isinstance(chip, (list, tuple)) and chip and all(
                 isinstance(f, (list, tuple)) and len(f) == 3 for f in chip)):

@@ -39,7 +39,7 @@ LUGARES = {
 }
 TIPOS = ("lista", "data", "texto", "numero")
 STATUS = ("pendente", "aplicada", "erro")
-MSG_ENVIADA = "Edição enviada. Ela chega ao PC na próxima rodada do robô (a cada 30 min)."
+MSG_ENVIADA = "Edição enviada: aguardando o PC."
 MSG_AGUARDA = "Aguardando o PC"
 MSG_ERRO = "O PC recusou"
 MSG_SEM_CHAVE = "Nota concluída (anterior ao controle de 01/10/2026)."
