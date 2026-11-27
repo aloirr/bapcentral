@@ -50,5 +50,5 @@ def test_T0032_botoes_de_parcial_como_no_pc(admin):
     assert postar(admin, pacote_tres_farois()).status_code == 200
     for rid, rot in (("pv_pedidos", "Parcial Pedidos"), ("vc_visitas", "Parcial Visitas e Conversão"),
                      ("pl_entregas", "Parcial Entregas")):
-        h = admin.get(f"/farol/{rid}").text
-        assert f'href="/farol/{rid}/parcial"' in h and rot in h
+        h = admin.get(f"/farol/{rid}").text.replace('<span class="rot-long">', "").replace("</span></a>", "</a>")
+        assert f'href="/farol/{rid}/parcial"' in h and rot in h        # até 1500 px o " e Conversão" some (CSS), o nome inteiro segue no HTML

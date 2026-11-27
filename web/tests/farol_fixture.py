@@ -387,8 +387,8 @@ def tabela_aderencia():
     nomes = ([("SUPERVISOR", "texto", False), ("VENDEDOR", "texto", False)]
              + [(f"{d:02d}/11 {s}", "pct", False) for d, s in dias] + [("% ADERÊNCIA ACUM. ATÉ 19/11", "pct", False)])
     cols = _colunas("Aderência dia a dia", nomes)
-    for c in cols[2:]:                 # o PC manda a faixa de cor do % (FAIXA_PCT_META) em cada dia e no acumulado
-        c["chip"] = [[79.9999, "#FBDDDA", "#B3261E"], [99.9999, "#FFF1C7", "#8A5A00"], [None, "#E5F3DF", "#2F7D32"]]
+    for c in cols[2:]:                 # o PC manda a faixa de cor do % em cada dia e no acumulado (verde ≥ 80, amarelo 50 a 79,99, vermelho < 50)
+        c["chip"] = [[49.9999, "#FDECEA", "#B42318"], [79.9999, "#FFF4D6", "#8A5A00"], [None, "#F0F7EC", "#2F7D32"]]
     linhas = []
     for i in range(9):
         v = {"SUPERVISOR": _sup(i), "VENDEDOR": _vend(i), "% ADERÊNCIA ACUM. ATÉ 19/11": 80.0 + i}

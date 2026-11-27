@@ -56,3 +56,13 @@ def test_T0033_ordem_da_grade_e_total_com_rotulo(admin):
     assert cab[0].strip() == "NF"                                           # a chave abre a grade (contrato §6.2)
     h = admin.get("/farol/vc_visitas?aba=vendedor").text
     assert "<tfoot><tr><td class=\"\"><b>Total</b>" in h
+
+
+def test_T0033_aderencia_quadrados_com_a_faixa_de_cor_do_pc(admin):
+    """O PC manda o chip (verde ≥ 80, amarelo 50 a 79,99, vermelho < 50); a web só desenha."""
+    assert postar(admin, pacote_tres_farois()).status_code == 200
+    corpo = admin.get("/farol/vc_visitas?aba=aderencia").text.split("<main")[1]
+    assert 'class="selo" style="background:#F0F7EC;color:#2F7D32">100%' in corpo
+    assert 'class="selo" style="background:#FFF4D6;color:#8A5A00">75%' in corpo
+    assert 'class="selo" style="background:#FFF4D6;color:#8A5A00">50%' in corpo     # 50 já é amarelo
+    assert 'class="selo" style="background:#FDECEA;color:#B42318">0%' in corpo

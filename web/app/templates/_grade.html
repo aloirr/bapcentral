@@ -42,6 +42,6 @@
 </table></div>
 {% if tab.linhas and pc is not none %}
 <div class="bc3-lista"{% if mais %} data-mais="{{ mais }}"{% endif %} data-lote="10">{{ itens(tab, base, fq) }}
-{% if tab.total %}<details class="bc3-item bc3-total"><summary><b>Total</b></summary><dl>{% for v in tab.total %}{% if v.t and v.t != '—' %}<dt>{{ tab.cols[loop.index0].nome }}</dt><dd>{{ v.t }}</dd>{% endif %}{% endfor %}</dl></details>{% endif %}</div>
+{% if tab.total %}<details class="bc3-item bc3-total"><summary><b>Total</b><span class="c"></span>{% set cct = g.cel %}{% if cct.sla is not none and tab.total[cct.sla].t %}<span class="v">{{ tab.total[cct.sla].t }}</span>{% endif %}{% if cct.val is not none and tab.total[cct.val].t %}<span class="v">{{ tab.total[cct.val].t }}</span>{% endif %}</summary><dl>{% for v in tab.total %}{% if v.t and v.t != '—' %}<dt>{{ tab.cols[loop.index0].nome }}</dt><dd>{{ v.t }}</dd>{% endif %}{% endfor %}</dl></details>{% endif %}</div>
 {% elif not tab.linhas %}<p class="aviso info bc3-vazio">{{ vazio }}</p>{% endif %}
 {% endmacro %}
