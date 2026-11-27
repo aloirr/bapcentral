@@ -7010,21 +7010,18 @@ def blocos_resumo_fretes_web(r: dict):
     ufs = agreg.get("Por UF") or []
     ufs_ok = [x for x in ufs if x[0] != "Sem UF"]
     if len(ufs) > 1 and ufs_ok:
-        n_ = sum(x[1] for x in ufs)
         v_ = sum(x[2] for x in ufs)
         topo = max(ufs_ok, key=lambda x: x[2])
-        frases.append(("info", f"{topo[0]} tem {_rn.br(topo[1])} das "
-                       f"{_rn.br(n_)} notas com frete e "
-                       f"{_rn.p(_rn.pct_de(topo[2], v_))} do valor "
-                       f"({_rn.moeda(topo[2])})."))
+        frases.append(("info", f"{topo[0]} concentra "
+                       f"{_rn.p(_rn.pct_de(topo[2], v_))} do valor das notas "
+                       "com frete."))
     trs = agreg.get("Por transportadora") or []
     tr = [x for x in trs if x[0] != "Sem transportadora"]
     if tr:
         v_ = sum(x[2] for x in trs)
         t0 = max(tr, key=lambda x: x[2])
-        frases.append(("info", f"{t0[0]} leva {_rn.p(_rn.pct_de(t0[2], v_))} "
-                       f"do valor: {_rn.moeda(t0[2])} em {_rn.br(t0[1])} "
-                       + ("nota." if t0[1] == 1 else "notas.")))
+        frases.append(("info", f"{t0[0]} leva "
+                       f"{_rn.p(_rn.pct_de(t0[2], v_))} do valor."))
     if frases:
         blocos.append({"tipo": "insights", "titulo": "Resumo gerencial",
                        "linhas": frases, "row": linha, "col": 0})
