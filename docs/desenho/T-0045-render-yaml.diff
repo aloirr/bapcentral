@@ -1,0 +1,62 @@
+diff --git a/render.yaml b/render.yaml
+index fc19792..c4675e0 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -1,6 +1,7 @@
+ # Blueprint do Render da BAP Central web (T-0013).
+ # Texto proposto em web/RENDER.md (seção 2) do PR #17.
+-# Nenhum valor de segredo aqui: os 4 segredos (sync: false) o Alexandre cria no painel.
++# Nenhum valor de segredo aqui: os segredos (sync: false) o Alexandre cria no painel
++# (4 do site; 2 da Máxima no bap-visitas-maxima, T-0045, ADR 0004).
+ services:
+   - type: web
+     name: bap-central
+@@ -29,7 +30,48 @@ services:
+         sync: false
+       - key: BAP_ADMIN_SENHA_INICIAL
+         sync: false
++      - key: BAP_VISITAS_TOKEN
++        generateValue: true  # T-0045: o Render sorteia; só abre as rotas do cron (/api/visitas/trabalho e /rodada*)
+     disk:
+       name: bap-dados
+       mountPath: /var/data
+       sizeGB: 1
++
++  # T-0045 (ADR 0004; contrato .coord/contratos/visitas-nuvem.md v1): visitas da Máxima.
++  # Cron job à parte (decisão 2 A, R-20261127-005437-alexandre): acorda de 10 em 10 min,
++  # pergunta ao site se há trabalho (agenda das 06h00, botão, diagnóstico) e sai.
++  # A senha da Máxima fica SÓ aqui, nunca no bap-central.
++  - type: cron
++    name: bap-visitas-maxima
++    runtime: docker
++    plan: standard           # 2 GB, 1 CPU, cobrado por minuto [SUPOSIÇÃO: ~US$ 0,00058/min, mínimo US$ 1/mês; confirmar no painel]
++    region: oregon           # a mesma do bap-central (rede privada)
++    schedule: "*/10 10-23,0-1 * * *"   # UTC: de 10 em 10 min, das 06h00 às 21h50 de Manaus (UTC-4)
++    dockerfilePath: ./nuvem/visitas/Dockerfile
++    dockerContext: .
++    autoDeploy: true
++    buildFilter:             # só refaz a imagem quando o código dela muda
++      paths:
++        - nuvem/visitas/**
++        - visitas_maxima.py
++        - visitas_nucleo.py
++        - requirements-visitas.txt
++    envVars:
++      - key: TZ
++        value: America/Manaus
++      - key: PYTHONUNBUFFERED
++        value: "1"
++      - key: BAP_WEB_HOSTPORT
++        fromService:
++          type: web
++          name: bap-central
++          property: hostport
++      - key: BAP_VISITAS_TOKEN
++        fromService:         # o valor sorteado no bap-central [SUPOSIÇÃO: envVarKey aceito no cron]
++          type: web
++          name: bap-central
++          envVarKey: BAP_VISITAS_TOKEN
++      - key: BAP_MAXIMA_USUARIO
++        sync: false          # o Alexandre cria no painel (usuário próprio do robô, decisão 5 A)
++      - key: BAP_MAXIMA_SENHA
++        sync: false          # o Alexandre cria no painel; só neste serviço
