@@ -7586,6 +7586,8 @@ _TABELAS_SO_MES_WEB = ("Pedidos", "Entregas",
 
 def _so_mes_web(rid, titulo) -> bool:
     return titulo in _TABELAS_SO_MES_WEB or (rid, titulo) in _TABELAS_SO_MES_WEB
+
+
 # UF de cada linha (RN-GER-006): (coluna, "filial" = filial da nota |
 # "uf" = UF do cliente)
 _UF_LINHAS_WEB = {
