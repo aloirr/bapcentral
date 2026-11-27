@@ -7,8 +7,7 @@ Trazido do modulo-robo (35a28dd) e revisto pelo testes. A regra de antes
 referência. Assim o "antes × depois" não depende de arquivo fora do
 repositório. Compara 7 datas nas bases congeladas, com e sem `refazer`.
 
-Pulado, com motivo, enquanto a branch modulo-robo/T-0045-plano não estiver no
-main. Datas e arquivos fictícios na pasta temporária; as bases só são lidas.
+O plano do robô (modulo-robo/T-0045-plano) já está no main; sem guarda. Datas e arquivos fictícios na pasta temporária; as bases só são lidas.
 """
 import tempfile
 from datetime import date, datetime, timedelta
@@ -19,10 +18,6 @@ import pytest
 import relatorios_nucleo as rn
 import visitas_maxima as novo
 import visitas_nucleo as vn
-
-if not hasattr(novo, "indice_do_pc"):
-    pytest.skip("plano do robô da T-0045 (modulo-robo/T-0045-plano) ainda não está no main",
-                allow_module_level=True)
 
 RAIZ = Path(__file__).resolve().parent.parent
 

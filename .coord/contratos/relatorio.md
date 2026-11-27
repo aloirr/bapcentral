@@ -1078,9 +1078,10 @@ Donos:
 
 **Teto do texto, um lugar só:** `relatorios_nucleo.MAX_TEXTO_EDICAO`, `{(módulo, campo): int}` (modulo-farois).
 - O núcleo põe esse número no `max` da `edicao`.
-- O robô confere a edição contra o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`).
-- `max` do pacote diferente do número do núcleo = edição recusada, com `MOTIVO_TEXTO_WEB`.
-- A frase passa a ser "texto inválido (até {max} caracteres, sem CPF, CNPJ, telefone ou e-mail)", com o `max` do campo.
+- O robô usa o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`), em dois momentos:
+  1. **Na montagem do pacote** (`bap_automation.edicao_web`, chamada pela `_tabela_web7`): o `max` da `edicao` do PC (sem ele, `relatorios_nucleo.MAX_TEXTO_PADRAO`) diferente de `relatorios_nucleo.max_texto_edicao(módulo, campo)` levanta `ValueError`. A tabela vai ao pacote **sem a chave `edicao`** (fica só de leitura) e o log ganha um aviso com o farol e a tabela, sem dado pessoal. Nada chega ao site para recusar.
+  2. **Na hora de aplicar a edição** (`bap_automation.validar_edicao_web`, chamada pela `aplicar_edicao_web`): o texto que passa de `max_texto_edicao(módulo, campo)` é recusado com o motivo de `bap_automation.motivo_texto_web(maximo)`, com o teto do campo.
+- A frase é "texto inválido (até {maximo} caracteres, sem CPF, CNPJ, telefone ou e-mail)"; sem `maximo` (`None`), o teto é o padrão do núcleo (`relatorios_nucleo.MAX_TEXTO_PADRAO`).
 - A web corta o valor bruto em `max` + 100 caracteres (hoje, 200 fixos).
 
 **Regras do texto livre**, na web e no robô:
@@ -1388,7 +1389,12 @@ Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.
   - `cliente_sem_documento`: `CLIENTE` das Devoluções e do "Por cliente (12 meses)";
   - `nome_sem_contato`: `CLIENTE` das Garantias, que é digitado.
 - **Texto livre** (`texto_sem_contato`, D6 A do §10.7.9): `MOTIVO`, `PENDÊNCIAS`, `RETORNO DO CLIENTE`, `RECLAMAÇÃO`, `OBSERVAÇÃO` e `OBSERVAÇÕES`. O texto que voltou com "[removido]" não pode ser gravado por cima do original (§10.9.1, regra 4).
-- **Nunca vão** (fora da lista branca do §10.1): `garantia`, `campanha_export` e `detalhe_pedido`. O `_champions` e o `editar` já saem pelo §10.1. O `testes` procura essas chaves e os padrões do bloco `padroes-pessoais` (§10.9.1) no JSON de cada farol.
+- **Nunca vão** (fora da lista branca do §10.1): `garantia`, `campanha_export` e `detalhe_pedido`. O `_champions` e o `editar` já saem pelo §10.1.
+- **Onde o `testes` procura** (no JSON de cada farol):
+  - **as chaves acima:** em qualquer nível;
+  - **`EMAIL`, `DOC_MEIO` e `DOC_SOLTO`** (bloco `padroes-pessoais`, §10.9.1): em **toda string** do farol (célula, total, cartão, aviso, rótulo e chave). A exceção é o código de produto só com dígitos nas colunas de código, `CÓD. PRODUTO` e `PRODUTO`: ali é código do ERP, não documento;
+  - **número:** só reprova o inteiro de 11 ou 14 dígitos fora das colunas de código. Um número com casas decimais não passa pelos padrões de texto (o `97.35000000000001` de uma moeda não é documento);
+  - **`FONE`:** só nas colunas de texto livre e nas colunas "limpa" desta seção. Em data ISO e em valor, ele casaria por engano.
 - **Nome da equipe:** `VENDEDOR`, `SUPERVISOR`, `AUX. TÉCNICO`, `JOGADOR`, o nome da assistente no título do DDR e os nomes da config das Campanhas vão ("2 A").
 
 #### 10.10.4 Tamanho e cortes

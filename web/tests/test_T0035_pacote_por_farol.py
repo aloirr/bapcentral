@@ -9,7 +9,7 @@ from conftest import ADMIN, SENHA0, TOKEN, entrar, guardado, pacote_ficticio, po
 from csv_fixture import pacote_com_csvs
 from farol_fixture import farol_inadimplencia, pacote_farol
 
-from app import cobranca, pacotes
+from app import VERSAO, cobranca, pacotes
 
 MANAUS = ZoneInfo("America/Manaus")
 H = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
@@ -37,7 +37,7 @@ def test_formato1_na_web_nova_vira_lote_inteiro(cli, amb):
     assert postar(cli, pacote_farol()).status_code == 200            # robô antigo, web nova
     s = cli.get("/saude").json()
     assert s["pacote"]["formatos"] == [1, 2] and s["pacote"]["origem"] == "inteiro"
-    assert s["pacote"]["farois"] == 1 and s["versao"] == "0.8.0"
+    assert s["pacote"]["farois"] == 1 and s["versao"] == VERSAO
 
 
 def test_formato2_com_e_sem_gzip_guarda_o_mesmo(cli, amb):

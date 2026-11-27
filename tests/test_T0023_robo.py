@@ -1,7 +1,7 @@
 """T-0023 v2 (robo): Garantias, Devolucoes e NCC no site, edicao so do admin.
 
 Trazido do modulo-robo e revisto pelo testes (nomes com a RN certa, fixtures
-ficticias, skip sem o robo da T-0023). O teste de dado pessoal do pacote mora
+ficticias). Sem o robo da T-0023 os testes falham: os 3 farois sao obrigatorios. O teste de dado pessoal do pacote mora
 em tests/test_T0023_valor_regra.py, sem a isencao larga que estava aqui.
 
 Regras: RN-GER-006 (estado = FILIAL da nota; Garantias sem estado), RN-GER-011 (CONTATO CLIENTE e
@@ -22,14 +22,10 @@ from types import SimpleNamespace
 import pytest
 
 import bap_automation as ba
-
-if "pl_ncc" not in getattr(ba, "FAROIS_WEB", ()) or not hasattr(ba, "CAMPOS_LUGAR_WEB"):
-    pytest.skip("robô da T-0023 v2 (modulo-robo/T-0023-robo) ainda não entrou", allow_module_level=True)
-
-import garantias as gm  # noqa: E402
-import ncc_controle as nc  # noqa: E402
-import pos_venda as pv  # noqa: E402
-import relatorios_nucleo as rn  # noqa: E402
+import garantias as gm
+import ncc_controle as nc
+import pos_venda as pv
+import relatorios_nucleo as rn
 
 RAIZ = Path(__file__).resolve().parent.parent if (Path(__file__).resolve().parent.parent / "bap_automation.py").exists() \
     else Path.cwd()
@@ -183,8 +179,7 @@ def test_RN_GER_012_edicao_da_garantia_14_campos_novo_max_multilinha_e_padroes(f
     assert (c["status"]["padrao"], c["resultado"]["padrao"]) == ("ABERTO", "PENDENTE")
     assert c["status"]["opcoes"] == list(gm.STATUS) and c["resultado"]["opcoes"] == list(gm.RESULTADOS)
     assert all("max" not in c[k] for k in ("qtd", "cod_cliente"))            # sem max = 60
-    if hasattr(rn, "CAMPOS_EDICAO_GARANTIA"):                                  # núcleo f0af112 (RD-0136)
-        assert c["ticket"]["max"] == rn.max_texto_edicao("garantias", "ticket") == 40
+    assert c["ticket"]["max"] == rn.max_texto_edicao("garantias", "ticket") == 40      # RD-0136
     t = _tab(farois, "pl_garantias", "Garantias")
     nomes = [x["nome"] for x in t["colunas"]]
     assert all(x["coluna"] in nomes for x in ed["campos"])                  # as 3 colunas novas do nucleo
@@ -314,7 +309,6 @@ def test_RN_GER_012_linha_nova_so_no_lugar_que_aceita():
     assert ba.validar_edicao_web(r, OPC) == ba.MOTIVO_LUGAR_WEB
 
 
-@pytest.mark.skipif(not hasattr(rn, "CAMPOS_EDICAO_GARANTIA"), reason="núcleo sem o ticket de 40 (f0af112)")
 def test_RN_GER_012_ticket_ate_40_e_a_frase_leva_o_40():
     """O ticket tem teto de 40 caracteres, vindo do núcleo (RD-0136). A frase
     da recusa leva o teto do campo (contrato 10.9.1), e não o 60 padrão."""
@@ -401,7 +395,6 @@ def test_RN_GER_012_garantia_que_nao_existe_e_ticket_trocado_para_outra(tmp_path
     assert "G-0009" in d and d["G-0009"]["status"] == "CANCELADA"      # renomear + gravar, como a tela
 
 
-@pytest.mark.skipif(not hasattr(rn, "prazo_padrao_txt"), reason="núcleo sem prazo_padrao_txt (f0af112)")
 def test_RN_POS_005_plano_da_garantia_usa_a_regra_do_prazo_do_nucleo():
     """O plano usa a regra do núcleo (campos_garantia_a_gravar): o prazo igual
     a solicitação + 15 DU fica em branco, como no PC; o diferente fica."""
