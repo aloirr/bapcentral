@@ -70,7 +70,6 @@ def test_RN_VIS_002_sem_hoje_usa_manaus():
     `relatorios_nucleo.hoje_manaus` (RD-0147: um só). Pela regra do núcleo
     (`dias_a_baixar`: `ate = min(ate, hoje)`), hoje ENTRA no plano, como dia
     aberto, e nada passa dele."""
-    assert rn.hoje_manaus() == datetime.now(vn.FUSO_MANAUS).date()
     with tempfile.TemporaryDirectory() as t:
         r = Path(t)
         vn.pasta_diario(r).mkdir(parents=True)

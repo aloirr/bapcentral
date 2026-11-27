@@ -15,7 +15,6 @@ reprova. Aqui só entra a comparação núcleo × web; o que olha só o núcleo
 (a lista em si, as permitidas, o cabeçalho) fica em
 tests/test_T0045_visitas_nucleo.py (RD-0149).
 
-Pulado, com motivo, enquanto a web (`web/app/visitas.py`) não estiver no main.
 Datas fictícias, sem dado de cliente.
 """
 import sys
@@ -28,11 +27,6 @@ import pytest
 import visitas_nucleo as vn
 
 RAIZ = Path(__file__).resolve().parent.parent
-_ROTA = ("juntar_baixado", "dia_fechado_no_indice", "dias_a_baixar")
-
-if not (RAIZ / "web" / "app" / "visitas.py").exists():
-    pytest.skip("web da T-0045 (modulo-web/T-0045-visitas, web/app/visitas.py) ainda não está no main",
-                allow_module_level=True)
 
 
 @pytest.fixture(scope="module")
@@ -42,8 +36,6 @@ def web_app():
     sys.path.insert(0, str(RAIZ / "web"))
     try:
         from app import visitas
-        if not all(hasattr(visitas, n) for n in _ROTA):
-            pytest.skip("web/app/visitas.py sem o espelho da RN-VIS-002 (modulo-web/T-0045-visitas)")
         yield types.SimpleNamespace(visitas=visitas)
     finally:
         sys.path.remove(str(RAIZ / "web"))
