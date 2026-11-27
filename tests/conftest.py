@@ -43,3 +43,22 @@ def _historico_do_diretor_fora_do_repositorio(tmp_path_factory):
     mp.setattr(pdr, "_hist_path", _hist_path)
     yield copia
     mp.undo()
+
+
+# ---------------------------------------------------------------------------
+# RD-0257 (T-0036): web/app (pacotes e tabelas) deste checkout para os testes
+# que conferem o pacote do robô na validação da web; sai do sys.modules no fim.
+@pytest.fixture()
+def web_app():
+    import types                                        # noqa: PLC0415
+    web = str(Path(RAIZ) / "web")
+    antes = set(sys.modules)
+    sys.path.insert(0, web)
+    try:
+        from app import pacotes, tabelas                # noqa: PLC0415
+        yield types.SimpleNamespace(pacotes=pacotes, tabelas=tabelas)
+    finally:
+        sys.path.remove(web)
+        for k in set(sys.modules) - antes:
+            if k == "app" or k.startswith("app."):
+                del sys.modules[k]
