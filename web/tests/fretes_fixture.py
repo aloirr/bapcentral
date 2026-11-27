@@ -122,13 +122,65 @@ def _resumo(titulo, col, rotulo=None):
     return {"titulo": titulo, "colunas": cols, "linhas": linhas, "kpis_padrao": kp}
 
 
-def farol_fretes(com_edicao=True):
+MESES12 = ["DEZ/25", "JAN/26", "FEV/26", "MAR/26", "ABR/26", "MAI/26", "JUN/26", "JUL/26", "AGO/26", "SET/26", "OUT/26",
+           "NOV/26"]
+NOTAS12 = [4, 5, 5, 6, 7, 6, 8, 7, 9, 8, 10]                     # dez/25 a out/26 (inventado); nov/26 vem das CASOS
+
+
+def _agrupa(col, rotulo=None):
+    base, _, _, bcols = tabela_notas()
+    nb = [c["nome"] for c in bcols]
+    g: dict = {}
+    for ln in base:
+        k = (rotulo or (lambda v, l: v or "(sem transportadora)"))(ln[nb.index(col)], ln)
+        x = g.setdefault(k, [0, 0.0, 0.0])
+        x[0] += 1
+        x[1] += ln[nb.index("VLR NF")]
+        x[2] += ln[nb.index("VLR FRETE")]
+    return sorted(g.items(), key=lambda kv: -kv[1][1])
+
+
+def _bloco_tab(titulo, rot_col, col, linha, rotulo=None):
+    cols = [{"nome": rot_col, "tipo": "texto", "largura": 140, "oculta": False},
+            {"nome": "NOTAS", "tipo": "int", "largura": 70, "oculta": False},
+            {"nome": "VLR NF", "tipo": "moeda", "largura": 100, "oculta": False},
+            {"nome": "VLR FRETE", "tipo": "moeda", "largura": 100, "oculta": False}]
+    ls = [[k, *v] for k, v in _agrupa(col, rotulo)]
+    tot = ["TOTAL", sum(x[1] for x in ls), sum(x[2] for x in ls), sum(x[3] for x in ls)]
+    return {"tipo": "tabela", "titulo": titulo, "colunas": cols, "linhas": ls, "total": tot, "col": 0, "row": linha}
+
+
+def blocos_resumo():
+    """O Resumo do PC: gráfico de 12 meses, tabelas por UF, cidade e transportadora, e as frases do resumo gerencial
+    (soma das UFs = cartão Notas com frete; % do faturado líquido = cartão)."""
+    cartoes = _kp()
+    n = len(tabela_notas()[0])
+    ufs = _agrupa("UF")
+    transp = [(k, v) for k, v in _agrupa("TRANSPORTADORA") if k != "(sem transportadora)"]
+    frases = [["info", f"{n} notas com frete em nov/26 ({cartoes[0]['detalhe']}), {cartoes[1]['valor']} do faturado líquido."],
+              ["info", f"{ufs[0][0]} concentra {_pct(ufs[0][1][0], n)} das notas com frete ({ufs[0][1][0]} de {n})."],
+              ["ok", f"{cartoes[4]['valor']} notas entregues, {cartoes[4]['detalhe']}."],
+              ["atencao", f"{cartoes[5]['valor']} nota com acompanhamento e sem transportadora."]]
+    if transp:
+        frases.append(["info", f"{transp[0][0]} leva mais valor: {_moeda_mil(transp[0][1][1])} em {transp[0][1][0]} notas."])
+    barras = {"tipo": "barras", "row": 0, "col": 0, "colspan": 3,
+              "grafico": {"titulo": "Mês a mês: notas com frete", "rotulos": MESES12, "formato": "num",
+                          "series": [{"nome": "notas", "cor": "#2F6FB5", "valores": NOTAS12 + [n]}]}}
+    return [barras, _bloco_tab("Por UF", "UF", "UF", 1),
+            _bloco_tab("Por cidade", "CIDADE", "CIDADE", 2, lambda v, ln: v),
+            _bloco_tab("Por transportadora", "TRANSPORTADORA", "TRANSPORTADORA", 3),
+            {"tipo": "insights", "titulo": "Resumo gerencial", "linhas": frases, "row": 4, "col": 0}]
+
+
+def farol_fretes(com_edicao=True, com_resumo=True):
     linhas, tons, ufs, cols = tabela_notas()
     t = _tabela7(TIT, linhas, tons, [{"coluna": "MÊS", "padrao": "NOV/26", "oculto": True}, "UF", "FILIAL",
                                       "ETAPA", "TRANSPORTADORA"], uf_linhas=ufs, kpis_padrao=_kp())
     if com_edicao:
         t["edicao"] = spec_fretes(cols, linhas)
-    f = _base("Farol de Fretes", _kp(), [])
+    f = _base("Farol de Fretes", _kp(), blocos_resumo() if com_resumo else [])
+    if com_resumo:                                                # o PC manda as frases também em insights_painel
+        f["insights_painel"] = [b for b in f["painel"]["blocos"] if b["tipo"] == "insights"][0]["linhas"]
     iu = [c["nome"] for c in cols].index("UF")
     f["tabelas"] = [t, _resumo("Por UF", "UF"),
                     _resumo("Por cidade", "CIDADE", lambda v, ln: f"{v} / {ln[iu]}"),
