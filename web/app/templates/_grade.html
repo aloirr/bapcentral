@@ -5,17 +5,25 @@
 {% macro grade(tab, base="", fq="", vazio="Nenhuma linha neste filtro.", junta=false) %}
 {% set ed = tab.edicao if tab.edicao is defined else none %}
 {% set sc = tab.sel_col if (base and tab.sel_col is defined) else none %}
-{% set oc = no_popup(tab) if sc is not none else (fora_da_junta(tab) if junta else ocultas(tab)) %}
-{% if tab.linhas and sc is none and not junta and (tab.cols|length - oc|length) > 6 %}<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>{% endif %}
-<div class="rolagem rolagem-dados{{ ' sem-rolagem' if sc is not none }}"><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
+{# T-0024: tabela com GRADE (lote 2): a chave abre o popup com o que a grade não mostra #}
+{% set gd = tab.grade if (base and tab.grade is defined and tab.grade) else none %}
+{% set cg = cols_celular(tab) if gd is not none else none %}
+{% set gc = cg.chave if gd is not none else none %}
+{% set oc = no_popup(tab) if (sc is not none or gd is not none) else (fora_da_junta(tab) if junta else ocultas(tab)) %}
+{% if tab.linhas and sc is none and gd is none and not junta and (tab.cols|length - oc|length) > 6 %}<p class="dica-rolagem">Role para o lado para ver mais colunas →</p>{% endif %}
+<div class="rolagem rolagem-dados{{ ' sem-rolagem' if (sc is not none or gd is not none) }}{{ ' grade-lote' if gd is not none }}"><table class="tab tab-dados{{ ' zebra' if tab.zebra }}">
   <thead>{% if tab.grupos %}<tr class="grupos">{% for g in tab.grupos %}<th colspan="{{ g.n }}" class="{{ 'g-um' if g.n == 1 }}">{{ g.nome }}</th>{% endfor %}</tr>{% endif %}<tr>{% if ed %}<th class="ed-col">{{ ed.cab if ed.admin else "Edição" }}</th>{% endif %}{% for c in tab.cols %}
     {% if base %}{% set prox = 'desc' if (tab.ord == c.i and not tab.desc) else 'asc' %}
     <th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}"><a href="{{ base }}&amp;ord={{ c.i }}&amp;dir={{ prox }}{{ fq }}">{{ c.nome }}{{ ' ▲' if tab.ord == c.i and not tab.desc }}{{ ' ▼' if tab.ord == c.i and tab.desc }}</a></th>
     {% else %}<th class="{{ 'num' if c.num }}{{ ' oc' if loop.index0 in oc }}{{ ' livre' if c.livre }}">{{ c.nome }}</th>{% endif %}{% endfor %}</tr></thead>
-  <tbody>{% for l in tab.linhas %}<tr class="tom-{{ l.tom }}{{ ' sel' if (tab.sel is defined and tab.sel == l.k) }}">{% if ed %}<td class="ed-col">{{ edcel(l.ed) }}</td>{% endif %}{% for v in l.cel %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' inteira' if tab.cols[loop.index0].inteira }}{{ ' livre' if tab.cols[loop.index0].livre }}{{ ' oc' if loop.index0 in oc }}">{% if sc is not none and loop.index0 == sc %}<a class="sel-link" href="{{ base }}{{ fq }}&amp;sel={{ l.k }}" data-pop="{{ dados_popup(tab, l)|tojson|forceescape }}">{{ celula(v) }}</a>{% else %}{{ celula(v) }}{% endif %}</td>{% endfor %}</tr>
+  <tbody>{% for l in tab.linhas %}<tr class="tom-{{ l.tom }}{{ ' sel' if (tab.sel is defined and tab.sel == l.k) }}">{% if ed %}<td class="ed-col">{{ edcel(l.ed) }}</td>{% endif %}{% for v in l.cel %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' inteira' if tab.cols[loop.index0].inteira }}{{ ' livre' if tab.cols[loop.index0].livre }}{{ ' oc' if loop.index0 in oc }}">{% if sc is not none and loop.index0 == sc %}<a class="sel-link" href="{{ base }}{{ fq }}&amp;sel={{ l.k }}" data-pop="{{ dados_popup(tab, l)|tojson|forceescape }}">{{ celula(v) }}</a>{% elif gc is not none and loop.index0 == gc %}<a class="sel-link pop-chave" tabindex="0" aria-describedby="pop-pedido" data-titulo="{{ v.t }}" data-pop="{{ dados_popup(tab, l)|tojson|forceescape }}">{{ celula(v) }}</a>{% else %}{{ celula(v) }}{% endif %}</td>{% endfor %}</tr>
   {% else %}<tr><td colspan="{{ tab.cols|length + (1 if ed else 0) }}">{{ vazio }}</td></tr>{% endfor %}</tbody>
   {% if tab.total %}<tfoot><tr>{% if ed %}<td class="ed-col"></td>{% endif %}{% for v in tab.total %}<td class="{{ 'num' if tab.cols[loop.index0].num }}{{ ' oc' if loop.index0 in oc }}"><b>{{ v.t }}</b></td>{% endfor %}</tr></tfoot>{% endif %}
 </table></div>
+{% if gd is not none and bc3 %}{# T-0024: lista que abre (M3) das tabelas com GRADE: chave · nome · selo · valor #}
+<div class="bc3-lista" data-lote="10">{% for l in tab.linhas %}<details class="bc3-item tom-{{ l.tom }}"><summary><b>{{ l.cel[cg.chave].t if cg.chave is not none }}</b><span class="c">{{ l.cel[cg.cli].t if cg.cli is not none }}</span>{% if cg.sla is not none %}{{ celula(l.cel[cg.sla]) }}{% endif %}{% if cg.val is not none %}<span class="v">{{ l.cel[cg.val].t }}</span>{% endif %}</summary>
+<dl>{% for p in dados_popup(tab, l) %}<dt>{{ p[0] }}</dt><dd>{{ p[1] }}</dd>{% endfor %}</dl></details>{% else %}<p class="aviso info">{{ vazio }}</p>{% endfor %}</div>
+{% endif %}
 {% if sc is not none and bc3 %}{# T-0030: no celular a tabela vira a lista que abre (M3) #}
 {% set cc = cols_celular(tab) %}
 <div class="bc3-lista" data-lote="10">{% for l in tab.linhas %}<details class="bc3-item tom-{{ l.tom }}"><summary><b>{{ l.cel[sc].t }}</b><span class="c">{{ l.cel[cc.cli].t if cc.cli is not none }}</span>{% if cc.sla is not none %}{{ celula(l.cel[cc.sla]) }}{% endif %}{% if cc.val is not none %}<span class="v">{{ l.cel[cc.val].t }}</span>{% endif %}</summary>

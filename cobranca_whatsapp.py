@@ -33,7 +33,7 @@ CAMPOS_CSV = ("quando", "maquina", "usuario", "cliente", "nome", "telefone",
 DIAS_RECENTE = 7          # cobrado ha menos de 7 dias: aparece na fila
 MODELO = (
     "Olá, {cliente}! Tudo bem?\n"
-    "Aqui é do financeiro da BAP Auto Parts.\n\n"
+    "Aqui é do financeiro da BAP AUTOPARTS.\n\n"
     "Consta em aberto na sua conta {qtd_txt}, total de *{total}*:\n"
     "{titulos}\n\n"
     "Podemos ajudar a regularizar? Se o pagamento já foi feito, por favor "
