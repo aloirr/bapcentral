@@ -11734,19 +11734,28 @@ def devolucoes_da_vista(ctx, chaves, todas) -> float:
     As devolucoes das linhas que estao na tela: chaves = {(mes, filial,
     vendedor)} das linhas; todas = {mes: {(filial, vendedor)}} de todas as
     linhas do farol. Mes com todas as linhas na tela = todas as devolucoes
-    do mes (tambem de quem nao vendeu no mes); filtrado = so as da filial e
-    do vendedor das linhas [SUPOSICAO: o filtro de cliente nao recorta a
-    devolucao]."""
+    do mes (tambem de quem nao vendeu no mes). Mes filtrado (T-0058,
+    RN-GER-002): para cada FILIAL cujos pares (filial, vendedor) na tela
+    cobrem todos os da filial no mes, desconta TODA a devolucao (mes,
+    filial, *), inclusive de vendedor sem venda na filial no mes (recorte
+    por estado = filial da nota); filial so em parte (filtro de vendedor ou
+    supervisor) = so as dos pares das linhas [SUPOSICAO: o filtro de
+    cliente nao recorta a devolucao]."""
     dev = _devolucoes_por_chave(ctx)
     por_m = defaultdict(set)
     for m, f, v in chaves:
         por_m[m].add((f, v))
     tot = 0.0
     for m, ks in por_m.items():
-        if ks >= (todas.get(m) or set()):
+        todos_m = todas.get(m) or set()
+        if ks >= todos_m:
             tot += sum(x for (mm, _f, _v), x in dev.items() if mm == m)
-        else:
-            tot += sum(dev.get((m, f, v), 0.0) for f, v in ks)
+            continue
+        cheias = {f for f in {f for f, _v in ks}
+                  if {k for k in todos_m if k[0] == f}
+                  <= {k for k in ks if k[0] == f}}
+        tot += sum(x for (mm, f, v), x in dev.items()
+                   if mm == m and (f in cheias or (f, v) in ks))
     return tot
 
 
