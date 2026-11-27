@@ -34,7 +34,7 @@ SEM_CALCULO = ("entregue_em",)            # T-0054: data que o PC NÃO calcula (
 EDITA_LUGAR = {
     ("pl_entregas", "Entregas"): ("admin", "pos_venda"),
     ("pl_entregas", "Pendências dos meses anteriores"): ("admin", "pos_venda"),
-    ("pl_fretes", "Notas com frete"): ("admin", "pos_venda"),   # T-0037 (RN-POS-010, P2 A): vale quando o lugar entrar em LUGARES
+    ("pl_fretes", "Notas com frete"): ("admin", "pos_venda"),   # T-0037 (RN-POS-010, P2 A): a mesma linha da aba ENTREGAS (o lugar está em LUGARES)
 }
 
 
@@ -59,11 +59,19 @@ LUGARES = {
     ("pv_pedidos", "Pedidos"): "autorizacoes",
     ("pl_entregas", "Entregas"): "pos_venda",
     ("pl_entregas", "Pendências dos meses anteriores"): "pos_venda",
+    ("pl_fretes", "Notas com frete"): "pos_venda",       # T-0037: a mesma linha da aba ENTREGAS (RN-POS-010)
     # T-0023 v2 (contrato §10.9.3): Pós-venda
     ("pl_ncc", "NCC pendentes"): "ncc",
     ("pl_devolucoes", "Devoluções"): "pos_venda",
     ("pl_garantias", "Garantias"): "garantias",
 }
+# T-0037: lugares que editam a mesma linha do PC: a marca "Aguardando o PC" vale nos dois faróis
+# Lista explícita (desenho §4.4): não derivar pelo módulo, porque as Devoluções (aba DEVOLUCOES) também
+# são `pos_venda` e não podem receber a marca de uma edição da aba ENTREGAS.
+IRMAOS = (
+    frozenset({("pl_fretes", "Notas com frete"), ("pl_entregas", "Entregas"),
+               ("pl_entregas", "Pendências dos meses anteriores")}),
+)
 # lugares com linha nova (`novo`, §10.9.2) e o que a linha nova leva sempre (campo obrigatório do lugar)
 LUGARES_NOVO = {("pl_garantias", "Garantias"): ("ticket",)}
 MSG_NOVO_VAZIO = "Preencha pelo menos um campo além dos padrões."
@@ -74,6 +82,13 @@ MSG_ENVIADA = "Edição enviada: aguardando o PC."
 MSG_AGUARDA = "Aguardando o PC"
 MSG_ERRO = "O PC recusou"
 MSG_SEM_CHAVE = "Nota concluída (anterior ao controle de 01/10/2026)."
+MSG_SEM_CHAVE_POR_LUGAR = {
+    ("pl_fretes", "Notas com frete"): "Não edita na web.",
+}
+
+
+def msg_sem_chave(rid: str, tabela: str) -> str:
+    return MSG_SEM_CHAVE_POR_LUGAR.get((rid, tabela), MSG_SEM_CHAVE)
 ERRO_VISIVEL_DIAS = 3                       # a marca "O PC recusou" fica 3 dias (ou até nova edição)
 MAX_CAMPOS = 16                             # §10.9.1: eram 10; a Garantia tem 14
 MAX_OPCOES = 400
@@ -616,17 +631,35 @@ class Fila:
             eds, st = self._ler()
         out: dict = {}
         for r in eds:
-            if r.get("rid") != rid:
+            alvos = self._alvos(rid, r)
+            if not alvos:
                 continue
             s = st.get(r["seq"]) or {}
-            k = (r.get("tabela"), r.get("chave"))
-            ant = out.get(k)
-            status = s.get("status", "pendente")
-            valores = dict(ant["valores"]) if ant and ant["status"] == "pendente" and status == "pendente" else {}
-            valores.update(r.get("valores") or {})
-            out[k] = {"status": status, "valores": valores, "quando": r.get("quando", ""),
-                      "usuario": r.get("usuario", ""), "motivo": s.get("motivo", ""), "em": s.get("quando", "")}
+            for k in alvos:
+                self._junta(out, k, r, s)
         return out
+
+    @staticmethod
+    def _alvos(rid: str, r: dict) -> list:
+        """Chaves (tabela, chave) em que a edição `r` aparece no farol `rid`: a própria e as dos lugares irmãos."""
+        ch, origem = r.get("chave"), (r.get("rid"), r.get("tabela"))
+        if r.get("rid") == rid:
+            alvos = [(r.get("tabela"), ch)]
+        else:
+            alvos = []
+        for g in IRMAOS:
+            if origem in g:
+                alvos += [(t, ch) for (rd, t) in g if rd == rid and (t, ch) not in alvos]
+        return alvos
+
+    @staticmethod
+    def _junta(out: dict, k, r: dict, s: dict) -> None:
+        ant = out.get(k)
+        status = s.get("status", "pendente")
+        valores = dict(ant["valores"]) if ant and ant["status"] == "pendente" and status == "pendente" else {}
+        valores.update(r.get("valores") or {})
+        out[k] = {"status": status, "valores": valores, "quando": r.get("quando", ""),
+                  "usuario": r.get("usuario", ""), "motivo": s.get("motivo", ""), "em": s.get("quando", "")}
 
 
 def marca(sit: dict | None, recebido_em: str | None, agora_=None) -> str:

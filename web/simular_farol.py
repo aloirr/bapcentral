@@ -28,7 +28,7 @@ def _csrf(c, url):
     return re.search(r'name="csrf" value="([^"]+)"', c.get(url).text).group(1)
 
 
-def paginas(pacote: dict, pedidos: list[tuple[str, str]]) -> list[tuple[int, str]]:
+def paginas(pacote: dict, pedidos: list[tuple[str, str]], fila: list[dict] | None = None) -> list[tuple[int, str]]:
     """Cada pedido é (perfil, caminho). O HTML sai com o CSS embutido (para tirar o PNG sem servidor)."""
     css = (AQUI / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
     js = (AQUI / "app" / "static" / "bc3.js").read_text(encoding="utf-8")           # RD-0006: lidos uma vez
@@ -42,6 +42,10 @@ def paginas(pacote: dict, pedidos: list[tuple[str, str]]) -> list[tuple[int, str
         from fastapi.testclient import TestClient
 
         from app.main import criar_app
+        if fila:                                         # edições pendentes já na fila (para ver a marca)
+            from app import edicoes
+            for e in fila:
+                edicoes.Fila(Path(d)).registrar(usuario="admin.sim", antes={}, **e)
         app = criar_app()
         with TestClient(app, base_url="https://testserver") as adm:
             r = adm.post("/api/pacote", json=pacote, headers={"Authorization": "Bearer " + TOKEN})

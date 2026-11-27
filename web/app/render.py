@@ -205,6 +205,8 @@ FAROIS = {  # rid -> (nome no PC, perfis que veem)
     "vc_visitas": ("Farol de Visita", LEITURA_GERAL + ("diretor", "vendas")),
     "pl_entregas": ("Farol de Entregas", LEITURA_GERAL + ("diretor", "pos_venda")),
     "pl_inadimplencia": ("Farol de Inadimplência", LEITURA_GERAL + ("diretor", "pos_venda")),
+    # T-0037: Farol de Fretes (contrato §10.13); o analista lê como o gerente (RN-GER-017), sem editar
+    "pl_fretes": ("Farol de Fretes", LEITURA_GERAL + ("diretor", "pos_venda")),
     # T-0024 (lote 2): o perfil de cada quadrado do PC (bap_central.py)
     "pv_indicadores": ("Painel de indicadores", LEITURA_GERAL + ("diretor", "pre_venda")),
     "vc_base": ("Farol de Clientes", LEITURA_GERAL + ("diretor", "vendas")),
@@ -247,7 +249,7 @@ def nome_curto(rid: str) -> str:
 
 
 GRUPOS_MENU = (("Pré-venda", ("pv_pedidos", "pv_indicadores")),
-               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_garantias", "pl_devolucoes", "pl_ncc", "pl_frw")),
+               ("Pós-venda", ("pl_entregas", "pl_inadimplencia", "pl_garantias", "pl_devolucoes", "pl_ncc", "pl_frw", "pl_fretes")),
                ("Vendas", ("vc_visitas", "vc_meta", "vc_base", "vc_planner", "pl_giro")),   # T-0024: lote 2 no menu
                ("Analista Comercial", RIDS_ANALISTA),
                # T-0036 (contrato §10.10.1): o grupo do trade; aparece quando o Farol de Expositores entrar (T-0025 v2)
@@ -437,7 +439,21 @@ def _insights(linhas) -> list[dict]:
 
 
 def _cor(c, padrao) -> str:
-    return c if isinstance(c, str) and _COR.match(c) else padrao
+    """R1 (UX T-0037): só entra cor da paleta da marca (`marca.TOKENS`); qualquer outra (o AZUL do PC, por exemplo)
+    vira o padrão (`--grafico-3`)."""
+    if isinstance(c, str) and _COR.match(c):
+        c = marca.COR_PC.get(c.lower(), c)                        # A8: a cor antiga do PC vira o token do mesmo papel
+        if c.lower() in {v.lower() for v in marca.TOKENS.values() if isinstance(v, str)}:
+            return c
+    return padrao
+
+
+def _disposicao(cols, n_series, denso, larga) -> tuple[bool, bool]:
+    """(vert, rotv) do gráfico de colunas: valor em pé e rótulo em pé. Num lugar só (RD-0196)."""
+    n, maxrot = len(cols), max([len(c["rot"]) for c in cols] or [0])
+    vert = 8 < n * max(n_series, 1) and not denso and not larga          # valor em pé: não se sobrepõe
+    rotv = not larga and ((n > 5 and maxrot > 5) or (n > 8 and maxrot > (3 if denso else 4)))   # nome comprido em pé
+    return vert, rotv
 
 
 def _bloco_barras(b) -> dict:
@@ -464,12 +480,14 @@ def _bloco_barras(b) -> dict:
                        "alt": 0 if not v else round(max(3.0, 100 * abs(v) / mx), 1),
                        "cor": s["cor_neg"] if (v or 0) < 0 else s["cor"]})
         cols.append({"rot": rot, "barras": bs})
-    nbarras = len(cols) * max(len(series), 1)
-    maxrot = max([len(c["rot"]) for c in cols] or [0])
     denso = len(cols) > 14
-    return {"tipo": "barras", "titulo": str(g.get("titulo", "")), "cols": cols,
-            "denso": denso, "vert": 8 < nbarras and not denso,       # valor em pé: não se sobrepõe
-            "rotv": (len(cols) > 5 and maxrot > 5) or (len(cols) > 8 and maxrot > (3 if denso else 4)),   # data/nome comprido em pé
+    larga = (_num(b.get("colspan")) or 1) >= 2 and not denso          # A1: o gráfico que pede a largura toda
+    for c in cols:                                                       # celular: "DEZ/25" vira "DEZ"
+        m = re.match(r"^([A-ZÇ]{3})/\d{2}$", c["rot"])
+        c["rot_c"] = m.group(1) if m else c["rot"]
+    vert, rotv = _disposicao(cols, len(series), denso, larga)
+    return {"tipo": "barras", "larga": larga, "titulo": str(g.get("titulo", "")), "cols": cols,
+            "denso": denso, "vert": vert, "rotv": rotv,
             "legenda": [{"nome": s["nome"], "cor": s["cor"]} for s in series if s["nome"]] if len(series) > 1 else [],
             "meta": {"pos": round(100 * abs(meta) / mx, 1), "txt": fmt_valor(meta, formato)} if meta else None,
             "largo": len(cols) > 8}
@@ -632,6 +650,13 @@ def _blocos(painel) -> tuple[list[dict], list[dict]]:
             g = b.get("grafico")
             titulo = b.get("titulo") or (g.get("titulo") if isinstance(g, dict) else "")
             out.append({"tipo": "indisponivel", "titulo": str(titulo or "")})
+    # A1: a largura toda só quando é o único gráfico da tela (os outros faróis seguem como estavam)
+    if sum(1 for x in out if x.get("tipo") in ("barras", "hbarras")) != 1:
+        for x in out:
+            if x.get("larga"):
+                x["larga"] = False
+                x["vert"], x["rotv"] = _disposicao(x["cols"], len(x["cols"][0]["barras"]) if x["cols"] else 1,
+                                                   x["denso"], False)
     return ins, out
 
 

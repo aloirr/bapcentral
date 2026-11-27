@@ -173,8 +173,9 @@ def test_RN_POS_010_notas_com_frete_pos_venda_edita_gerente_nao():
     assert "pos_venda" in edicoes.perfis_do_rid("pl_fretes")
 
 
-def test_RN_POS_010_lugar_ainda_fora_de_LUGARES_nao_quebra(ped):
-    c = _usuario(ped, "t54.posvenda", "pos_venda")        # no main o Fretes não tem edição: 403/404, nunca 500
+def test_RN_POS_010_fretes_chave_invalida_nao_quebra(ped):
+    c = _usuario(ped, "t54.posvenda", "pos_venda")
+    # chave inválida: 403/404, nunca 500
     assert c.get("/farol/pl_fretes/editar?tab=Notas+com+frete&chave=x").status_code in (403, 404)
 
 

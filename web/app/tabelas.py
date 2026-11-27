@@ -26,6 +26,7 @@ from .render import COLUNAS_FORA, RE_DATA, coluna_fora, fmt_celula   # a lista e
 VE_TABELAS = {
     "pv_pedidos": render.LEITURA_GERAL + ("pre_venda",),
     "pl_entregas": render.LEITURA_GERAL + ("pos_venda",),
+    "pl_fretes": render.LEITURA_GERAL + ("pos_venda",),   # T-0037, P4 A (provisória): o pós-venda vê as 4 abas
     "vc_visitas": render.LEITURA_GERAL + ("vendas",),
     # T-0024 (lote 2): o perfil de cada quadrado do PC vê as abas (a mesma D1 recomendação A)
     "pv_indicadores": render.LEITURA_GERAL + ("pre_venda",),
@@ -57,6 +58,8 @@ RESUMO = ("resumo", "Resumo")
 ABAS = {
     "pv_pedidos": (("pedidos", "Pedidos"), ("solicitacao", "Solicitação BAP")),
     "pl_entregas": (("entregas", "Entregas"),),
+    "pl_fretes": (("notas", "Notas com frete"), ("uf", "Por UF"), ("cidade", "Por cidade"),
+                  ("transportadora", "Por transportadora")),
     # T-0023 v2 (§10.10.1): as abas dos 3 faróis do Pós-venda, na ordem do PC
     "pl_garantias": (("garantias", "Garantias"), ("historico", "Histórico de compra"), ("produto", "Por produto"),
                      ("status", "Status x resultado")),
@@ -108,7 +111,8 @@ ABA_CURTA = {"Por supervisor": "Supervisor", "Por vendedor": "Vendedor", "Aderê
              # T-0023 v2 (UX §3): as abas dos 3 faróis do Pós-venda
              "Histórico de compra": "Histórico", "Status x resultado": "Status", "Por motivo": "Motivo",
              "Por vendedor (12 meses)": "Vendedor", "Por cliente (12 meses)": "Cliente",
-             "Por produto (12 meses)": "Produto", "NCC pendentes": "Pendentes"}
+             "Por produto (12 meses)": "Produto", "NCC pendentes": "Pendentes",
+             "Notas com frete": "Notas", "Por transportadora": "Transportadora"}           # T-0037
 
 
 def aba_curta(nome: str) -> str:
@@ -219,6 +223,10 @@ COLUNAS: dict[str, list] = {
                           _c("PEDIDOS ANTES", "num"), _c("DISP. P/ ESTE", "num"), _c("ATENDIDO", "num"),
                           _c("FALTA", "num"), _c("CLIENTE"), _c("FILIAL BAP", "texto", True),
                           _c("VALOR FALTANTE", "moeda")],
+    "Notas com frete": [_c("MÊS", "texto", True), _c("DATA PED.", "dia"), _c("DATA NF", "dia"), _c("NF"),
+                        _c("FILIAL"), _c("CLIENTE"), _c("CIDADE"), _c("UF"), _c("VLR NF", "moeda"),
+                        _c("VLR FRETE", "moeda"), _c("ETAPA"), _c("TRANSPORTADORA"), _c("ENTREGAR ATÉ", "dia"),
+                        _c("ENTREGUE", "dia"), _c("SLA ENTREGA", "int"), _c("RESPONSÁVEL")],
     "Entregas": _entregas(True),
     "Pendências dos meses anteriores": _entregas(False),
     "Por supervisor": [_c("SUPERVISOR"), _c("REPRES.", "int")] + _METRICAS + [_c("CHAVE", "texto", True)],
@@ -240,6 +248,8 @@ COLUNAS: dict[str, list] = {
                   _c("BAIRRO"), _c("SEGMENTO"), _c("VISITADA EM", "data"), _c("OBSERVAÇÃO"),
                   _c("REGISTRADO EM")],
 }
+# T-0037: títulos que se repetem em outro farol: a lista é por (rid, título)
+_RESUMO_FRETES = [_c("NOTAS", "int"), _c("VLR NF", "moeda"), _c("VLR FRETE", "moeda")]
 # ------------------------------------------------------------------ T-0036: colunas do §10.11.3 (lista positiva)
 def _l(*specs):
     """"NOME", "NOME|tipo" ou "NOME|tipo|o" (o = oculta) -> lista de `_c`. Só nesta lista entram colunas do Analista;
@@ -383,6 +393,9 @@ COLUNAS_RID.update({
         _c("SUPERVISOR", "texto", True), _c("NCC", "int"), _c("SALDO", "moeda"), _c("NCC MAIS ANTIGA (DIAS)", "int"),
         _c("TÍTULOS EM ABERTO", "moeda"), _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")
     ],
+    ("pl_fretes", "Por UF"): [_c("MÊS", "texto", True), _c("UF")] + _RESUMO_FRETES,
+    ("pl_fretes", "Por cidade"): [_c("MÊS", "texto", True), _c("CIDADE")] + _RESUMO_FRETES,
+    ("pl_fretes", "Por transportadora"): [_c("MÊS", "texto", True), _c("TRANSPORTADORA")] + _RESUMO_FRETES,
     **{("pl_ncc", f"Por {k}"): _agrupa_ncc(k.upper()) for k in ("filial", "vendedor", "supervisor")},
 })
 # colunas que nunca vão, por tabela (§10.10.3, bloco `colunas-fora-por-tabela`): a web recusa o pacote que as traz
@@ -1180,6 +1193,12 @@ GRADE: dict[tuple[str, str], dict] = {
         "chave": "NF", "blocos": _BL_ENT, "cel": ("NF", "CLIENTE", "SLA", "VLR NF"),
         "grade": ("NF", "CLIENTE", "CIDADE", "UF", "SITUAÇÃO", "SLA", "DT. PREVISTA", "ETAPA", "TRANSPORTADORA",
                   "VLR NF")},
+    # T-0037 (desenho §7.1): 9 colunas na grade, com as editáveis; RESPONSÁVEL e o resto vão ao popup
+    ("pl_fretes", "Notas com frete"): {
+        "chave": "NF", "cel": ("NF", "CLIENTE", None, "VLR FRETE"),     # celular: a ETAPA vai ao item aberto
+        "grade": ("NF", "CLIENTE", "CIDADE", "UF", "VLR FRETE", "ETAPA", "TRANSPORTADORA", "ENTREGAR ATÉ",
+                  "ENTREGUE"),                     # 9 + a coluna Editar: cabe a 1366 sem rolagem (tela-bc3 §7.2)
+        "blocos": (("Nota", ("DATA PED.", "DATA NF", "FILIAL", "VLR NF")), ("Entrega", ("SLA ENTREGA", "RESPONSÁVEL")))},
     ("pl_entregas", "Pendências dos meses anteriores"): {
         "chave": "NF", "blocos": _BL_ENT, "cel": ("NF", "CLIENTE", "SLA", "VLR NF"),
         "grade": ("MÊS", "NF", "CLIENTE", "SITUAÇÃO", "SLA", "DT. PREVISTA", "ETAPA", "VLR NF")},
@@ -1348,6 +1367,7 @@ DICA_BUSCA = {
     ("vc_planner", "Por segmento"): "Buscar segmento", ("vc_planner", "Por vendedor"): "Buscar vendedor",
     ("pl_giro", "Por família"): "Buscar família", ("pl_giro", "Por categoria"): "Buscar categoria",
     ("pl_frw", "Estoque FRW"): "Buscar produto",
+    ("pl_fretes", "Notas com frete"): "Buscar NF ou cliente",                     # T-0037
 }
 
 
@@ -1356,7 +1376,7 @@ def dica_busca(rid: str, titulo: str, n_linhas: int) -> str | None:
     if rid in RIDS_ANALISTA:                # T-0036: faróis do Analista, sempre com busca (dica por aba)
         return DICA_BUSCA.get((rid, titulo), "Buscar")
     if rid not in FAROIS_LIVRES:
-        return None
+        return DICA_BUSCA.get((rid, titulo))
     if n_linhas <= SEM_BUSCA_ATE:
         return ""
     return DICA_BUSCA.get((rid, titulo), "Buscar produto" if rid == "pl_giro" else "Buscar")

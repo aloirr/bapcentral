@@ -322,9 +322,6 @@ button{background:var(--verde-escuro);border-color:var(--verde-escuro)}
 .cob-desfaz button,.filtros-tab a,.caixa a{color:var(--verde-escuro)}
 /* barras: as cores do PC trocadas pelas da BAP (verde, verde-escuro, areia, cinza-verde) */
 .gb-b i,.leg i{border-radius:6px 6px 0 0}.leg i{border-radius:2px}
-.gb-b i[style*="1F4FD1" i],.hb-trilho i[style*="1F4FD1" i],.leg i[style*="1F4FD1" i]{background:var(--verde-escuro)!important}
-.gb-b i[style*="C98A00" i],.gb-b i[style*="B7791F" i],.hb-trilho i[style*="C98A00" i],.leg i[style*="C98A00" i],.leg i[style*="B7791F" i]{background:var(--grafico-2)!important}
-.gb-b i[style*="4F6D7A" i],.hb-trilho i[style*="4F6D7A" i],.leg i[style*="4F6D7A" i]{background:var(--grafico-3)!important}
 .hb-trilho{border-radius:7px;overflow:hidden;background:var(--c-eef1ee)}
 /* T-0020: coluna que só repete outra não aparece; tabelas de baixo lado a lado, como no farol do PC */
 .oc{display:none}
@@ -649,6 +646,7 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
 @media(min-width:701px){
   .bc3 .graficos{grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin:.5rem 0}
   .bc3 .graficos .graf{max-height:calc(100vh - 345px);min-height:280px;overflow:auto;padding:10px 12px}
+  .bc3 .graficos .graf.graf-tab-f{min-height:0;align-self:start}      /* tabela do Resumo: altura do conteúdo, sem branco embaixo */
   .bc3 .graf-per .gb{height:150px}
   .bc3 .graf .hb{gap:.2rem}.bc3 .graf .hb-l{grid-template-columns:minmax(60px,38%) 1fr auto;font-size:.72rem}
   .bc3 .graf .hb-rot{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -724,6 +722,22 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .vz-det>summary{cursor:pointer;font-size:13px;color:var(--suave);margin-bottom:8px}
 @media(max-width:700px){.vz-admin .vz-linha>form,.vz-admin .vz-linha button{flex:1 1 100%;width:100%}}
 
+/* T-0037 (UX A1): o gráfico único do Resumo ocupa a largura toda; rótulos deitados, todos os meses, >= 12 px no PC e
+   "DEZ" de 3 letras com 11 px no celular */
+.graf-larga{grid-column:1/-1}
+.bc3 .graf .gb.gb-larga{gap:6px;padding-right:0;overflow:hidden}
+.bc3 .graf .gb.gb-larga .gb-rot{font-size:12px;overflow:visible;text-overflow:clip;text-align:center;white-space:nowrap}
+.gb-larga .gb-txt{font-size:12px}
+.gb-larga .r-c{display:none}
+@media(max-width:700px){
+  .gb.gb-larga{grid-auto-columns:minmax(0,1fr)}
+  .gb-larga .r-l{display:none}.gb-larga .r-c{display:inline}
+  .gb-larga .gb-txt{font-size:11px}
+  .bc3 .graf .gb.gb-larga .gb-rot{font-size:11px;overflow:visible;font-weight:600;letter-spacing:-.02em}
+  .bc3 .graf .gb.gb-larga{overflow:visible}
+  .bc3 .graficos .graf.graf-larga{padding-left:12px;padding-right:12px}
+  .gb-larga .gb-col:nth-last-child(even) .gb-rot{visibility:hidden}      /* um rótulo sim, um não, do último mês para trás */
+}
 /* T-0050 (RN-GER-018): painel "Faróis" e "Novo usuário" da tela Usuários, como na simulação v2 (revisor-ux e marca). Só tokens do :root. */
 .f-conj[hidden]{display:none}
 /* MC-0028: aberto, o "Faróis" não fica verde (o verde-claro é só do "liberado") */
