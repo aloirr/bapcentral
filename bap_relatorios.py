@@ -2475,8 +2475,11 @@ class VistaTabela:
             ttk.Button(barra, text="Novo", style="Verde.TButton",
                        command=self.novo).pack(side="left", padx=(16, 0))
         if t.get("garantia") and (janela.rel or {}).get("garantia"):
+            # (T-0023, RN-GER-012) a garantia nova e pela BAP Central web
             ttk.Button(barra, text="Nova garantia", style="Verde.TButton",
-                       command=lambda: self.abrir_garantia(None)).pack(
+                       command=lambda: messagebox.showinfo(
+                           "Nova garantia", MSG_EDICAO_SO_WEB,
+                           parent=self.janela)).pack(
                            side="left", padx=(16, 0))
         self.tem_detalhe = bool(t.get("detalhe")) and callable(
             (janela.rel or {}).get("detalhe_pedido"))
@@ -2884,10 +2887,9 @@ class VistaTabela:
     def abrir_garantia(self, linha):
         """(14/10) A janela da garantia: detalhe do cliente + edicao."""
         g = self.janela.rel["garantia"]
-        ticket = None
-        if linha is not None:
-            ticket = linha[self.t["garantia"]["i_ticket"]]
-        DialogoGarantia(self.janela, g, ticket)
+        if linha is None:
+            return
+        DialogoGarantia(self.janela, g, linha[self.t["garantia"]["i_ticket"]])
 
     def novo(self):
         """Uma linha nova (so nas tabelas que deixam acrescentar)."""
@@ -4208,9 +4210,12 @@ class Edicao(tk.Toplevel):
 
 class DialogoGarantia(tk.Toplevel):
     """(14/10) A GARANTIA aberta no Farol de Garantias: em cima o cliente
-    (endereco, bairro, cidade, vendedor, supervisor), embaixo o que a
-    assistente edita. Salvar grava no diario (garantias.py) e recarrega o
-    farol. ticket None = garantia nova."""
+    (endereco, bairro, cidade, vendedor, supervisor), embaixo a garantia.
+    (T-0023, RN-GER-012) So leitura no PC, menos o CONTATO (nome e telefone),
+    que so se edita aqui: o site nao mostra nem recebe telefone (P2 A).
+    Salvar grava so o contato no diario (garantias.py)."""
+    # o unico par editavel no PC
+    CAMPOS_PC = ("contato_nome", "contato_fone")
 
     CAMPOS = (("ticket", "Ticket", "entry"),      # (06/11) editavel
               ("dt_solicitacao", "Dt. solicitação", "data"),
@@ -4233,8 +4238,7 @@ class DialogoGarantia(tk.Toplevel):
         import garantias as gm                           # noqa: PLC0415
         super().__init__(janela)
         self.janela, self.g = janela, g
-        self.novo = not ticket
-        self.ticket = ticket or gm.novo_ticket(AQUI)
+        self.ticket = ticket
         d = g["dados"](self.ticket)
         self.title(f"Garantia {self.ticket}")
         self.configure(background=bv.FUNDO)
@@ -4252,15 +4256,19 @@ class DialogoGarantia(tk.Toplevel):
             "ATRASADA" if st["atrasada"] else (
                 ("FECHADA no prazo" if st.get("no_prazo")
                  else "FECHADA com atraso") if st.get("fechada") else ""))
-            if x) if not self.novo else "nova garantia")
+            if x))
         cab = bv.Cabecalho(self, "Garantia", f"Ticket {self.ticket}", sub)
         self.cab = cab
         cab.pack(fill="x")
-        cab.botao("Salvar", self.salvar)
+        cab.botao("Salvar contato", self.salvar)
         cab.botao("Fechar", self.destroy)
         tk.Frame(self, background=bv.VERDE, height=2).pack(fill="x")
         corpo = tk.Frame(self, background=bv.FUNDO)
         corpo.pack(fill="both", expand=True, padx=16, pady=(8, 10))
+        tk.Label(corpo, text=MSG_EDICAO_SO_WEB + " Aqui só o contato "
+                 "(nome e telefone) se edita.", background=bv.FUNDO,
+                 foreground=bv.SUAVE, font=bv.fonte(8), anchor="w").pack(
+            anchor="w", pady=(0, 6))
         # ---- o CADASTRO do cliente (14/10, Alexandre: editavel, para a
         # garantia ficar completa). Vem da base; o que mudar aqui fica SO na
         # garantia (a base de clientes vem do Protheus e nao muda)
@@ -4276,7 +4284,6 @@ class DialogoGarantia(tk.Toplevel):
                           padx=12, pady=(8, 2))
         self.vars_cli = {}
         self.vars = {}
-        opcoes = g.get("opcoes") or {}
         # (14/10) o COD. CLIENTE e o nome ficam AQUI, no cadastro: digitou o
         # codigo, o resto vem da base
         cli_ = dict(g.get("campos_cliente") or ())
@@ -4299,21 +4306,14 @@ class DialogoGarantia(tk.Toplevel):
             if campo in ("cod_cliente", "cliente"):
                 v = tk.StringVar(value=(d["g"].get(campo) or "").strip())
                 self.vars[campo] = v
-                w = ttk.Entry(info, textvariable=v)
+                w = ttk.Entry(info, textvariable=v, state="readonly")
                 w.grid(row=lin * 2 + 2, column=colu, sticky="ew", padx=12,
                        pady=(0, 8))
-                if campo == "cod_cliente":
-                    w.bind("<FocusOut>", lambda e: self._trocou_cliente())
-                    w.bind("<Return>", lambda e: self._trocou_cliente())
                 continue
             v = tk.StringVar(value=(d["g"].get(campo) or "").strip()
                              or self.base.get(campo, ""))
             self.vars_cli[campo] = v
-            if opcoes.get(campo):
-                w = ttk.Combobox(info, textvariable=v,
-                                 values=opcoes[campo])
-            else:
-                w = ttk.Entry(info, textvariable=v)
+            w = ttk.Entry(info, textvariable=v, state="readonly")
             w.grid(row=lin * 2 + 2, column=colu, sticky="ew", padx=12,
                    pady=(0, 8))
         for j in range(4):
@@ -4327,30 +4327,20 @@ class DialogoGarantia(tk.Toplevel):
             tk.Label(grade, text=rot, background=bv.FUNDO,
                      foreground=bv.SUAVE, font=bv.fonte(8), anchor="w").grid(
                 row=lin * 2, column=colu, sticky="w", padx=(0, 14))
-            padrao = {"status": "ABERTO", "resultado": "PENDENTE",
-                      "ticket": self.ticket}.get(campo, "")
-            if self.novo and campo == "dt_solicitacao":
-                from datetime import date as _hoje       # noqa: PLC0415
-                padrao = f"{_hoje.today():%d/%m/%Y}"
-            if campo == "dt_prazo":     # (06/11) mostra o prazo padrao
-                padrao = self._prazo_padrao(gd.get("dt_solicitacao")
-                                            or (self.vars.get(
-                                                "dt_solicitacao")
-                                                and self.vars[
-                                                    "dt_solicitacao"].get()))
+            padrao = {"ticket": self.ticket}.get(campo, "")
+            if campo == "dt_prazo":     # (06/11) mostra o prazo padrao (RN-POS-005)
+                try:
+                    fer = rn.bd.feriados(AQUI)
+                except Exception:                       # noqa: BLE001
+                    fer = set()
+                padrao = rn.prazo_padrao_txt(gd.get("dt_solicitacao"), fer)
             v = tk.StringVar(value=gd.get(campo) or padrao)
             self.vars[campo] = v
-            if tipo in ("status", "resultado"):
-                w = ttk.Combobox(grade, textvariable=v, state="readonly",
-                                 values=list(g["status"] if tipo == "status"
-                                             else g["resultados"]))
-            else:
-                w = ttk.Entry(grade, textvariable=v)
+            editavel = campo in self.CAMPOS_PC
+            w = ttk.Entry(grade, textvariable=v,
+                          state="normal" if editavel else "readonly")
             w.grid(row=lin * 2 + 1, column=colu, sticky="ew",
                    padx=(0, 14), pady=(0, 8))
-            if tipo == "produto":
-                w.bind("<FocusOut>", lambda e: self._descricao())
-                w.bind("<Return>", lambda e: self._descricao())
         for j in range(4):
             grade.columnconfigure(j, weight=1, uniform="g")
         textos = tk.Frame(corpo, background=bv.FUNDO)
@@ -4366,6 +4356,7 @@ class DialogoGarantia(tk.Toplevel):
             tx = tk.Text(fr, height=5, wrap="word", font=bv.fonte(9),
                          relief="solid", borderwidth=1)
             tx.insert("1.0", gd.get(campo) or "")
+            tx.configure(state="disabled")                # so leitura
             tx.pack(fill="both", expand=True)
             self.textos[campo] = tx
         for j in range(2):
@@ -4409,78 +4400,15 @@ class DialogoGarantia(tk.Toplevel):
         self.base = novo
         self.lbl_cli.configure(text=self._titulo_cliente())
 
-    def _descricao(self):
-        cod = self.vars["cod_produto"].get().strip()
-        if cod and not self.vars["descricao"].get().strip():
-            self.vars["descricao"].set(self.g["produto"](cod) or "")
-
-    @staticmethod
-    def _prazo_padrao(dt_sol) -> str:
-        """(06/11) a DT. FECHAMENTO padrao: solicitacao + 15 dias uteis."""
-        import garantias as gm                           # noqa: PLC0415
-        try:
-            fer = rn.bd.feriados(AQUI)
-        except Exception:                               # noqa: BLE001
-            fer = set()
-        d = gm.prazo_padrao(gm.data(dt_sol), fer)
-        return f"{d:%d/%m/%Y}" if d else ""
-
     def salvar(self):
+        """So o contato (nome e telefone) grava no PC (RN-GER-012)."""
         import garantias as gm                           # noqa: PLC0415
-        self._descricao()
-        campos = {k: v.get().strip() for k, v in self.vars.items()}
-        # (06/11, Alexandre: "Acrescente para poder editar o ticket") o
-        # numero novo: na garantia nova so troca o numero; na que ja existe
-        # grava a troca no diario (a historia continua no numero novo)
-        novo_t = campos.pop("ticket", self.ticket) or ""
-        trocou = False
-        if novo_t != self.ticket:
-            erro_t = gm.renomear(AQUI, None if self.novo else self.ticket,
-                                 novo_t)
-            if erro_t:
-                messagebox.showerror("Garantia", f"Ticket: {erro_t}.",
-                                     parent=self)
-                return
-            trocou = not self.novo
-            self.ticket = novo_t
-            self.title(f"Garantia {novo_t}")
-            try:
-                self.cab.lbl_titulo.configure(text=f"Ticket {novo_t}")
-            except (AttributeError, tk.TclError):
-                pass
-        # (06/11) a DT. FECHAMENTO igual a padrao fica em branco: assim ela
-        # acompanha a solicitacao se a data da solicitacao mudar
-        if campos.get("dt_prazo") and not gm.data(campos["dt_prazo"]):
-            messagebox.showerror("Garantia", "Dt. fechamento: use "
-                                 "dd/mm/aaaa.", parent=self)
-            return
-        if campos.get("dt_prazo") == self._prazo_padrao(
-                campos.get("dt_solicitacao")):
-            campos["dt_prazo"] = ""
-        campos.update({k: tx.get("1.0", "end").strip()
-                       for k, tx in self.textos.items()})
-        # o cadastro: grava so o que difere da base (ou o que ja era da
-        # garantia) - assim a base, quando melhorar, continua valendo
-        self._trocou_cliente()
-        for k, v in self.vars_cli.items():
-            val = v.get().strip()
-            if val != (self.base.get(k) or "").strip() or (
-                    self.g["dados"](self.ticket)["g"].get(k) or "").strip():
-                campos[k] = val
-        if campos.get("dt_solicitacao") and not gm.data(
-                campos["dt_solicitacao"]):
-            messagebox.showerror("Garantia", "Dt. solicitação: use "
-                                 "dd/mm/aaaa.", parent=self)
-            return
-        if self.novo:
-            campos["origem"] = "FAROL DE GARANTIAS"
+        campos = {k: self.vars[k].get().strip() for k in self.CAMPOS_PC}
         try:
             n = gm.gravar(AQUI, self.ticket, campos)
         except OSError as erro:
             messagebox.showerror("Garantia", str(erro), parent=self)
             return
-        n += 1 if trocou else 0
-        self.novo = False
         self.lbl.configure(text=f"Salvo · {n} campo(s) alterado(s)",
                            foreground=bv.VERDE_ESCURO)
         try:
@@ -4496,7 +4424,10 @@ class DialogoGarantia(tk.Toplevel):
 # (perfil admin); o robo grava no PC pela mesma funcao (autorizacoes.gravar e
 # pos_venda.gravar_edicoes). Aqui fica so a leitura.
 AUTORIZA_EM = ()
-EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas")}
+EDICAO_SO_WEB = {("pv_pedidos", "Pedidos"), ("pl_entregas", "Entregas"),
+                 # (T-0023) NCC, Devolucoes e Garantias: so leitura no PC
+                 ("pl_ncc", "NCC pendentes"), ("pl_devolucoes", "Devoluções"),
+                 ("pl_garantias", "Garantias")}
 MSG_EDICAO_SO_WEB = "A edição agora é só pela BAP Central web."
 
 
