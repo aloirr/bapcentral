@@ -1284,6 +1284,31 @@ O aviso do PC "Parâmetros alterados em ... por ..." sai dos `avisos` do farol (
 
 Cada merge no `main` reinicia as 2 h do limite 1 da ADR 0002. Um merge entre 04h30 e 06h30 só adia a instalação para o dia seguinte; ele não troca nada pela metade.
 
+#### 10.9.7 Quem edita, por lugar (T-0054)
+
+Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.** Fontes: R-20261127-100158-alexandre e a RN-POS-011. Desenho: `docs/desenho/T-0054.md`.
+
+- **Padrão:** o da RN-GER-012. Só o perfil `admin` edita (`edicoes.EDITA`).
+- **Exceção por lugar:** a mesma tabela na web (`edicoes.EDITA_LUGAR`) e no robô (`bap_automation.EDITA_LUGAR_WEB`). Um teste do `testes` confere que as duas são iguais a esta.
+
+| `(rid, tabela)` | Perfis que editam |
+|---|---|
+| `("pl_entregas", "Entregas")` | `admin`, `pos_venda` |
+| `("pl_entregas", "Pendências dos meses anteriores")` | `admin`, `pos_venda` |
+
+- **Na web:** `edicoes.pode_editar(perfil, rid, tabela)` = `perfil in EDITA_LUGAR.get((rid, tabela), EDITA)`. É a única pergunta, e vale para:
+  - o botão da linha e a coluna de ação;
+  - o `GET` e o `POST /farol/<rid>/editar`. É 403 para os outros perfis. O `POST` confere antes de ler o formulário se o perfil edita algum lugar do `rid`; depois, confere o lugar do `tab`;
+  - o motivo do "O PC recusou" na dica, que quem edita vê.
+- **O perfil é o do usuário**, não o do acesso por usuário (RN-GER-018). Num farol liberado a outro perfil, o usuário vê só o Resumo, sem editar. O `pos_venda` sem o `pl_entregas` na lista leva 403, como hoje.
+- **Sem mudança:** a linha nova (§10.9.2) continua só do admin. O pacote, os campos, os tetos e a gravação também não mudam (§10.9.1 e §10.9.3).
+- **Fila:** o registro `edicao` ganha a chave opcional `perfil` (`str`, um dos `usuarios.PERFIS`). A web a grava no envio, e o `GET /api/edicoes` a passa como veio.
+- **Robô** (`validar_edicao_web`):
+  - registro com `perfil` fora de `EDITA_LUGAR_WEB.get(lugar, ("admin",))`: vai a `erro`, com `MOTIVO_PERFIL_WEB` = "perfil sem edição neste farol", e nada é gravado;
+  - registro sem `perfil` (de antes da T-0054): aceito, como hoje;
+  - o `APLICADAS_WEB_<máquina>.jsonl` ganha a chave `perfil_web`.
+- **Ordem:** a web e o robô entram em qualquer ordem. O robô velho ignora o `perfil`, e a web velha não o manda.
+
 ### 10.10 Os faróis novos no site: Garantias, Devoluções, NCC, DDR, Campanhas e Expositores (T-0023 v2, T-0025 v2)
 
 Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.**
