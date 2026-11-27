@@ -3,12 +3,12 @@
 {% from "_grade.html" import grade with context %}
 {% macro barras_cols(b) %}
     {% if b.legenda %}<div class="leg">{% for l in b.legenda %}<span><i style="background:{{ l.cor }}"></i>{{ l.nome }}</span>{% endfor %}</div>{% endif %}
-    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}{{ ' gb-vert' if b.vert }}{{ ' gb-rotv' if b.rotv }}">
+    <div class="gb{{ ' gb-largo' if b.largo }}{{ ' gb-denso' if b.denso }}{{ ' gb-vert' if b.vert }}{{ ' gb-rotv' if b.rotv }}{{ ' gb-larga' if b.larga }}">
       {% for c in b.cols %}
       <div class="gb-col">
         <div class="gb-area">{% for x in c.barras %}<div class="gb-b" title="{{ x.titulo }}"><span class="gb-txt">{{ x.txt }}</span><i style="height:{{ x.alt }}%;background:{{ x.cor }}"></i></div>{% endfor %}</div>
-        {% set pr = 5 if (b.cols|length) > 14 else (2 if (b.cols|length) > 9 else 1) %}
-        <div class="gb-rot">{{ c.rot if ((not b.denso and pr == 1) or loop.index0 % pr == 0 or loop.last) else '' }}</div>
+        {% set pr = 1 if b.larga else (5 if (b.cols|length) > 14 else (2 if (b.cols|length) > 9 else 1)) %}
+        <div class="gb-rot">{% if b.larga %}<span class="r-l">{{ c.rot }}</span><span class="r-c">{{ c.rot_c }}</span>{% else %}{{ c.rot if ((not b.denso and pr == 1) or loop.index0 % pr == 0 or loop.last) else '' }}{% endif %}</div>
       </div>
       {% endfor %}
     </div>
@@ -24,7 +24,7 @@
 <section class="graficos">
 {% for b in tela.blocos if b.tipo in ("barras", "hbarras", "tabela", "placar", "periodos") %}
 {% set bi = loop.index %}
-<article class="graf{{ ' graf-tab' if b.tipo == 'tabela' }}{{ ' graf-placar' if b.tipo == 'placar' }}{{ ' graf-per' if b.tipo == 'periodos' }}">
+<article class="graf{{ ' graf-larga' if b.larga }}{{ ' graf-tab' if b.tipo == 'tabela' }}{{ ' graf-placar' if b.tipo == 'placar' }}{{ ' graf-per' if b.tipo == 'periodos' }}">
   {% if b.titulo %}<h3>{{ b.titulo }}</h3>{% endif %}
   {% if b.tipo == "periodos" %}
     <div class="per">

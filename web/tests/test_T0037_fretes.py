@@ -160,3 +160,35 @@ def test_RN_POS_010_aba_curta_e_dica_da_busca(admin):
     _pacote_ok(admin)
     assert 'placeholder="Buscar NF ou cliente"' in admin.get(URL).text
 
+
+
+# ---- parecer de UX da simulação v2 (R1, A1, A5)
+def test_UX_R1_so_cor_da_paleta_da_marca_nos_graficos():
+    from app import marca
+    verde = marca.TOKENS["--grafico-1"]
+    cinza = marca.TOKENS["--grafico-3"]
+    assert render._cor(verde, cinza) == verde
+    assert render._cor("#1F4FD1", cinza) == cinza and render._cor("#2F6FB5", cinza) == cinza   # o AZUL do PC
+    assert render._cor("azul", cinza) == cinza
+    b = render._bloco_barras({"grafico": {"rotulos": ["A"], "series": [{"nome": "n", "cor": "#1F4FD1", "valores": [3]}]}})
+    assert b["cols"][0]["barras"][0]["cor"] == cinza
+    h = render._bloco_hbarras({"rotulos": ["A", "B"], "valores": [1, 2], "cores": ["#1F4FD1", verde]})
+    assert [x["cor"] for x in h["linhas"]] == [cinza, verde]
+
+
+def test_UX_A1_grafico_do_resumo_ocupa_a_largura_toda(admin):
+    _pacote_ok(admin)
+    html = admin.get("/farol/pl_fretes").text
+    assert "graf-larga" in html and "gb-larga" in html
+    assert '<span class="r-l">DEZ/25</span><span class="r-c">DEZ</span>' in html       # todos os meses; 3 letras no celular
+    assert "#1F4FD1" not in html
+    g = {"grafico": {"rotulos": ["JAN/26", "FEV/26"], "series": [{"nome": "n", "valores": [1, 2]}]}, "colspan": 3}
+    assert render._bloco_barras(g)["larga"] is True
+    _, out = render._blocos({"blocos": [{"tipo": "barras", "row": 0, "col": 0, **g},
+                                        {"tipo": "barras", "row": 1, "col": 0, **g}]})
+    assert not any(x["larga"] for x in out)                       # com 2 gráficos, os outros faróis seguem como estavam
+
+
+def test_UX_A5_popup_da_nota_diz_NF_em_maiusculas(admin):
+    _pacote_ok(admin)
+    assert 'data-tit="NF 700101"' in admin.get(URL).text

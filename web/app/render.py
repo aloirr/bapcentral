@@ -399,7 +399,12 @@ def _insights(linhas) -> list[dict]:
 
 
 def _cor(c, padrao) -> str:
-    return c if isinstance(c, str) and _COR.match(c) else padrao
+    """R1 (UX T-0037): só entra cor da paleta da marca (`marca.TOKENS`); qualquer outra (o AZUL do PC, por exemplo)
+    vira o padrão (`--grafico-3`)."""
+    if isinstance(c, str) and _COR.match(c):
+        if c.lower() in {v.lower() for v in marca.TOKENS.values() if isinstance(v, str)}:
+            return c
+    return padrao
 
 
 def _bloco_barras(b) -> dict:
@@ -429,9 +434,13 @@ def _bloco_barras(b) -> dict:
     nbarras = len(cols) * max(len(series), 1)
     maxrot = max([len(c["rot"]) for c in cols] or [0])
     denso = len(cols) > 14
-    return {"tipo": "barras", "titulo": str(g.get("titulo", "")), "cols": cols,
-            "denso": denso, "vert": 8 < nbarras and not denso,       # valor em pé: não se sobrepõe
-            "rotv": (len(cols) > 5 and maxrot > 5) or (len(cols) > 8 and maxrot > (3 if denso else 4)),   # data/nome comprido em pé
+    larga = (_num(b.get("colspan")) or 1) >= 2 and not denso          # A1: o gráfico que pede a largura toda
+    for c in cols:                                                       # celular: "DEZ/25" vira "DEZ"
+        m = re.match(r"^([A-ZÇ]{3})/\d{2}$", c["rot"])
+        c["rot_c"] = m.group(1) if m else c["rot"]
+    return {"tipo": "barras", "larga": larga, "titulo": str(g.get("titulo", "")), "cols": cols,
+            "denso": denso, "vert": 8 < nbarras and not denso and not larga,       # valor em pé: não se sobrepõe
+            "rotv": not larga and ((len(cols) > 5 and maxrot > 5) or (len(cols) > 8 and maxrot > (3 if denso else 4))),   # data/nome comprido em pé
             "legenda": [{"nome": s["nome"], "cor": s["cor"]} for s in series if s["nome"]] if len(series) > 1 else [],
             "meta": {"pos": round(100 * abs(meta) / mx, 1), "txt": fmt_valor(meta, formato)} if meta else None,
             "largo": len(cols) > 8}
@@ -588,6 +597,15 @@ def _blocos(painel) -> tuple[list[dict], list[dict]]:
             g = b.get("grafico")
             titulo = b.get("titulo") or (g.get("titulo") if isinstance(g, dict) else "")
             out.append({"tipo": "indisponivel", "titulo": str(titulo or "")})
+    # A1: a largura toda só quando é o único gráfico da tela (os outros faróis seguem como estavam)
+    if sum(1 for x in out if x.get("tipo") in ("barras", "hbarras")) != 1:
+        for x in out:
+            if x.get("larga"):
+                x["larga"] = False
+                n = len(x["cols"])
+                maxrot = max([len(c["rot"]) for c in x["cols"]] or [0])
+                x["vert"] = 8 < n * max(len(x["cols"][0]["barras"]), 1) and not x["denso"]
+                x["rotv"] = (n > 5 and maxrot > 5) or (n > 8 and maxrot > (3 if x["denso"] else 4))
     return ins, out
 
 

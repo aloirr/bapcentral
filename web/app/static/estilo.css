@@ -705,3 +705,18 @@ button:disabled{opacity:.5;cursor:not-allowed}
 @media(min-width:701px){.vz-adm:has(.vz-det[open]) .vz-lista{max-height:max(150px,calc(100vh - 620px));overflow:auto}}   /* a tela do admin não rola: o que sobra rola dentro da caixa */
 .vz-det>summary{cursor:pointer;font-size:13px;color:var(--suave);margin-bottom:8px}
 @media(max-width:700px){.vz-admin .vz-linha>form,.vz-admin .vz-linha button{flex:1 1 100%;width:100%}}
+
+/* T-0037 (UX A1): o gráfico único do Resumo ocupa a largura toda; rótulos deitados, todos os meses, >= 12 px no PC e
+   "DEZ" de 3 letras com 11 px no celular */
+.graf-larga{grid-column:1/-1}
+.bc3 .graf .gb.gb-larga{gap:6px;padding-right:0;overflow:hidden}
+.bc3 .graf .gb.gb-larga .gb-rot{font-size:12px;overflow:visible;text-overflow:clip;text-align:center;white-space:nowrap}
+.gb-larga .gb-txt{font-size:12px}
+.gb-larga .r-c{display:none}
+@media(max-width:700px){
+  .graf-larga{padding-left:6px;padding-right:6px}
+  .gb.gb-larga{gap:1px;grid-auto-columns:minmax(0,1fr)}
+  .gb-larga .gb-rot{font-weight:600;letter-spacing:-.02em}
+  .gb-larga .r-l{display:none}.gb-larga .r-c{display:inline}
+  .gb-larga .gb-rot,.gb-larga .gb-txt{font-size:11px}
+}
