@@ -1078,9 +1078,10 @@ Donos:
 
 **Teto do texto, um lugar só:** `relatorios_nucleo.MAX_TEXTO_EDICAO`, `{(módulo, campo): int}` (modulo-farois).
 - O núcleo põe esse número no `max` da `edicao`.
-- O robô confere a edição contra o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`).
-- `max` do pacote diferente do número do núcleo = edição recusada, com o motivo de `bap_automation.motivo_texto_web(maximo)`.
-- A frase é "texto inválido (até {maximo} caracteres, sem CPF, CNPJ, telefone ou e-mail)", com o `max` do campo; sem `maximo` (`None`), o teto é o padrão do núcleo (`relatorios_nucleo.MAX_TEXTO_PADRAO`).
+- O robô usa o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`), em dois momentos:
+  1. **Na montagem do pacote** (`bap_automation.edicao_web`, chamada pela `_tabela_web7`): o `max` da `edicao` do PC (sem ele, `relatorios_nucleo.MAX_TEXTO_PADRAO`) diferente de `relatorios_nucleo.max_texto_edicao(módulo, campo)` levanta `ValueError`. A tabela vai ao pacote **sem a chave `edicao`** (fica só de leitura) e o log ganha um aviso com o farol e a tabela, sem dado pessoal. Nada chega ao site para recusar.
+  2. **Na hora de aplicar a edição** (`bap_automation.validar_edicao_web`, chamada pela `aplicar_edicao_web`): o texto que passa de `max_texto_edicao(módulo, campo)` é recusado com o motivo de `bap_automation.motivo_texto_web(maximo)`, com o teto do campo.
+- A frase é "texto inválido (até {maximo} caracteres, sem CPF, CNPJ, telefone ou e-mail)"; sem `maximo` (`None`), o teto é o padrão do núcleo (`relatorios_nucleo.MAX_TEXTO_PADRAO`).
 - A web corta o valor bruto em `max` + 100 caracteres (hoje, 200 fixos).
 
 **Regras do texto livre**, na web e no robô:
