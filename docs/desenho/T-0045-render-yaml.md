@@ -1,96 +1,55 @@
 # T-0045 — Proposta de governança: o cron job `bap-visitas-maxima` no `render.yaml` e o `Dockerfile`
 
-- **Autor:** engenheiro-software · **Data:** 27/11/2026
-- **Base:** ADR 0004 (aceita) e o contrato `.coord/contratos/visitas-nuvem.md` v1, na branch `engenheiro-software/T-0045-visitas-render`.
-- **Decisões:** R-20261127-005437-alexandre (2 A: cron job à parte, plano de 2 GB por minuto; 5 A: usuário próprio da Máxima, só como variável secreta).
+- **Autor:** engenheiro-software · **Data:** 27/11/2026 (revisado no PR #137)
+- **Base:** ADR 0004 (aceita) e o contrato `.coord/contratos/visitas-nuvem.md` v1, neste PR.
+- **Decisões:** D1 (cron job à parte, plano de 2 GB pago pelo tempo rodado) e D4 (usuário próprio da Máxima, só como variável secreta), ADR 0004, §0.
+- **Texto exato do `render.yaml`:** `docs/desenho/T-0045-render-yaml.diff` (aplica com `git apply` sobre o `origin/main` a32b610). Este arquivo explica o diff sem repetir o YAML.
 
 ## 1. Por que esta proposta é um diff, e não o `render.yaml` alterado
 
 - O `render.yaml` e o `.coord/donos.json` são do **alexandre** (`.coord/donos.json`). O guardião bloqueia o engenheiro-software nesses arquivos, e o protocolo manda não contornar.
-- Por isso, esta branch leva **só arquivos do engenheiro-software**:
-  - este desenho;
-  - `docs/desenho/T-0045-render-yaml.diff`, que aplica limpo sobre o `origin/main` a32b610 (`git apply docs/desenho/T-0045-render-yaml.diff`).
-- Quem tem a identidade do Alexandre aplica o diff no `render.yaml`, no mesmo PR ou num PR próprio, como no PR #57. O merge segue com o "autorizo o merge do PR #N no commit <sha>" do po, por delegação.
+- Por isso, este PR leva **só arquivos do engenheiro-software**: este desenho e o `.diff` ao lado.
+- O `render.yaml` entra **num PR próprio do Alexandre** (`alexandre/T-0045-render-yaml`), como no PR #57, só no passo da ADR 0004, §9 (item 10). O merge segue com o "autorizo o merge do PR #N no commit <sha>" do po, por delegação.
 
-## 2. O que muda no `render.yaml`
+## 2. O que o diff muda no `render.yaml`
 
-**No `bap-central` (o site), uma linha só:**
-
-```yaml
-      - key: BAP_VISITAS_TOKEN
-        generateValue: true  # T-0045: o Render sorteia; só abre as rotas do cron (/api/visitas/trabalho e /rodada*)
-```
-
+**No `bap-central` (o site): uma variável a mais, `BAP_VISITAS_TOKEN`, com `generateValue: true`.**
 - O Render sorteia o valor, e ninguém do time o vê. O cron recebe o mesmo valor pelo `fromService`.
 - Variável nova no site = **um deploy do site** no sync do Blueprint (alguns segundos fora do ar, como em todo deploy).
+- O comentário do topo passa a contar os segredos dos 2 serviços.
 
-**Serviço novo (no fim do `services:`):**
-
-```yaml
-  - type: cron
-    name: bap-visitas-maxima
-    runtime: docker
-    plan: standard           # 2 GB, 1 CPU, cobrado por minuto [SUPOSIÇÃO: ~US$ 0,00058/min, mínimo US$ 1/mês; confirmar no painel]
-    region: oregon           # a mesma do bap-central (rede privada)
-    schedule: "*/10 10-23,0-1 * * *"   # UTC: de 10 em 10 min, das 06h00 às 21h50 de Manaus (UTC-4)
-    dockerfilePath: ./nuvem/visitas/Dockerfile
-    dockerContext: .
-    autoDeploy: true
-    buildFilter:             # só refaz a imagem quando o código dela muda
-      paths:
-        - nuvem/visitas/**
-        - visitas_maxima.py
-        - visitas_nucleo.py
-        - requirements-visitas.txt
-    envVars:
-      - key: TZ
-        value: America/Manaus
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: BAP_WEB_HOSTPORT
-        fromService:
-          type: web
-          name: bap-central
-          property: hostport
-      - key: BAP_VISITAS_TOKEN
-        fromService:         # o valor sorteado no bap-central [SUPOSIÇÃO: envVarKey aceito no cron]
-          type: web
-          name: bap-central
-          envVarKey: BAP_VISITAS_TOKEN
-      - key: BAP_MAXIMA_USUARIO
-        sync: false          # o Alexandre cria no painel (usuário próprio do robô, decisão 5 A)
-      - key: BAP_MAXIMA_SENHA
-        sync: false          # o Alexandre cria no painel; só neste serviço
-```
-
-- **Nenhum valor secreto.** Os 2 únicos segredos (`BAP_MAXIMA_USUARIO` e `BAP_MAXIMA_SENHA`) estão com `sync: false`: o Render cria a variável vazia e pede o valor no painel.
-- **Horário:** Manaus é UTC−4 o ano todo (sem horário de verão). 10h00 UTC = 06h00 de Manaus; 01h50 UTC = 21h50. A agenda das 06h00 (decisão 3 A) é decidida pelo código (`deve_rodar`), não pelo `schedule`: o `schedule` só acorda o cron para ver se há trabalho.
-- **`buildFilter`:** sem ele, todo commit no `main` refaria a imagem de cerca de 2 GB.
-- **Sem `disk`:** o cron job do Render não aceita disco [SUPOSIÇÃO]. Tudo que fica vai ao site pela API (contrato, §3).
+**Serviço novo `bap-visitas-maxima` (no fim do `services:`):**
+- `type: cron`, `runtime: docker`, `plan: standard`, `region: oregon` (a mesma do site, para a rede privada).
+- **Horário:** `schedule` em UTC, de 10 em 10 min das 10h00 às 01h50 UTC. Manaus é UTC−4 o ano todo (sem horário de verão): 10h00 UTC = 06h00 de Manaus; 01h50 UTC = 21h50. A agenda das 06h00 (D2) e o teto do dia são decididos pelo código (`deve_rodar`, contrato §3.1), não pelo `schedule`: o `schedule` só acorda o cron para ver se há trabalho.
+- **`buildFilter`:** só o código da imagem (`nuvem/visitas/**`, `visitas_maxima.py`, `visitas_nucleo.py`, `requirements-visitas.txt`). Sem ele, todo commit no `main` refaria a imagem de cerca de 2 GB.
+- **Variáveis:** as do contrato, §1. **Nenhum valor secreto:** os 2 únicos segredos (`BAP_MAXIMA_USUARIO` e `BAP_MAXIMA_SENHA`) estão com `sync: false`: o Render cria a variável vazia e pede o valor no sync do Blueprint.
+- **Sem `disk`:** o cron job não aceita disco (§2.1). Tudo que fica vai ao site pela API (contrato, §3).
 - **Sem `dockerCommand`:** vale o `CMD` do `Dockerfile`.
 
-### 2.1 O que confere com a documentação do Render, e o que é [SUPOSIÇÃO]
+### 2.1 Características do Render que a ADR 0004 usa (a fonte é esta tabela)
 
-A documentação do Render (`render.com/docs`) não abriu desta sessão (o proxy recusou o domínio). Os campos vêm do Blueprint que o repositório já usa e do que conheço da especificação:
+A documentação do Render (`render.com/docs`) não abriu desta sessão (o proxy recusou o domínio). Os campos vêm do Blueprint que o repositório já usa e do que conheço da especificação. Tudo o que está marcado é conferido no primeiro sync (erro de campo aparece no painel antes de criar o serviço) ou no diagnóstico.
 
 | Campo ou fato | Situação |
 |---|---|
-| `type: cron`, `schedule`, `runtime: docker`, `dockerfilePath`, `dockerContext`, `buildFilter.paths`, `envVars`, `sync: false`, `fromService ... property: hostport` | conhecidos da especificação do Blueprint [SUPOSIÇÃO: conferir no primeiro sync; erro de campo aparece no painel antes de criar o serviço] |
-| `generateValue: true` e `fromService ... envVarKey` | [SUPOSIÇÃO]. Se o Render recusar o `envVarKey` no cron, a troca é `sync: false` nos dois serviços e o Alexandre põe o mesmo valor (qualquer texto longo) nos dois |
-| `plan: standard` (2 GB, 1 CPU) no cron | [SUPOSIÇÃO] nome e tamanho do plano |
-| preço por minuto (~US$ 0,00058 no Standard, ~US$ 0,00016 no Starter) e o mínimo de US$ 1/mês | [SUPOSIÇÃO]: o Alexandre confere em Render > Pricing antes do "autorizo" |
-| `schedule` em UTC; uma execução por vez; teto de 12 h por execução | [SUPOSIÇÃO] |
-| o cron alcança o site pela rede privada (`hostport`) | [SUPOSIÇÃO]: o diagnóstico mostra. Se não alcançar, troca para a URL pública com HTTPS |
+| `type: cron`, `schedule`, `runtime: docker`, `dockerfilePath`, `dockerContext`, `buildFilter.paths`, `envVars`, `sync: false`, `fromService ... property: hostport` | conhecidos da especificação do Blueprint [SUPOSIÇÃO] |
+| o cron job aceita os planos `starter`, `standard` e `pro`, e **não aceita disco** | [SUPOSIÇÃO] |
+| `plan: standard` = 2 GB e 1 CPU; `starter` = 512 MB e 0,5 CPU | [SUPOSIÇÃO] |
+| cobrança pelo tempo rodado: ~US$ 0,00058 por minuto no Standard, ~US$ 0,00016 no Starter, mínimo de US$ 1/mês por cron job | [SUPOSIÇÃO]: o Alexandre confere em Render > Pricing antes do "autorizo" |
+| `schedule` em UTC; uma execução por vez (a próxima não começa enquanto a anterior roda); teto de 12 h por execução | [SUPOSIÇÃO] |
+| o cron alcança o site pela rede privada da mesma região (`hostport`), sem TLS dentro da rede do Render | [SUPOSIÇÃO]: o diagnóstico mostra. Se não alcançar, troca para a URL pública com HTTPS |
+| `generateValue: true` e `fromService ... envVarKey` | [SUPOSIÇÃO]. Plano B, se o Render recusar o `envVarKey` no cron: `sync: false` nos dois serviços, e o Alexandre cola nos dois **o mesmo valor de 32 bytes aleatórios, gerado no PC dele** (`python -c "import secrets; print(secrets.token_urlsafe(32))"`), nunca em recado |
 | `autoDeploy: true` no cron | igual ao site (ADR 0001, adendo 4) |
 
-## 3. O `Dockerfile` (texto; entra no repositório depois do `donos.json`)
+## 3. O `Dockerfile` e o `.dockerignore` (texto; entram no repositório depois do `donos.json`)
 
 **Dono proposto:** **engenheiro-software**, como base técnica (a imagem, a versão do Playwright, o `requirements-visitas.txt`). O código que roda dentro (`nuvem/visitas/rodar.py`, `agenda.py`, `__init__.py`) é do **modulo-robo**. Não é do modulo-web: o cron não é o site e não fica em `web/` (o site tem `rootDir: web`, e código do cron ali faria o site refazer deploy a cada mudança do cron).
 
-Hoje `nuvem/**` é "sem-dono", e o guardião bloqueia. As linhas para o `.coord/donos.json` (governança, antes das regras gerais; a primeira que casa vence):
+Hoje `nuvem/**` e `.dockerignore` são "sem-dono", e o guardião bloqueia. **As linhas para o `.coord/donos.json`** (a única cópia; governança, antes das regras gerais; a primeira que casa vence):
 
 ```json
 { "padrao": "nuvem/visitas/Dockerfile", "dono": "engenheiro-software" },
+{ "padrao": ".dockerignore", "dono": "engenheiro-software" },
 { "padrao": "nuvem/**", "dono": "modulo-robo" },
 ```
 
@@ -123,15 +82,24 @@ USER pwuser
 CMD ["python", "-m", "nuvem.visitas.rodar"]
 ```
 
-- O `visitas_nucleo.py` importa o `xlsx_rapido`, o `meta_nucleo` e o `pastas_bap` só dentro de funções de montagem, que a nuvem não chama. Se o `rodar.py` precisar de alguma delas, o arquivo entra na lista do `COPY` e no `buildFilter`, e nunca uma pasta inteira.
+Texto do `.dockerignore` (na raiz, porque o `dockerContext` é `.`): tira as bases e o resto do contexto de build, o que encurta o envio ao builder. A lista fechada do `COPY` continua sendo a proteção da imagem.
+
+```
+RELATORIOS/
+SISTEMA BAP/
+BAP Ajuda 2.0/
+.coord/
+.claude/
+.git/
+docs/
+web/
+tests/
+**/__pycache__/
+```
+
+- O `visitas_nucleo.py` importa o `xlsx_rapido`, o `meta_nucleo` e o `pastas_bap` só dentro de funções de montagem, que a nuvem não chama. O `ler_espelho` cai no `openpyxl` quando não acha o `xlsx_rapido` (por isso ele está no `requirements-visitas.txt`). Se o `rodar.py` precisar de outro arquivo, ele entra na lista do `COPY` e no `buildFilter`, e nunca uma pasta inteira.
 - Teste (agente testes): o `Dockerfile` não tem `COPY .` nem `ADD .`, e a tag da imagem é a mesma versão do `playwright==` do `requirements-visitas.txt`.
 
-## 4. Ordem do merge (para o primeiro build não falhar)
+## 4. Ordem do merge
 
-1. **Governança 1:** as duas linhas do `.coord/donos.json` (§3).
-2. **Código no `main`:** a web do contrato (modulo-web), o `nuvem/visitas/` (modulo-robo) e o `Dockerfile` (engenheiro-software). O `requirements-visitas.txt` já está na branch da ADR.
-3. **Governança 2: este `render.yaml`.** Com o merge, o Blueprint cria o `bap-visitas-maxima` e põe o `BAP_VISITAS_TOKEN` no site.
-4. O Alexandre preenche `BAP_MAXIMA_USUARIO` e `BAP_MAXIMA_SENHA` no painel. Até lá, cada volta do cron sai em segundos com `CONFIG_FALTANDO`.
-5. A primeira volta com as variáveis faz o **diagnóstico** (contrato, §6). A agenda só liga com o "ok" do Alexandre.
-
-Se o `render.yaml` entrar antes do item 2, o Render tenta construir a imagem sem o `Dockerfile` e o build falha no painel. Nada quebra no site, mas o serviço fica vermelho até o código chegar.
+ADR 0004, §9 (itens 2, 7, 8, 10 e 11). Se o `render.yaml` entrar antes do código, o build do cron fica vermelho no painel até o código chegar; o site não cai.

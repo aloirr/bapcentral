@@ -5,3 +5,4 @@
 # [SUPOSIÇÃO] 1.49.1 é a versão de partida; o diagnóstico no Render confirma ou sobe.
 playwright==1.49.1
 tzdata==2025.2      # zoneinfo America/Manaus sem depender do tzdata do sistema
+openpyxl==3.1.5     # o filtro do Espelho (visitas_nucleo.filtrar_espelho, contrato §3.6) e o ler_espelho sem o xlsx_rapido

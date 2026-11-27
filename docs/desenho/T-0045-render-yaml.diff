@@ -23,13 +23,13 @@ index fc19792..c4675e0 100644
        sizeGB: 1
 +
 +  # T-0045 (ADR 0004; contrato .coord/contratos/visitas-nuvem.md v1): visitas da Máxima.
-+  # Cron job à parte (decisão 2 A, R-20261127-005437-alexandre): acorda de 10 em 10 min,
-+  # pergunta ao site se há trabalho (agenda das 06h00, botão, diagnóstico) e sai.
++  # Cron job à parte (D1 da ADR 0004): acorda de 10 em 10 min,
++  # pergunta ao site se há trabalho (agenda das 06h00, botão, diagnóstico, teto do dia) e sai.
 +  # A senha da Máxima fica SÓ aqui, nunca no bap-central.
 +  - type: cron
 +    name: bap-visitas-maxima
 +    runtime: docker
-+    plan: standard           # 2 GB, 1 CPU, cobrado por minuto [SUPOSIÇÃO: ~US$ 0,00058/min, mínimo US$ 1/mês; confirmar no painel]
++    plan: standard           # 2 GB, 1 CPU, pago pelo tempo rodado [SUPOSIÇÃO: preço em docs/desenho/T-0045-render-yaml.md, §2.1]
 +    region: oregon           # a mesma do bap-central (rede privada)
 +    schedule: "*/10 10-23,0-1 * * *"   # UTC: de 10 em 10 min, das 06h00 às 21h50 de Manaus (UTC-4)
 +    dockerfilePath: ./nuvem/visitas/Dockerfile
@@ -57,6 +57,6 @@ index fc19792..c4675e0 100644
 +          name: bap-central
 +          envVarKey: BAP_VISITAS_TOKEN
 +      - key: BAP_MAXIMA_USUARIO
-+        sync: false          # o Alexandre cria no painel (usuário próprio do robô, decisão 5 A)
++        sync: false          # o Alexandre cria no painel (usuário próprio do robô, D4); preencher no mesmo sync
 +      - key: BAP_MAXIMA_SENHA
 +        sync: false          # o Alexandre cria no painel; só neste serviço
