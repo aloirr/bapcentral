@@ -26,6 +26,8 @@
   </form>
   {% endif %}
 </section>
+{% elif v.login_barrado %}
+<section class="vz-faixa vz-teto" role="status"><div><b>Sem acesso à Máxima hoje</b><span>{{ v.login_barrado_texto }}</span></div></section>
 {% elif v.teto_dia %}
 <section class="vz-faixa vz-teto" role="status"><div><b>Limite de hoje</b><span>{{ v.teto_texto }}</span></div></section>
 {% elif e.rodada_ativa %}
@@ -76,11 +78,14 @@
   {% if v.rodadas %}
   <ul class="vz-lista">
     {% for r in v.rodadas %}
-    {% set pausou = e.pausado and loop.first and r.codigo == e.pausado.codigo %}
+    {% set real = loop.index0 == v.primeira_real %}
+    {% set pausou = e.pausado and real and r.codigo == e.pausado.codigo %}
+    {% set barrou = v.login_barrado and real and r.codigo == v.login_barrado.codigo %}
+    {% set ja_dito = loop.first and r.sem_dia and r.msg_pedido and msg == r.msg_pedido %}   {# a mensagem do topo já diz #}
     <li class="{{ 'vz-topo' if loop.first }}">
       <span class="vz-quando">{{ r.quando }}</span>
       <span class="selo {{ 'selo-ok' if r.status == 'ok' else ('selo-atencao' if r.status == 'parcial' else 'selo-erro') }}">{{ 'Pausou' if pausou else r.situacao }}</span>
-      <span class="vz-texto">{{ '' if pausou else r.texto }}{% if r.status != 'ok' %}<small class="vz-cod">Código para o suporte: {{ r.codigo }}{% if r.fase and r.codigo in ('TELA_MUDOU', 'ERRO_INTERNO') %} · etapa {{ r.fase }}{% endif %}</small>{% endif %}</span>
+      <span class="vz-texto">{{ '' if (pausou or barrou or ja_dito) else r.texto }}{% if r.status != 'ok' %}<small class="vz-cod">Código para o suporte: {{ r.codigo }}{% if r.fase and r.codigo in ('TELA_MUDOU', 'ERRO_INTERNO') %} · etapa {{ r.fase }}{% endif %}</small>{% endif %}</span>
     </li>
     {% endfor %}
   </ul>
