@@ -773,13 +773,10 @@ def _robo():
 
 def test_T0023_colunas_por_rid_e_titulo_sem_colisao():
     """O "Por supervisor" da NCC não pisa o do Visita (e vice-versa): cada
-    (rid, título) tem a sua lista no robô (§10.10.1). Sem a T-0023 no robô,
-    só o Visita existe e o teste confere que ele segue com a sua lista."""
+    (rid, título) tem a sua lista no robô (§10.10.1)."""
     r = _robo_rid()
     vis = [n for n, *_ in r[("vc_visitas", "Por supervisor")]]
     assert vis[:2] == ["SUPERVISOR", "REPRES."] and vis[-1] == "CHAVE"
-    if ("pl_ncc", "Por supervisor") not in r:
-        return
     ncc = [n for n, *_ in r[("pl_ncc", "Por supervisor")]]
     assert ncc == ["SUPERVISOR", "NCC", "CLIENTES", "0-30 DIAS", "31-90 DIAS",
                    "91-180 DIAS", "+180 DIAS", "SALDO", "COMPENSAR JÁ"]
