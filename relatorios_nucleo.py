@@ -16347,7 +16347,9 @@ def _para_corrigir(ctx, chaves=None) -> list:
 def codigo_do_cliente(texto_cliente) -> str:
     """RN-GER-011: de "001234-01 - NOME" devolve "001234-01" (codigo e
     loja). Sem o codigo no comeco, "". Nunca devolve o nome."""
-    m = re.match(r"\s*(\d+(?:-\d+)?)(?=\s|$|-)",
+    # formato do Protheus: A1_COD 6 digitos + loja opcional de 2; CPF/CNPJ
+    # so com digitos (11/14) nao casa e devolve ""
+    m = re.match(r"\s*(\d{6}(?:-\d{2})?)(?=\s|$|-)",
                  "" if texto_cliente is None else str(texto_cliente))
     return m.group(1) if m else ""
 
