@@ -508,6 +508,18 @@
       "dono": "engenheiro-software"
     },
     {
+      "padrao": "nuvem/visitas/Dockerfile",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": ".dockerignore",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "nuvem/**",
+      "dono": "modulo-robo"
+    },
+    {
       "padrao": "web/**",
       "dono": "modulo-web"
     },
