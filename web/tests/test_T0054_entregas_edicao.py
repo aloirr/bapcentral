@@ -126,3 +126,42 @@ def test_RN_GER_018_farol_liberado_nao_da_edicao(ped, amb):
 
 def test_T0054_versao():
     assert VERSAO == "0.12.0"
+
+
+def test_RN_POS_011_formulario_diz_a_nota_e_o_cliente(ped):
+    c = _usuario(ped, "t54.posvenda", "pos_venda")
+    html = c.get(_link(c.get(URL_ENT).text)).text
+    m = re.search(r'<p class="ed-resumo">([^<]+)</p>', html)
+    assert m and re.match(r"NF \d+ · CLIENTE TESTE \d+ · [A-Z]{2}$", m.group(1).replace("FICTICIO", "TESTE"))
+
+
+def test_RN_POS_011_erro_devolve_o_digitado_e_marca_so_o_campo_recusado(ped, amb):
+    c = _usuario(ped, "t54.posvenda", "pos_venda")
+    link = _link(c.get(URL_ENT).text)
+    campos = _form(c, link)
+    r = c.post("/farol/pl_entregas/editar", data=dict(campos, csrf=token_form(c, "/senha"), c_etapa="ENTREGUE",
+                                                      c_frete_real="321,00", c_responsavel="FULANO 123.456.789-00"))
+    assert r.status_code == 400 and "sem CPF" in r.text
+    assert 'value="321,00"' in r.text and '<option value="ENTREGUE" selected>' in r.text
+    assert "123.456.789-00" not in r.text.split('class="erro"')[1].split("</p>")[1]   # o CPF não volta no campo
+    assert r.text.count('aria-invalid="true"') == 1
+    assert re.search(r'<input type="text" aria-invalid="true" name="c_responsavel" value=""', r.text)
+    assert not (amb / "edicoes").exists() or _fila(amb) == []
+
+
+def test_RN_POS_011_dica_da_data_calculada_so_na_prevista(ped):
+    html = ped.get(_link(ped.get(URL_ENT).text)).text
+    assert html.count("Apague a data para voltar") == 1
+
+
+def test_RN_POS_010_notas_com_frete_pos_venda_edita_gerente_nao():
+    lugar = ("pl_fretes", "Notas com frete")
+    assert edicoes.pode_editar("admin", lugar) and edicoes.pode_editar("pos_venda", lugar)
+    for p in ("gerente", "analista", "diretor", "pre_venda", "vendas", "trade"):
+        assert not edicoes.pode_editar(p, lugar)
+    assert "pos_venda" in edicoes.perfis_do_rid("pl_fretes")
+
+
+def test_RN_POS_010_lugar_ainda_fora_de_LUGARES_nao_quebra(ped):
+    c = _usuario(ped, "t54.posvenda", "pos_venda")        # no main o Fretes não tem edição: 403/404, nunca 500
+    assert c.get("/farol/pl_fretes/editar?tab=Notas+com+frete&chave=x").status_code in (403, 404)

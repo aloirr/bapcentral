@@ -343,7 +343,8 @@ button{background:var(--verde-escuro);border-color:var(--verde-escuro)}
 .ed-col{white-space:nowrap;width:1%}
 .bt-ed{display:inline-block;background:var(--verde-escuro);color:var(--branco);border-radius:6px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none}
 .ed-nao{color:var(--suave)}
-.ed-marca{display:inline-block;margin-left:.3rem;border-radius:6px;padding:.05rem .4rem;font-size:.72rem;font-weight:600}
+.ed-marca{display:inline-block;margin-left:.3rem;border-radius:6px;padding:.05rem .4rem;font-size:.75rem;font-weight:600}
+.ed-col .ed-marca{display:block;margin:.2rem 0 0;white-space:normal}
 .ed-pend{background:var(--atencao-claro);color:var(--atencao-texto)}.ed-erro{background:var(--alerta);color:var(--branco)}
 .tab-dados tr.sel td{background:var(--verde-claro)!important}
 .sel-link{color:var(--verde-escuro);font-weight:600;text-decoration:underline dotted}
@@ -603,7 +604,9 @@ body.uma-tela .painel-corpo .graf .gb{flex:1;height:auto;min-height:120px}
   .bc3-item.tom-alerta>summary,.bc3-item.tom-grave>summary{background:var(--alerta-claro)}.bc3-item.tom-atencao>summary{background:var(--atencao-claro)}
   .bc3-item dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;padding:8px 12px 6px;background:var(--c-f6faf6);font-size:12.5px}.bc3-item dt{color:var(--suave)}.bc3-item dd{margin:0;text-align:right}
   .bc3-item dt.bl{grid-column:1/-1;margin-top:6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--c-4a564e);font-weight:700}.bc3-item dd.bl{display:none}
-  .bc3-ed{margin:0;padding:4px 12px;background:var(--c-f6faf6)}
+  .bc3-ed{margin:0;padding:4px 12px;background:var(--c-f6faf6);display:flex;align-items:center;gap:.5rem}
+  .bc3-ed a.bt-ed{display:inline-flex;align-items:center;justify-content:center;min-width:88px;padding:0 1rem}
+  .bc3-ed .ed-marca{display:inline-block;margin:0}
   .bc3-sel{display:block;padding:8px 12px 12px;background:var(--c-f6faf6);color:var(--verde-escuro);font-weight:600;font-size:13px}
   .bc3-mais{display:block;width:100%;margin:8px 0;padding:10px;min-height:var(--alvo);border:1px dashed var(--c-c9d3cb);border-radius:10px;background:none;color:var(--verde-escuro);font:inherit;font-weight:600;cursor:pointer}
   .graf-tab .tab-dados th,.graf-tab .tab-dados td{white-space:normal;padding:.25rem .2rem;font-size:11px;overflow-wrap:anywhere}

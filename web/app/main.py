@@ -190,7 +190,7 @@ def criar_app() -> FastAPI:
         except (TypeError, ValueError):
             velho = False
         ctx.update(usuario=u, csrf=csrf(request), versao=VERSAO, empresa=marca.EMPRESA, indisponivel=render.INDISPONIVEL,
-                   gerado_em=gerado_farol, desatualizado=velho)
+                   gerado_em=gerado_farol, desatualizado=velho, sem_calculo=edicoes.SEM_CALCULO)
         # T-0034 (RD-0043): uma casca só (barra lateral + faixa) para toda tela com usuário; o item ativo é o farol
         # ou, no Painel Executivo, "painel". Sem usuário (login, acesso negado): a mesma casca, sem lateral.
         if u:
@@ -665,6 +665,7 @@ def criar_app() -> FastAPI:
         return {"cab": ed.get("acao") or "Editar", "admin": admin}
 
     SEM_ESTADO_AVISO = ("pl_garantias", "pl_devolucoes", "pl_ncc")
+    RESUMO_PELA_GRADE = SEM_ESTADO_AVISO + ("pl_entregas",)     # T-0054: "NF 900502 · CLIENTE ... · MA"
 
     def novo_tela(rid, titulo, t_pc, u, volta, sit, recebido):
         """O botão da linha nova (`novo`, §10.9.2): só o admin, só onde o pacote traz `edicao.novo`. O servidor decide;
@@ -703,7 +704,7 @@ def criar_app() -> FastAPI:
     def resumo_da_linha(rid, titulo, cols, linha):
         """Qual linha se edita. Faróis do Pós-venda: a chave e o nome da GRADE, mais a UF ("NCC 901 · CLIENTE ... · PA");
         os outros: as 6 primeiras colunas, como na T-0021."""
-        g = tabelas.GRADE.get((rid, titulo)) if rid in SEM_ESTADO_AVISO else None
+        g = tabelas.GRADE.get((rid, titulo)) if rid in RESUMO_PELA_GRADE else None
         nomes = [str(c["nome"]).upper() for c in cols]
         if not g:
             return [render.fmt_celula(linha[i], c["tipo"]) for i, c in enumerate(cols)
@@ -717,8 +718,10 @@ def criar_app() -> FastAPI:
                     saida.append(f"{n} {v}" if rot else v)
         return saida
 
-    def form_ctx(rid, titulo, t, aba, k, sit_linha, volta):
+    def form_ctx(rid, titulo, t, aba, k, sit_linha, volta, digitado=None, erro=""):
+        """`digitado` (volta de um erro): o que a pessoa escreveu (`c_`) volta; só o campo recusado fica vazio e marcado."""
         ed = t["edicao"]
+        digitado = digitado or {}
         cols, linha = t["colunas"], t["linhas"][k]
         nomes = [c["nome"] for c in cols]
         pend = (sit_linha or {}).get("valores") or {} if (sit_linha or {}).get("status") == "pendente" else {}
@@ -729,7 +732,13 @@ def criar_app() -> FastAPI:
             ops = list(c["opcoes_linha"])
             if atual and atual not in ops and c["tipo"] == "lista":
                 ops = [atual] + ops                       # como o PC: o valor de hoje entra na lista
-            campos.append(edicoes.campo_tela(c, atual, ops, sugestao=c.get("sugestao", ""), pendente=pend.get(c["campo"])))
+            ruim = bool(erro) and erro.startswith(c["rotulo"] + ":")
+            if "c_" + c["campo"] in digitado:
+                atual = "" if ruim else str(digitado["c_" + c["campo"]])[:edicoes.MAX_TEXTO_TETO]
+                if atual and c["tipo"] == "lista" and atual not in ops:
+                    ops = [atual] + ops
+            campos.append(edicoes.campo_tela(c, atual, ops, sugestao=c.get("sugestao", ""), pendente=pend.get(c["campo"]),
+                                             invalido=ruim))
         liga = next((j for j in t.get("juntas") or [] if j.get("liga")), None)
         ver = f"/farol/{rid}?aba={aba}&sel={k}" if liga and aba else ""      # "Ver pedido", como no PC
         return dict(farol_nome=render.FAROIS[rid][0], rid=rid, tab=titulo, chave=ed["chaves"][k],
@@ -801,7 +810,8 @@ def criar_app() -> FastAPI:
         sit = fila.situacao(rid).get((tab, chave))
         if erro or not mudou:
             return pagina(request, "editar.html", status=400 if erro else 200, erro=erro,
-                          aviso="" if erro else "Nada mudou.", **form_ctx(rid, tab, t, aba, k, sit, volta))
+                          aviso="" if erro else "Nada mudou.",
+                          **form_ctx(rid, tab, t, aba, k, sit, volta, digitado=f if erro else None, erro=erro))
         try:
             fila.registrar(usuario=u["login"], rid=rid, tabela=tab, modulo=ed["modulo"], chave=chave,
                            valores=mudou, antes=antes, perfil=u["perfil"])

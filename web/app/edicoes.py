@@ -29,10 +29,12 @@ from .arquivos import acrescentar_linha, gravar_json
 
 MANAUS = ZoneInfo("America/Manaus")
 EDITA = ("admin",)                         # decisão do Alexandre (25/11): só o admin, por enquanto (o que não está em EDITA_LUGAR)
+SEM_CALCULO = ("entregue_em",)            # T-0054: data que o PC NÃO calcula (DT. REAL): sem a dica "volta à calculada"
 # T-0054 (RN-POS-011, contrato §10.9.7): quem edita cada lugar, quando não é só o admin. Uma entrada por linha.
 EDITA_LUGAR = {
     ("pl_entregas", "Entregas"): ("admin", "pos_venda"),
     ("pl_entregas", "Pendências dos meses anteriores"): ("admin", "pos_venda"),
+    ("pl_fretes", "Notas com frete"): ("admin", "pos_venda"),   # T-0037 (RN-POS-010, P2 A): vale quando o lugar entrar em LUGARES
 }
 
 
