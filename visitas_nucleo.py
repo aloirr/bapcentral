@@ -754,10 +754,8 @@ _RX_CODIGO_CLIENTE = re.compile(r"^\d{6,8}$")
 
 def _linha_de_cliente(reg: dict) -> bool:
     """A UNICA regra do que e linha de cliente da lista (ler_espelho e
-    filtrar_espelho): data valida ou codigo de 6 a 8 digitos. Rodape e
-    total no meio da lista nao entram."""
-    return bool(_data_espelho(reg.get("data"))
-                or _RX_CODIGO_CLIENTE.fullmatch(_texto(reg.get("codigo"))))
+    filtrar_espelho): codigo ou cliente nao vazio."""
+    return bool(_texto(reg.get("codigo")) or _texto(reg.get("cliente")))
 
 
 def _eventos_espelho(linhas):
