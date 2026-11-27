@@ -6649,11 +6649,11 @@ _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
                        # (T-0024) cartao por estado dos farois livres
                        "pl_giro": "Todos os produtos",
                        "pl_frw": "Estoque FRW",
-                       # (T-0036, 10.9.1) so onde o kpis_de reproduz os cartoes
+                       # (T-0036, 10.11.1) so onde o kpis_de reproduz os cartoes
                        "vc_saldo": "Pedido a pedido",
                        "vc_markup": "Por pedido"}
 # (T-0036) farois cujo recorte por estado so vai se o kpis_de de todas as
-# linhas da tabela de origem der os cartoes da BAP inteira (10.9.1)
+# linhas da tabela de origem der os cartoes da BAP inteira (10.11.1)
 RIDS_RECORTE_CONFERIDO_WEB = ("vc_saldo", "vc_markup")
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
 _TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",)}
@@ -7550,7 +7550,7 @@ MAX_PNG_B64 = 3_000_000            # por imagem de parcial (caracteres base64)
 MAX_CSVS_WEB = 60                  # quantidade de CSVs do Protheus
 MAX_CSV_BYTES_WEB = 200_000        # por CSV (UTF-8)
 MAX_CSVS_TOTAL = 1_500_000         # soma dos CSVs (UTF-8)
-MAX_CORRECAO_BYTES = 2_000_000     # (T-0036, 10.9.4) JSON do anexo `correcao`
+MAX_CORRECAO_BYTES = 2_000_000     # (T-0036, 10.11.4) JSON do anexo `correcao`
 AVISO_PARCIAIS_FORA = ("As parciais em imagem ficaram fora desta "
                        "atualização (pacote grande). Veja no PC.")
 AVISO_CSVS_FORA = ("Os CSVs do Protheus ficaram fora desta atualização "
@@ -7573,7 +7573,7 @@ _CORTES_FAROL_WEB = {
     "pl_entregas": ("junta_pendencias_fora", "entregas_so_recentes",
                     "tabelas"),
     "vc_visitas": ("cliente_a_cliente_fora", "tabelas"),
-    # (T-0036, 10.9.5) os outros tres do Analista so perdem as `tabelas`
+    # (T-0036, 10.11.5) os outros tres do Analista so perdem as `tabelas`
     "vc_markup": ("markup_todos_ativos", "markup_todos_fora",
                   "markup_produto_fora", "tabelas"),
 }
@@ -7595,7 +7595,7 @@ _ABAS_TABELAS_WEB = {
     "vc_visitas": ("Por supervisor", "Por vendedor", "Dia a dia",
                    "Aderência dia a dia", "Cliente a cliente", "Prospecção",
                    "Indicação"),
-    # (T-0036, 10.9.1) ordem do PC
+    # (T-0036, 10.11.1) ordem do PC
     "vc_saldo": ("Pedido a pedido", "Por vendedor", "Por supervisor",
                  "Por UF"),
     "vc_markup": ("Por pedido", "Por UF", "Por cidade", "Por supervisor",
@@ -7620,7 +7620,7 @@ _UF_LINHAS_WEB = {
     # com UF (RIDS_POR_UF_WEB); Planner nao tem filtro UF: sem recorte
     ("pl_giro", "Todos os produtos"): ("FILIAL", "filial"),
     ("pl_frw", "Estoque FRW"): ("FILIAL", "filial"),
-    # (T-0036, 10.9.3) faturamento pela filial da nota; Pesquisa e
+    # (T-0036, 10.11.3) faturamento pela filial da nota; Pesquisa e
     # Divergencias pela UF do cliente (RN-GER-006)
     ("vc_saldo", "Pedido a pedido"): ("FILIAL", "filial"),
     ("vc_saldo", "Por UF"): ("UF", "uf"),
@@ -7790,7 +7790,7 @@ def _preco_serie_web(terceira):
         ("ELASTICIDADE", "num2"))
 
 
-# (T-0036, 10.9.3) lista positiva dos 4 faroes do Analista; cliente so pelo
+# (T-0036, 10.11.3) lista positiva dos 4 faroes do Analista; cliente so pelo
 # codigo (RN-GER-011): `CLIENTE` do PC vira `CÓD.` (_cliente_por_codigo_web) e
 # as colunas de nome/endereco/telefone saem (_COLUNAS_FORA_TABELA_WEB)
 _COLUNAS_TABELAS_WEB.update({
@@ -7906,7 +7906,7 @@ _COLUNAS_TABELAS_WEB.update({
             ("SUPERVISOR PLANNER", "texto"), ("SEGMENTO", "texto"),
             ("CURVA", "texto"), ("SITUAÇÃO", "texto"),
             ("PONTO", "texto"))}})
-# coluna "codigo - nome" que vira so o codigo (10.9.2): (rid, tabela) -> coluna
+# coluna "codigo - nome" que vira so o codigo (10.11.2): (rid, tabela) -> coluna
 _CLIENTE_POR_CODIGO_WEB = {("vc_saldo", "Pedido a pedido"): "CLIENTE",
                            ("vc_markup", "Por pedido"): "CLIENTE"}
 # colunas de cliente que saem alem de _COLUNAS_FORA_WEB (nome, endereco,
@@ -8285,7 +8285,7 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
     titulo = t.get("titulo")
     orig = t                  # (T-0036) kpis_de e recortes leem o do PC
     col_cod = _CLIENTE_POR_CODIGO_WEB.get((rid, titulo))
-    if col_cod:               # cliente so pelo codigo (10.9.2)
+    if col_cod:               # cliente so pelo codigo (10.11.2)
         t = _cliente_por_codigo_web(t, col_cod)
     fora_tab = _COLUNAS_FORA_TABELA_WEB.get((rid, titulo), ())
     pc = [c if isinstance(c, dict) else {"nome": c, "tipo": "texto"}
@@ -8447,7 +8447,7 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
 
 
 def _cliente_por_codigo_web(t: dict, coluna: str) -> dict:
-    """Funcao pura (T-0036, 10.9.2, RN-GER-011): troca a coluna "codigo -
+    """Funcao pura (T-0036, 10.11.2, RN-GER-011): troca a coluna "codigo -
     nome" (`coluna`) por `CÓD.` (texto, na mesma posicao) com so o codigo
     (relatorios_nucleo.codigo_do_cliente; "" sem codigo). Vale nas linhas e
     no total. Sem a coluna, devolve a propria `t`. Nao muda a de entrada."""
@@ -8731,7 +8731,7 @@ def _corte_tabelas_web(rid: str, rel: dict) -> None:
 
 
 def _corte_markup_ativos_web(rid: str, rel: dict) -> None:
-    """(T-0036, 10.9.5) Markup: "Todos os produtos" fica so com EST. > 0 ou
+    """(T-0036, 10.11.5) Markup: "Todos os produtos" fica so com EST. > 0 ou
     QTD VEND. > 0; os `tons`, `uf_linhas` e recortes saem junto, linha a
     linha."""
     import copy                                         # noqa: PLC0415
@@ -8968,7 +8968,7 @@ def _recortes_do_farol_web(rid: str, r: dict) -> dict:
 
 
 def _kpis_batem_web(r: dict, titulo_tabela: str) -> bool:
-    """Funcao pura (T-0036, 10.9.1): o `kpis_de` da tabela, com as linhas do
+    """Funcao pura (T-0036, 10.11.1): o `kpis_de` da tabela, com as linhas do
     filtro padrao (o mes; sem filtro, todas), da os mesmos cartoes (rotulo e valor) que o `kpis` do farol? Sem
     `kpis_de`, sem tabela ou com erro: False (o farol vai sem recortes e os
     cartoes por estado mostram "—": nunca um numero errado)."""
@@ -9070,7 +9070,7 @@ def recortes_farol_por_uf(r: dict, titulo_tabela: str = "Títulos",
 # (T-0026) PARCIAL em imagem (WhatsApp): a mesma imagem do PC (parcial_imagem.py,
 # o resumo, sem o detalhe por vendedor), pronta no robo, uma por periodo, em PNG
 # base64 dentro do farol (`parciais`). A web so mostra, baixa e monta o PDF.
-# (T-0036, 10.9.4) Excel de correcao das Divergencias (so admin na web)
+# (T-0036, 10.11.4) Excel de correcao das Divergencias (so admin na web)
 _COLUNAS_CORRECAO_WEB = {
     "corrigir": ("CORRIGIR NO PROTHEUS", (
         "A1_FILIAL", "A1_COD", "A1_LOJA", "CIDADE", "UF", "A1_VEND ATUAL",
@@ -9083,7 +9083,7 @@ _COLUNAS_CORRECAO_WEB = {
 
 
 def _correcao_divergencias_web(rel) -> dict | None:
-    """Funcao pura (T-0036, 10.9.4): o anexo `correcao` do an_divergencias,
+    """Funcao pura (T-0036, 10.11.4): o anexo `correcao` do an_divergencias,
     {"corrigir": TabelaWeb, "analisar": TabelaWeb} (so titulo, colunas e
     linhas; tudo texto), a partir do callable `rel["correcao_linhas"]` do PC
     (sem a coluna CLIENTE: RN-GER-011). Sem o callable, com erro, com
@@ -9108,7 +9108,7 @@ def _correcao_divergencias_web(rel) -> dict | None:
         for ln in lns:
             if len(ln) != len(nomes):
                 log.warning("Pacote web: Excel de correcao fora (colunas "
-                            "diferentes do contrato 10.9.4).")
+                            "diferentes do contrato 10.11.4).")
                 return None
             cel = ["" if v is None else str(v) for v in ln]
             if any(_RE_DOC_WEB.search(v) for v in cel):
