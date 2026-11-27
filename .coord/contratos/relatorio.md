@@ -1557,14 +1557,14 @@ Saída da web, não entrada: o pacote não muda e o robô não muda. A regra é 
 - **Rotas:** `GET /api/leitura/painel` (carimbo + visões do Painel Executivo + índice dos faróis do diretor) e `GET /api/leitura/resumo/{rid}` (carimbo + cartões do Resumo do farol `rid`). Autenticação: `Authorization: Bearer` igual a `BAP_WEB_LEITURA_TOKEN`, separado do `BAP_WEB_TOKEN`, do `BAP_VISITAS_TOKEN` e do `SESSION_SECRET`.
 - **Respostas, nesta ordem** (a primeira que vale responde, em qualquer método):
   1. **404** `{"erro":"não encontrado"}`: porta desligada (sem a variável, token curto ou repetido);
-  2. **429** `{"erro":"muitas chamadas"}` + `Retry-After: 60`: limite estourado (proteção técnica, recomendação do gerente, plano R-20261127-100915, não RN; números no desenho §5);
+  2. **429** `{"erro":"muitas chamadas"}` + `Retry-After: 60`: limite estourado (desenho §5);
   3. **405** `{"erro":"só leitura"}` + `Allow: GET`: método que não seja GET;
   4. **401** `{"erro":"não autorizado"}` + `WWW-Authenticate: Bearer`: token ausente ou errado;
   5. **404** `{"erro":"não encontrado"}`: `rid` que o diretor não vê ou que não é farol;
   6. **503** `{"erro":"sem pacote"}`: o lote ou o farol ainda não chegou (também com o fuso errado, como as telas);
   7. **200** `application/json; charset=utf-8`.
-- **Corpo:** `versao_leitura` (1), `versao_web`, `pacote` (`lote`, `gerado_em`, `dados_ate`, `du`) e, conforme a rota, `visoes` + `farois` ou `rid` + `nome` + `cartoes`. `gerado_em` e `dados_ate` são os da tela; os números são os textos que a tela mostra, sem recálculo.
-- **Só o que o diretor vê** (RN-GER-014), pela lista fechada do desenho §4. Nunca tabela, nome, documento (CPF/CNPJ), telefone ou e-mail (RN-GER-011), meta RH (RN-GER-001) nem TOTAL A PAGAR (RN-GER-015).
+- **Corpo:** `versao_leitura` (1), `versao_web`, `pacote` (`lote`, `gerado_em`, `dados_ate`, `du`) e, conforme a rota, `visoes` + `farois` ou `rid` + `nome` + `cartoes`. `gerado_em` é o da tela; `dados_ate` é o "Baixado do ERP em" do farol lido, no formato da tela, ou `null`; `du` é o da tela do Painel no `/painel` e `null` no `/resumo`. Os números são os textos que a tela mostra, sem recálculo.
+- Só o que o diretor vê (RN-GER-014). O que nunca sai é o da RN-GER-020, pela lista fechada do desenho §4.
 - Mudança incompatível = `versao_leitura` 2 + ADR + recado aos consumidores.
 
 ## 11. Parte ação: os callables e a web v1
