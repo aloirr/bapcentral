@@ -306,7 +306,8 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 | `MAXIMA_FORA` | erro | tempo esgotado no `goto` do login, ou HTTP 5xx | agenda: nova tentativa (§3.1); botão: o pedido sai da fila |
 | `TELA_MUDOU` | erro | `ErroRobo` numa fase (`fase` obrigatória) | nova tentativa (§3.1); 2 rodadas seguidas na mesma fase **pausam a agenda** |
 | `NAVEGADOR_FALHOU` | erro | o Chromium não abriu ou caiu (`Target closed`, falta de memória) | nova tentativa (§3.1); 2 seguidas aparecem no `/saude` |
-| `SITE_RECUSOU` | parcial | o site respondeu 413 ou 422 a um lote (fora o 422 de dado pessoal, que é `DADO_PESSOAL`). Inclui o 413 com `codigo` `DESCOMPRESSAO_TETO` (§3.4) | nova tentativa (§3.1) do dia recusado |
+| `SITE_RECUSOU` | parcial | o site respondeu 413 ou 422 a um lote, fora o 413 com `codigo` `DESCOMPRESSAO_TETO` (que é `DESCOMPRESSAO_TETO`) e o 422 de dado pessoal (que é `DADO_PESSOAL`) | nova tentativa (§3.1) do dia recusado |
+| `DESCOMPRESSAO_TETO` | parcial | o site respondeu 413 com esse `codigo`: a conferência passou de `DESCOMPRESSAO_MAX` ou de `ZIP_MEMBROS_MAX` (§3.4) | **sem** nova tentativa no dia: o mesmo Excel daria o mesmo erro e gastaria logins da Máxima. Fica fora de `NOVA_TENTATIVA`. O cron fecha o dia com este código |
 | `SITE_FORA` | erro | o cron não fala com o site depois de `HTTP_TENTATIVAS` | só no log do Render; o site vê `RODADA_INTERROMPIDA` |
 | `RODADA_INTERROMPIDA` | erro | **gravado pelo site**: a concessão venceu sem `fim` | nova tentativa (§3.1) do que falta |
 | `TETO_DIA` | — | **estado do site, não rodada**: `tentativas_hoje` chegou ao teto (RN-VIS-008) | nada até o dia seguinte |
@@ -314,7 +315,7 @@ A nuvem **não tira print** em nenhum caso. O código e a fase bastam; a investi
 | `CONFIG_INSEGURA` | erro | `DEBUG` com `pw`, `PWDEBUG` ou trace ligado | sai sem abrir o navegador |
 | `ERRO_INTERNO` | erro | exceção não prevista (`fase` obrigatória) | nova tentativa (§3.1). No log, só o nome da classe da exceção, nunca a mensagem |
 
-**`DESCOMPRESSAO_TETO`** (`web/app/visitas.CODIGO_TETO`) não é código de rodada. É o `codigo` da resposta 413 do site quando a conferência passa do teto (§3.4), e o cron fecha o dia com `SITE_RECUSOU`.
+**`DESCOMPRESSAO_TETO`** (`web/app/visitas.CODIGO_TETO`) é, ao mesmo tempo, o `codigo` da resposta 413 do site (§3.4) e o código com que o cron fecha o dia. Ele entra no `CODIGOS` da web, fora da lista de códigos com nova tentativa.
 
 **Texto no site: a fonte única é a web** (`web/app/visitas.py`, T-0045). Este contrato só aponta para as constantes, e o `testes` compara os códigos daqui com os de lá:
 - **`CODIGOS[código]`** = `(status, texto)`. O texto diz o que aconteceu e o que fazer, sem jargão. Os marcadores são:
