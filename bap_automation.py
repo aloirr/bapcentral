@@ -6761,7 +6761,13 @@ _FONTE_BAIXADO_WEB = {
     **{r_: (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
        for r_ in RIDS_LIVRES_WEB},
     # Metas (T-0022): nasce dos mesmos Movimentos do Protheus (ftPedidos)
-    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")}
+    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    # (T-0036) Saldo, Markup e Preco leem a ftPedidos (Movimentos do Protheus);
+    # Divergencias cruza o Planner (BASE_CLIENTE) com a dClientesBap, que vem
+    # do Relatorio Clientes (a parte baixada do ERP)
+    **{r_: (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
+       for r_ in ("vc_saldo", "vc_markup", "vc_preco")},
+    "an_divergencias": (Path(BKP_BAPTOOLS), "Relatorio_Clientes_*.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
