@@ -14,7 +14,8 @@
     </div>
     {% if b.meta %}<p class="como">Meta: {{ b.meta.txt }}</p>{% endif %}
 {% endmacro %}
-{% if not bc3 %}{{ cartoes(tela.kpis, tela.faixa) }}{% else %}{% set ricos = tela.kpis|selectattr("estados")|list + tela.kpis|rejectattr("estados")|selectattr("linhas")|list %}{% if ricos %}{{ cartoes(ricos, tela.faixa) }}{% endif %}{% endif %}
+{# T-0034: só o BC3. Os cartões comuns vão para a faixa; no corpo ficam os com barras por estado ou linhas de detalhe #}
+{% set ricos = kpis_do_corpo(tela.kpis) %}{% if ricos %}{{ cartoes(ricos, tela.faixa) }}{% endif %}
 {% if tela.insights %}
 <section class="resumo"><h2>{{ rot_resumo or "Resumo gerencial" }}</h2>
   <ul>{% for i in tela.insights %}<li class="ins t-{{ i.tom }}"><span>{{ i.texto }}</span></li>{% endfor %}</ul>

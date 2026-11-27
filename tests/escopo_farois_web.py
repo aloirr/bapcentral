@@ -1,12 +1,11 @@
 """Trava do escopo de bap_automation.FAROIS_WEB (T-0013, T-0017, T-0022,
 T-0024): a lista PERMITIDA dos faróis que o robô leva ao site, num lugar só.
 
-Vale com e sem o lote 2 da T-0024 (PR #91):
-- os faróis OBRIGATÓRIOS (os do main) têm de estar em FAROIS_WEB, cada um com
-  a fonte do "baixado em" e a regra de UF de sempre;
-- um farol a mais só passa se estiver em FAROIS_LOTE2, com a fonte, a tabela
-  de recorte (ou o aviso "Sem filtro por estado") e a regra de UF escritas
-  aqui, à mão;
+Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
+- os faróis OBRIGATÓRIOS (os da T-0017, o vc_meta da T-0022 e os 5 do lote 2,
+  FAROIS_LOTE2) têm de estar em FAROIS_WEB, cada um com a fonte do "baixado
+  em", a tabela de recorte (ou o aviso "Sem filtro por estado") e a regra de
+  UF escritas aqui, à mão;
 - um farol a mais da T-0036 (FAROIS_T0036, os 4 do Analista Comercial) só
   passa com a regra de UF dos cartões e a das linhas de cada aba
   (UF_LINHAS_T0036), escritas aqui à mão a partir do contrato §10.11.1/§10.11.3;
@@ -34,21 +33,22 @@ from pathlib import Path
 
 AVISO_SEM_ESTADO = "Sem filtro por estado: os cartões mostram a BAP inteira."
 
-# os faróis do main (T-0017 + vc_meta da T-0022): têm de estar lá
-REGRA_UF_OBRIGATORIOS = {
-    "pl_inadimplencia": ("tabela", "Títulos", "FILIAL", "filial"),
-    "pv_pedidos": ("tabela", "Pedidos", "FILIAL", "filial"),
-    "pl_entregas": ("tabela", "Entregas", "UF", "uf"),
-    "vc_visitas": ("sem_estado",),
-    "vc_meta": ("meta",),
-}
-# T-0024, lote 2 (PR #91): podem estar lá, cada um com a sua regra
+# T-0024, lote 2 (PR #91, no main desde 0bb251b): obrigatórios, cada um com a sua regra
 FAROIS_LOTE2 = {
     "pv_indicadores": ("sem_estado",),
     "vc_base": ("kpis_uf",),
     "vc_planner": ("sem_estado",),
     "pl_giro": ("tabela", "Todos os produtos", "FILIAL", "filial"),
     "pl_frw": ("tabela", "Estoque FRW", "FILIAL", "filial"),
+}
+# os faróis do main: T-0017, o vc_meta da T-0022 e o lote 2 da T-0024
+REGRA_UF_OBRIGATORIOS = {
+    "pl_inadimplencia": ("tabela", "Títulos", "FILIAL", "filial"),
+    "pv_pedidos": ("tabela", "Pedidos", "FILIAL", "filial"),
+    "pl_entregas": ("tabela", "Entregas", "UF", "uf"),
+    "vc_visitas": ("sem_estado",),
+    "vc_meta": ("meta",),
+    **FAROIS_LOTE2,
 }
 # T-0036 (contrato §10.11.1): os 4 do Analista Comercial. Cartões por estado
 # só no Saldo e no Markup (filial da nota, com a conferência do kpis_de);
@@ -75,11 +75,10 @@ UF_LINHAS_T0036 = {
 # Vazio: o defeito dos 4 do Analista (T-0036, modulo-robo) foi corrigido.
 FONTE_PENDENTE = frozenset()
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
-REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_LOTE2,
-                       **FAROIS_T0036}
+REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS, **FAROIS_T0036}
 FAROIS_PERMITIDOS = frozenset(REGRA_UF_PERMITIDOS)
-assert not FAROIS_OBRIGATORIOS & set(FAROIS_LOTE2)       # sem repetição
-assert not (FAROIS_OBRIGATORIOS | set(FAROIS_LOTE2)) & set(FAROIS_T0036)
+assert len(REGRA_UF_OBRIGATORIOS) == 5 + len(FAROIS_LOTE2)   # sem repetição
+assert not FAROIS_OBRIGATORIOS & set(FAROIS_T0036)
 
 _KPI_FICTICIO = [{"rotulo": "Itens", "valor": "1", "cor": "ok"}]
 

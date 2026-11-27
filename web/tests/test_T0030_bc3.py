@@ -1,6 +1,6 @@
 """T-0030 (Alexandre, 26/11/2026): visual BC3 — barra lateral com os faróis do perfil, faixa verde com título, data,
 estado e números; abas com busca e Exportar; no PC a página do Farol de Pedidos cabe numa tela (bc3.js pagina);
-no celular a tabela vira a lista que abre (M3). Por enquanto só o Farol de Pedidos (render.BC3)."""
+no celular a tabela vira a lista que abre (M3)."""
 from __future__ import annotations
 
 from conftest import postar
@@ -37,7 +37,6 @@ def test_T0030_menu_lateral_so_com_o_que_o_perfil_ve():
 
 
 def test_T0031_todos_os_farois_no_visual_bc3(admin):
-    assert render.BC3 == set(render.FAROIS)
     assert postar(admin, pacote_tres_farois()).status_code == 200
     for rid in ("pl_entregas", "vc_visitas"):
         h = admin.get(f"/farol/{rid}").text

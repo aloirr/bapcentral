@@ -18,12 +18,6 @@ def _corpo(h):
     return h.split("<main")[1]
 
 
-@pytest.fixture
-def com_painel(admin):
-    assert postar(admin, pacote_completo()).status_code == 200
-    return admin
-
-
 def test_pacote_completo_valida_e_robo_antigo_tambem():
     assert pacotes.validar(pacote_completo()) == []
     antigo = pacote_completo()
@@ -35,10 +29,14 @@ def test_pacote_completo_valida_e_robo_antigo_tambem():
 
 def test_painel_tem_as_12_abas_do_pc_na_ordem(com_painel):
     h = com_painel.get("/painel").text
-    nav = re.search(r'<nav class="abas">(.*?)</nav>', h, re.S).group(1)
-    assert re.findall(r">([^<]+)</a>", nav) == [
-        "Painel · resultado", "Painel · produtividade", "Painel · por dia útil", "Resumo gerencial", "Faturamento", "Volume",
-        "Produtividade", "Positivação", "Itens por pedido", "Markup", "Preço", "Inadimplência"]
+    nav = re.search(r'<nav class="bc3-abas"[^>]*>(.*?)</nav>', h, re.S).group(1)
+    # T-0034: nomes curtos (contrato §13); as 5 últimas aparecem na linha e também em "Indicadores"
+    links = re.findall(r"<a href=\"/painel\?aba=([a-z_]+)[^>]*>([^<]+)</a>", nav)
+    assert [c for c, _ in links[:12]] == ["resultado", "produtividade", "por_dia_util", "resumo", "faturamento", "volume",
+                                         "visitas", "positivacao", "itens", "markup", "preco", "inadimplencia"]
+    assert [n for _, n in links[:12]] == ["Resultado", "Produtividade", "Por DU", "Resumo", "Faturamento", "Volume",
+                                         "Visitas", "Positivação", "Itens", "Markup", "Preço", "Inadimplência"]
+    assert "<summary>Indicadores</summary>" in nav
     assert "FATURAMENTO POR DU" in com_painel.get("/painel?aba=por_dia_util").text
 
 
@@ -46,7 +44,7 @@ def test_resumo_gerencial_traz_placar_insights_e_grafico(com_painel):
     c = _corpo(com_painel.get("/painel?aba=resumo").text)
     assert c.count('class="pl-c ') == 2 and "No ritmo de hoje o mês fecha abaixo do desafio." in c
     assert "A projeção está 48% abaixo do desafio." in c and "Entrega x resultado" in c
-    assert "<h1>Painel Executivo</h1>" in c and "O que o painel diz" in c
+    assert "O que o painel diz" in c and c.count("<h1>") == 1             # só o título da faixa, que agora fica dentro do <main>
 
 
 def test_faturamento_leva_as_tabelas_de_baixo_do_pc(com_painel):
@@ -57,16 +55,18 @@ def test_faturamento_leva_as_tabelas_de_baixo_do_pc(com_painel):
 
 def test_filtro_de_estado_troca_cartoes_e_graficos_nas_abas_alcancadas(com_painel):
     base = _corpo(com_painel.get("/painel?aba=faturamento").text)
-    am = _corpo(com_painel.get("/painel?aba=faturamento&uf=AM").text)
+    h_am = com_painel.get("/painel?aba=faturamento&uf=AM").text
+    am = _corpo(h_am)
     assert "Estado AM · Faturamento" in am and "Faturamento projetado" not in am and "Por filial" not in am
-    assert "R$ 100 mil" in am and "Faturamento projetado" in base
-    assert 'class="ativa">AM<' in am
+    assert "R$ 100 mil" in h_am and "Faturamento projetado" in base   # o número está na faixa
+    assert 'class="on">AM<' in h_am
 
 
 def test_aba_da_bap_inteira_ignora_o_estado_e_avisa(com_painel):
-    h = _corpo(com_painel.get("/painel?aba=inadimplencia&uf=AM").text)
-    assert render.AVISO_SO_BAP in h and "Carteira por faixa" in h and 'aria-label="Filtro por estado"' not in h
-    assert render.AVISO_SO_BAP not in com_painel.get("/painel?aba=inadimplencia").text
+    pg = com_painel.get("/painel?aba=inadimplencia&uf=AM").text
+    # T-0034 (contrato §4.2): sem aviso no corpo; o seletor fica desligado, com o title
+    assert "Carteira por faixa" in _corpo(pg) and "Esta aba mostra a BAP inteira" in pg
+    assert "bc3-uf-off" in pg and 'aria-disabled="true"' in pg
 
 
 def test_coluna_km_por_cliente_vai_mas_coluna_cliente_nao():
@@ -171,5 +171,5 @@ def test_tabela_de_meta_recusa_coluna_de_telefone_e_grupos_tortos():
 
 
 def test_home_lista_o_farol_de_metas_para_vendas(com_painel):
-    h = _cli_de(com_painel, "vendas").get("/").text
-    assert "/farol/vc_meta" in h and "Farol de Metas Equipe" in h
+    r = _cli_de(com_painel, "vendas").get("/farol/vc_visitas").text      # a home de vendas abre no primeiro farol
+    assert "/farol/vc_meta" in r and "Metas Equipe" in r
