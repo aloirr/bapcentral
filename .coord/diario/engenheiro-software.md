@@ -26,3 +26,4 @@
 - 2026-11-27 — T-0045 — visitas-nuvem §3.4: 422 de dado pessoal com achados [{coluna, tipo, n}] (até 20, nunca o valor), como a web 134efc8; 413 com codigo DESCOMPRESSAO_TETO conferido
 - 2026-11-27 — T-0045 — visitas-nuvem §3.6: ORD * de 1 a 5 dígitos e ATEND hora com sinal, para acabar com o falso achado de formato (9% dos Espelhos reais), alinhado ao _RX_FORMATO da rota
 - 2026-11-27 — T-0045 — visitas-nuvem §3.6: formato por coluna copiado do _FORMATO_COLUNA e do _RX_FORMATO da rota (7531271): ORD de 1 a 6 dígitos, hora com sinal em INICIO, FIM, ATEND e PER
+- 2026-11-27 — T-0045 — RD-0148: §3.6 do visitas-nuvem diz o formato de cada coluna em palavras e aponta para visitas_nucleo._FORMATO_COLUNA e _RX_FORMATO como fonte, sem copiar regex
