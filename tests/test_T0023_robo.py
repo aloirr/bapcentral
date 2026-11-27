@@ -402,7 +402,7 @@ def test_RN_GER_012_garantia_que_nao_existe_e_ticket_trocado_para_outra(tmp_path
 
 
 @pytest.mark.skipif(not hasattr(rn, "prazo_padrao_txt"), reason="núcleo sem prazo_padrao_txt (f0af112)")
-def test_RN_POS_005_prazo_igual_ao_padrao_fica_em_branco():
+def test_RN_POS_005_plano_da_garantia_usa_a_regra_do_prazo_do_nucleo():
     """O plano usa a regra do núcleo (campos_garantia_a_gravar): o prazo igual
     a solicitação + 15 DU fica em branco, como no PC; o diferente fica."""
     existentes = {"G-1": {"dt_solicitacao": "16/11/2026"}}
@@ -504,7 +504,7 @@ def test_RN_GER_012_a_linha_nova_nunca_e_criada_duas_vezes_e_o_antes_fica_gravad
 def test_RN_GER_012_o_teto_do_texto_vem_do_nucleo_e_nao_de_uma_tabela_do_robo():
     for nome in ("MAX_TEXTO_CAMPO_WEB", "TETOS_TEXTO_WEB", "MAX_TEXTO_EDICAO_WEB"):
         assert not hasattr(ba, nome)
-    assert not hasattr(ba, "MAX_TEXTO_WEB")             # RD-0151: o teto padrão é só o do núcleo
+    assert not hasattr(ba, "MAX_TEXTO_WEB")             # RD-0135: o teto padrão é só o do núcleo
     assert rn.MAX_TEXTO_PADRAO == 60
 
 

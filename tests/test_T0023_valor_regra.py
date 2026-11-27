@@ -508,6 +508,13 @@ def test_RN_GER_002_faturado_liquido_zero_ou_negativo_mostra_traco():
     assert v is None or v == "—" or (v == 0 and g.get("rotular") == "nao_zero"), \
         "06/10 com faturado líquido negativo não pode mostrar número"
     assert all(x is None or x == "—" or x >= 0 for x in val)
+    # todas as séries de todos os gráficos "% devolvido do faturado" (dia a
+    # dia, semana a semana, mês a mês): nenhum percentual negativo (RD-0160)
+    series = [s["valores"] for b in r["painel"]["blocos"] for g_ in [b.get("grafico") or {}]
+              if str(g_.get("titulo", "")).startswith("% devolvido do faturado")
+              for s in g_.get("series", [])]
+    assert series, "sem gráfico \"% devolvido do faturado\" no Resumo"
+    assert all(x is None or x == "—" or x >= 0 for vs in series for x in vs)
     # a regra única do núcleo: líquido <= 0 = sem percentual
     if hasattr(rn, "pct_do_liquido"):
         assert rn.pct_do_liquido(dev[d6], vnd[d6] - dev[d6]) is None

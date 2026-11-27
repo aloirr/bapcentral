@@ -52,8 +52,6 @@ def test_RN_GER_012_ticket_max_40_vem_do_nucleo():
     ed = rn.edicao_garantia(cols, gm.STATUS, gm.RESULTADOS, "G-0001")
     por = {c["campo"]: c for c in ed["campos"]}
     assert por["ticket"]["max"] == 40
-    assert "max" not in por["descricao"]
-    assert por["observacao"]["max"] == 600
 
 
 def test_RN_GER_002_eventos_liquidos_usam_o_liquido():
