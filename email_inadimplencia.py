@@ -403,7 +403,7 @@ def corpo_html(rel, pessoa, posicao) -> str:
         f"<p style='color:#000000;font-weight:700;font-style:italic;"
         f"font-size:13px;margin-top:16px;line-height:1.6'>"
         f"Pagamento feito depois desta posição pode ainda não ter baixado "
-        f"no Protheus.<br>BAP Auto Parts · Farol de Inadimplência (Gerado "
+        f"no Protheus.<br>BAP AUTOPARTS · Farol de Inadimplência (Gerado "
         f"automaticamente)<br>Posição de {html.escape(posicao)}</p></div>")
 
 
@@ -430,7 +430,7 @@ def corpo_texto(rel, pessoa, posicao) -> str:
            in av[:MAX_A_VENCER_EMAIL]]
     ls += ["", "O PDF em anexo traz os clientes, os títulos vencidos e os "
                "que vencem nos próximos dias.",
-           "BAP Auto Parts · Farol de Inadimplência (Gerado "
+           "BAP AUTOPARTS · Farol de Inadimplência (Gerado "
            "automaticamente)", f"Posição de {posicao}"]
     return "\n".join(ls)
 
