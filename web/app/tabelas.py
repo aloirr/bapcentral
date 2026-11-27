@@ -22,24 +22,34 @@ from .render import COLUNAS_FORA, RE_DATA, coluna_fora, fmt_celula   # a lista e
 # Decisão D1 do Alexandre ainda aberta: recomendação A = o perfil de cada farol vê todas as abas
 # (como o pós-venda na Inadimplência). Trocar aqui: B = só ("admin", "gerente"); C = tirar de
 # "vendas" as abas cliente, prospeccao e indicacao em `ABAS_SO_GERENCIA`.
+# T-0036 (P1 = A): `LEITURA_GERAL` (admin, gerente, analista) é a fonte única; a P1 = B troca só a constante do render.
 VE_TABELAS = {
-    "pv_pedidos": ("admin", "gerente", "pre_venda"),
-    "pl_entregas": ("admin", "gerente", "pos_venda"),
-    "vc_visitas": ("admin", "gerente", "vendas"),
+    "pv_pedidos": render.LEITURA_GERAL + ("pre_venda",),
+    "pl_entregas": render.LEITURA_GERAL + ("pos_venda",),
+    "vc_visitas": render.LEITURA_GERAL + ("vendas",),
     # T-0024 (lote 2): o perfil de cada quadrado do PC vê as abas (a mesma D1 recomendação A)
-    "pv_indicadores": ("admin", "gerente", "pre_venda"),
-    "vc_base": ("admin", "gerente", "vendas"),
-    "vc_planner": ("admin", "gerente", "vendas"),
-    "pl_giro": ("admin", "gerente", "vendas"),
-    "pl_frw": ("admin", "gerente", "pre_venda", "pos_venda"),
+    "pv_indicadores": render.LEITURA_GERAL + ("pre_venda",),
+    "vc_base": render.LEITURA_GERAL + ("vendas",),
+    "vc_planner": render.LEITURA_GERAL + ("vendas",),
+    "pl_giro": render.LEITURA_GERAL + ("vendas",),
+    "pl_frw": render.LEITURA_GERAL + ("pre_venda", "pos_venda"),
     # T-0022: o Farol de Metas Equipe segue a mesma regra (D1 A): o diretor vê o Resumo; mude aqui se a D1 mudar
-    "vc_meta": ("admin", "gerente", "vendas"),
+    "vc_meta": render.LEITURA_GERAL + ("vendas",),
+    # T-0036 (contrato §10.11.6): faróis do Analista Comercial; o diretor só vê o Resumo
+    "vc_saldo": render.LEITURA_GERAL,
+    "vc_markup": render.LEITURA_GERAL,
+    "vc_preco": render.LEITURA_GERAL,
+    "an_divergencias": render.LEITURA_GERAL,
+        # T-0023 v2 (contrato §10.10.1): o diretor vê o farol (Resumo), não as abas de tabela (RN-GER-014)
+    "pl_garantias": render.LEITURA_GERAL + ("pos_venda",),
+    "pl_devolucoes": render.LEITURA_GERAL + ("pos_venda",),
+    "pl_ncc": render.LEITURA_GERAL + ("pos_venda",),
 }
 # T-0024: faróis "livres": as abas e as colunas são as que o PC monta (sem a lista fechada do §10.7.3);
 # a web confere só o formato, as colunas que nunca vão e o documento na célula
 FAROIS_LIVRES = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw")
 ABAS_SO_GERENCIA: dict[str, tuple[str, ...]] = {}      # D1 C: {"vc_visitas": ("cliente", "prospeccao", "indicacao")}
-PERFIS_GERENCIA = ("admin", "gerente")
+PERFIS_GERENCIA = render.LEITURA_GERAL   # T-0036 (RD-0003): o analista lê como o gerente (RN-GER-017)
 
 RIDS = tuple(VE_TABELAS)
 RESUMO = ("resumo", "Resumo")
@@ -47,12 +57,30 @@ RESUMO = ("resumo", "Resumo")
 ABAS = {
     "pv_pedidos": (("pedidos", "Pedidos"), ("solicitacao", "Solicitação BAP")),
     "pl_entregas": (("entregas", "Entregas"),),
+    # T-0023 v2 (§10.10.1): as abas dos 3 faróis do Pós-venda, na ordem do PC
+    "pl_garantias": (("garantias", "Garantias"), ("historico", "Histórico de compra"), ("produto", "Por produto"),
+                     ("status", "Status x resultado")),
+    "pl_devolucoes": (("devolucoes", "Devoluções"), ("motivo", "Por motivo"), ("vendedor", "Por vendedor (12 meses)"),
+                      ("cliente", "Por cliente (12 meses)"), ("produto", "Por produto (12 meses)")),
+    "pl_ncc": (("pendentes", "NCC pendentes"), ("cliente", "Por cliente"), ("filial", "Por filial"),
+               ("vendedor", "Por vendedor"), ("supervisor", "Por supervisor")),
     "vc_meta": (("equipe", "Equipe"), ("top30", "Top 30 clientes"), ("uf", "Por UF"), ("cidade", "Por cidade"),
                 ("bairro", "Por bairro"), ("segmento", "Por segmento"), ("zona", "Por zona"),
                 ("categoria", "Por categoria"), ("familia", "Por família da peça")),
     "vc_visitas": (("supervisor", "Por supervisor"), ("vendedor", "Por vendedor"), ("dia", "Dia a dia"),
                    ("aderencia", "Aderência dia a dia"), ("cliente", "Cliente a cliente"),
                    ("prospeccao", "Prospecção"), ("indicacao", "Indicação")),
+    # T-0036 (contrato §10.11.1): ordem do PC
+    "vc_saldo": (("pedido", "Pedido a pedido"), ("vendedor", "Por vendedor"), ("supervisor", "Por supervisor"),
+                 ("uf", "Por UF")),
+    "vc_markup": (("pedido", "Por pedido"), ("uf", "Por UF"), ("cidade", "Por cidade"),
+                  ("supervisor", "Por supervisor"), ("vendedor", "Por vendedor"), ("categoria", "Por categoria"),
+                  ("sistema", "Por sistema"), ("familia", "Por família"), ("linha", "Por linha"),
+                  ("produto", "Por produto"), ("todos", "Todos os produtos")),
+    "vc_preco": (("categoria", "Por categoria"), ("familia", "Por família"), ("total", "Total BAP"),
+                 ("reajustes", "Reajustes por produto"), ("pesquisa", "Pesquisa de mercado")),
+    "an_divergencias": (("vendedor", "Por vendedor"), ("divergentes", "Clientes divergentes"),
+                        ("sem_coordenada", "Sem coordenada / endereço")),
 }
 SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitacao Manual",
            "DETALHADO_PEDIDO", "ProdutosExcluir", "FiliaisExcluir")
@@ -60,8 +88,12 @@ SUBABAS = ("Solicitacao Lojas", "Solicitacao CD", "Solicitacao FRW", "Solicitaca
 AVISO_ABAS_FORA = "Abas fora desta atualização: {lista}. Veja no PC."
 # coluna que identifica a linha: fica fixa à esquerda ao rolar para o lado (celular)
 FIXA = {"Por vendedor": "VENDEDOR", "Dia a dia": "VENDEDOR", "Aderência dia a dia": "VENDEDOR",
-        "Cliente a cliente": "VENDEDOR"}
-LIVRES = {"OBSERVAÇÃO", "JUSTIFICATIVA", "RESULTADO", "LINHAS DE INTERESSE", "DESCRIÇÃO"}   # texto livre: quebra
+        "Cliente a cliente": "VENDEDOR",
+        # T-0036: a coluna que identifica a linha nas abas do Analista
+        "Pedido a pedido": "PEDIDO", "Por pedido": "PEDIDO", "Por produto": "PRODUTO",
+        "Todos os produtos": "PRODUTO", "Reajustes por produto": "PRODUTO"}
+LIVRES = {"OBSERVAÇÃO", "JUSTIFICATIVA", "RESULTADO", "LINHAS DE INTERESSE", "DESCRIÇÃO",
+          "O QUE FAZER", "O QUE FALTA"}   # texto livre: quebra
 ROTULO_SUB = {"Solicitacao Lojas": "Lojas", "Solicitacao CD": "CD", "Solicitacao FRW": "FRW",
               "Solicitacao Manual": "Manual", "DETALHADO_PEDIDO": "Detalhado por pedido",
               "ProdutosExcluir": "Produtos excluídos", "FiliaisExcluir": "Filiais excluídas"}
@@ -72,7 +104,11 @@ _TROCA_ROTULO = {"COD": "CÓD.", "DESCRICAO": "DESCRIÇÃO", "JA": "JÁ", "UF": 
 ABA_CURTA = {"Por supervisor": "Supervisor", "Por vendedor": "Vendedor", "Aderência dia a dia": "Aderência",
              "Top 30 clientes": "Top 30", "Por UF": "UF", "Por cidade": "Cidade", "Por bairro": "Bairro",
              "Por segmento": "Segmento", "Por zona": "Zona", "Por categoria": "Categoria",
-             "Por família da peça": "Família", "Por cliente": "Cliente", "Por filial": "Filial"}
+             "Por família da peça": "Família", "Por cliente": "Cliente", "Por filial": "Filial",
+             # T-0023 v2 (UX §3): as abas dos 3 faróis do Pós-venda
+             "Histórico de compra": "Histórico", "Status x resultado": "Status", "Por motivo": "Motivo",
+             "Por vendedor (12 meses)": "Vendedor", "Por cliente (12 meses)": "Cliente",
+             "Por produto (12 meses)": "Produto", "NCC pendentes": "Pendentes"}
 
 
 def aba_curta(nome: str) -> str:
@@ -103,6 +139,19 @@ ROTULO_ABA = {
     ("vc_base", "Por vendedor"): "Vendedor", ("vc_base", "Por supervisor"): "Supervisor",
     ("vc_base", "Por família (6 meses)"): "Família", ("vc_base", "Por produto (top 400, 6 meses)"): "Produto",
     ("pl_giro", "Resumo por filial"): "Por filial",
+    # T-0036 (revisão de UX, R2): as abas do Analista numa linha só a 1366 px
+    **{("vc_saldo", t): c for t, c in (("Pedido a pedido", "Pedido"), ("Por vendedor", "Vendedor"),
+                                       ("Por supervisor", "Supervisor"), ("Por UF", "UF"))},
+    **{("vc_markup", t): c for t, c in (("Por pedido", "Pedido"), ("Por UF", "UF"), ("Por cidade", "Cidade"),
+                                        ("Por supervisor", "Supervisor"), ("Por vendedor", "Vendedor"),
+                                        ("Por categoria", "Categoria"), ("Por sistema", "Sistema"),
+                                        ("Por família", "Família"), ("Por linha", "Linha"),
+                                        ("Por produto", "Produto"), ("Todos os produtos", "Todos"))},
+    **{("vc_preco", t): c for t, c in (("Por categoria", "Categoria"), ("Por família", "Família"),
+                                       ("Total BAP", "Total"), ("Reajustes por produto", "Reajustes"),
+                                       ("Pesquisa de mercado", "Pesquisa"))},
+    **{("an_divergencias", t): c for t, c in (("Por vendedor", "Vendedor"), ("Clientes divergentes", "Divergentes"),
+                                              ("Sem coordenada / endereço", "Sem coord."))},
 }
 
 
@@ -191,6 +240,153 @@ COLUNAS: dict[str, list] = {
                   _c("BAIRRO"), _c("SEGMENTO"), _c("VISITADA EM", "data"), _c("OBSERVAÇÃO"),
                   _c("REGISTRADO EM")],
 }
+# ------------------------------------------------------------------ T-0036: colunas do §10.11.3 (lista positiva)
+def _l(*specs):
+    """"NOME", "NOME|tipo" ou "NOME|tipo|o" (o = oculta) -> lista de `_c`. Só nesta lista entram colunas do Analista;
+    coluna a mais (nome de cliente, endereço, telefone) derruba a aba (RN-GER-011)."""
+    out = []
+    for sp in specs:
+        n, *r = sp.split("|")
+        out.append(_c(n, r[0] if r else "texto", len(r) > 1 and r[1] == "o"))
+    return out
+
+
+_MARKUP_GRUPO = ["PEDIDOS|int", "QTD|num", "R$ VENDA|moeda", "CUSTO|moeda", "MARGEM|moeda", "MARKUP %|pct1",
+                 "MKP TABELA %|pct1", "% DESC.|pct1", "PART. MARGEM|pct1", "SEM CUSTO|int"]
+_MARKUP_PROD = ["PRODUTOS|int", "ESTOQUE|num", "VOL. VENDIDO|num", "R$ VENDA|moeda", "CUSTO|moeda", "MARGEM|moeda",
+                "MKP REAL %|pct1", "% DESC.|pct1", "MKP TABELA %|pct1", "MKP VENDA %|pct1", "PART. MARGEM|pct1",
+                "SEM CUSTO|int"]
+_SALDO_G = ["PEDIDOS|int", "VLR TABELA|moeda", "VLR VENDA|moeda", "DESC. COMERCIAL|moeda", "% DESC. COM.|pct1",
+            "SALDO FRETE|moeda", "SALDO|moeda", "META SALDO|moeda", "% ATING.|pct"]
+_PRECO_G = ["LEITURA", "FATURAMENTO|moeda", "VAR. FAT. %|pct1", "VOLUME|num", "VAR. VOL. %|pct1",
+            "PREÇO MÉDIO|moeda2", "PREÇO TABELA|moeda2", "VAR. PREÇO %|pct1", "VAR. TABELA %|pct1",
+            "VAR. FAT. R$|moeda", "EFEITO PREÇO|moeda", "EFEITO VOLUME|moeda", "EFEITO MIX|moeda",
+            "ELASTICIDADE|num2"]
+
+# (rid, título) -> colunas; os títulos "Por vendedor", "Por UF" etc. se repetem entre faróis
+COLUNAS_RID: dict[tuple[str, str], list] = {
+    ("vc_saldo", "Pedido a pedido"): _l(
+        "MÊS|texto|o", "DATA NF|dia", "FILIAL", "PEDIDO", "CÓD.", "VENDEDOR", "COND. PAGTO", "VLR TABELA|moeda",
+        "VLR VENDA|moeda", "% DESC. COM.|pct1", "SALDO DO PEDIDO|moeda", "SALDO FRETE|moeda", "NO SALDO|moeda",
+        "NF", "SUPERVISOR", "DESC. COMERCIAL|moeda", "UF", "CHAVE|texto|o"),
+    ("vc_saldo", "Por vendedor"): _l("MÊS|texto|o", "VENDEDOR", "SUPERVISOR", *_SALDO_G),
+    ("vc_saldo", "Por supervisor"): _l("MÊS|texto|o", "SUPERVISOR", *_SALDO_G),
+    ("vc_saldo", "Por UF"): _l("MÊS|texto|o", "UF", *_SALDO_G),
+    ("vc_markup", "Por pedido"): _l(
+        "SITUAÇÃO", "DATA PED.|dia", "DATA NF|dia", "FILIAL", "PEDIDO", "NF", "CÓD.", "STATUS PROTHEUS|texto|o",
+        "STATUS", "SITUAÇÃO PLANNER|texto|o", "UF", "CIDADE", "SUPERVISOR", "VENDEDOR", "QTD|num", "R$ VENDA|moeda",
+        "CUSTO|moeda", "SUCATA|moeda", "MARGEM|moeda", "MARKUP %|pct1", "MKP TABELA %|pct1", "% DESC.|pct1",
+        "SEM CUSTO|int", "VENDA SEM CUSTO|moeda|o", "SO BATERIA|texto|o", "CÓD. AUTORIZAÇÃO", "AUTORIZADO POR"),
+    ("vc_markup", "Por UF"): _l("UF", *_MARKUP_GRUPO),
+    ("vc_markup", "Por cidade"): _l("CIDADE", *_MARKUP_GRUPO),
+    ("vc_markup", "Por supervisor"): _l("SUPERVISOR", *_MARKUP_GRUPO),
+    ("vc_markup", "Por vendedor"): _l("VENDEDOR", *_MARKUP_GRUPO),
+    ("vc_markup", "Por categoria"): _l("CATEGORIA", *_MARKUP_PROD),
+    ("vc_markup", "Por sistema"): _l("SISTEMA", *_MARKUP_PROD),
+    ("vc_markup", "Por família"): _l("FAMÍLIA", *_MARKUP_PROD),
+    ("vc_markup", "Por linha"): _l("LINHA", *_MARKUP_PROD),
+    ("vc_markup", "Por produto"): _l(
+        "PRODUTO", "DESCRIÇÃO", "CATEGORIA|texto|o", "SISTEMA|texto|o", "FAMÍLIA|texto|o", "LINHA|texto|o",
+        "SITUAÇÃO", "ESTOQUE|num", "CUSTO UNIT.|moeda2", "PRC. TABELA MÉD.|moeda2", "MKP TABELA %|pct1",
+        "PRC. VENDA MÉD.|moeda2", "MKP VENDA %|pct1", "VOL. VENDIDO|num", "R$ VENDA|moeda", "CUSTO|moeda",
+        "MARGEM|moeda", "MKP REAL %|pct1", "% DESC.|pct1", "PART. MARGEM|pct1"),
+    ("vc_markup", "Todos os produtos"): _l(
+        "PRODUTO", "DESCRIÇÃO", "CATEGORIA", "SISTEMA", "FAMÍLIA", "LINHA", "FORNECEDOR", "CUSTO|moeda2",
+        "ORIGEM CUSTO|texto|o", "PRC. TABELA MÉD.|moeda2", "% DESC.|pct1", "PRC. VENDA MÉD.|moeda2",
+        "MKP VENDA %|pct1", "PREÇO INTERIOR MÉDIO|moeda2|o", "MKP TABELA %|pct1|o", "MKP INTERIOR %|pct1|o",
+        "EST.|num", "SITUAÇÃO", "QTD VEND.|num", "R$ VENDA|moeda", "MKP REAL %|pct1", "ÚLT. VENDA|data"),
+    ("vc_preco", "Por categoria"): _l("MÊS", "AAAA-MM|texto|o", "CATEGORIA", *_PRECO_G),
+    ("vc_preco", "Por família"): _l("MÊS", "AAAA-MM|texto|o", "FAMÍLIA", *_PRECO_G),
+    ("vc_preco", "Total BAP"): _l("MÊS", "AAAA-MM|texto|o", "TOTAL", *_PRECO_G),
+    ("vc_preco", "Reajustes por produto"): _l(
+        "MÊS", "AAAA-MM|texto|o", "FILIAL", "CÓD. PRODUTO", "PRODUTO", "CATEGORIA|texto|o", "FAMÍLIA", "LEITURA",
+        "TABELA ANTES|moeda2|o", "TABELA AGORA|moeda2|o", "VAR. TABELA %|pct1", "PRATICADO ANTES|moeda2|o",
+        "PREÇO PRATICADO|moeda2", "VAR. PREÇO %|pct1", "QTD ANTES|num|o", "QTD|num", "VAR. QTD %|pct1",
+        "FAT. ANTES|moeda|o", "FATURAMENTO|moeda", "VAR. FAT. %|pct1", "SISTEMA|texto|o", "LINHA|texto|o"),
+    ("vc_preco", "Pesquisa de mercado"): _l(
+        "MÊS|texto|o", "DATA|data", "VENDEDOR", "SUPERVISOR|texto|o", "CIDADE", "UF", "SEGMENTO|texto|o",
+        "LINHA DIA FOCO", "PAPEL", "CÓD. BAP", "PRODUTO", "CONCORRENTE", "CÓD. CONCORRENTE|texto|o", "LEITURA",
+        "COMPRA BAP|moeda2", "COMPRA CONC.|moeda2", "DIF. COMPRA %|pct1", "VENDA BAP|moeda2",
+        "VENDA CONC.|moeda2", "DIF. VENDA %|pct1", "MKP CLIENTE BAP %|pct1", "MKP CLIENTE CONC. %|pct1",
+        "PRC. TABELA BAP|moeda2", "COMPRA x TABELA %|pct1", "ESTOQUE BAP|num", "ESTOQUE CONC.|num",
+        "SHARE ESTOQUE %|pct1", "VOL. BAP|num", "VOL. CONC.|num", "SHARE VOLUME %|pct1", "OBSERVAÇÃO",
+        "CATEGORIA|texto|o", "FAMÍLIA|texto|o"),
+    ("an_divergencias", "Por vendedor"): _l(
+        "VENDEDOR", "SUPERVISOR", "CARTEIRA PLANNER|int", "BASE PROTHEUS|int", "IGUAIS|int", "SÓ NO PLANNER|int",
+        "SÓ NO PROTHEUS|int", "· FORA DA BASE|int", "· PLANNER SEM VENDEDOR|int", "BATE?"),
+    ("an_divergencias", "Clientes divergentes"): _l(
+        "COD", "LOJA", "CIDADE", "UF", "SEGMENTO", "ZONA", "VENDEDOR PLANNER", "VENDEDOR PROTHEUS (A1_VEND)",
+        "STATUS PROTHEUS|texto|o", "SITUAÇÃO", "O QUE FAZER"),
+    ("an_divergencias", "Sem coordenada / endereço"): _l(
+        "CÓD.", "LOJA", "O QUE FALTA", "NA ROTA DO MÊS", "UF", "CIDADE", "VENDEDOR PLANNER",
+        "SUPERVISOR PLANNER", "SEGMENTO", "CURVA", "SITUAÇÃO", "PONTO"),
+}
+RE_COORD = re.compile(r"-?\d+\.\d{3,}")                  # coordenada na coluna PONTO: a aba fica fora (§10.11.2)
+
+# T-0023 v2 (§10.10.2): colunas por (rid, título), nunca só pelo título ("Por vendedor" existe no Visita e na NCC)
+def _agrupa_ncc(nome):
+    """Os 3 agrupamentos da NCC (§10.10.2): só muda a coluna do agrupamento."""
+    return [_c(nome), _c("NCC", "int"), _c("CLIENTES", "int"), _c("0-30 DIAS", "moeda"), _c("31-90 DIAS", "moeda"),
+            _c("91-180 DIAS", "moeda"), _c("+180 DIAS", "moeda"), _c("SALDO", "moeda"), _c("COMPENSAR JÁ", "moeda")]
+
+
+COLUNAS_RID.update({
+    ("pl_garantias", "Garantias"): [
+        _c("STATUS"), _c("RESULTADO ANÁLISE"), _c("TICKET"), _c("DT. SOLICITAÇÃO", "data"),
+        _c("DT. FECHAMENTO", "data"), _c("SLA ATUAL", "int"), _c("PRAZO"), _c("CÓD. CLIENTE"), _c("CLIENTE"),
+        _c("CIDADE"), _c("CÓD. PRODUTO"), _c("DESCRIÇÃO PRODUTO", "texto", True), _c("QTD", "num"),
+        _c("PENDÊNCIAS", "texto", True), _c("RETORNO DO CLIENTE", "texto", True), _c("VENDEDOR", "texto", True),
+        _c("SUPERVISOR", "texto", True), _c("SITUAÇÃO DO PRAZO", "texto", True), _c("TOM SLA", "texto", True),
+        _c("DT. FECHOU", "data", True), _c("RECLAMAÇÃO", "texto", True), _c("OBSERVAÇÃO", "texto", True),
+        _c("DT. RETORNO", "data", True)
+    ],
+    ("pl_garantias", "Histórico de compra"): [
+        _c("CÓD. CLIENTE"), _c("RAZÃO SOCIAL"), _c("FANTASIA"), _c("CIDADE"), _c("PEDIDO"), _c("PED. MÁXIMA"),
+        _c("NF"), _c("PRAZO"), _c("DT. PEDIDO", "dia"), _c("DT. NF", "dia"), _c("DT. ENTREGA", "dia"),
+        _c("TRANSPORTADORA"), _c("RESPONSÁVEL"), _c("CÓD. PRODUTO"), _c("DESCRIÇÃO"), _c("QTD", "num"),
+        _c("VALOR", "moeda"), _c("VENDEDOR"), _c("FILIAL")
+    ],
+    ("pl_garantias", "Por produto"): [
+        _c("CÓD. PRODUTO"), _c("DESCRIÇÃO"), _c("GARANTIAS", "int"), _c("EM ABERTO", "int"),
+        _c("PROCEDENTES", "int"), _c("IMPROCEDENTES", "int")
+    ],
+    ("pl_garantias", "Status x resultado"): [
+        _c("STATUS"), _c("PENDENTE", "int"), _c("PROCEDENTE", "int"), _c("IMPROCEDENTE", "int"), _c("TOTAL", "int")
+    ],
+    ("pl_devolucoes", "Devoluções"): [
+        _c("MÊS"), _c("DATA", "data"), _c("NF DEV."), _c("FILIAL"), _c("CLIENTE"), _c("CIDADE"), _c("UF"),
+        _c("VENDEDOR"), _c("VALOR", "moeda"), _c("ITENS", "int"), _c("PRODUTOS"), _c("ETAPA"), _c("MOTIVO"),
+        _c("AUTORIZADO POR"), _c("RECEBIDA EM", "data"), _c("CRÉDITO"), _c("CRÉDITO EM", "data"), _c("RESPONSÁVEL")
+    ],
+    ("pl_devolucoes", "Por motivo"): [
+        _c("MÊS"), _c("MOTIVO"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda")
+    ],
+    ("pl_devolucoes", "Por vendedor (12 meses)"): [
+        _c("VENDEDOR"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda"), _c("FATURADO 12M", "moeda"),
+        _c("% DEVOLVIDO", "pct")
+    ],
+    ("pl_devolucoes", "Por cliente (12 meses)"): [
+        _c("CLIENTE"), _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda")
+    ],
+    ("pl_devolucoes", "Por produto (12 meses)"): [
+        _c("PRODUTO"), _c("DESCRIÇÃO"), _c("QTD", "num"), _c("VALOR", "moeda")
+    ],
+    ("pl_ncc", "NCC pendentes"): [
+        _c("A COMPENSAR"), _c("SLA NCC"), _c("DT. ÚLT. MOV.", "data"), _c("D.U. S/ MOV.", "int"), _c("IDADE"),
+        _c("FILIAL"), _c("NCC"), _c("PARC."), _c("EMISSÃO", "data"), _c("DIAS", "int"), _c("CLIENTE"), _c("NOME"),
+        _c("CIDADE"), _c("UF"), _c("VENDEDOR"), _c("SUPERVISOR", "texto", True), _c("VALOR NCC", "moeda"),
+        _c("JÁ ABATIDO", "moeda"), _c("SALDO", "moeda"), _c("TÍTULOS EM ABERTO", "moeda"),
+        _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")
+    ],
+    ("pl_ncc", "Por cliente"): [
+        _c("A COMPENSAR"), _c("IDADE"), _c("CLIENTE"), _c("NOME"), _c("CIDADE"), _c("UF"), _c("VENDEDOR"),
+        _c("SUPERVISOR", "texto", True), _c("NCC", "int"), _c("SALDO", "moeda"), _c("NCC MAIS ANTIGA (DIAS)", "int"),
+        _c("TÍTULOS EM ABERTO", "moeda"), _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")
+    ],
+    **{("pl_ncc", f"Por {k}"): _agrupa_ncc(k.upper()) for k in ("filial", "vendedor", "supervisor")},
+})
+# colunas que nunca vão, por tabela (§10.10.3, bloco `colunas-fora-por-tabela`): a web recusa o pacote que as traz
+FORA_POR_TABELA = {("pl_garantias", "Garantias"): frozenset({"CONTATO CLIENTE"})}
 # "Aderência dia a dia": 2 + N + 1 colunas, conferidas por padrão de nome (§10.7.3)
 ADERENCIA = "Aderência dia a dia"
 _RE_DIA = re.compile(r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$")
@@ -213,10 +409,17 @@ SELOS = {
     "Por supervisor": {"% META": "faixa"}, "Por vendedor": {"% META": "faixa"},
     "Dia a dia": {"% META": "faixa"},
 }
+# T-0023 v2: o selo por (rid, título), quando o título sozinho não basta (§10.10.2)
+SELOS_RID = {
+    ("pl_garantias", "Garantias"): {"STATUS": "texto", "SLA ATUAL": "tom", "PRAZO": "texto"},
+    ("pl_garantias", "Status x resultado"): {"STATUS": "texto"},
+    ("pl_ncc", "NCC pendentes"): {"SLA NCC": "texto"},
+}
 # tabelas que levam `uf_linhas` e `kpis_padrao` etc. não têm lista própria: o formato basta.
 
 PROIBIDAS = {"edicao", "editar", "abrir", "detalhe", "kpis_de", "total_de", "totais_por", "recortes",
-             "ordem_exportar", "cores_celulas", "so_exportar", "solicitacao_bap", "nota_pdf"}
+             "ordem_exportar", "cores_celulas", "so_exportar", "solicitacao_bap", "nota_pdf",
+             "garantia", "campanha_export", "detalhe_pedido"}
 # dentro dos cartões (`kpis_padrao`) "detalhe" é o texto do cartão; as outras chaves de ação nunca
 PROIBIDAS_KPI = (PROIBIDAS - {"detalhe"}) | {"edicao", "editar", "abrir", "tabelas", "juntas", "cobranca", "kpis_de"}
 CHAVES_TABELA = {"titulo", "colunas", "linhas", "tons", "total", "filtros", "kpis_padrao", "recortes_linhas",
@@ -305,8 +508,10 @@ def _total_ok(tot, tipos) -> bool:
             and all(v is None or (_celula_ok(v, tp) and v != "") for v, tp in zip(tot, tipos)))
 
 
-def _cols_esperadas(titulo: str, cols) -> list | None:
-    """A lista do §10.7.3; na "Aderência dia a dia" ela sai dos nomes (padrão), None se não bate."""
+def _cols_esperadas(titulo: str, cols, rid: str = "") -> list | None:
+    """A lista do §10.7.3 (e do §10.11.3, por rid); na "Aderência dia a dia" ela sai dos nomes (padrão), None se não bate."""
+    if (rid, titulo) in COLUNAS_RID:
+        return COLUNAS_RID[(rid, titulo)]
     if titulo != ADERENCIA:
         return COLUNAS.get(titulo)
     nomes = [c.get("nome") if isinstance(c, dict) else None for c in cols]
@@ -395,15 +600,18 @@ def _cols_meta(cols) -> list | None:
 
 
 def _colunas_erro(titulo, cols, rid="", livre=False) -> tuple[str | None, list]:
+    fora = FORA_POR_TABELA.get((rid, titulo), ())
+    if fora and isinstance(cols, list) and any(isinstance(c, dict) and c.get("nome") in fora for c in cols):
+        return "coluna que não vai ao site (contato do cliente)", []
     esperado = (_esperado_livre(cols) if livre
                 else _cols_meta(cols) if rid == "vc_meta"
-                else _cols_esperadas(titulo, cols if isinstance(cols, list) else []))
+                else _cols_esperadas(titulo, cols if isinstance(cols, list) else [], rid))
     if esperado is None:
         return "colunas diferentes da lista do contrato", []
     if not (isinstance(cols, list) and len(cols) == len(esperado)):
         return "colunas diferentes da lista do contrato", []
     ocultas = {n for n, _, o in esperado if o}
-    selos = ({n: "faixa" for n, _, _ in esperado} if rid == "vc_meta" else SELOS.get(titulo, {}))
+    selos = ({n: "faixa" for n, _, _ in esperado} if rid == "vc_meta" else SELOS_RID.get((rid, titulo), SELOS.get(titulo, {})))
     if titulo == ADERENCIA:                    # T-0033: o quadrado de cada dia pode vir com a faixa de cor do PC (opcional)
         selos = {n: "faixa" for n, tp, _ in esperado if tp == "pct"}
     for c, (n, tp, o) in zip(cols, esperado):
@@ -461,6 +669,10 @@ def _tabela_erro(t, titulo, nivel="aba", rid="") -> str | None:
     for ln in linhas:
         if not (isinstance(ln, list) and len(ln) == n and all(_celula_ok(v, tp) for v, tp in zip(ln, tipos))):
             return "linha com número de células ou valores inválidos"
+    if (rid, titulo) == ("an_divergencias", "Sem coordenada / endereço"):
+        k = [x[0] for x in esperado].index("PONTO")
+        if any(isinstance(ln[k], str) and RE_COORD.search(ln[k]) for ln in linhas):
+            return "coluna PONTO com coordenada"          # §10.11.2: o endereço e a coordenada ficam no PC
     tons = t.get("tons")
     if tons is not None and not (isinstance(tons, list) and len(tons) == len(linhas)
                                  and all(isinstance(x, str) and x in TONS for x in tons)):
@@ -617,7 +829,7 @@ def validar(rid: str, r: dict) -> list[str]:
     if "tabelas" not in r:
         return []
     if rid not in RIDS:
-        return [f"{rid}: tabelas só no pl_inadimplencia, pv_pedidos, pl_entregas e vc_visitas"]
+        return [f"{rid}: tabelas só nos faróis com abas de tabela"]
     ts = r["tabelas"]
     if rid in FAROIS_LIVRES:
         if not isinstance(ts, list) or len(ts) > 20:
@@ -654,6 +866,35 @@ def _aba_tem_documento(t: dict) -> bool:
     """CPF/CNPJ já formatado em célula de texto de qualquer parte da aba (linhas, total, juntas, sub-abas)."""
     partes = [t] + [j["tabela"] for j in t.get("juntas") or []] + list(t.get("subabas") or [])
     return any(_celulas_com_documento(list(p.get("linhas") or []) + [p.get("total") or []]) for p in partes)
+
+
+# T-0036 (revisão 🟢): a OBSERVAÇÃO da Pesquisa de mercado é digitada no campo; o PC limpa e a web limpa de novo
+# (defesa em profundidade). O padrão é o do texto livre das edições (`edicoes.RE_PESSOAL`), com o e-mail inteiro.
+LIMPA_TEXTO = {("vc_preco", "Pesquisa de mercado"): ("OBSERVAÇÃO",)}
+_RE_LIMPA = re.compile("|".join(r.pattern for r in edicoes.RE_PESSOAL))   # mesmos 4 padrões (e-mail, CNPJ/CPF, telefone)
+REMOVIDO = "[removido]"          # o mesmo texto do robô (`relatorios_nucleo.texto_sem_contato`, RN-GER-011)
+
+
+def limpar_texto(t: str) -> str:
+    """Troca CPF, CNPJ, telefone e e-mail de um texto livre por "[removido]" (RN-GER-011, regra 6 do CLAUDE.md)."""
+    return _RE_LIMPA.sub(REMOVIDO, t)
+
+
+def limpar_textos_livres(corpo: dict) -> int:
+    """Passa `limpar_texto` nas colunas de `LIMPA_TEXTO`; devolve quantas células mudaram."""
+    n = 0
+    for (rid, titulo), nomes in LIMPA_TEXTO.items():
+        rel = (corpo.get("relatorios") or {}).get(rid)
+        for t in (rel.get("tabelas") or []) if isinstance(rel, dict) else ():
+            if not isinstance(t, dict) or t.get("titulo") != titulo:
+                continue
+            idx = [i for i, c in enumerate(t.get("colunas") or []) if isinstance(c, dict) and c.get("nome") in nomes]
+            for ln in t.get("linhas") or []:
+                for i in idx:
+                    if isinstance(ln, list) and i < len(ln) and isinstance(ln[i], str) and _RE_LIMPA.search(ln[i]):
+                        ln[i] = limpar_texto(ln[i])
+                        n += 1
+    return n
 
 
 def tirar_abas_com_documento(corpo: dict) -> list[str]:
@@ -783,7 +1024,8 @@ def _cabecalho(t, vista):
     cols = t["colunas"]
     # T-0022: com cabeçalho agrupado (Farol de Metas) vale o nome curto, como na tela do PC
     nome = lambda k: (cols[k].get("curto") if t.get("grupos") and cols[k].get("curto") else cols[k]["nome"])  # noqa: E731
-    return [{"i": k, "nome": nome(k), "tipo": cols[k]["tipo"], "num": cols[k]["tipo"] in NUM_TIPOS,
+    return [{"i": k, "nome": nome(k), "tipo": cols[k]["tipo"],
+             "num": cols[k]["tipo"] in NUM_TIPOS,
              "inteira": bool(cols[k].get("inteira")), "livre": cols[k]["nome"] in LIVRES} for k in vista]
 
 
@@ -1059,6 +1301,42 @@ GRADE.update({
 })
 
 
+# T-0023 v2 (contrato §10.10.2, "Grade"): as tabelas dos 3 faróis do Pós-venda com mais de 10 colunas visíveis. A coluna
+# Editar do admin fica à esquerda e não conta no teto. As ocultas (o valor de hoje do formulário) nunca vão à grade.
+GRADE.update({
+    ("pl_garantias", "Garantias"): {
+        "chave": "TICKET", "cel": ("TICKET", "CLIENTE", "STATUS", "SLA ATUAL"),
+        "grade": ("TICKET", "CLIENTE", "STATUS", "RESULTADO ANÁLISE", "DT. SOLICITAÇÃO", "DT. FECHAMENTO",
+                  "SLA ATUAL", "PRAZO"),
+        "blocos": (("Cliente", ("CÓD. CLIENTE", "CIDADE")), ("Produto", ("CÓD. PRODUTO", "QTD")))},
+    ("pl_garantias", "Histórico de compra"): {
+        "chave": "NF", "cel": ("NF", "FANTASIA", None, "VALOR"),
+        "grade": ("NF", "DT. NF", "PEDIDO", "FANTASIA", "CIDADE", "CÓD. PRODUTO", "DESCRIÇÃO", "QTD", "VALOR",
+                  "VENDEDOR"),
+        "blocos": (("Cliente", ("CÓD. CLIENTE", "RAZÃO SOCIAL")),
+                   ("Pedido", ("PED. MÁXIMA", "PRAZO", "DT. PEDIDO", "FILIAL")),
+                   ("Entrega", ("DT. ENTREGA", "TRANSPORTADORA", "RESPONSÁVEL")))},
+    ("pl_devolucoes", "Devoluções"): {
+        "chave": "NF DEV.", "cel": ("NF DEV.", "CLIENTE", "ETAPA", "VALOR"),
+        "grade": ("NF DEV.", "DATA", "CLIENTE", "CIDADE", "UF", "VALOR", "ETAPA", "MOTIVO", "AUTORIZADO POR",
+                  "CRÉDITO"),
+        "blocos": (("Nota", ("MÊS", "FILIAL", "VENDEDOR", "ITENS", "PRODUTOS")),
+                   ("Acompanhamento", ("RECEBIDA EM", "CRÉDITO EM", "RESPONSÁVEL")))},
+    ("pl_ncc", "NCC pendentes"): {
+        "chave": "NCC", "cel": ("NCC", "NOME", "SLA NCC", "SALDO"),
+        "grade": ("NCC", "NOME", "UF", "A COMPENSAR", "SLA NCC", "DT. ÚLT. MOV.", "D.U. S/ MOV.", "IDADE",
+                  "VENDEDOR", "SALDO"),
+        "blocos": (("Cliente", ("CLIENTE", "CIDADE")),
+                   ("Nota", ("FILIAL", "PARC.", "EMISSÃO", "DIAS", "VALOR NCC", "JÁ ABATIDO")),
+                   ("Em aberto", ("TÍTULOS EM ABERTO", "PEDIDO EM ABERTO", "ÚLTIMA COMPRA")))},
+    ("pl_ncc", "Por cliente"): {
+        "chave": "NOME", "cel": ("NOME", None, "IDADE", "SALDO"),
+        "grade": ("NOME", "UF", "VENDEDOR", "A COMPENSAR", "IDADE", "NCC", "SALDO", "NCC MAIS ANTIGA (DIAS)",
+                  "TÍTULOS EM ABERTO", "PEDIDO EM ABERTO"),
+        "blocos": (("Cliente", ("CLIENTE", "CIDADE")), ("Compra", ("ÚLTIMA COMPRA",)))},
+})
+
+
 # T-0024 (R4): a dica da busca nomeia o que a tabela mostra; "" = sem busca (tabela de até ~15 linhas)
 SEM_BUSCA_ATE = 15
 DICA_BUSCA = {
@@ -1075,11 +1353,137 @@ DICA_BUSCA = {
 
 def dica_busca(rid: str, titulo: str, n_linhas: int) -> str | None:
     """None = o texto padrão (faróis antigos); "" = sem caixa de busca; senão, a dica do que a 1ª coluna mostra."""
+    if rid in RIDS_ANALISTA:                # T-0036: faróis do Analista, sempre com busca (dica por aba)
+        return DICA_BUSCA.get((rid, titulo), "Buscar")
     if rid not in FAROIS_LIVRES:
         return None
     if n_linhas <= SEM_BUSCA_ATE:
         return ""
     return DICA_BUSCA.get((rid, titulo), "Buscar produto" if rid == "pl_giro" else "Buscar")
+
+
+# T-0036 (revisão de UX, R1): os 4 faróis do Analista Comercial entram na GRADE (até 10 colunas no PC, 4 no celular,
+# sem rolagem para o lado). O que a grade não mostra vai ao popup da linha (chave sublinhada) e ao Excel.
+_SALDO_AGR = ("PEDIDOS", "VLR VENDA", "DESC. COMERCIAL", "% DESC. COM.", "SALDO", "META SALDO", "% ATING.")
+_MK_GRUPO = ("PEDIDOS", "R$ VENDA", "CUSTO", "MARGEM", "MARKUP %", "MKP TABELA %", "% DESC.", "PART. MARGEM")
+_MK_PROD = ("PRODUTOS", "R$ VENDA", "CUSTO", "MARGEM", "MKP REAL %", "% DESC.", "MKP TABELA %", "MKP VENDA %",
+            "PART. MARGEM")
+_PR_GRUPO = ("MÊS", "LEITURA", "FATURAMENTO", "VAR. FAT. %", "PREÇO MÉDIO", "VAR. PREÇO %", "EFEITO PREÇO",
+             "EFEITO VOLUME", "EFEITO MIX")
+GRADE.update({
+    ("vc_saldo", "Pedido a pedido"): _g("PEDIDO", ("PEDIDO", "DATA NF", "FILIAL", "VENDEDOR", "VLR VENDA",
+                                                   "% DESC. COM.", "SALDO DO PEDIDO", "SALDO FRETE", "NO SALDO",
+                                                   "DESC. COMERCIAL"),
+                                        ("PEDIDO", "VENDEDOR", "% DESC. COM.", "SALDO DO PEDIDO")),
+    ("vc_saldo", "Por vendedor"): _g("VENDEDOR", ("VENDEDOR", "SUPERVISOR") + _SALDO_AGR,
+                                     ("VENDEDOR", "SUPERVISOR", "% DESC. COM.", "SALDO")),
+    ("vc_saldo", "Por supervisor"): _g("SUPERVISOR", ("SUPERVISOR",) + _SALDO_AGR,
+                                       ("SUPERVISOR", "PEDIDOS", "% DESC. COM.", "SALDO")),
+    ("vc_saldo", "Por UF"): _g("UF", ("UF",) + _SALDO_AGR, ("UF", "PEDIDOS", "% DESC. COM.", "SALDO")),
+    ("vc_markup", "Por pedido"): _g("PEDIDO", ("PEDIDO", "DATA PED.", "FILIAL", "UF", "STATUS", "R$ VENDA", "CUSTO",
+                                               "MARGEM", "MARKUP %", "SITUAÇÃO"),
+                                    ("PEDIDO", "FILIAL", "SITUAÇÃO", "MARKUP %")),
+    ("vc_markup", "Por UF"): _g("UF", ("UF",) + _MK_GRUPO, ("UF", "PEDIDOS", "MARGEM", "MARKUP %")),
+    ("vc_markup", "Por cidade"): _g("CIDADE", ("CIDADE",) + _MK_GRUPO, ("CIDADE", "PEDIDOS", "MARGEM", "MARKUP %")),
+    ("vc_markup", "Por supervisor"): _g("SUPERVISOR", ("SUPERVISOR",) + _MK_GRUPO,
+                                        ("SUPERVISOR", "PEDIDOS", "MARGEM", "MARKUP %")),
+    ("vc_markup", "Por vendedor"): _g("VENDEDOR", ("VENDEDOR",) + _MK_GRUPO,
+                                      ("VENDEDOR", "PEDIDOS", "MARGEM", "MARKUP %")),
+    ("vc_markup", "Por categoria"): _g("CATEGORIA", ("CATEGORIA",) + _MK_PROD,
+                                       ("CATEGORIA", "PRODUTOS", "MARGEM", "MKP REAL %")),
+    ("vc_markup", "Por sistema"): _g("SISTEMA", ("SISTEMA",) + _MK_PROD, ("SISTEMA", "PRODUTOS", "MARGEM", "MKP REAL %")),
+    ("vc_markup", "Por família"): _g("FAMÍLIA", ("FAMÍLIA",) + _MK_PROD, ("FAMÍLIA", "PRODUTOS", "MARGEM", "MKP REAL %")),
+    ("vc_markup", "Por linha"): _g("LINHA", ("LINHA",) + _MK_PROD, ("LINHA", "PRODUTOS", "MARGEM", "MKP REAL %")),
+    ("vc_markup", "Por produto"): _g("PRODUTO", ("PRODUTO", "DESCRIÇÃO", "SITUAÇÃO", "ESTOQUE", "VOL. VENDIDO",
+                                                 "R$ VENDA", "MARGEM", "MKP REAL %", "MKP VENDA %", "% DESC."),
+                                     ("PRODUTO", "DESCRIÇÃO", "ESTOQUE", "MKP REAL %")),
+    ("vc_markup", "Todos os produtos"): _g("PRODUTO", ("PRODUTO", "DESCRIÇÃO", "CATEGORIA", "SITUAÇÃO", "EST.",
+                                                       "QTD VEND.", "R$ VENDA", "MKP REAL %", "MKP VENDA %",
+                                                       "ÚLT. VENDA"),
+                                           ("PRODUTO", "DESCRIÇÃO", "EST.", "MKP REAL %")),
+    ("vc_preco", "Por categoria"): _g("CATEGORIA", ("CATEGORIA",) + _PR_GRUPO,
+                                      ("CATEGORIA", None, "VAR. FAT. %", "FATURAMENTO")),
+    ("vc_preco", "Por família"): _g("FAMÍLIA", ("FAMÍLIA",) + _PR_GRUPO, ("FAMÍLIA", None, "VAR. FAT. %", "FATURAMENTO")),
+    ("vc_preco", "Total BAP"): _g("TOTAL", ("TOTAL",) + _PR_GRUPO, ("TOTAL", None, "VAR. FAT. %", "FATURAMENTO")),
+    ("vc_preco", "Reajustes por produto"): _g("PRODUTO", ("PRODUTO", "MÊS", "FILIAL", "FAMÍLIA", "LEITURA",
+                                                          "VAR. TABELA %", "PREÇO PRATICADO", "VAR. PREÇO %",
+                                                          "VAR. QTD %", "VAR. FAT. %"),
+                                              ("PRODUTO", "FILIAL", "LEITURA", "VAR. PREÇO %")),
+    ("vc_preco", "Pesquisa de mercado"): _g("PRODUTO", ("PRODUTO", "DATA", "VENDEDOR", "CIDADE", "UF", "CONCORRENTE",
+                                                        "LEITURA", "DIF. COMPRA %", "DIF. VENDA %",
+                                                        "SHARE VOLUME %"),
+                                            ("PRODUTO", "CONCORRENTE", "LEITURA", "DIF. VENDA %")),
+    ("an_divergencias", "Por vendedor"): _g("VENDEDOR", ("VENDEDOR", "SUPERVISOR", "CARTEIRA PLANNER", "BASE PROTHEUS",
+                                                         "IGUAIS", "SÓ NO PLANNER", "SÓ NO PROTHEUS",
+                                                         "· FORA DA BASE", "· PLANNER SEM VENDEDOR", "BATE?"),
+                                            ("VENDEDOR", "SUPERVISOR", "BATE?", "CARTEIRA PLANNER")),
+    ("an_divergencias", "Clientes divergentes"): _g("COD", ("COD", "LOJA", "CIDADE", "UF", "VENDEDOR PLANNER",
+                                                            "VENDEDOR PROTHEUS (A1_VEND)", "SITUAÇÃO", "O QUE FAZER"),
+                                                    ("COD", "CIDADE", "SITUAÇÃO", None)),
+    ("an_divergencias", "Sem coordenada / endereço"): _g(
+        "CÓD.", ("CÓD.", "LOJA", "O QUE FALTA", "NA ROTA DO MÊS", "UF", "CIDADE", "VENDEDOR PLANNER", "CURVA",
+                 "SITUAÇÃO", "PONTO"), ("CÓD.", "VENDEDOR PLANNER", "SITUAÇÃO", "O QUE FALTA")),
+})
+# T-0036 (UX 2ª passada, D): as dicas dos faróis do Analista moram na DICA_BUSCA, por (farol, aba), como as do lote 2;
+# nunca cliente por nome (RN-GER-011)
+RIDS_ANALISTA = render.RIDS_ANALISTA      # RD-0004: a lista mora no render
+DICA_BUSCA.update({
+    ("vc_saldo", "Pedido a pedido"): "Buscar pedido, vendedor", ("vc_saldo", "Por vendedor"): "Buscar vendedor",
+    ("vc_saldo", "Por supervisor"): "Buscar supervisor", ("vc_saldo", "Por UF"): "Buscar UF",
+    ("vc_markup", "Por pedido"): "Buscar pedido ou código", ("vc_markup", "Por UF"): "Buscar UF",
+    ("vc_markup", "Por cidade"): "Buscar cidade", ("vc_markup", "Por supervisor"): "Buscar supervisor",
+    ("vc_markup", "Por vendedor"): "Buscar vendedor", ("vc_markup", "Por categoria"): "Buscar categoria",
+    ("vc_markup", "Por sistema"): "Buscar sistema", ("vc_markup", "Por família"): "Buscar família",
+    ("vc_markup", "Por linha"): "Buscar linha", ("vc_markup", "Por produto"): "Buscar produto",
+    ("vc_markup", "Todos os produtos"): "Buscar produto",
+    ("vc_preco", "Por categoria"): "Buscar categoria", ("vc_preco", "Por família"): "Buscar família",
+    ("vc_preco", "Total BAP"): "Buscar mês", ("vc_preco", "Reajustes por produto"): "Buscar produto ou família",
+    ("vc_preco", "Pesquisa de mercado"): "Buscar produto ou cidade",
+    ("an_divergencias", "Por vendedor"): "Buscar vendedor", ("an_divergencias", "Clientes divergentes"): "Buscar código ou cidade",
+    ("an_divergencias", "Sem coordenada / endereço"): "Buscar código ou cidade",
+})
+# T-0036 (UX, A): rótulo curto dos números da faixa, só no celular (o inteiro fica no title) e título curto do farol
+KPI_CURTO = {"desconto comercial": "Desc. com.", "saldo do frete": "Frete", "abaixo do mínimo": "Abaixo mín.", "queda após reajuste": "Queda reaj.",
+             "clientes na base (planner)": "Na base", "vendedor diferente": "Vend. dif.",
+             "sem vendedor no planner": "Sem vendedor", "fora da base do planner": "Fora da base",
+             "código duplicado": "Duplicados"}
+TITULO_CEL = {"an_divergencias": "Divergências Planner × Protheus"}
+
+
+# T-0036 (revisão UX 4): o selo da lista do celular das Divergências usa o rótulo curto; o inteiro fica no detalhe
+# (RD-0005: o texto curto é o do KPI_CURTO)
+SELO_CURTO = {k.upper(): KPI_CURTO[k] for k in ("vendedor diferente", "sem vendedor no planner", "fora da base do planner")}
+
+
+def selo_curto(t) -> str:
+    return SELO_CURTO.get(str(t or "").strip().upper(), str(t or ""))
+
+
+def kpi_curto(rot: str) -> str:
+    r = str(rot or "")
+    if r.lower() in KPI_CURTO:
+        return KPI_CURTO[r.lower()]
+    return "Fat. " + r[12:] if r.lower().startswith("faturamento ") else r
+
+
+# T-0036 (UX, C): o título da coluna não repete a unidade que o número já mostra ("R$ 100", "10,0%")
+# e duas colunas da mesma tabela não ficam com rótulos de mesma base ("DESC. COM." % ao lado de "DESC. COMERCIAL" R$)
+ROTULO_COLUNA = {"VENDEDOR PROTHEUS (A1_VEND)": "VENDEDOR PROTHEUS",
+                 "% DESC. COM.": "DESC. S/ TABELA", "% DESC.": "DESC. S/ TABELA", "VAR. FAT. R$": "DIF. FAT."}
+_UNIDADE = re.compile(r"^(?:R\$ |% )|(?: %| R\$)$")
+
+
+def aplicar_rotulos(tab: dict, rid: str) -> None:
+    """Põe `rot` (o que a tela escreve) nas colunas: sem a unidade e sem o nome do campo do Protheus. O contrato e o
+    Excel seguem com o nome do PC."""
+    if rid not in RIDS_ANALISTA:
+        return
+    for c in tab.get("cols") or []:
+        n = c.get("nome", "")
+        r = ROTULO_COLUNA.get(n)
+        if r is None and c.get("tipo") in ("moeda", "moeda2", "pct", "pct1"):
+            r = _UNIDADE.sub("", n).strip() or n
+        c["rot"] = r or n
 
 
 def grade_de(tab: dict, rid: str = "") -> dict | None:
@@ -1145,17 +1549,23 @@ def preparar_grade(tab: dict, rid: str = "") -> dict:
 _RE_COD_NOME = re.compile(r"^\s*(\d+)\s+-\s+(.+)$")
 
 
+def cod_e_nome(v) -> tuple[str, str]:
+    """"900001 - NOME" -> ("900001", "NOME"); sem código, ("", v). Uma conta só (grade das Devoluções e Entregas, resumo da edição)."""
+    m = _RE_COD_NOME.match(str(v))
+    return (m.group(1), m.group(2)) if m else ("", str(v))
+
+
 def cliente_so_nome(tab: dict) -> None:
     """Entregas (UX §3.2): "900001 - NOME" vira só o nome na grade; o código vai ao popup (`cod` da célula)."""
     cols = [str(c.get("nome", "")).upper() for c in tab.get("cols") or []]
-    if "CLIENTE" not in cols or "NF" not in cols:
+    if "CLIENTE" not in cols or not ({"NF", "NF DEV."} & set(cols)):
         return
     i = cols.index("CLIENTE")
     for ln in tab.get("linhas") or []:
         c = ln["cel"][i]
-        m = _RE_COD_NOME.match(str(c.get("t", "")))
-        if m:
-            c["cod"], c["t"] = m.group(1), m.group(2)
+        cod, nome = cod_e_nome(c.get("t", ""))
+        if cod:
+            c["cod"], c["t"] = cod, nome
 
 
 # T-0029 / RN-GER-013 (Alexandre, 26/11/2026): pedido de cliente fora da base de clientes da BAP (pedido interno)
@@ -1196,14 +1606,16 @@ def dados_do_popup(tab: dict, linha: dict, so_fora: bool = False) -> list[list]:
     for i, (c, v) in enumerate(zip(cols, linha.get("cel") or [])):
         if (v or {}).get("cod"):                                  # Entregas: o código do cliente sai da grade
             blocos.setdefault("Outros", []).append(["CÓD. CLIENTE", v["cod"]])
-        if (so_fora and i not in g["fora"]) or (not so_fora and i in fechada):
-            continue
         t = str((v or {}).get("t", "")).strip()
+        # T-0036: o selo da linha fechada com rótulo curto deixa o texto inteiro no detalhe aberto
+        inteiro = i == g["cel"].get("sla") and selo_curto(t) != t
+        if (so_fora and i not in g["fora"]) or (not so_fora and i in fechada and not inteiro):
+            continue
         nome = str(c.get("nome", ""))
         if not t or t == "—" or (nome.upper() == "PED. MÁX." and t == ped):
             continue
         bl = bloco_de.get(nome.upper()) or ("" if (not so_fora and i not in g["fora"]) else "Outros")
-        blocos.setdefault(bl, []).append([nome, t])
+        blocos.setdefault(bl, []).append([c.get("rot") or nome, t])      # T-0036: o rótulo da tela (sem unidade)
     ordem = [""] + [t for t, _ in g["blocos"]] + ["Outros"]
     return [[t, blocos[t]] for t in ordem if t in blocos]
 
@@ -1267,4 +1679,5 @@ def subabas_para_tela(t: dict, sub: int, consulta: dict, pagina_tam: int = PAGIN
     tela["sub"] = sub
     for c in tela["cols"]:                                 # só na exibição: rótulo legível (o contrato guarda o do arquivo)
         c["nome"] = " ".join(_TROCA_ROTULO.get(w, w) for w in c["nome"].replace("_", " ").split())
+        c["rot"] = c["nome"]
     return [ROTULO_SUB.get(x["titulo"], x["titulo"]) for x in subs], tela

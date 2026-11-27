@@ -20,9 +20,10 @@
 <nav class="bc3-uf bc3-uf-off" aria-label="Filtro por estado (esta aba é da BAP inteira)" aria-disabled="true" title="Esta aba mostra a BAP inteira"><a class="on">BAP</a>{% for u in ufs_off %}<span>{{ u }}</span>{% endfor %}</nav>
 {% endmacro %}
 
-{% macro numeros(ks) %}{% if ks %}
+{# T-0036: `curto` = rótulo curto no celular (o inteiro no `title`) e valor longo em fonte menor (faróis do Analista) #}
+{% macro numeros(ks, curto=false) %}{% if ks %}
 <div class="bc3-ks">
-  {% for k in ks %}<div class="bc3-k{{ ' t-' ~ k.cor if k.cor }}"><small>{{ k.rot }}</small><b>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
+  {% for k in ks %}<div class="bc3-k{{ ' t-' ~ k.cor if k.cor }}">{% set c = kpi_curto(k.rot) if curto else k.rot %}{% if c != k.rot %}<small title="{{ k.rot }}"><span class="r-pc">{{ k.rot }}</span><span class="r-cel">{{ c }}</span></small>{% else %}<small>{{ k.rot }}</small>{% endif %}<b{{ ' class="longo"'|safe if curto and (k.valor|string|length) > 9 }}>{{ k.valor }}</b>{% if k.detalhe %}<em>{{ k.detalhe }}</em>{% endif %}</div>{% endfor %}
 </div>
 {% endif %}{% endmacro %}
 

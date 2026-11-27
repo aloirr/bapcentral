@@ -751,12 +751,38 @@ def _contrato_1073():
     return saida
 
 
+def _robo_rid():
+    """{(rid, título): colunas} do robô. As colunas são por (rid, título),
+    nunca só pelo título (contrato §10.10.1): "Por supervisor" e "Por
+    vendedor" existem no Visita e na NCC (T-0023 v2)."""
+    return {(rid, titulo): [(n, tp, bool(o), s) for n, tp, o, s in cols]
+            for rid, tabs in ba._COLUNAS_TABELAS_WEB.items()
+            for titulo, cols in tabs.items()}
+
+
 def _robo():
+    """{título: colunas} só dos 3 faróis do §10.7.3 (RIDS), onde o título é
+    único: é a forma do `tabelas.COLUNAS` da web e do contrato."""
     saida = {}
-    for rid, tabs in ba._COLUNAS_TABELAS_WEB.items():
-        for titulo, cols in tabs.items():
-            saida[titulo] = [(n, tp, bool(o), s) for n, tp, o, s in cols]
+    for (rid, titulo), cols in _robo_rid().items():
+        if rid in RIDS:
+            assert titulo not in saida, titulo        # título único no 10.7.3
+            saida[titulo] = cols
     return saida
+
+
+def test_T0023_colunas_por_rid_e_titulo_sem_colisao():
+    """O "Por supervisor" da NCC não pisa o do Visita (e vice-versa): cada
+    (rid, título) tem a sua lista no robô (§10.10.1)."""
+    r = _robo_rid()
+    vis = [n for n, *_ in r[("vc_visitas", "Por supervisor")]]
+    assert vis[:2] == ["SUPERVISOR", "REPRES."] and vis[-1] == "CHAVE"
+    ncc = [n for n, *_ in r[("pl_ncc", "Por supervisor")]]
+    assert ncc == ["SUPERVISOR", "NCC", "CLIENTES", "0-30 DIAS", "31-90 DIAS",
+                   "91-180 DIAS", "+180 DIAS", "SALDO", "COMPENSAR JÁ"]
+    assert [n for n, *_ in r[("pl_ncc", "Por vendedor")]][0] == "VENDEDOR"
+    assert [n for n, *_ in r[("vc_visitas", "Por vendedor")]][:2] == [
+        "SUPERVISOR", "VENDEDOR"]
 
 
 def test_T0017_colunas_robo_igual_web(web_app):
@@ -789,7 +815,7 @@ def test_T0017_colunas_do_pc_batem_com_o_robo(real):
     """As tabelas que o PC monta hoje (bases congeladas) têm as colunas da
     lista, depois de tirar as que saem: nenhuma aba cai."""
     rels, _p = real
-    robo = _robo()
+    robo = _robo_rid()
     for rid in RIDS:
         for t in rels[rid]["tabelas"]:
             if t["titulo"] in ("Solicitação BAP", "Aderência dia a dia"):
@@ -797,7 +823,8 @@ def test_T0017_colunas_do_pc_batem_com_o_robo(real):
             nomes = [(c["nome"], c["tipo"], bool(c.get("oculta")))
                      for c in t["colunas"]
                      if _sem_acento(c["nome"]) not in COLUNAS_FORA]
-            assert nomes == [x[:3] for x in robo[t["titulo"]]], t["titulo"]
+            assert nomes == [x[:3] for x in robo[(rid, t["titulo"])]], \
+                t["titulo"]
 
 
 # ========================================= número do cartão × farol de origem

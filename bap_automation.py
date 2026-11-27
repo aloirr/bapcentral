@@ -6618,7 +6618,10 @@ _DESCARTAR = object()
 FAROIS_WEB = ("pl_inadimplencia", "pv_pedidos", "pl_entregas", "vc_visitas",
               # (T-0024) lote 2: abas de tabela com as colunas do PC (livres)
               "pv_indicadores", "vc_base", "vc_planner", "pl_giro", "pl_frw",
-              "vc_meta")
+              "vc_meta",
+              # (T-0023 v2, 10.10) Garantias, Devolucoes e NCC, com as colunas
+              # fechadas do contrato 10.10.2
+              "pl_garantias", "pl_devolucoes", "pl_ncc")
 # (T-0024) farois cujas tabelas vao com as colunas que o PC monta (sem a lista
 # fechada do contrato 10.7.3): so se corta o que nunca vai e se limpa o nome
 RIDS_LIVRES_WEB = ("pv_indicadores", "vc_base", "vc_planner", "pl_giro",
@@ -6644,6 +6647,9 @@ _TERMOS_TITULO_CLIENTE_WEB = ("cliente",)
 # cliente, o farol vai sem recortes e com aviso.
 _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
                        "pl_entregas": "Entregas",
+                       # (T-0023 v2, P3 A) estado = FILIAL da nota; Garantias
+                       # nao tem filial: vai sem recorte e com aviso
+                       "pl_devolucoes": "Devoluções", "pl_ncc": "NCC pendentes",
                        # (T-0024) cartao por estado dos farois livres
                        "pl_giro": "Todos os produtos",
                        "pl_frw": "Estoque FRW"}
@@ -6737,23 +6743,28 @@ def _com_fuso_manaus(quando=None) -> datetime:
 # de onde vem o "baixado em" de cada farol: (subpasta da raiz, padrao do arquivo
 # que o robo baixou do ERP; vale o de nome mais novo). Os proximos farois
 # (Pedidos, Entregas, Visita) ganham a propria fonte aqui.
+_MOVIMENTOS_WEB = (Path(BKP_BAPTOOLS),
+                   "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
 _FONTE_BAIXADO_WEB = {
     "pl_inadimplencia": (Path(BKP_BAPTOOLS),
                          "Relatorio_Titulos_em_Abertos_*.xlsx"),
     # Pedidos e Entregas nascem dos Movimentos do Protheus (aba ftPedidos)
-    "pv_pedidos": (Path(BKP_BAPTOOLS),
-                   "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
-    "pl_entregas": (Path(BKP_BAPTOOLS),
-                    "Relatorio_Movimentos_BAP_Protheus_*.xlsx"),
+    "pv_pedidos": _MOVIMENTOS_WEB,
+    "pl_entregas": _MOVIMENTOS_WEB,
     # Visita: o "Atualizar visitas" e manual no PC; vale a ultima gravacao do
     # VISITAS_POR_CLIENTE (o passo final do visitas_maxima)
     "vc_visitas": (Path(SUBPASTA_RELATORIOS) / "Visitas",
                    "VISITAS_POR_CLIENTE.xlsx"),
     # (T-0024) os faroes do lote 2 nascem dos Movimentos do Protheus
-    **{r_: (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")
+    **{r_: _MOVIMENTOS_WEB
        for r_ in RIDS_LIVRES_WEB},
     # Metas (T-0022): nasce dos mesmos Movimentos do Protheus (ftPedidos)
-    "vc_meta": (Path(BKP_BAPTOOLS), "Relatorio_Movimentos_BAP_Protheus_*.xlsx")}
+    "vc_meta": _MOVIMENTOS_WEB,
+    # (T-0023 v2) Devolucoes e Garantias nascem dos Movimentos; a NCC, do
+    # relatorio de NCC pendentes
+    "pl_devolucoes": _MOVIMENTOS_WEB,
+    "pl_garantias": _MOVIMENTOS_WEB,
+    "pl_ncc": (Path(BKP_BAPTOOLS), "Relatorio_NCC_Pendentes*.xlsx")}
 
 
 def _baixado_em_da_base(rid: str, raiz=None, arquivo=None):
@@ -6956,7 +6967,8 @@ def selecionar_farol_web(rid: str, r: dict, baixado_em=None,
     blocos, titulos_fora, avisos_extra = [], [], []
     tipos = _TIPOS_BLOCO_FAROL_WEB + _TIPOS_BLOCO_EXTRA_WEB.get(rid, ())
     brutos = list((r.get("painel") or {}).get("blocos") or [])
-    if not brutos and rid in RIDS_LIVRES_WEB:
+    if not brutos and (rid in RIDS_LIVRES_WEB
+                       or rid in _GRAFICOS_NO_PAINEL_WEB):
         # (T-0024) farol sem painel (Painel de indicadores): os graficos do PC
         # viram blocos de barras, um embaixo do outro
         brutos = [{"tipo": "barras", "row": i, "col": 0, "colspan": 3,
@@ -7549,6 +7561,8 @@ AVISO_ENTREGAS_RECENTES = ("A aba Entregas ficou só com as entregas mais "
                            "PC.")
 # ordem dos cortes por farol (10.8.7); no fim, qualquer farol perde as `tabelas`
 _CORTES_FAROL_WEB = {
+    # (T-0023 v2, 10.10.4) o Historico de compra (1,25 MB) sai primeiro
+    "pl_garantias": ("historico_fora", "tabelas"),
     "pv_pedidos": ("solicitacao_so_em_aberto", "tabelas"),
     "pl_entregas": ("junta_pendencias_fora", "entregas_so_recentes",
                     "tabelas"),
@@ -7559,7 +7573,10 @@ _CORTES_FAROL_WEB = {
 # a edicao apontam para o indice delas.
 _FRACOES_ENTREGAS_WEB = (0.75, 0.5, 0.25)
 RIDS_TABELAS_WEB = ("pv_pedidos", "pl_entregas", "vc_visitas") \
-    + RIDS_LIVRES_WEB
+    + RIDS_LIVRES_WEB + ("pl_garantias", "pl_devolucoes", "pl_ncc")
+# (T-0023 v2, 10.10.1) o NCC nao tem painel no PC: os `graficos` viram blocos
+# `barras` do painel, na ordem do PC (o robo monta, a web nao calcula)
+_GRAFICOS_NO_PAINEL_WEB = ("pl_ncc",)
 # colunas que nunca vao (sem acento, maiusculas), em qualquer tabela/junta/sub-aba
 _COLUNAS_FORA_WEB = frozenset({
     "TELEFONE", "CELULAR", "WHATSAPP", "CNPJ", "CPF", "E-MAIL", "EMAIL",
@@ -7570,7 +7587,14 @@ _ABAS_TABELAS_WEB = {
     "pl_entregas": ("Entregas",),
     "vc_visitas": ("Por supervisor", "Por vendedor", "Dia a dia",
                    "Aderência dia a dia", "Cliente a cliente", "Prospecção",
-                   "Indicação")}
+                   "Indicação"),
+    # (T-0023 v2, 10.10.1) na ordem do PC
+    "pl_garantias": ("Garantias", "Histórico de compra", "Por produto",
+                     "Status x resultado"),
+    "pl_devolucoes": ("Devoluções", "Por motivo", "Por vendedor (12 meses)",
+                      "Por cliente (12 meses)", "Por produto (12 meses)"),
+    "pl_ncc": ("NCC pendentes", "Por cliente", "Por filial", "Por vendedor",
+               "Por supervisor")}
 TITULO_SOLICITACAO_WEB = "Solicitação BAP"
 # tabelas que o PC carrega com 12 meses e a web recebe so do mes (D2 A)
 _TABELAS_SO_MES_WEB = ("Pedidos", "Entregas")
@@ -7584,7 +7608,11 @@ _UF_LINHAS_WEB = {
     # (T-0024) filial (estoque). Base de clientes: o estado vem do `montar`
     # com UF (RIDS_POR_UF_WEB); Planner nao tem filtro UF: sem recorte
     ("pl_giro", "Todos os produtos"): ("FILIAL", "filial"),
-    ("pl_frw", "Estoque FRW"): ("FILIAL", "filial")}
+    ("pl_frw", "Estoque FRW"): ("FILIAL", "filial"),
+    # (T-0023 v2, P3 A) a FILIAL da nota, como o faturamento. Garantias nao
+    # tem; o "Por cliente" da NCC nao tem FILIAL: vai sem estado
+    ("pl_devolucoes", "Devoluções"): ("FILIAL", "filial"),
+    ("pl_ncc", "NCC pendentes"): ("FILIAL", "filial")}
 
 
 def _c(nome, tipo, oculta=False, selo=None):
@@ -7699,6 +7727,98 @@ _COLUNAS_TABELAS_WEB = {
             _c("CIDADE", "texto"), _c("BAIRRO", "texto"),
             _c("SEGMENTO", "texto"), _c("VISITADA EM", "data"),
             _c("OBSERVAÇÃO", "texto"), _c("REGISTRADO EM", "texto"))}}
+# (T-0023 v2, 10.10.2) as colunas dos 3 farois novos, depois do corte (sem o
+# CONTATO CLIENTE da garantia e sem o TELEFONE da NCC). (o) = oculta.
+_AGRUPA_NCC_WEB = lambda nome: (   # noqa: E731
+    _c(nome, "texto"), _c("NCC", "int"), _c("CLIENTES", "int"),
+    _c("0-30 DIAS", "moeda"), _c("31-90 DIAS", "moeda"),
+    _c("91-180 DIAS", "moeda"), _c("+180 DIAS", "moeda"),
+    _c("SALDO", "moeda"), _c("COMPENSAR JÁ", "moeda"))
+_COLUNAS_TABELAS_WEB.update({
+    "pl_garantias": {
+        "Garantias": (
+            _c("STATUS", "texto", selo="texto"),
+            _c("RESULTADO ANÁLISE", "texto"), _c("TICKET", "texto"),
+            _c("DT. SOLICITAÇÃO", "data"), _c("DT. FECHAMENTO", "data"),
+            _c("SLA ATUAL", "int", selo="tom"),
+            _c("PRAZO", "texto", selo="texto"),
+            _c("CÓD. CLIENTE", "texto"), _c("CLIENTE", "texto"),
+            _c("CIDADE", "texto"), _c("CÓD. PRODUTO", "texto"),
+            _c("DESCRIÇÃO PRODUTO", "texto", True), _c("QTD", "num"),
+            _c("PENDÊNCIAS", "texto", True),
+            _c("RETORNO DO CLIENTE", "texto", True),
+            _c("VENDEDOR", "texto", True), _c("SUPERVISOR", "texto", True),
+            _c("SITUAÇÃO DO PRAZO", "texto", True),
+            _c("TOM SLA", "texto", True), _c("DT. FECHOU", "data", True),
+            _c("RECLAMAÇÃO", "texto", True), _c("OBSERVAÇÃO", "texto", True),
+            _c("DT. RETORNO", "data", True)),
+        "Histórico de compra": (
+            _c("CÓD. CLIENTE", "texto"), _c("RAZÃO SOCIAL", "texto"),
+            _c("FANTASIA", "texto"), _c("CIDADE", "texto"),
+            _c("PEDIDO", "texto"), _c("PED. MÁXIMA", "texto"),
+            _c("NF", "texto"), _c("PRAZO", "texto"), _c("DT. PEDIDO", "dia"),
+            _c("DT. NF", "dia"), _c("DT. ENTREGA", "dia"),
+            _c("TRANSPORTADORA", "texto"), _c("RESPONSÁVEL", "texto"),
+            _c("CÓD. PRODUTO", "texto"), _c("DESCRIÇÃO", "texto"),
+            _c("QTD", "num"), _c("VALOR", "moeda"), _c("VENDEDOR", "texto"),
+            _c("FILIAL", "texto")),
+        "Por produto": (
+            _c("CÓD. PRODUTO", "texto"), _c("DESCRIÇÃO", "texto"),
+            _c("GARANTIAS", "int"), _c("EM ABERTO", "int"),
+            _c("PROCEDENTES", "int"), _c("IMPROCEDENTES", "int")),
+        "Status x resultado": (
+            _c("STATUS", "texto", selo="texto"), _c("PENDENTE", "int"),
+            _c("PROCEDENTE", "int"), _c("IMPROCEDENTE", "int"),
+            _c("TOTAL", "int"))},
+    "pl_devolucoes": {
+        "Devoluções": (
+            _c("MÊS", "texto"), _c("DATA", "data"), _c("NF DEV.", "texto"),
+            _c("FILIAL", "texto"), _c("CLIENTE", "texto"),
+            _c("CIDADE", "texto"), _c("UF", "texto"),
+            _c("VENDEDOR", "texto"), _c("VALOR", "moeda"),
+            _c("ITENS", "int"), _c("PRODUTOS", "texto"),
+            _c("ETAPA", "texto"), _c("MOTIVO", "texto"),
+            _c("AUTORIZADO POR", "texto"), _c("RECEBIDA EM", "data"),
+            _c("CRÉDITO", "texto"), _c("CRÉDITO EM", "data"),
+            _c("RESPONSÁVEL", "texto")),
+        "Por motivo": (
+            _c("MÊS", "texto"), _c("MOTIVO", "texto"),
+            _c("DEVOLUÇÕES", "int"), _c("VALOR", "moeda")),
+        "Por vendedor (12 meses)": (
+            _c("VENDEDOR", "texto"), _c("DEVOLUÇÕES", "int"),
+            _c("VALOR", "moeda"), _c("FATURADO 12M", "moeda"),
+            _c("% DEVOLVIDO", "pct")),
+        "Por cliente (12 meses)": (
+            _c("CLIENTE", "texto"), _c("DEVOLUÇÕES", "int"),
+            _c("VALOR", "moeda")),
+        "Por produto (12 meses)": (
+            _c("PRODUTO", "texto"), _c("DESCRIÇÃO", "texto"),
+            _c("QTD", "num"), _c("VALOR", "moeda"))},
+    "pl_ncc": {
+        "NCC pendentes": (
+            _c("A COMPENSAR", "texto"), _c("SLA NCC", "texto", selo="texto"),
+            _c("DT. ÚLT. MOV.", "data"), _c("D.U. S/ MOV.", "int"),
+            _c("IDADE", "texto"), _c("FILIAL", "texto"), _c("NCC", "texto"),
+            _c("PARC.", "texto"), _c("EMISSÃO", "data"), _c("DIAS", "int"),
+            _c("CLIENTE", "texto"), _c("NOME", "texto"),
+            _c("CIDADE", "texto"), _c("UF", "texto"),
+            _c("VENDEDOR", "texto"), _c("SUPERVISOR", "texto", True),
+            _c("VALOR NCC", "moeda"), _c("JÁ ABATIDO", "moeda"),
+            _c("SALDO", "moeda"), _c("TÍTULOS EM ABERTO", "moeda"),
+            _c("PEDIDO EM ABERTO", "moeda"), _c("ÚLTIMA COMPRA", "data")),
+        "Por cliente": (
+            _c("A COMPENSAR", "texto"), _c("IDADE", "texto"),
+            _c("CLIENTE", "texto"), _c("NOME", "texto"),
+            _c("CIDADE", "texto"), _c("UF", "texto"),
+            _c("VENDEDOR", "texto"), _c("SUPERVISOR", "texto", True),
+            _c("NCC", "int"), _c("SALDO", "moeda"),
+            _c("NCC MAIS ANTIGA (DIAS)", "int"),
+            _c("TÍTULOS EM ABERTO", "moeda"),
+            _c("PEDIDO EM ABERTO", "moeda"),
+            _c("ÚLTIMA COMPRA", "data")),
+        "Por filial": _AGRUPA_NCC_WEB("FILIAL"),
+        "Por vendedor": _AGRUPA_NCC_WEB("VENDEDOR"),
+        "Por supervisor": _AGRUPA_NCC_WEB("SUPERVISOR")}})
 # "Aderência dia a dia": as colunas dos dias mudam com o mes (padrao de nome)
 _ADERENCIA_WEB = ("Aderência dia a dia",
                   r"^\d{2}/\d{2} (SEG|TER|QUA|QUI|SEX|SÁB|DOM)$",
@@ -7730,11 +7850,26 @@ _COLUNAS_LIMPAS_WEB = {
         "CLIENTE": "cliente_sem_documento", "NOME FANTASIA": "sem_documento"},
     ("vc_visitas", "Prospecção"): {"ESTABELECIMENTO": "nome_sem_contato"},
     ("vc_visitas", "Indicação"): {"CLIENTE QUE INDICOU": "nome_sem_contato",
-                                  "INDICADO": "nome_sem_contato"}}
+                                  "INDICADO": "nome_sem_contato"},
+    # (T-0023 v2, 10.10.3) o CLIENTE da garantia e digitado
+    ("pl_garantias", "Garantias"): {"CLIENTE": "nome_sem_contato"},
+    ("pl_garantias", "Histórico de compra"): {
+        "RAZÃO SOCIAL": "sem_documento", "FANTASIA": "sem_documento"},
+    ("pl_devolucoes", "Devoluções"): {"CLIENTE": "cliente_sem_documento"},
+    ("pl_devolucoes", "Por cliente (12 meses)"): {
+        "CLIENTE": "cliente_sem_documento"},
+    ("pl_ncc", "NCC pendentes"): {"NOME": "sem_documento"},
+    ("pl_ncc", "Por cliente"): {"NOME": "sem_documento"}}
 # texto livre (D6 A): telefone, e-mail e CPF/CNPJ viram "[removido]"
 _COLUNAS_TEXTO_LIVRE_WEB = frozenset({
     "JUSTIFICATIVA", "OBSERVAÇÃO", "RESULTADO", "LINHAS DE INTERESSE",
-    "MOTIVO"})
+    "MOTIVO",
+    # (T-0023 v2, 10.10.3) Garantias e Expositores
+    "PENDÊNCIAS", "RETORNO DO CLIENTE", "RECLAMAÇÃO", "OBSERVAÇÕES"})
+# (T-0023 v2, 10.10.3, RN-GER-011) colunas que nunca vao em UMA tabela (a
+# fonte unica da web e `tabelas.FORA_POR_TABELA`): o contato do cliente
+_COLUNAS_FORA_TABELA_WEB = {
+    ("pl_garantias", "Garantias"): frozenset({"CONTATO CLIENTE"})}
 _COLUNAS_LARGAS_SOLICITACAO_WEB = ("ID_PRODUTO", "CHAVE", "MOTIVO", "PEDIDOS")
 
 
@@ -7937,18 +8072,61 @@ EDICOES_WEB = {
         "aba": "ENTREGAS", "acao": "Editar"},
     ("pl_entregas", "Pendências dos meses anteriores"): {
         "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
-        "aba": "ENTREGAS", "acao": "Editar"}}
-# os campos de cada modulo e o tipo de conferencia no robo
+        "aba": "ENTREGAS", "acao": "Editar"},
+    # (T-0023 v2, 10.9.3) NCC, Devolucoes e Garantias. `pref` = o prefixo das
+    # listas fechadas em `opcoes_edicao_web` (o `etapa` da Devolucao nao e o
+    # da Entrega); `novo` = aceita linha nova (so a Garantia)
+    ("pl_ncc", "NCC pendentes"): {
+        "modulo": "ncc", "arquivo": "RELATORIOS/_NCC", "aba": "",
+        "acao": "Editar"},
+    ("pl_devolucoes", "Devoluções"): {
+        "modulo": "pos_venda", "arquivo": _ARQ_POS_VENDA_WEB,
+        "aba": "DEVOLUCOES", "acao": "Editar", "pref": "devolucoes"},
+    ("pl_garantias", "Garantias"): {
+        "modulo": "garantias", "arquivo": "RELATORIOS/_GARANTIAS",
+        "aba": "", "acao": "Editar", "novo": True}}
+# os campos de cada modulo e o tipo de conferencia no robo: "lista" (lista
+# fechada do PC), "data" (dd/mm/aaaa), "data_livre" (uma data do calendario,
+# de 01/01/2020 a hoje + 1 ano), "livre" (texto de uma linha), "longo" (texto
+# de varias linhas), "ticket" (numero da garantia), "valor" (R$)
 CAMPOS_EDICAO_WEB = {
     "autorizacoes": {"codigo": "livre", "por": "lista"},
     "pos_venda": {"etapa": "lista", "transportadora": "lista",
                   "prevista_manual": "data", "entregue_em": "data",
-                  "responsavel": "livre", "frete_real": "valor"}}
+                  "responsavel": "livre", "frete_real": "valor"},
+    "ncc": {"status": "lista", "dt_mov": "data_livre"},
+}
+# (RD-0134) os campos da Garantia vem do nucleo (CAMPOS_EDICAO_GARANTIA): so
+# se traduz o tipo do nucleo para o da conferencia do robo
+_TIPO_GARANTIA_WEB = {"texto": "livre", "data": "data_livre",
+                      "lista": "lista", "longo": "longo"}
+
+
+def _campos_garantia_web() -> dict:
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    return {campo: ("ticket" if campo == "ticket"
+                    else _TIPO_GARANTIA_WEB[tipo])
+            for campo, _rot, tipo, _col in _rn.CAMPOS_EDICAO_GARANTIA}
+# (T-0023 v2) o modulo `pos_venda` serve a Entrega e a Devolucao, com campos
+# diferentes: o que o lugar tem de proprio vale antes do do modulo
+CAMPOS_LUGAR_WEB = {
+    ("pl_devolucoes", "Devoluções"): {
+        "etapa": "lista", "motivo": "lista", "autorizado_por": "livre",
+        "recebida_em": "data", "credito": "lista", "credito_em": "data",
+        "responsavel": "livre"}}
 _RE_CHAVE_EDICAO_WEB = re.compile(r"^[\w .|/-]{1,80}$")
-_RE_PESSOAL_EDICAO_WEB = re.compile(
-    r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|@|"
-    r"\(?\d{2}\)?\s?9?\d{4}-\d{4}")
 _MAX_OPCOES_EDICAO_WEB = 400
+_MAX_CAMPOS_EDICAO_WEB = 16
+
+
+def campos_do_lugar_web(rid: str, titulo: str) -> dict:
+    """{campo: tipo de conferencia} do lugar: o proprio (CAMPOS_LUGAR_WEB) ou
+    o do modulo."""
+    lugar = EDICOES_WEB[(rid, titulo)]
+    if lugar["modulo"] == "garantias":
+        return _campos_garantia_web()
+    return CAMPOS_LUGAR_WEB.get((rid, titulo)) or CAMPOS_EDICAO_WEB[
+        lugar["modulo"]]
 
 
 def _ops_web(lista) -> list:
@@ -7967,9 +8145,9 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
     lugar = EDICOES_WEB.get((rid, titulo))
     if not lugar:
         return None
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
     nomes_pc = [c.get("nome") if isinstance(c, dict) else c for c in pc]
     if lugar["modulo"] == "autorizacoes":
-        import relatorios_nucleo as _rn                 # noqa: PLC0415
         precisa = ("CHAVE", "CÓD. AUTORIZAÇÃO", "AUTORIZADO POR")
         if not all(n in nomes_pc for n in precisa):
             return None
@@ -7986,7 +8164,7 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
         ch = str(ln[i_ch] if len(ln) > i_ch and ln[i_ch] is not None
                  else "").strip()
         chaves.append(ch if _RE_CHAVE_EDICAO_WEB.match(ch) else "")
-    permitidos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
+    permitidos = campos_do_lugar_web(rid, titulo)
     campos = []
     for c in ed_pc.get("campos") or []:
         if c.get("campo") not in permitidos:
@@ -8000,8 +8178,23 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
                                                     c["campo"])[:60],
                 "coluna": nome if nome in nomes_web else None,
                 "tipo": tipo, "opcoes": _ops_web(c.get("opcoes"))}
+        if permitidos[c["campo"]] == "data_livre" and tipo == "data":
+            item["opcoes"] = []            # sem opcoes = data livre (10.9.1)
         if c.get("mantem_caixa"):
             item["caixa"] = True
+        if tipo in ("texto", "numero"):
+            # o teto vem do nucleo (MAX_TEXTO_EDICAO); o `max` da spec do PC
+            # diferente dele = a edicao nao vai (10.9.1)
+            teto = _rn.max_texto_edicao(lugar["modulo"], c["campo"])
+            if int(c.get("max") or _rn.MAX_TEXTO_PADRAO) != teto:
+                raise ValueError("max da edicao diferente do nucleo")
+            if teto != _rn.MAX_TEXTO_PADRAO:
+                item["max"] = teto
+            if c.get("multilinha"):
+                item["multilinha"] = True
+                item["caixa"] = True
+        if isinstance(c.get("padrao"), str) and c["padrao"]:
+            item["padrao"] = c["padrao"][:80]
         if callable(c.get("opcoes_de")):
             por = [tuple(_ops_web(c["opcoes_de"](ln))) for ln in linhas]
             if tipo == "lista":
@@ -8021,8 +8214,13 @@ def edicao_web(rid: str, titulo: str, ed_pc, linhas: list, pc: list,
         campos.append(item)
     if not campos:
         return None
-    return {"modulo": lugar["modulo"], "acao": lugar["acao"],
-            "chaves": chaves, "campos": campos}
+    saida = {"modulo": lugar["modulo"], "acao": lugar["acao"],
+             "chaves": chaves, "campos": campos[:_MAX_CAMPOS_EDICAO_WEB]}
+    nv = ed_pc.get("novo_web")      # a linha nova (so onde o lugar aceita)
+    if lugar.get("novo") and isinstance(nv, dict) and isinstance(
+            nv.get("rotulo"), str) and 1 <= len(nv["rotulo"]) <= 30:
+        saida["novo"] = {"rotulo": nv["rotulo"]}
+    return saida
 
 
 def tabela_web7(rid: str, t: dict, mes_rot=None, _junta: bool = False,
@@ -8063,7 +8261,9 @@ def _tabela_web7(rid, t, mes_rot, junta, ed_mae=None):
           for c in t.get("colunas") or []]
     nomes_pc = [c.get("nome") for c in pc]
     livre = rid in RIDS_LIVRES_WEB
+    fora_tab = _COLUNAS_FORA_TABELA_WEB.get((rid, titulo), ())
     idx = [i for i, n in enumerate(nomes_pc) if not _coluna_proibida_web(n)
+           and n not in fora_tab
            and not (livre and (str(n).startswith("_")
                                or n in _COLUNAS_FORA_LIVRES_WEB))]
     atuais = [(pc[i]["nome"], pc[i].get("tipo"), bool(pc[i].get("oculta")))
@@ -8438,12 +8638,21 @@ def _corte_solicitacao_web(rid: str, rel: dict) -> None:
         _avisar_web(rid, rel, AVISO_SOLICITACAO_ABERTO)
 
 
-def _corte_cliente_a_cliente_web(rid: str, rel: dict) -> None:
-    tabs = rel.get("tabelas")
-    if tabs and any(t.get("titulo") == "Cliente a cliente" for t in tabs):
-        rel["tabelas"] = [t for t in tabs
-                          if t.get("titulo") != "Cliente a cliente"]
-        _abas_fora_web(rid, rel, ["Cliente a cliente"])
+def _corte_aba_web(titulo: str):
+    """Tira a aba `titulo` do farol, com o aviso das abas fora (10.8.7,
+    10.10.4)."""
+    def corte(rid: str, rel: dict) -> None:
+        tabs = rel.get("tabelas")
+        if tabs and any(t.get("titulo") == titulo for t in tabs):
+            rel["tabelas"] = [t for t in tabs if t.get("titulo") != titulo]
+            _abas_fora_web(rid, rel, [titulo])
+    return corte
+
+
+_corte_cliente_a_cliente_web = _corte_aba_web("Cliente a cliente")
+# (T-0023 v2, 10.10.4) Garantias: o "Historico de compra" (a maior parte do
+# farol) sai primeiro
+_corte_historico_web = _corte_aba_web("Histórico de compra")
 
 
 def _corte_tabelas_web(rid: str, rel: dict) -> None:
@@ -8616,6 +8825,7 @@ def _cortar_farol_web(rid: str, farol: dict, teto_mb=None) -> dict:
     cortes = {"solicitacao_so_em_aberto": _corte_solicitacao_web,
               "cliente_a_cliente_fora": _corte_cliente_a_cliente_web,
               "junta_pendencias_fora": _corte_junta_entregas_web,
+              "historico_fora": _corte_historico_web,
               "tabelas": _corte_tabelas_web}
     for nome in _CORTES_FAROL_WEB.get(rid, ("tabelas",)):
         if nome == "entregas_so_recentes":
@@ -9423,7 +9633,23 @@ MOTIVO_CHAVE_WEB = "chave da linha inválida"
 MOTIVO_OPCAO_WEB = "valor fora das opções do PC"
 MOTIVO_DATA_WEB = "data inválida"
 MOTIVO_VALOR_WEB = "valor inválido"
-MOTIVO_TEXTO_WEB = "texto inválido (até 60 caracteres, sem CPF, CNPJ, telefone ou e-mail)"
+
+
+def motivo_texto_web(maximo=None) -> str:
+    """A frase fixa do texto recusado, com o teto do campo (10.9.1); sem
+    `maximo`, o padrao do nucleo (MAX_TEXTO_PADRAO)."""
+    if maximo is None:
+        import relatorios_nucleo as _rn                 # noqa: PLC0415
+        maximo = _rn.MAX_TEXTO_PADRAO
+    return (f"texto inválido (até {int(maximo)} caracteres, sem CPF, CNPJ, "
+            "telefone ou e-mail)")
+
+
+MOTIVO_REMOVIDO_WEB = "texto com trecho removido pelo site"
+MOTIVO_TICKET_WEB = "já existe uma garantia com esse número"
+_RE_CHAVE_NOVA_WEB = re.compile(r"^NOVO-[0-9A-F]{8}$")
+_RE_TICKET_WEB = re.compile(r"^[\w.\-/ ]+$")   # o teto vem do nucleo
+_DATA_LIVRE_MIN_WEB = date(2020, 1, 1)
 MOTIVO_LINHA_WEB = "linha não encontrada no PC"
 
 
@@ -9453,6 +9679,8 @@ def gravar_edicoes_pc(raiz, modulo: str, arquivo: str, aba: str,
                                                                     edicoes)
     if modulo == "ncc":
         return _importar_do_pc("ncc_controle", raiz).gravar(raiz, edicoes)
+    if modulo == "garantias":
+        return _gravar_garantia_pc(raiz, edicoes)
     if modulo == "farol":
         return _importar_do_pc("farol_ddr", raiz).gravar_marcacoes(
             raiz / arquivo, aba, edicoes)
@@ -9462,46 +9690,147 @@ def gravar_edicoes_pc(raiz, modulo: str, arquivo: str, aba: str,
     raise ValueError("modulo sem gravacao no robo")
 
 
+def _gravar_garantia_pc(raiz, edicoes: dict) -> int:
+    """(T-0023 v2) A MESMA gravacao da janela da garantia do PC
+    (bap_relatorios.DialogoGarantia.salvar): so acrescenta linha no diario
+    (`garantias.gravar`; o ticket trocado, `garantias.renomear`). `edicoes` =
+    {ticket atual ("" = garantia nova): {campo: valor}}; um "ticket" dentro
+    dos campos e o numero novo. Devolve quantos campos mudaram; levanta
+    ValueError (ticket recusado) ou OSError como a tela."""
+    gm = _importar_do_pc("garantias", raiz)
+    n = 0
+    for atual, campos in edicoes.items():
+        campos = dict(campos)
+        novo_t = campos.pop("ticket", atual) or ""
+        if novo_t != atual:
+            erro = gm.renomear(raiz, atual or None, novo_t)
+            if erro:
+                raise ValueError(erro)
+            n += 1 if atual else 0
+        n += gm.gravar(raiz, novo_t, campos)
+    return n
+
+
 def opcoes_edicao_web(raiz) -> dict:
-    """As listas fechadas do PC para conferir a edicao: {campo: set}."""
+    """As listas fechadas do PC para conferir a edicao: {campo: set}. As da
+    (T-0023 v2) NCC, da Devolucao e da Garantia levam o prefixo do lugar
+    ("ncc.status", "devolucoes.etapa", "garantias.status"...), porque o mesmo
+    nome de campo tem outra lista em outro lugar."""
     rn_ = _importar_do_pc("relatorios_nucleo", raiz)
     pv = _importar_do_pc("pos_venda", raiz)
     tr = _importar_do_pc("transportadoras", raiz)
+    nc = _importar_do_pc("ncc_controle", raiz)
+    gm = _importar_do_pc("garantias", raiz)
     return {"por": set(rn_.QUEM_AUTORIZA), "etapa": set(pv.ETAPAS_ENTREGA),
-            "transportadora": set(tr.nomes(tr.carregar(Path(raiz))))}
+            "transportadora": set(tr.nomes(tr.carregar(Path(raiz)))),
+            "ncc.status": set(rn_.NCC_SUGESTOES) | set(nc.STATUS_NOVOS),
+            "devolucoes.etapa": set(pv.ETAPAS_DEVOLUCAO),
+            "devolucoes.motivo": set(pv.MOTIVOS_DEVOLUCAO),
+            "devolucoes.credito": set(pv.FORMAS_CREDITO),
+            "garantias.status": set(gm.STATUS),
+            "garantias.resultado": set(gm.RESULTADOS)}
+
+
+def _opcoes_do_campo_web(lugar: dict, campo: str, opcoes: dict):
+    """A lista fechada do campo no lugar: a do prefixo do lugar, senao a
+    chata (a mesma de antes da T-0023)."""
+    pref = lugar.get("pref") or lugar["modulo"]
+    for k in (f"{pref}.{campo}", campo):
+        if k in opcoes:
+            return opcoes[k] or ()
+    return ()
+
+
+def _mais_um_ano_web(d: date) -> date:
+    try:
+        return d.replace(year=d.year + 1)
+    except ValueError:                                  # 29/02
+        return d.replace(year=d.year + 1, day=28)
+
+
+def _texto_normalizado_web(v: str) -> str:
+    """A comparacao do texto livre (10.9.1, regra 1): quebras de linha
+    iguais (CRLF e CR viram LF) e sem espaco nas pontas."""
+    return v.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def valores_normalizados_web(reg: dict) -> dict:
+    """Os valores que vao ao PC: o texto livre com as quebras de linha e as
+    pontas normalizadas (so le `reg`, devolve outro dicionario)."""
+    lugar = EDICOES_WEB.get((reg.get("rid"), reg.get("tabela"))) or {}
+    campos = (campos_do_lugar_web(reg.get("rid"), reg.get("tabela"))
+              if lugar else {})
+    return {k: (_texto_normalizado_web(v) if campos.get(k) in ("livre",
+                                                                "longo")
+                and isinstance(v, str) else v)
+            for k, v in (reg.get("valores") or {}).items()}
 
 
 def validar_edicao_web(reg: dict, opcoes: dict) -> str:
     """Funcao pura (T-0021): "" se a edicao do site pode ir ao PC; senao o
     motivo (frase fixa, sem dado pessoal). Confere de novo o que a web ja
-    conferiu: lugar, campos do modulo, listas fechadas, data, valor, texto."""
+    conferiu: lugar, campos do lugar, listas fechadas, data, valor, texto
+    (teto do nucleo, sem dado pessoal, sem "[removido]") e, na linha nova
+    (T-0023 v2), a chave NOVO-xxxxxxxx. `opcoes["_hoje"]` (opcional) = o dia
+    de hoje, para a data livre."""
     lugar = EDICOES_WEB.get((reg.get("rid"), reg.get("tabela")))
     if not lugar or reg.get("modulo") != lugar["modulo"]:
         return MOTIVO_LUGAR_WEB
     chave = reg.get("chave")
-    if not (isinstance(chave, str) and _RE_CHAVE_EDICAO_WEB.match(chave)):
+    novo = reg.get("novo") is True
+    if novo and not lugar.get("novo"):
+        return MOTIVO_LUGAR_WEB
+    if novo:
+        if not (isinstance(chave, str) and _RE_CHAVE_NOVA_WEB.match(chave)):
+            return MOTIVO_CHAVE_WEB
+    elif not (isinstance(chave, str) and _RE_CHAVE_EDICAO_WEB.match(chave)):
         return MOTIVO_CHAVE_WEB
     if lugar["modulo"] == "autorizacoes" and not re.fullmatch(
             r"\d+\|\d+", chave):
         return MOTIVO_CHAVE_WEB
     if lugar["modulo"] == "pos_venda" and chave.count("|") != 2:
         return MOTIVO_CHAVE_WEB
+    if lugar["modulo"] == "ncc" and chave.count("|") != 3:
+        return MOTIVO_CHAVE_WEB
     valores = reg.get("valores")
-    campos = CAMPOS_EDICAO_WEB[lugar["modulo"]]
+    campos = campos_do_lugar_web(reg.get("rid"), reg.get("tabela"))
     if not (isinstance(valores, dict) and valores
             and set(valores) <= set(campos)):
         return MOTIVO_LUGAR_WEB
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    hoje = opcoes.get("_hoje") or _agora_manaus().date()
     for campo, v in valores.items():
-        if not isinstance(v, str) or len(v) > 60 or re.search(
-                r"[\x00-\x1f\x7f]", v):
-            return MOTIVO_TEXTO_WEB
         tipo = campos[campo]
-        if tipo == "lista" and v and v not in (opcoes.get(campo) or ()):
+        texto_livre = tipo in ("livre", "longo")
+        teto = (_rn.max_texto_edicao(lugar["modulo"], campo)
+                if texto_livre or tipo == "ticket"
+                else _rn.MAX_TEXTO_PADRAO)
+        if not isinstance(v, str):
+            return motivo_texto_web(teto)
+        if texto_livre:
+            v = _texto_normalizado_web(v)
+        if re.search(r"[\x00-\x09\x0b-\x1f\x7f]" if tipo == "longo"
+                     else r"[\x00-\x1f\x7f]", v):
+            return motivo_texto_web(teto)
+        if len(v) > teto:
+            return motivo_texto_web(teto)
+        if texto_livre:
+            if _rn.REMOVIDO in v:
+                return MOTIVO_REMOVIDO_WEB
+            if _rn.texto_sem_contato(v) != v:
+                return motivo_texto_web(teto)
+        if tipo == "ticket" and not _RE_TICKET_WEB.match(v):
+            return MOTIVO_VALOR_WEB
+        if tipo == "lista" and v and v not in _opcoes_do_campo_web(
+                lugar, campo, opcoes):
             return MOTIVO_OPCAO_WEB
-        if tipo == "data" and v:
+        if tipo in ("data", "data_livre") and v:
             try:
-                datetime.strptime(v, "%d/%m/%Y")
+                d = datetime.strptime(v, "%d/%m/%Y").date()
             except ValueError:
+                return MOTIVO_DATA_WEB
+            if tipo == "data_livre" and not (
+                    _DATA_LIVRE_MIN_WEB <= d <= _mais_um_ano_web(hoje)):
                 return MOTIVO_DATA_WEB
         if tipo == "valor" and v:
             try:
@@ -9510,22 +9839,89 @@ def validar_edicao_web(reg: dict, opcoes: dict) -> str:
                 return MOTIVO_VALOR_WEB
             if n is not None and n < 0:
                 return MOTIVO_VALOR_WEB
-        if tipo == "livre" and _RE_PESSOAL_EDICAO_WEB.search(v):
-            return MOTIVO_TEXTO_WEB
     return ""
 
 
+def plano_garantia_web(reg: dict, valores: dict, existentes: dict,
+                       novo_ticket: str, hoje: date, fer=()) -> tuple:
+    """Funcao pura (T-0023 v2, 10.9.2): (plano, motivo). `plano` = {"atual":
+    ticket que ja existe ("" = garantia nova), "campos": {...}, "ticket":
+    numero final}; sem plano, o motivo e a frase fixa. `existentes` = {ticket:
+    cadastro} (garantias.ler); `novo_ticket` = o garantias.novo_ticket da
+    hora; `fer` = os feriados. A regra do prazo e da origem e a do nucleo
+    (`campos_garantia_a_gravar`, RN-POS-005): o prazo igual ao padrao fica em
+    branco, como no PC.
+    - Linha nova: o ticket enviado igual ao `antes.ticket` que o formulario
+      mostrou e que ja existe no PC vira o `novo_ticket` da hora; o digitado
+      diferente do padrao que ja existe e recusado. Status ABERTO, resultado
+      PENDENTE e a data de hoje valem quando a web nao mandou (padrao do
+      formulario); a origem e a do PC ("FAROL DE GARANTIAS").
+    - Edicao: a garantia tem de existir; o ticket trocado nao pode ser de
+      outra."""
+    import relatorios_nucleo as _rn                     # noqa: PLC0415
+    campos = dict(valores)
+    if reg.get("novo") is True:
+        t = str(campos.pop("ticket", "") or "").strip()
+        if not t:
+            return None, MOTIVO_VALOR_WEB
+        antes_t = str((reg.get("antes") or {}).get("ticket") or "").strip()
+        if t == antes_t and t in existentes:
+            t = novo_ticket
+        elif t in existentes:
+            return None, MOTIVO_TICKET_WEB
+        base = {**_rn.PADRAO_NOVA_GARANTIA,
+                "dt_solicitacao": f"{hoje:%d/%m/%Y}"}
+        base.update(campos)
+        atual, campos = "", base
+    else:
+        atual = str(reg.get("chave") or "")
+        if atual not in existentes:
+            return None, MOTIVO_LINHA_WEB
+        t = atual
+        if "ticket" in campos:
+            t = str(campos.pop("ticket") or "").strip()
+            if not t:
+                return None, MOTIVO_VALOR_WEB
+            if t != atual and t in existentes:
+                return None, MOTIVO_TICKET_WEB
+    sol = campos.get("dt_solicitacao") or (
+        existentes.get(atual) or {}).get("dt_solicitacao") or ""
+    campos = {k: v for k, v in _rn.campos_garantia_a_gravar(
+        {**campos, "dt_solicitacao": sol}, fer, novo=not atual).items()
+        if k != "dt_solicitacao" or "dt_solicitacao" in campos or not atual}
+    if t != atual:
+        campos["ticket"] = t
+    return {"atual": atual, "campos": campos, "ticket": t}, ""
+
+
 def aplicar_edicao_web(raiz, reg: dict, opcoes: dict,
-                       gravar=gravar_edicoes_pc) -> tuple:
+                       gravar=gravar_edicoes_pc, _saida=None) -> tuple:
     """(status, motivo): "aplicada", "erro" (recusada: vai ao site) ou
-    "pendente" (arquivo aberto/disco: tenta na proxima rodada)."""
+    "pendente" (arquivo aberto/disco: tenta na proxima rodada). `_saida`
+    (opcional, um dict) recebe {"chave_pc": o ticket gravado} na garantia."""
     motivo = validar_edicao_web(reg, opcoes)
     if motivo:
         return "erro", motivo
     lugar = EDICOES_WEB[(reg["rid"], reg["tabela"])]
+    valores = valores_normalizados_web(reg)
+    edicoes = {reg["chave"]: valores}
     try:
+        if lugar["modulo"] == "garantias":
+            gm = _importar_do_pc("garantias", raiz)
+            hoje = opcoes.get("_hoje") or _agora_manaus().date()
+            try:
+                fer = _importar_do_pc("bap_dados", raiz).feriados(raiz)
+            except Exception:                           # noqa: BLE001
+                fer = set()
+            plano, motivo = plano_garantia_web(
+                reg, valores, gm.ler(raiz), gm.novo_ticket(raiz), hoje, fer)
+            if not plano:
+                return "erro", motivo
+            edicoes = {plano["atual"]: plano["campos"]}
+            if _saida is not None:
+                _saida["chave_pc"] = plano["ticket"]
         gravar(raiz, lugar["modulo"], lugar["arquivo"], lugar["aba"],
-               {reg["chave"]: dict(reg["valores"])})
+               edicoes)
     except PermissionError:
         return "pendente", "arquivo aberto no Excel"
     except ValueError:
@@ -9535,11 +9931,10 @@ def aplicar_edicao_web(raiz, reg: dict, opcoes: dict,
     return "aplicada", ""
 
 
-def ler_estado_edicoes_web(raiz) -> dict:
+def _ler_estado_fila_web(arq) -> dict:
     """{"epoca", "ate_seq", "a_confirmar"}; sem arquivo (ou torto): do zero."""
     try:
-        d = json.loads((_pasta_edicoes_web(raiz) / ARQ_ESTADO_EDICOES_WEB)
-                       .read_text(encoding="utf-8"))
+        d = json.loads(Path(arq).read_text(encoding="utf-8"))
         n, ep = int(d.get("ate_seq")), d.get("epoca")
         ac = d.get("a_confirmar") or []
         if n < 0 or not isinstance(ep, str) or not isinstance(ac, list):
@@ -9549,13 +9944,18 @@ def ler_estado_edicoes_web(raiz) -> dict:
         return {"epoca": "", "ate_seq": 0, "a_confirmar": []}
 
 
-def gravar_estado_edicoes_web(raiz, estado: dict) -> None:
-    pasta = _pasta_edicoes_web(raiz)
-    pasta.mkdir(parents=True, exist_ok=True)
-    alvo = pasta / ARQ_ESTADO_EDICOES_WEB
-    tmp = alvo.with_suffix(".tmp")
+def _gravar_estado_fila_web(arq, estado: dict) -> None:
+    arq = Path(arq)
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    tmp = arq.with_suffix(".tmp")
     tmp.write_text(json.dumps(estado, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, alvo)
+    os.replace(tmp, arq)
+
+
+def ler_estado_edicoes_web(raiz) -> dict:
+    """{"epoca", "ate_seq", "a_confirmar"}; sem arquivo (ou torto): do zero."""
+    return _ler_estado_fila_web(_pasta_edicoes_web(raiz)
+                                / ARQ_ESTADO_EDICOES_WEB)
 
 
 def _arq_aplicadas_web(raiz) -> Path:
@@ -9583,7 +9983,8 @@ def aplicadas_web(raiz) -> dict:
     return saida
 
 
-def _registrar_aplicada_web(raiz, reg, status, motivo, epoca) -> None:
+def _registrar_aplicada_web(raiz, reg, status, motivo, epoca,
+                            extra=None) -> None:
     arq = _arq_aplicadas_web(raiz)
     arq.parent.mkdir(parents=True, exist_ok=True)
     linha = {"quando": _agora_manaus().strftime("%Y-%m-%d %H:%M:%S"),
@@ -9592,27 +9993,35 @@ def _registrar_aplicada_web(raiz, reg, status, motivo, epoca) -> None:
              "tabela": reg.get("tabela"), "chave": reg.get("chave"),
              "valores": reg.get("valores"), "status": status,
              "motivo": motivo}
+    if isinstance(reg.get("antes"), dict):     # o valor de antes (10.9.3)
+        linha["antes"] = reg["antes"]
+    if reg.get("novo") is True:
+        linha["novo"] = True
+    linha.update(extra or {})
     with open(arq, "a", encoding="utf-8") as f:
         f.write(json.dumps(linha, ensure_ascii=False) + "\n")
         f.flush()
         os.fsync(f.fileno())
 
 
-def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
-                       log=print) -> dict | None:
-    """GET <base>/api/edicoes?desde=<seq> (Bearer), repetindo enquanto
-    `mais`. {"epoca", "linhas", "ate_seq"} ou None (404 = web antiga, 401,
-    rede...). Log sem dado pessoal e sem token."""
+def _baixar_fila_web(rota: str, rotulo: str, desde: int, base: str,
+                     token: str, sessao=None, log=print,
+                     mudo_404=False) -> dict | None:
+    """GET <base><rota>?desde=<seq> (Bearer), repetindo enquanto `mais`.
+    {"epoca", "linhas", "ate_seq"} ou None (404 = web antiga, 401, rede...).
+    Log sem dado pessoal e sem token. `mudo_404`: 404 nao vira log (a web
+    antiga, sem as visitas da nuvem, e um estado normal)."""
     sessao = sessao or __import__("requests")
     cab = {"Authorization": f"Bearer {token}"}
     linhas, atual, epoca = [], int(desde), None
     for _ in range(_PAGINAS_MAX_EDICOES_WEB):
         try:
-            r = sessao.get(f"{base}/api/edicoes", params={"desde": atual},
+            r = sessao.get(f"{base}{rota}", params={"desde": atual},
                            headers=cab, timeout=30)
             if r.status_code != 200:
-                log(f"Edicoes web: o site respondeu {r.status_code}; sigo "
-                    "sem importar.")
+                if not (mudo_404 and r.status_code == 404):
+                    log(f"{rotulo}: o site respondeu {r.status_code}; sigo "
+                        "sem importar.")
                 break
             d = r.json()
             pag, ate, ep = d["linhas"], int(d["ate_seq"]), str(d["epoca"])
@@ -9620,7 +10029,7 @@ def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
                                               and ep != epoca):
                 raise ValueError("resposta")
         except Exception as erro:                       # noqa: BLE001
-            log("Edicoes web: falha ao puxar as edicoes do site "
+            log(f"{rotulo}: falha ao puxar as edicoes do site "
                 f"({type(erro).__name__}); sigo sem importar.")
             break
         epoca = ep
@@ -9636,53 +10045,79 @@ def baixar_edicoes_web(desde: int, base: str, token: str, sessao=None,
     return {"epoca": epoca, "linhas": linhas, "ate_seq": atual}
 
 
-def confirmar_edicoes_web(epoca: str, resultados: list, base: str,
-                          token: str, sessao=None, log=print) -> bool:
+def _confirmar_fila_web(rota: str, rotulo: str, epoca: str, resultados: list,
+                        base: str, token: str, sessao=None, log=print,
+                        extra=None, mudo_404=False):
+    """POST <base><rota>/confirmar. Devolve o status HTTP (200 = ok) ou None
+    se a rede falhou. `extra`: chaves a mais no corpo (o `fechados_pc` das
+    visitas)."""
     sessao = sessao or __import__("requests")
     try:
-        r = sessao.post(f"{base}/api/edicoes/confirmar",
-                        json={"epoca": str(epoca), "resultados": resultados},
+        corpo = {"epoca": str(epoca), "resultados": resultados}
+        if extra:
+            corpo.update(extra)
+        r = sessao.post(f"{base}{rota}/confirmar", json=corpo,
                         headers={"Authorization": f"Bearer {token}"},
                         timeout=30)
         if r.status_code == 200:
-            return True
-        log(f"Edicoes web: a confirmacao voltou {r.status_code}; confirmo "
-            "de novo na proxima rodada.")
+            return 200
+        if not (mudo_404 and r.status_code == 404):
+            log(f"{rotulo}: a confirmacao voltou {r.status_code}; confirmo "
+                "de novo na proxima rodada.")
+        return r.status_code
     except Exception as erro:                           # noqa: BLE001
-        log(f"Edicoes web: falha ao confirmar ({type(erro).__name__}); "
+        log(f"{rotulo}: falha ao confirmar ({type(erro).__name__}); "
             "confirmo de novo na proxima rodada.")
-    return False
+    return None
 
 
-def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
-                            log=print, gravar=gravar_edicoes_pc,
-                            opcoes=None) -> dict:
-    """Puxa, grava no PC (na ordem do seq; a primeira que fica pendente -
-    Excel aberto - para a fila ate a proxima rodada), guarda o estado e
-    confirma. Devolve {"aplicadas", "erros", "pendentes", "confirmado"}.
-    Nunca levanta."""
+def puxar_fila_web(raiz, rota, arq_estado, aplicar, ja_feitos, registrar,
+                   base, token, sessao, log, extra_confirmar=None,
+                   rotulo="Edicoes web", preparar=None, mudo_404=False):
+    """O laco `desde`/`epoca`/confirmar das filas do site que confirmam item
+    a item (edicoes e lotes de visitas; T-0045, contrato §4.4). Puxa, aplica
+    no PC na ordem do seq (a primeira que fica pendente - Excel aberto - para
+    a fila ate a proxima rodada), guarda o estado e confirma. Nunca levanta.
+    Devolve {"aplicadas", "erros", "pendentes", "confirmado"}.
+
+    rota           "/api/edicoes" ou "/api/visitas/lotes" (o confirmar e
+                   <rota>/confirmar)
+    arq_estado     o JSON do estado ({epoca, ate_seq, a_confirmar})
+    preparar()     opcional: roda uma vez, depois do GET, antes do laco
+    ja_feitos(reg, epoca) -> (status, motivo) | None: o que o PC ja gravou
+    aplicar(reg, extra) -> (status, motivo); "pendente" para a fila; `extra`
+                   e um dict que o aplicar pode preencher (o `chave_pc` da
+                   garantia) e que vai ao registrar
+    registrar(reg, status, motivo, epoca, extra): so quando aplicar() rodou
+    extra_confirmar() -> dict: chaves a mais no POST (o `fechados_pc`); com
+                   ele o POST sai em toda volta, mesmo sem resultado novo
+    """
     cont = {"aplicadas": 0, "erros": 0, "pendentes": 0, "confirmado": False}
     try:
-        estado = ler_estado_edicoes_web(raiz)
+        estado = _ler_estado_fila_web(arq_estado)
         desde = estado["ate_seq"] if estado["epoca"] else 0
-        res = baixar_edicoes_web(desde, base, token, sessao, log)
+        res = _baixar_fila_web(rota, rotulo, desde, base, token, sessao, log,
+                               mudo_404)
         if res and res["epoca"] != estado["epoca"]:
             if estado["epoca"]:
-                log("Edicoes web: a fila do site recomecou (epoca nova); "
+                log(f"{rotulo}: a fila do site recomecou (epoca nova); "
                     "puxo tudo de novo.")
             estado = {"epoca": res["epoca"], "ate_seq": 0, "a_confirmar": []}
             if desde:
-                res = baixar_edicoes_web(0, base, token, sessao, log)
+                res = _baixar_fila_web(rota, rotulo, 0, base, token, sessao,
+                                       log, mudo_404)
                 if res and res["epoca"] != estado["epoca"]:
                     res = None
         if not res:
-            if estado["a_confirmar"] and estado["epoca"]:
-                cont["confirmado"] = confirmar_edicoes_web(
-                    estado["epoca"], estado["a_confirmar"], base, token,
-                    sessao, log)
+            if estado["epoca"] and (estado["a_confirmar"]
+                                    or extra_confirmar is not None):
+                extra = extra_confirmar() if extra_confirmar else None
+                cont["confirmado"] = _confirmar_fila_web(
+                    rota, rotulo, estado["epoca"], estado["a_confirmar"],
+                    base, token, sessao, log, extra, mudo_404) == 200
             return cont
-        opcoes = opcoes if opcoes is not None else opcoes_edicao_web(raiz)
-        ja = aplicadas_web(raiz)
+        if preparar:
+            preparar()
         resultados = {int(x["seq"]): x for x in estado["a_confirmar"]
                       if isinstance(x, dict) and "seq" in x}
         ate = estado["ate_seq"]
@@ -9693,37 +10128,273 @@ def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
             if reg.get("status") != "pendente":
                 ate = seq                   # ja confirmada no site
                 continue
-            if str(reg.get("id")) in ja:
-                status, motivo = ja[str(reg.get("id"))]
+            feito = ja_feitos(reg, res["epoca"])
+            if feito is not None:
+                status, motivo = feito
             else:
-                status, motivo = aplicar_edicao_web(raiz, reg, opcoes, gravar)
+                extra = {}              # o que o aplicar quer no registro
+                status, motivo = aplicar(reg, extra)
                 if status == "pendente":
                     cont["pendentes"] += 1
-                    log(f"Edicoes web: {motivo}; a fila espera a proxima "
+                    log(f"{rotulo}: {motivo}; a fila espera a proxima "
                         "rodada.")
                     break
-                _registrar_aplicada_web(raiz, reg, status, motivo,
-                                        res["epoca"])
+                registrar(reg, status, motivo, res["epoca"], extra)
             cont["aplicadas" if status == "aplicada" else "erros"] += 1
             resultados[seq] = {"seq": seq, "status": status, "motivo": motivo}
             ate = seq
         estado = {"epoca": res["epoca"], "ate_seq": ate,
                   "a_confirmar": sorted(resultados.values(),
                                         key=lambda x: x["seq"])}
-        gravar_estado_edicoes_web(raiz, estado)
+        _gravar_estado_fila_web(arq_estado, estado)
         if cont["aplicadas"] or cont["erros"]:
-            log(f"Edicoes web: {cont['aplicadas']} gravada(s) no PC, "
+            log(f"{rotulo}: {cont['aplicadas']} gravada(s) no PC, "
                 f"{cont['erros']} recusada(s).")
-        if estado["a_confirmar"]:
-            cont["confirmado"] = confirmar_edicoes_web(
-                estado["epoca"], estado["a_confirmar"], base, token, sessao,
-                log)
+        if estado["a_confirmar"] or extra_confirmar is not None:
+            extra = extra_confirmar() if extra_confirmar else None
+            codigo = _confirmar_fila_web(
+                rota, rotulo, estado["epoca"], estado["a_confirmar"], base,
+                token, sessao, log, extra, mudo_404)
+            cont["confirmado"] = codigo == 200
             if cont["confirmado"]:
-                gravar_estado_edicoes_web(raiz, dict(estado, a_confirmar=[]))
+                _gravar_estado_fila_web(arq_estado,
+                                        dict(estado, a_confirmar=[]))
+            elif codigo == 409 and extra_confirmar is not None:
+                # a epoca do site mudou no meio da volta: recomeca do zero
+                _gravar_estado_fila_web(arq_estado, {
+                    "epoca": "", "ate_seq": 0, "a_confirmar": []})
     except Exception as erro:                           # noqa: BLE001
-        log(f"Edicoes web: nao terminei ({type(erro).__name__}); tento de "
+        log(f"{rotulo}: nao terminei ({type(erro).__name__}); tento de "
             "novo na proxima rodada.")
     return cont
+
+
+def sincronizar_edicoes_web(raiz, base: str, token: str, sessao=None,
+                            log=print, gravar=gravar_edicoes_pc,
+                            opcoes=None) -> dict:
+    """Puxa, grava no PC (na ordem do seq; a primeira que fica pendente -
+    Excel aberto - para a fila ate a proxima rodada), guarda o estado e
+    confirma. Devolve {"aplicadas", "erros", "pendentes", "confirmado"}.
+    Nunca levanta."""
+    est = {"opcoes": opcoes, "ja": {}}
+
+    def preparar():
+        if est["opcoes"] is None:
+            est["opcoes"] = opcoes_edicao_web(raiz)
+        est["ja"] = aplicadas_web(raiz)
+
+    return puxar_fila_web(
+        raiz, "/api/edicoes",
+        _pasta_edicoes_web(raiz) / ARQ_ESTADO_EDICOES_WEB,
+        aplicar=lambda reg, extra: aplicar_edicao_web(
+            raiz, reg, est["opcoes"], gravar, _saida=extra),
+        ja_feitos=lambda reg, _epoca: est["ja"].get(str(reg.get("id"))),
+        registrar=lambda reg, status, motivo, epoca, extra:
+        _registrar_aplicada_web(raiz, reg, status, motivo, epoca, extra),
+        base=base, token=token, sessao=sessao, log=log, preparar=preparar)
+
+
+# (T-0045, contrato visitas-nuvem §4) O robo do PC importa o que a nuvem
+# baixou da Maxima: GET /api/visitas/lotes -> /api/visitas/lote/<seq> ->
+# Excel no ANALITICO -> confirmar (+ o `fechados_pc`). Antes do pacote, no
+# mesmo ponto das edicoes. Nunca derruba a rodada; log sem nome e sem token.
+PASTA_VISITAS_WEB = Path("RELATORIOS") / "_VISITAS_WEB"
+ARQ_ESTADO_VISITAS_WEB = "ESTADO_VISITAS_WEB.json"
+ARQ_IMPORTADOS_VISITAS_WEB = "IMPORTADOS_VISITAS_WEB.jsonl"
+ROTA_VISITAS_WEB = "/api/visitas/lotes"
+_RX_DIA_VISITAS_WEB = re.compile(r"^\d{8}$")
+
+
+def _importados_visitas_web(raiz) -> dict:
+    """{"<epoca>:<seq>": (status, motivo)} do registro so de acrescimo."""
+    saida = {}
+    arq = Path(raiz) / PASTA_VISITAS_WEB / ARQ_IMPORTADOS_VISITAS_WEB
+    try:
+        for ln in arq.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(ln)
+                saida[f"{r['epoca']}:{r['seq']}"] = (r["status"],
+                                                     r.get("motivo", ""))
+            except (ValueError, KeyError, TypeError):
+                continue
+    except OSError:
+        pass
+    return saida
+
+
+def _registrar_importado_visitas_web(raiz, reg, status, motivo, epoca):
+    arq = Path(raiz) / PASTA_VISITAS_WEB / ARQ_IMPORTADOS_VISITAS_WEB
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    linha = {"seq": reg.get("seq"), "epoca": epoca, "dia": reg.get("dia"),
+             "arquivos": reg.get("arquivos"), "status": status,
+             "motivo": motivo,
+             "em": _agora_manaus().strftime("%Y-%m-%d %H:%M:%S")}
+    with open(arq, "a", encoding="utf-8") as f:
+        f.write(json.dumps(linha, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _corpo_do_lote_visitas_web(r, reg):
+    """Os bytes JSON do lote (descomprime se veio gzip) ou None se o sha256
+    nao confere (o do cabecalho e o da linha, quando existem)."""
+    import hashlib                                      # noqa: PLC0415
+    bruto = r.content
+    if bruto[:2] == b"\x1f\x8b":
+        bruto = gzip.decompress(bruto)
+    sha = hashlib.sha256(bruto).hexdigest()
+    for esperado in ((r.headers or {}).get("X-BAP-SHA256"),
+                     reg.get("sha256")):
+        if esperado and str(esperado).lower() != sha:
+            return None
+    return bruto
+
+
+def _validar_lote_visitas_web(raiz, reg, corpo):
+    """(lista de (pasta, nome, bytes), None) ou (None, motivo). Confere tudo
+    ANTES de gravar qualquer Excel. motivo em sha256, nome, pasta, dia."""
+    import hashlib                                      # noqa: PLC0415
+    vm = _importar_do_pc("visitas_maxima", raiz)
+    dia = str(corpo.get("dia") or "")
+    if (corpo.get("versao") != 1 or dia != str(reg.get("dia"))
+            or not _RX_DIA_VISITAS_WEB.match(dia)):
+        return None, "dia"
+    try:
+        d = datetime.strptime(dia, "%Y%m%d").date()
+    except ValueError:
+        return None, "dia"
+    if d > _agora_manaus().date():
+        return None, "dia"
+    arquivos = corpo.get("arquivos")
+    if not isinstance(arquivos, list) or not arquivos:
+        return None, "nome"
+    saida = []
+    for a in arquivos:
+        if not isinstance(a, dict):
+            return None, "nome"
+        pasta, nome = a.get("pasta"), a.get("nome")
+        motivo, _ = vm.conferir_importado(pasta, nome, dia)
+        if motivo:
+            return None, motivo
+        try:
+            dados = base64.b64decode(a.get("b64") or "", validate=True)
+        except Exception:                               # noqa: BLE001
+            return None, "sha256"
+        if (hashlib.sha256(dados).hexdigest() != str(a.get("sha256")).lower()
+                or (a.get("bytes") is not None
+                    and int(a["bytes"]) != len(dados))):
+            return None, "sha256"
+        saida.append((pasta, nome, dados))
+    return saida, None
+
+
+def _anotar_maior_visitas_web(vn, raiz, chave, quando) -> None:
+    """RN-VIS-002: no indice do PC vale a MAIOR hora (empate: a nuvem). A
+    regra e a do nucleo (`juntar_baixado`); a hora do PC nunca recua."""
+    atual = vn.indice(raiz).get(chave)
+    if atual:
+        j = vn.juntar_baixado({chave: quando.isoformat()}, {chave: atual})
+        if j.get(chave, {}).get("origem") == "pc":
+            return
+    vn.anotar_baixado(raiz, chave, quando)
+
+
+def _aplicar_lote_visitas_web(raiz, reg, base, token, sessao, res):
+    """Um lote: (status, motivo). `pendente` = tento na proxima volta."""
+    vm = _importar_do_pc("visitas_maxima", raiz)
+    vn = _importar_do_pc("visitas_nucleo", raiz)
+    try:
+        r = sessao.get(f"{base}/api/visitas/lote/{int(reg['seq'])}",
+                       headers={"Authorization": f"Bearer {token}"},
+                       timeout=60)
+    except Exception:                                   # noqa: BLE001
+        return "pendente", "falha de rede ao buscar o lote"
+    if r.status_code == 404:                  # saiu pela retencao: a nuvem baixa de novo
+        return "erro", "sha256"
+    if r.status_code != 200:
+        return "pendente", f"o site respondeu {r.status_code} ao buscar o lote"
+    try:
+        bruto = _corpo_do_lote_visitas_web(r, reg)
+        if bruto is None:
+            return "erro", "sha256"
+        corpo = json.loads(bruto.decode("utf-8"))
+        if not isinstance(corpo, dict):
+            return "erro", "dia"
+        arquivos, motivo = _validar_lote_visitas_web(raiz, reg, corpo)
+    except (ValueError, OSError, EOFError):
+        return "erro", "sha256"
+    if motivo:
+        return "erro", motivo
+    try:
+        for pasta, nome, dados in arquivos:
+            vm.gravar_excel_importado(raiz, pasta, nome, dados)
+        eq = corpo.get("equipe") or {}
+        vn.gravar_equipe_maxima(raiz, eq.get("filiais") or {},
+                                eq.get("supervisores") or {},
+                                eq.get("representantes") or {})
+        d = datetime.strptime(corpo["dia"], "%Y%m%d").date()
+        vn.montar_dia(raiz, d, corpo.get("extras") or {})
+        q = vn._quando_manaus(corpo.get("baixado_em"))   # RN-VIS-002
+        quando = (q or _agora_manaus()).replace(tzinfo=None)  # o indice: Manaus sem fuso
+        _anotar_maior_visitas_web(vn, raiz, corpo["dia"], quando)
+        if vn.montar_mes(raiz, d.year, d.month):
+            _anotar_maior_visitas_web(vn, raiz, f"{d.year}{d.month:02d}",
+                                      quando)
+    except PermissionError:
+        return "pendente", "arquivo aberto no Excel"
+    except OSError:
+        return "pendente", "falha de disco"
+    except Exception as erro:                           # noqa: BLE001
+        # nao e disco nem Excel aberto: repetir daria o mesmo erro e seguraria
+        # a fila. Erro do lote (motivo do contrato §4.3); o log so tem a classe
+        return "erro", "dia"
+    res["lotes"] += 1
+    res["arquivos"] += len(arquivos)
+    if corpo["dia"] not in res["dias"]:
+        res["dias"].append(corpo["dia"])
+    return "aplicada", ""
+
+
+def sincronizar_visitas_web(raiz, base: str, token: str, log=print,
+                            sessao=None) -> dict:
+    """Importa os lotes de visitas que a nuvem baixou da Maxima e manda o
+    `fechados_pc` (o que o PC fechou, contrato §4.3) em toda volta. Usa o
+    mesmo laco das edicoes (`puxar_fila_web`). Nunca levanta e nunca derruba
+    a rodada. Devolve {"lotes", "arquivos", "dias", "erro"}.
+    404 da web antiga = "sem visitas da nuvem": segue, sem erro."""
+    res = {"lotes": 0, "arquivos": 0, "dias": [], "erro": None}
+    try:
+        sessao = sessao or __import__("requests")
+        vm = _importar_do_pc("visitas_maxima", raiz)
+        vn = _importar_do_pc("visitas_nucleo", raiz)
+        est = {"ja": {}}
+
+        def fechados():
+            return {"fechados_pc": vm.fechados_pc(
+                vn.indice(raiz), _agora_manaus().date())}
+        puxar_fila_web(
+            raiz, ROTA_VISITAS_WEB,
+            Path(raiz) / PASTA_VISITAS_WEB / ARQ_ESTADO_VISITAS_WEB,
+            aplicar=lambda reg, _extra: _aplicar_lote_visitas_web(
+                raiz, reg, base, token, sessao, res),
+            ja_feitos=lambda reg, epoca: est["ja"].get(
+                f"{epoca}:{reg.get('seq')}"),
+            registrar=lambda reg, st, mo, ep, _extra:
+            _registrar_importado_visitas_web(raiz, reg, st, mo, ep),
+            base=base, token=token, sessao=sessao, log=log,
+            extra_confirmar=fechados, rotulo="Visitas web",
+            preparar=lambda: est.__setitem__(
+                "ja", _importados_visitas_web(raiz)),
+            mudo_404=True)
+        if res["lotes"]:
+            vm.depois_de_baixar(raiz, log)      # uma vez por importacao
+            log(f"Visitas web: {res['arquivos']} Excel de "
+                f"{len(res['dias'])} dia(s).")
+    except Exception as erro:                           # noqa: BLE001
+        res["erro"] = type(erro).__name__
+        log(f"Visitas web: nao terminei ({type(erro).__name__}); tento de "
+            "novo na proxima rodada.")
+    return res
 
 
 def gravar_lote_simulado_web(pacote: dict, pasta) -> dict:
@@ -9763,6 +10434,9 @@ def passo_pacote_web(simular_pacote: bool = False) -> dict:
             _base = _base_web(_segredo_web("BAP_WEB_URL", "url"))
             if _base and _tk:
                 sincronizar_edicoes_web(
+                    PASTA_LOCAL, _base, _tk,
+                    log=lambda m: log.info("%s", str(m).replace(_tk, "***")))
+                sincronizar_visitas_web(      # (T-0045) o que a nuvem baixou
                     PASTA_LOCAL, _base, _tk,
                     log=lambda m: log.info("%s", str(m).replace(_tk, "***")))
         resultados = coletar_relatorios_web(hoje.year, hoje.month)
