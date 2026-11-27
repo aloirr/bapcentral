@@ -1,3 +1,7 @@
+/* Inter hospedada (MC-0020, manual §5): latin 400, 600 e 700, licença OFL em fontes/OFL.txt; o fallback segue na pilha --fonte */
+@font-face{font-family:Inter;font-style:normal;font-weight:400;font-display:swap;src:url(/static/fontes/Inter-400.woff2) format("woff2")}
+@font-face{font-family:Inter;font-style:normal;font-weight:600;font-display:swap;src:url(/static/fontes/Inter-600.woff2) format("woff2")}
+@font-face{font-family:Inter;font-style:normal;font-weight:700;font-display:swap;src:url(/static/fontes/Inter-700.woff2) format("woff2")}
 /* T-0033: TODA cor, fonte e medida mora aqui (contrato visual §12). Nenhum hex fora deste bloco; `marca.py` repete os
    mesmos valores para o PDF e o Excel (um teste confere). Valores = os do BC3 de hoje; a paleta nova vem do design-de-marca. */
 :root{
@@ -121,20 +125,22 @@ button{background:var(--verde-escuro);color:var(--branco);border-color:var(--ver
 .anel svg{display:block}.anel .trilho{fill:none;stroke:var(--c-cfdccb);stroke-width:8}
 .anel .arco{fill:none;stroke:var(--alerta);stroke-width:8}
 .anel.t-ok .arco{stroke:var(--ok)}.anel.t-atencao .arco{stroke:var(--at)}.anel.t-alerta .arco{stroke:var(--al)}
-.anel-pct{position:absolute;left:0;right:0;top:34px;font-weight:800;font-size:.95rem}
+.anel-pct{position:absolute;left:0;right:0;top:34px;font-weight:700;font-size:.95rem}
 .anel-sub{position:absolute;left:0;right:0;top:52px;font-size:.62rem;color:var(--suave)}
 .anel.t-ok .anel-pct{color:var(--ok)}.anel.t-atencao .anel-pct{color:var(--atencao-texto)}.anel.t-alerta .anel-pct{color:var(--al)}
 .rc-faixa{background:var(--c-e8f0e4);display:grid;grid-template-columns:3fr 3fr 4fr;gap:6px;padding:8px 16px 12px;border-top:1px solid var(--c-cfdccb);font-size:.8rem;color:var(--suave)}
-.rc-faixa .fv{font-weight:800;font-size:1.05rem;color:var(--texto);margin-top:.2rem}.rc-faixa b{font-weight:800}
+.rc-faixa .fv{font-weight:700;font-size:1.05rem;color:var(--texto);margin-top:.2rem}.rc-faixa b{font-weight:700}
 .t-ok{color:var(--ok)}.t-atencao{color:var(--atencao-texto)}.t-alerta{color:var(--al)}
 .rc-filete{height:4px;background:var(--verde-marca)}
 .rc-barras{flex:1;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:10px 12px 0;min-height:300px}
 .rc-barras .col{display:flex;flex-direction:column}
 .rc-barras .area{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-height:250px}
 .rc-barras .barra{background:var(--grafico-3);width:56%;border-radius:5px 5px 0 0;display:flex;justify-content:center;align-items:flex-start;padding-top:3px;min-height:26px}
-.rot-b{font-weight:800;font-size:.9rem}
-.txt-b{font-weight:800;font-size:.8rem;text-align:center;padding-bottom:2px}
-.rc-barras .uf{text-align:center;font-weight:800;padding:6px 0}
+.rot-b{font-weight:700;font-size:.9rem}
+/* o % dentro da barra vai num rótulo branco: o verde, o vermelho e o âmbar sobre o cinza-verde da barra não passam de 2,6:1 (MC-0022) */
+.rc-barras .barra .rot-b{background:var(--cartao);border-radius:4px;padding:0 4px;line-height:1.3}
+.txt-b{font-weight:700;font-size:.8rem;text-align:center;padding-bottom:2px}
+.rc-barras .uf{text-align:center;font-weight:700;padding:6px 0}
 .rc-legb{text-align:right;font-size:.7rem;color:var(--c-6b7075);padding:0 10px 6px}
 .como{font-size:.75rem;color:var(--c-6e7470)}
 .linha{display:inline-flex;gap:.3rem;margin:.1rem}
@@ -155,7 +161,7 @@ button{background:var(--verde-escuro);color:var(--branco);border-color:var(--ver
 .kpi{background:var(--cartao);border:2px solid var(--c-8f9c93);border-left:6px solid var(--c-8f9c93);padding:12px 14px;--ok:var(--verde-escuro);--at:var(--atencao);--al:var(--alerta)}
 .kpi.c-ok{border-left-color:var(--ok)}.kpi.c-atencao{border-left-color:var(--at)}.kpi.c-alerta{border-left-color:var(--al)}.kpi.c-info{border-left-color:var(--c-8f9c93)}
 .kpi-rot{font-size:.78rem;font-weight:700;color:var(--suave)}
-.kpi-valor{font-size:1.7rem;font-weight:800;line-height:1.2;margin-top:.3rem;overflow-wrap:anywhere}
+.kpi-valor{font-size:1.7rem;font-weight:700;line-height:1.2;margin-top:.3rem;overflow-wrap:anywhere}
 .kpi-det{font-size:.85rem;color:var(--suave);margin-top:.2rem}
 .kpi-lin{display:flex;justify-content:space-between;gap:.5rem;font-size:.82rem;border-top:1px solid var(--c-e9ecef);margin-top:.35rem;padding-top:.25rem}
 .resumo{background:var(--cartao);border:2px solid var(--c-8f9c93);padding:12px 16px;margin:.8rem 0}
@@ -220,7 +226,7 @@ button{background:var(--verde-escuro);color:var(--branco);border-color:var(--ver
 .cob-nome{min-width:0}.cob-nome b,.cob-nome small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cob-val{white-space:nowrap}
 .cob-cab small,.cob-val small{display:block;color:var(--suave);font-weight:400}
-.cob-val{font-weight:800;text-align:right}
+.cob-val{font-weight:700;text-align:right}
 .selo-cobrar{background:var(--atencao-claro);color:var(--c-7a5b00)}.selo-ok{background:var(--c-d3f9d8);color:var(--c-1b5e20)}.selo-neutro{background:var(--c-e9ecef);color:var(--c-343a40)}
 .cob.feito .cob-sit-txt{background:var(--c-d3f9d8);color:var(--c-1b5e20)}
 .cob-desfaz{margin-left:.6rem;font-size:.85rem}.cob-desfaz button{background:none;border:0;color:var(--verde-escuro);text-decoration:underline;padding:0 .3rem;min-height:44px}
@@ -275,7 +281,7 @@ button{background:var(--verde-escuro);color:var(--branco);border-color:var(--ver
 .filtros-tab a,.caixa a{color:var(--verde-escuro);font-weight:600}
 .filtros-tab a{min-height:44px;display:inline-flex;align-items:center;padding:0 .6rem}
 .filtros-tab small{color:var(--suave);font-size:.72rem}
-.rolagem-dados .tab-dados tfoot td{position:sticky;bottom:0;z-index:2;font-weight:800;background:var(--fundo);border-top:2px solid var(--c-8f9c93)}
+.rolagem-dados .tab-dados tfoot td{position:sticky;bottom:0;z-index:2;font-weight:700;background:var(--fundo);border-top:2px solid var(--c-8f9c93)}
 .rolagem-dados .tab-dados tfoot td:first-child{z-index:3}
 /* T-0020 · visual C (decisão do Alexandre, 25/11/2026): cores e logo da BAP AUTOPARTS, um só estilo de botão, sem bordas pesadas */
 body{background:var(--fundo);color:var(--texto);font-family:var(--fonte)}
@@ -513,12 +519,12 @@ body.sem-lado .bc3-corpo{display:grid;place-items:center;min-height:100vh}
 .bc3-login{max-width:380px;text-align:left;gap:.9rem}
 .bc3-login h1{margin:0;text-align:center;font-size:1.5rem;line-height:1.15}
 .bc3-login h1 small{display:block;margin-top:2px;font-size:var(--t-rotulo);font-weight:600;letter-spacing:.06em;color:var(--suave)}
-.bc3-login-logo{display:block;width:96px;height:128px;margin:0 auto;box-sizing:border-box;padding:10px;border-radius:14px;background:var(--preto-bap) url(/static/logo_bap.png) center/contain no-repeat;background-origin:content-box}
+.bc3-login-logo{display:block;width:96px;height:122px;margin:0 auto;box-sizing:border-box;padding:13px;border-radius:14px;background:var(--preto-bap) url(/static/logo_bap.png) center/contain no-repeat;background-origin:content-box}
 .bt-principal{background:var(--verde-escuro);border-color:var(--verde-escuro);color:var(--faixa-texto);min-height:var(--alvo);font-weight:600}
 .bt-neutro{background:var(--cartao);border:1px solid var(--borda);color:var(--texto);font-weight:600;cursor:pointer}
 .bt-perigo{background:none;border-color:transparent;color:var(--erro)}
 .bt-perigo-cheio{background:var(--cartao);border:1px solid var(--erro);color:var(--erro);font-weight:600;cursor:pointer}
-.selo-cinza{background:var(--grade);color:var(--suave)}.selo-atencao{background:var(--atencao-claro);color:var(--atencao-texto)}
+.selo-cinza{background:var(--borda);color:var(--suave)}.selo-atencao{background:var(--atencao-claro);color:var(--atencao-texto)}
 
 /* Usuários: uma linha por usuário; o único botão principal da tela é "Novo usuário" */
 .u-novo{margin:0 0 12px}.u-novo>summary{display:inline-flex;margin-bottom:8px}

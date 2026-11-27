@@ -119,6 +119,8 @@ def criar_app() -> FastAPI:
         r.headers["X-Frame-Options"] = "DENY"
         r.headers["Referrer-Policy"] = "same-origin"
         r.headers["Cache-Control"] = "no-store"
+        if request.url.path.startswith("/static/fontes/"):
+            r.headers["Cache-Control"] = "public, max-age=31536000, immutable"      # a Inter hospedada (MC-0020) não muda
         r.headers["Content-Security-Policy"] = (
             "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'")
         return r

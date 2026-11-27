@@ -181,3 +181,19 @@ def test_dias_uteis_do_mes_fechado_e_o_css_do_numero_do_cartao():
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
     assert ".rc-valor{" in css and "font-size:1.5rem;font-weight:700" in css and ".rc-leg{" in css
     assert "minmax(380px,1fr)" in css                                           # U12: a linha seguinte aparece sem cortar cartão
+
+
+def test_inter_hospedada_e_ajustes_da_marca(cli):
+    # MC-0020: @font-face com a Inter 400, 600 e 700 (woff2 + licença OFL) servida pelo próprio site, com o fallback na pilha
+    css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
+    for w in (400, 600, 700):
+        assert f"font-weight:{w};font-display:swap;src:url(/static/fontes/Inter-{w}.woff2)" in css
+        r = cli.get(f"/static/fontes/Inter-{w}.woff2")
+        assert r.status_code == 200 and r.content[:4] == b"wOF2" and "immutable" in r.headers["cache-control"]
+    assert b"SIL Open Font License" in cli.get("/static/fontes/OFL.txt").content
+    assert 'Inter,"Segoe UI",Arial' in css
+    # MC-0021, MC-0022, MC-0023, MC-0024
+    assert "width:96px;height:122px" in css and "padding:13px" in css
+    assert ".rc-barras .barra .rot-b{background:var(--cartao)" in css
+    assert "font-weight:800" not in css                                          # manual §5: só 400, 600 e 700
+    assert ".selo-cinza{background:var(--borda);color:var(--suave)}" in css
