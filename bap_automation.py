@@ -9912,6 +9912,17 @@ def _validar_lote_visitas_web(raiz, reg, corpo):
     return saida, None
 
 
+def _anotar_maior_visitas_web(vn, raiz, chave, quando) -> None:
+    """RN-VIS-002: no indice do PC vale a MAIOR hora (empate: a nuvem). A
+    regra e a do nucleo (`juntar_baixado`); a hora do PC nunca recua."""
+    atual = vn.indice(raiz).get(chave)
+    if atual:
+        j = vn.juntar_baixado({chave: quando.isoformat()}, {chave: atual})
+        if j.get(chave, {}).get("origem") == "pc":
+            return
+    vn.anotar_baixado(raiz, chave, quando)
+
+
 def _aplicar_lote_visitas_web(raiz, reg, base, token, sessao, res):
     """Um lote: (status, motivo). `pendente` = tento na proxima volta."""
     vm = _importar_do_pc("visitas_maxima", raiz)
@@ -9952,15 +9963,18 @@ def _aplicar_lote_visitas_web(raiz, reg, base, token, sessao, res):
             quando = quando.replace(tzinfo=None)    # a hora de Manaus, como o indice
         except (KeyError, ValueError):
             quando = _agora_manaus().replace(tzinfo=None)
-        vn.anotar_baixado(raiz, corpo["dia"], quando)
+        _anotar_maior_visitas_web(vn, raiz, corpo["dia"], quando)
         if vn.montar_mes(raiz, d.year, d.month):
-            vn.anotar_baixado(raiz, f"{d.year}{d.month:02d}", quando)
+            _anotar_maior_visitas_web(vn, raiz, f"{d.year}{d.month:02d}",
+                                      quando)
     except PermissionError:
         return "pendente", "arquivo aberto no Excel"
     except OSError:
         return "pendente", "falha de disco"
     except Exception as erro:                           # noqa: BLE001
-        return "pendente", f"erro ao montar o dia ({type(erro).__name__})"
+        # nao e disco nem Excel aberto: repetir daria o mesmo erro e seguraria
+        # a fila. Erro do lote (motivo do contrato §4.3); o log so tem a classe
+        return "erro", "dia"
     res["lotes"] += 1
     res["arquivos"] += len(arquivos)
     if corpo["dia"] not in res["dias"]:

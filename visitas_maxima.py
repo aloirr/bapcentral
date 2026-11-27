@@ -114,9 +114,18 @@ LIMPAR_JS = r"""
 """
 
 CAPTCHA_JS = r"""
-() => !!document.querySelector(
-  'iframe[src*="captcha" i], iframe[title*="captcha" i], '
-  + '.g-recaptcha, .h-captcha, [class*="captcha" i], [id*="captcha" i]')
+() => {
+  // so captcha VISIVEL (caixa na tela); o selo do reCAPTCHA invisivel nao conta
+  const vis = e => {
+    if (e.closest('.grecaptcha-badge')) return false;
+    const r = e.getBoundingClientRect(), st = getComputedStyle(e);
+    return r.width >= 60 && r.height >= 40 && st.visibility !== 'hidden'
+      && st.display !== 'none' && st.opacity !== '0';
+  };
+  return Array.from(document.querySelectorAll(
+    'iframe[src*="captcha" i], iframe[title*="captcha" i], .g-recaptcha, '
+    + '.h-captcha')).some(vis);
+}
 """
 
 CARTOES_JS = r"""
@@ -384,6 +393,15 @@ _RX_CREDENCIAL = re.compile(
     r"(encontrad|autorizad)|erro ao (entrar|autentic)|login", re.I)
 
 
+def _caminho(url) -> str:
+    """So o caminho da URL (sem host, query nem #): a verificacao olha ali."""
+    from urllib.parse import urlparse                   # noqa: PLC0415
+    try:
+        return urlparse(str(url or "")).path
+    except ValueError:
+        return ""
+
+
 def _sem_acento_min(txt) -> str:
     return vn._sem_acento(str(txt or "")).lower()
 
@@ -395,7 +413,7 @@ def classificar_login(url, texto, tem_captcha, http_status) -> str | None:
     Nunca tenta resolver captcha nem repete o login."""
     if http_status == 403:
         return "MAXIMA_BLOQUEIO"
-    url = str(url or "")
+    url = _caminho(url)
     no_login = "/login" in url.lower()
     if not (no_login or _RX_URL_VERIFICACAO.search(url)):
         return None
@@ -426,7 +444,7 @@ def codigo_da_excecao(exc, fase: str | None = None):
             return exc.codigo, exc.fase or fase
         return "TELA_MUDOU", exc.fase or fase
     nome = type(exc).__name__
-    if fase == "navegador" or _RX_NAVEGADOR_CAIU.search(str(exc) or ""):
+    if _RX_NAVEGADOR_CAIU.search(str(exc) or ""):
         return "NAVEGADOR_FALHOU", fase
     if nome == "TimeoutError" and fase == "login":
         return "MAXIMA_FORA", fase
@@ -648,6 +666,7 @@ class Robo:
         self.codigo = None            # o codigo do contrato, se a rodada caiu
         self.fase_erro = None
         self.equipe = {}              # os 3 dicionarios lidos nos filtros
+        self._abrindo = False         # abrindo o navegador (ainda sem pagina)
         self.vendedores = 0           # o que a grade mostrou, no ultimo dia
 
     # ---------------------------------------------------------- eventos
@@ -679,6 +698,8 @@ class Robo:
     def _registrar_falha(self, exc):
         """Guarda o codigo e a fase do contrato para quem chamou."""
         self.codigo, self.fase_erro = codigo_da_excecao(exc, self.fase)
+        if self._abrindo and not (isinstance(exc, ErroRobo) and exc.codigo):
+            self.codigo, self.fase_erro = "NAVEGADOR_FALHOU", "inicio"
         self.evento("erro", fase=self.fase_erro, codigo=self.codigo)
 
     # ---------------------------------------------------------- ajudantes
@@ -750,7 +771,8 @@ class Robo:
 
         def pronto():
             url = pg.url
-            if "/login" not in url and not _RX_URL_VERIFICACAO.search(url):
+            if ("/login" not in _caminho(url).lower()
+                    and not _RX_URL_VERIFICACAO.search(_caminho(url))):
                 return "ok"
             msg = pg.evaluate("""() => { const e = document.querySelector(
               'simple-snack-bar, .mat-mdc-snack-bar-label, mat-error, '
@@ -759,13 +781,13 @@ class Robo:
               return e ? e.innerText.trim() : ''; }""")
             captcha = pg.evaluate(CAPTCHA_JS)
             texto = msg
-            if not msg and "/login" not in url:
+            if not msg and "/login" not in _caminho(url).lower():
                 texto = pg.evaluate(
                     "() => (document.body.innerText || '').slice(0, 3000)")
             cod = classificar_login(url, texto, captcha, None)
             if cod:
                 return f"cod:{cod}:{msg}"
-            if "/login" not in url:
+            if "/login" not in _caminho(url).lower():
                 return "ok"
             return f"erro:{msg}" if msg else None
         r = self._esperar(pronto, 45)
@@ -1315,7 +1337,8 @@ class Robo:
         eles o diario/AAAAMMDD.csv; no fim de cada mes, o AAAAMM.csv.
         Se cair, `self.codigo` e `self.fase_erro` dizem o codigo e a fase do
         contrato (a nuvem manda so isso)."""
-        self._fase("navegador")
+        self._fase("inicio")             # fase do contrato; o navegador abre antes
+        self._abrindo = True
         try:
             return self._rodada(usuario, senha, dias, meses, progresso)
         except Cancelado:
@@ -1331,6 +1354,7 @@ class Robo:
         self.erros_vendedor = []
         with sync_playwright() as p:
             nav = _abrir_navegador(p, self.visivel, self.log, self.canal)
+            self._abrindo = False
             try:
                 ctx = nav.new_context(accept_downloads=True, locale="pt-BR",
                                       viewport={"width": 1440, "height": 900})
