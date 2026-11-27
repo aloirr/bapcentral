@@ -672,7 +672,7 @@ def criar_app() -> FastAPI:
         O servidor decide; quem não é admin não recebe nem o botão nem a contagem."""
         ed = t_pc.get("edicao") if isinstance(t_pc, dict) else None
         nv = ed.get("novo") if isinstance(ed, dict) else None
-        if not nv or u["perfil"] not in edicoes.EDITA or not edicoes.pode_editar(u["perfil"], (rid, titulo)):
+        if not nv or not edicoes.pode_criar(u["perfil"], (rid, titulo)):
             return None
         n = edicoes.contagem_novas(sit, titulo, recebido)
         return {"rotulo": nv["rotulo"], "url": f"/farol/{rid}/editar?" + urlencode({"tab": titulo, "novo": "1", "volta": volta}),
@@ -773,7 +773,7 @@ def criar_app() -> FastAPI:
         t, aba = tabela_editavel(rid, tab[:80])
         ed = (t or {}).get("edicao")
         if novo == "1":                                 # linha nova (§10.9.2): só o admin, só onde o pacote traz `edicao.novo`
-            if u["perfil"] not in edicoes.EDITA:
+            if not edicoes.pode_criar(u["perfil"], (rid, tab)):
                 raise PermissionError
             if not (isinstance(ed, dict) and ed.get("novo")):
                 return pagina(request, "erro.html", status=404, titulo_erro=edicoes.TITULO_SEM_NOVO, msg=edicoes.MSG_SEM_NOVO)
@@ -826,7 +826,7 @@ def criar_app() -> FastAPI:
 
     async def editar_novo(request, u, rid, tab, t, aba, ed, f, volta):
         """POST da linha nova (§10.9.2): só o admin; vai só o que difere do `padrao`, mais o ticket; chave NOVO-xxxxxxxx; `antes.ticket`."""
-        if u["perfil"] not in edicoes.EDITA:
+        if not edicoes.pode_criar(u["perfil"], (rid, tab)):
             raise PermissionError
         if not (isinstance(ed, dict) and ed.get("novo")):
             return pagina(request, "erro.html", status=409, titulo_erro=edicoes.TITULO_SEM_NOVO, msg=edicoes.MSG_SEM_NOVO)

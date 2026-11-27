@@ -44,6 +44,11 @@ def pode_editar(perfil: str, lugar: tuple) -> bool:
     return perfil in EDITA_LUGAR.get(tuple(lugar), EDITA)
 
 
+def pode_criar(perfil: str, lugar: tuple) -> bool:
+    """Linha nova só do admin (RN-POS-011, contrato §10.9.2 e §10.9.7): quem está em EDITA e também edita este lugar."""
+    return perfil in EDITA and pode_editar(perfil, lugar)
+
+
 def perfis_do_rid(rid: str) -> tuple:
     """Quem edita algum lugar deste farol (o 403 antes de ler o formulário)."""
     return tuple(dict.fromkeys([p for (r, _t), ps in EDITA_LUGAR.items() if r == rid for p in ps] + list(EDITA)))

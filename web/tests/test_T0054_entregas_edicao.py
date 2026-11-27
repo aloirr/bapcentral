@@ -22,8 +22,12 @@ def ped(admin):
     return admin
 
 
+def _links(html):
+    return [x.replace("&amp;", "&") for x in re.findall(r'class="bt-ed" href="([^"]+)"', html)]
+
+
 def _link(html, n=0):
-    return re.findall(r'class="bt-ed" href="([^"]+)"', html)[n].replace("&amp;", "&")
+    return _links(html)[n]
 
 
 def _form(c, url):
@@ -35,6 +39,17 @@ def _form(c, url):
 def _fila(amb):
     return [json.loads(x) for a in sorted((amb / "edicoes").glob("EDICOES_WEB_*.jsonl"))
             for x in a.read_text(encoding="utf-8").splitlines()]
+
+
+def _fila_vazia(amb):
+    return not (amb / "edicoes").exists() or _fila(amb) == []
+
+
+def test_RN_POS_011_pode_criar():
+    lugar = ("pl_entregas", "x")
+    assert edicoes.pode_criar("admin", lugar)
+    assert not edicoes.pode_criar("pos_venda", lugar)
+    assert not edicoes.pode_criar("gerente", lugar)
 
 
 def test_RN_POS_011_tabela_e_pode_editar():
@@ -67,7 +82,7 @@ def test_RN_POS_011_pos_venda_ve_botao_edita_e_a_fila_leva_o_perfil(ped, amb):
 
 def test_RN_POS_011_pos_venda_edita_pendencias(ped, amb):
     c = _usuario(ped, "t54.posvenda", "pos_venda")
-    links = [x.replace("&amp;", "&") for x in re.findall(r'class="bt-ed" href="([^"]+)"', c.get(URL_ENT).text)]
+    links = _links(c.get(URL_ENT).text)
     pend = [x for x in links if "Pend" in x]
     assert pend
     campos = _form(c, pend[0])
@@ -82,7 +97,7 @@ def test_RN_POS_011_admin_grava_o_perfil_admin(ped, amb):
     assert r.status_code == 303 and _fila(amb)[-1]["perfil"] == "admin"
 
 
-@pytest.mark.parametrize("perfil", ["gerente", "analista"])
+@pytest.mark.parametrize("perfil", ["gerente", "analista", "diretor"])
 def test_RN_POS_011_outros_perfis_sem_edicao_403(ped, amb, perfil):
     link = _link(ped.get(URL_ENT).text)
     campos = _form(ped, link)
@@ -92,7 +107,7 @@ def test_RN_POS_011_outros_perfis_sem_edicao_403(ped, amb, perfil):
     assert c.get(link).status_code == 403
     r = c.post("/farol/pl_entregas/editar", data=dict(campos, csrf=token_form(c, "/senha"), c_etapa="CANCELADA"))
     assert r.status_code == 403
-    assert not (amb / "edicoes").exists() or _fila(amb) == []
+    assert _fila_vazia(amb)
 
 
 def test_RN_POS_011_pos_venda_continua_sem_edicao_nos_outros_lugares(ped, amb):
@@ -106,7 +121,7 @@ def test_RN_POS_011_pos_venda_continua_sem_edicao_nos_outros_lugares(ped, amb):
     campos = _form(ped, _link(ped.get(URL_ENT).text))
     r = c.post("/farol/pl_entregas/editar", data=dict(campos, csrf=token_form(c, "/senha"), tab="Garantias"))
     assert r.status_code == 403
-    assert not (amb / "edicoes").exists() or _fila(amb) == []
+    assert _fila_vazia(amb)
 
 
 def test_RN_GER_018_farol_liberado_nao_da_edicao(ped, amb):
@@ -121,7 +136,7 @@ def test_RN_GER_018_farol_liberado_nao_da_edicao(ped, amb):
     assert html.status_code == 200 and 'class="bt-ed"' not in html.text and "ed-col" not in html.text
     assert c.get(link).status_code == 403
     assert c.post("/farol/pl_entregas/editar", data=dict(campos, csrf=token_form(c, "/senha"))).status_code == 403
-    assert not (amb / "edicoes").exists() or _fila(amb) == []
+    assert _fila_vazia(amb)
 
 
 def test_RN_POS_011_formulario_diz_a_nota_e_o_cliente(ped):
@@ -142,7 +157,7 @@ def test_RN_POS_011_erro_devolve_o_digitado_e_marca_so_o_campo_recusado(ped, amb
     assert "123.456.789-00" not in r.text.split('class="erro"')[1].split("</p>")[1]   # o CPF não volta no campo
     assert r.text.count('aria-invalid="true"') == 1
     assert re.search(r'<input type="text" aria-invalid="true" name="c_responsavel" value=""', r.text)
-    assert not (amb / "edicoes").exists() or _fila(amb) == []
+    assert _fila_vazia(amb)
 
 
 def test_RN_POS_011_dica_da_data_calculada_so_na_prevista(ped):
@@ -170,4 +185,4 @@ def test_RN_POS_011_linha_nova_so_do_admin(ped, amb):
     assert ped.get(url).status_code == 404                # o admin passa do perfil; sem `edicao.novo` no pacote, 404
     r = c.post("/farol/pl_entregas/editar", data={"csrf": token_form(c, "/senha"), "tab": "Entregas", "novo": "1"})
     assert r.status_code == 403
-    assert not (amb / "edicoes").exists() or _fila(amb) == []
+    assert _fila_vazia(amb)
