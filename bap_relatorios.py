@@ -44,6 +44,7 @@ sys.path.insert(0, str(AQUI))
 
 import bap_visual as bv                                  # noqa: E402
 import relatorios_nucleo as rn                           # noqa: E402
+import garantias as gm                                   # noqa: E402
 
 PASTA_EXPORT = AQUI / "RELATORIOS" / "EXPORTADOS"
 # (20/10, Alexandre) os .json de roteirizacao (ROTA_PROTHEUS e
@@ -356,7 +357,10 @@ class _BaseRelatorio:
             t.get("edicao") or {}).get("so_colunas"))
                      for t in rel.get("tabelas", []))
         dicas = (["Duplo clique na linha para editar"] if edita else []) + \
-            (["Duplo clique no pedido para ver os itens"] if pedido else [])
+            (["Duplo clique no pedido para ver os itens"] if pedido else []) \
+            + (["Duplo clique na garantia para ver o detalhe"] if any(
+                VistaTabela._tem_garantia(t, rel)
+                for t in rel.get("tabelas", [])) else [])
         self.rodape.configure(
             text="   ·   ".join([f"Atualizado em {datetime.now():%d/%m/%Y %H:%M}"]
                                 + dicas))
@@ -2357,6 +2361,11 @@ class DialogoTrocaColeta(tk.Toplevel):
 class VistaTabela:
     """Uma aba: filtros (so de tela) + recorte + busca + a tabela."""
 
+    @staticmethod
+    def _tem_garantia(t, rel):
+        """A tabela abre o detalhe da garantia (duplo clique)."""
+        return bool(t.get("garantia") and (rel or {}).get("garantia"))
+
     def __init__(self, pai, t, janela):
         self.t = t
         self.janela = janela
@@ -2474,9 +2483,9 @@ class VistaTabela:
         if (t.get("edicao") or {}).get("novo"):
             ttk.Button(barra, text="Novo", style="Verde.TButton",
                        command=self.novo).pack(side="left", padx=(16, 0))
-        if t.get("garantia") and (janela.rel or {}).get("garantia"):
+        if self._tem_garantia(t, janela.rel):
             # (T-0023, RN-GER-012) a garantia nova e pela BAP Central web
-            ttk.Button(barra, text="Nova garantia", style="Verde.TButton",
+            ttk.Button(barra, text="Nova garantia (na web)",
                        command=lambda: messagebox.showinfo(
                            "Nova garantia", MSG_EDICAO_SO_WEB,
                            parent=self.janela)).pack(
@@ -2611,7 +2620,7 @@ class VistaTabela:
                 else:
                     self.ver_pedido(linha)
             self.tab.ao_duplo_clique = _duplo
-        elif t.get("garantia") and (janela.rel or {}).get("garantia"):
+        elif self._tem_garantia(t, janela.rel):
             self.tab.ao_duplo_clique = self.abrir_garantia   # (14/10)
         elif t.get("edicao"):
             self.tab.ao_duplo_clique = self.editar
@@ -2885,10 +2894,9 @@ class VistaTabela:
         Edicao(self.janela, self, linha, chave, ed)
 
     def abrir_garantia(self, linha):
-        """(14/10) A janela da garantia: detalhe do cliente + edicao."""
+        """(14/10) A janela da garantia: detalhe do cliente e da garantia
+        (so leitura; so o contato se edita, T-0023)."""
         g = self.janela.rel["garantia"]
-        if linha is None:
-            return
         DialogoGarantia(self.janela, g, linha[self.t["garantia"]["i_ticket"]])
 
     def novo(self):
@@ -4213,29 +4221,29 @@ class DialogoGarantia(tk.Toplevel):
     (endereco, bairro, cidade, vendedor, supervisor), embaixo a garantia.
     (T-0023, RN-GER-012) So leitura no PC, menos o CONTATO (nome e telefone),
     que so se edita aqui: o site nao mostra nem recebe telefone (P2 A).
-    Salvar grava so o contato no diario (garantias.py)."""
+    Salvar acrescenta no diario (garantias.py) so as linhas do contato que
+    mudaram; status e fechamento nao sao tocados."""
     # o unico par editavel no PC
-    CAMPOS_PC = ("contato_nome", "contato_fone")
+    CAMPOS_PC = gm.CAMPOS_CONTATO
 
-    CAMPOS = (("ticket", "Ticket", "entry"),      # (06/11) editavel
-              ("dt_solicitacao", "Dt. solicitação", "data"),
-              ("status", "Status", "status"),
-              ("resultado", "Resultado análise", "resultado"),
-              ("cod_produto", "Cód. produto", "produto"),
-              ("descricao", "Descrição produto", "entry"),
-              ("qtd", "Quantidade", "entry"),
-              ("contato_nome", "Contato · nome", "entry"),
-              ("contato_fone", "Contato · telefone", "entry"),
-              ("dt_retorno", "Dt. último retorno", "data"),
+    CAMPOS = (("ticket", "Ticket"),
+              ("dt_solicitacao", "Dt. solicitação"),
+              ("status", "Status"),
+              ("resultado", "Resultado análise"),
+              ("cod_produto", "Cód. produto"),
+              ("descricao", "Descrição produto"),
+              ("qtd", "Quantidade"),
+              ("contato_nome", "Contato · nome"),
+              ("contato_fone", "Contato · telefone"),
+              ("dt_retorno", "Dt. último retorno"),
               # (06/11) o prazo: em branco = solicitação + 15 dias úteis
-              ("dt_prazo", "Dt. fechamento (prazo)", "data"))
+              ("dt_prazo", "Dt. fechamento (prazo)"))
     TEXTOS = (("reclamacao", "Reclamação do cliente"),
               ("pendencias", "Pendências (o que falta)"),
               ("retorno_cliente", "Retorno do cliente"),
               ("observacao", "Observação"))
 
     def __init__(self, janela, g, ticket):
-        import garantias as gm                           # noqa: PLC0415
         super().__init__(janela)
         self.janela, self.g = janela, g
         self.ticket = ticket
@@ -4258,20 +4266,17 @@ class DialogoGarantia(tk.Toplevel):
                  else "FECHADA com atraso") if st.get("fechada") else ""))
             if x))
         cab = bv.Cabecalho(self, "Garantia", f"Ticket {self.ticket}", sub)
-        self.cab = cab
         cab.pack(fill="x")
-        cab.botao("Salvar contato", self.salvar)
+        cab.botao("Salvar contato", self.salvar, verde=True)
         cab.botao("Fechar", self.destroy)
         tk.Frame(self, background=bv.VERDE, height=2).pack(fill="x")
         corpo = tk.Frame(self, background=bv.FUNDO)
         corpo.pack(fill="both", expand=True, padx=16, pady=(8, 10))
-        tk.Label(corpo, text=MSG_EDICAO_SO_WEB + " Aqui só o contato "
-                 "(nome e telefone) se edita.", background=bv.FUNDO,
+        tk.Label(corpo, text=MSG_EDICAO_SO_WEB, background=bv.FUNDO,
                  foreground=bv.SUAVE, font=bv.fonte(8), anchor="w").pack(
             anchor="w", pady=(0, 6))
-        # ---- o CADASTRO do cliente (14/10, Alexandre: editavel, para a
-        # garantia ficar completa). Vem da base; o que mudar aqui fica SO na
-        # garantia (a base de clientes vem do Protheus e nao muda)
+        # ---- o CADASTRO do cliente, so leitura (T-0023): vem da garantia e,
+        # em branco, da base de clientes (corrige-se na BAP Central web)
         info = tk.Frame(corpo, background=bv.CARTAO, highlightthickness=1,
                         highlightbackground=bv.CINZA_LINHA)
         info.pack(fill="x", pady=(0, 10))
@@ -4282,10 +4287,9 @@ class DialogoGarantia(tk.Toplevel):
                                 font=bv.fonte(9, "bold"), anchor="w")
         self.lbl_cli.grid(row=0, column=0, columnspan=4, sticky="w",
                           padx=12, pady=(8, 2))
-        self.vars_cli = {}
         self.vars = {}
-        # (14/10) o COD. CLIENTE e o nome ficam AQUI, no cadastro: digitou o
-        # codigo, o resto vem da base
+        self._vars_leitura = []
+        # (14/10) o COD. CLIENTE e o nome ficam AQUI, no cadastro
         cli_ = dict(g.get("campos_cliente") or ())
         ordem = [("cod_cliente", "Cód. cliente"), ("cliente", "Cliente"),
                  ("cli_fantasia", cli_.get("cli_fantasia", "Fantasia")),
@@ -4306,14 +4310,16 @@ class DialogoGarantia(tk.Toplevel):
             if campo in ("cod_cliente", "cliente"):
                 v = tk.StringVar(value=(d["g"].get(campo) or "").strip())
                 self.vars[campo] = v
-                w = ttk.Entry(info, textvariable=v, state="readonly")
+                w = ttk.Entry(info, textvariable=v, state="readonly",
+                              style="Leitura.TEntry")
                 w.grid(row=lin * 2 + 2, column=colu, sticky="ew", padx=12,
                        pady=(0, 8))
                 continue
             v = tk.StringVar(value=(d["g"].get(campo) or "").strip()
                              or self.base.get(campo, ""))
-            self.vars_cli[campo] = v
-            w = ttk.Entry(info, textvariable=v, state="readonly")
+            self._vars_leitura.append(v)    # guardar a referência: sem ela o Tk perde o texto
+            w = ttk.Entry(info, textvariable=v, state="readonly",
+                          style="Leitura.TEntry")
             w.grid(row=lin * 2 + 2, column=colu, sticky="ew", padx=12,
                    pady=(0, 8))
         for j in range(4):
@@ -4322,10 +4328,14 @@ class DialogoGarantia(tk.Toplevel):
         grade = tk.Frame(corpo, background=bv.FUNDO)
         grade.pack(fill="x")
         gd = d["g"]
-        for n, (campo, rot, tipo) in enumerate(self.CAMPOS):
+        for n, (campo, rot) in enumerate(self.CAMPOS):
             lin, colu = divmod(n, 4)
-            tk.Label(grade, text=rot, background=bv.FUNDO,
-                     foreground=bv.SUAVE, font=bv.fonte(8), anchor="w").grid(
+            ed_ = campo in self.CAMPOS_PC
+            tk.Label(grade, text=rot + (" ✎ editável" if ed_ else ""),
+                     background=bv.FUNDO,
+                     foreground=bv.VERDE_ESCURO if ed_ else bv.SUAVE,
+                     font=bv.fonte(8, "bold") if ed_ else bv.fonte(8),
+                     anchor="w").grid(
                 row=lin * 2, column=colu, sticky="w", padx=(0, 14))
             padrao = {"ticket": self.ticket}.get(campo, "")
             if campo == "dt_prazo":     # (06/11) mostra o prazo padrao (RN-POS-005)
@@ -4336,16 +4346,16 @@ class DialogoGarantia(tk.Toplevel):
                 padrao = rn.prazo_padrao_txt(gd.get("dt_solicitacao"), fer)
             v = tk.StringVar(value=gd.get(campo) or padrao)
             self.vars[campo] = v
-            editavel = campo in self.CAMPOS_PC
             w = ttk.Entry(grade, textvariable=v,
-                          state="normal" if editavel else "readonly")
+                          state="normal" if ed_ else "readonly",
+                          style="Contato.TEntry" if ed_
+                          else "Leitura.TEntry")
             w.grid(row=lin * 2 + 1, column=colu, sticky="ew",
                    padx=(0, 14), pady=(0, 8))
         for j in range(4):
             grade.columnconfigure(j, weight=1, uniform="g")
         textos = tk.Frame(corpo, background=bv.FUNDO)
         textos.pack(fill="both", expand=True)
-        self.textos = {}
         for n, (campo, rot) in enumerate(self.TEXTOS):
             lin, colu = divmod(n, 2)
             fr = tk.Frame(textos, background=bv.FUNDO)
@@ -4354,11 +4364,12 @@ class DialogoGarantia(tk.Toplevel):
             tk.Label(fr, text=rot, background=bv.FUNDO, foreground=bv.SUAVE,
                      font=bv.fonte(8), anchor="w").pack(anchor="w")
             tx = tk.Text(fr, height=5, wrap="word", font=bv.fonte(9),
-                         relief="solid", borderwidth=1)
+                         relief="flat", borderwidth=0,
+                         background=bv.FUNDO, highlightthickness=1,
+                         highlightbackground=bv.CINZA_LINHA)
             tx.insert("1.0", gd.get(campo) or "")
             tx.configure(state="disabled")                # so leitura
             tx.pack(fill="both", expand=True)
-            self.textos[campo] = tx
         for j in range(2):
             textos.columnconfigure(j, weight=1, uniform="t")
             textos.rowconfigure(j, weight=1)
@@ -4380,34 +4391,18 @@ class DialogoGarantia(tk.Toplevel):
             return f"Cadastro do cliente · {cod} - {nome}"
         if cod:
             return f"Cadastro do cliente · {cod} (fora da base)"
-        return "Cadastro do cliente · sem código: preencha à mão"
-
-    def _trocou_cliente(self):
-        """Cod. cliente novo: o cadastro vem da base nos campos que ainda
-        estavam como a base antiga (ou vazios); o que a assistente ja
-        corrigiu fica."""
-        cod = self.vars["cod_cliente"].get().strip()
-        if cod == self.base.get("_cod", None):
-            return
-        novo = dict(self.g["cliente_base"](cod) or {})
-        novo["_cod"] = cod
-        for k, v in self.vars_cli.items():
-            atual = v.get().strip()
-            if not atual or atual == (self.base.get(k) or "").strip():
-                v.set(novo.get(k, ""))
-        if novo.get("_nome") and not self.vars["cliente"].get().strip():
-            self.vars["cliente"].set(novo["_nome"])
-        self.base = novo
-        self.lbl_cli.configure(text=self._titulo_cliente())
+        return "Cadastro do cliente · sem código"
 
     def salvar(self):
         """So o contato (nome e telefone) grava no PC (RN-GER-012)."""
-        import garantias as gm                           # noqa: PLC0415
-        campos = {k: self.vars[k].get().strip() for k in self.CAMPOS_PC}
         try:
-            n = gm.gravar(AQUI, self.ticket, campos)
+            n = gm.gravar_contato(AQUI, self.ticket, {
+                k: self.vars[k].get() for k in gm.CAMPOS_CONTATO})
         except OSError as erro:
             messagebox.showerror("Garantia", str(erro), parent=self)
+            return
+        if not n:
+            self.lbl.configure(text="Nada mudou", foreground=bv.SUAVE)
             return
         self.lbl.configure(text=f"Salvo · {n} campo(s) alterado(s)",
                            foreground=bv.VERDE_ESCURO)

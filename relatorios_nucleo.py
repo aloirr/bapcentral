@@ -7833,20 +7833,10 @@ def garantias(ctx):
             "Vendedor": c.get("vend_nome", ""),
             "Supervisor": c.get("supervisor", "")}}
 
-    def produto(cod):
-        return ctx.produto(texto(cod))
-    cls_ = ctx.base["clientes"]
-    opcoes = {k: sorted({texto(c.get(f)) for c in cls_} - {""})
-              for k, f in (("cli_cidade", "cidade"), ("cli_uf", "uf"),
-                           ("cli_bairro", "bairro"),
-                           ("cli_vendedor", "vend_nome"),
-                           ("cli_supervisor", "supervisor"))}
-    r["garantia"] = {"dados": dados_da_garantia, "produto": produto,
-                     "status": gm.STATUS, "resultados": gm.RESULTADOS,
-                     "cliente_base": cliente_base, "opcoes": opcoes,
+    r["garantia"] = {"dados": dados_da_garantia,
                      "campos_cliente": gm.CAMPOS_CLIENTE}
     if not dados:
-        r["avisos"].append("Nenhuma garantia registrada: use Nova garantia.")
+        r["avisos"].append("Nenhuma garantia registrada.")
     return r
 
 

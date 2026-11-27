@@ -26,11 +26,10 @@ def test_painel_no_bc3_com_faixa_abas_e_cartoes(com_painel):
         assert '<body class="bc3">' in h and 'class="bc3-lado"' in h and 'class="bc3-faixa"' in h
         assert h.count("<h1>Painel Executivo") == 1 and "Painel do Diretor" not in h           # RD-0038
         assert 'class="topo"' not in h and "BAP Central web v" not in h and 'class="menu"' not in h  # sem o visual antigo
-        faixa = h.split('class="bc3-ks"')[1].split("</header>")[0]
+        assert 'class="bc3-ks"' not in h                                             # T-0052: a faixa da aba RRM não leva números
         for n in ("FATURAMENTO LÍQUIDO · PROJ.", "R$ 165 mil", "POSITIVAÇÃO", "PEDIDOS FATURADOS · PROJ."):
-            assert n in faixa, n
-        assert "MTD" not in faixa                                                    # RD-0063: os anéis ficam só no cartão
-        assert "rc-valor" not in h and h.count("R$ 165 mil") == 1                    # U1: o número grande, uma vez só (na faixa)
+            assert n in h, n                                                         # os títulos e o valor estão nos cartões
+        assert h.count("rc-valor") == 3 and h.count("R$ 165 mil") == 1               # U1: o número grande, uma vez só (no cartão)
         assert re.search(r'class="d-pc">\d\d/\d\d/\d{4} \d\d:\d\d', h) and "Dados de" not in re.sub(r'title="[^"]*"', "", h)   # §4.1: só a data; o texto vai no title
         assert h.count("<article") == 3 and "R$ 87,0 mil" in h                          # os cartões RRM seguem no corpo
         abas = re.search(r'<nav class="bc3-abas"[^>]*>(.*?)</nav>', h, re.S).group(1)
@@ -145,19 +144,34 @@ def test_regra_das_3_abas_no_celular_e_uma_so():
     assert render.abas_no_celular(list("abcde"), "d") == [0, 1, 3] and render.abas_no_celular(list("abc"), "x") == [0, 1, 2]
 
 
-def test_cartoes_alem_dos_3_da_faixa_mantem_numero_e_legenda(admin):
-    # R1: o PC manda 10 cartões no Resultado; só os 3 primeiros têm o número na faixa. O 4º e o 10º mostram o valor no cartão.
+def test_todos_os_cartoes_do_resultado_mostram_numero_e_legenda(admin):
+    # R1 / T-0052: o PC manda 10 cartões no Resultado; todos mostram o valor no cartão (nenhum vai para a faixa).
     from conftest import _cartao, pacote_ficticio
     p = pacote_ficticio()
     res = p["relatorios"]["vc_painel"]["abas"]["resultado"]["painel"]["blocos"][0]["dados"]["res"]
     res += [_cartao(f"Cartão extra {k}", f"R$ {k},00 extra", f"legenda {k}", [("MÊS", 50.0, "x")]) for k in range(4, 11)]
     assert len(res) == 10 and postar(admin, p).status_code == 200
     h = admin.get("/painel").text
-    assert h.count("rc-valor") == 7                                                   # só do 4º ao 10º
+    assert h.count("rc-valor") == 10                                                  # um por cartão
     assert 'class="rc-valor">R$ 4,00 extra<' in h and 'class="rc-valor">R$ 10,00 extra<' in h
-    assert 'class="rc-leg">legenda 4<' in h and 'class="rc-leg">legenda 10<' in h
-    faixa = h.split('class="bc3-ks"')[1].split("</header>")[0]
-    assert "R$ 165 mil" in faixa and "extra" not in faixa and h.count("R$ 165 mil") == 1   # os 3 primeiros: número só na faixa
+    assert '>legenda 4</div>' in h and '>legenda 10</div>' in h
+
+
+def test_T0052_todo_cartao_tem_valor_legenda_reservada_e_faixa(admin):
+    # T-0052: mesma estrutura em todos os cartões; legenda e faixa reservadas mesmo vazias; faixa do topo sem números
+    from conftest import _cartao, pacote_ficticio
+    p = pacote_ficticio()
+    res = p["relatorios"]["vc_painel"]["abas"]["resultado"]["painel"]["blocos"][0]["dados"]["res"]
+    res.append(_cartao("Sem faixa", "R$ 7,00", "", faixa=[]))
+    assert postar(admin, p).status_code == 200
+    h = admin.get("/painel").text
+    cartoes = re.findall(r"<article class=\"rc\">.*?</article>", h, re.S)
+    assert len(cartoes) == 4
+    for a in cartoes:
+        assert 'class="rc-valor"' in a and 'class="rc-leg"' in a
+    assert [('class="rc-faixa vazia"' in a) for a in cartoes] == [False, False, False, True]
+    assert all(('class="rc-faixa"' in a) or ('rc-faixa vazia' in a) for a in cartoes)
+    assert render.faixa_painel(None) == []
 
 
 def test_perfis_do_painel_numa_constante_so():
@@ -180,9 +194,9 @@ def test_dias_uteis_do_mes_fechado_e_o_css_do_numero_do_cartao():
     aba = lambda sub: [{"visao": "res", "dados": {"sub": {"res": sub}}}]
     assert render.du_do_painel(aba("outubro fechado (22 dias úteis)")) == "22 DU · mês fechado"
     assert render.du_do_painel(aba("visão absoluta · novembro até 19/11 (13 de 19 dias úteis)")) == "13 de 19 DU"
-    # U10: enquanto o template usar `rc-valor` e `rc-leg`, o CSS tem as duas regras (o número do 4º cartão em diante é o maior)
+    # U10: enquanto o template usar `rc-valor` e `rc-leg`, o CSS tem as duas regras
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
-    assert ".rc-valor{" in css and "font-size:1.5rem;font-weight:700" in css and ".rc-leg{" in css
+    assert ".rc-valor{" in css and "clamp(1.125rem,5.2vw,1.375rem);font-weight:700" in css and ".rc-leg{" in css
     assert "minmax(380px,1fr)" in css                                           # U12: a linha seguinte aparece sem cortar cartão
 
 
@@ -220,3 +234,19 @@ def test_lateral_com_lista_que_rola_e_pe_sempre_visivel(admin):
     assert lado.index('class="bc3-nav"') < lado.index("</nav>") < lado.index('class="bc3-eu"')
     css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
     assert ".bc3-nav{flex:1 1 auto;min-height:0;overflow-y:auto" in css and ".rc-faixa b{font-weight:700;white-space:nowrap}" in css
+
+
+def test_T0052_css_do_celular_desfaz_as_reservas_e_o_valor_tem_teto_de_22px():
+    # T-0052: até 600 px não há linha para alinhar (faixa vazia some, legenda e topo sem altura fixa); o valor nunca passa de 22 px
+    css = (Path(__file__).resolve().parents[1] / "app" / "static" / "estilo.css").read_text(encoding="utf-8")
+    cel = css.split("@media(max-width:600px){")[1]
+    assert ".rc-faixa.vazia{display:none}" in cel and ".rc-leg:empty{display:none}" in cel
+    assert ".rrm:not(.rrm-recorte) .rc-topo{height:auto}" in cel
+    assert "clamp(1.125rem,5.2vw,1.375rem)" in css
+
+
+def test_T0052_legenda_so_com_numero_proprio():
+    # RD-0238: "projeção do mês" sozinha repete o rótulo do cartão e some; com número fica
+    assert render.legenda_do_cartao("projeção do mês") == "" and render.legenda_do_cartao(None) == ""
+    assert render.legenda_do_cartao("projeção do mês R$ 190 mil") == "projeção do mês R$ 190 mil"
+    assert render.legenda_do_cartao("projeção do mês 66") == "projeção do mês 66"

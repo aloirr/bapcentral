@@ -1078,9 +1078,10 @@ Donos:
 
 **Teto do texto, um lugar só:** `relatorios_nucleo.MAX_TEXTO_EDICAO`, `{(módulo, campo): int}` (modulo-farois).
 - O núcleo põe esse número no `max` da `edicao`.
-- O robô confere a edição contra o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`).
-- `max` do pacote diferente do número do núcleo = edição recusada, com `MOTIVO_TEXTO_WEB`.
-- A frase passa a ser "texto inválido (até {max} caracteres, sem CPF, CNPJ, telefone ou e-mail)", com o `max` do campo.
+- O robô usa o mesmo número (ele importa o núcleo, como já faz com o `_edicao_autorizacao`), em dois momentos:
+  1. **Na montagem do pacote** (`bap_automation.edicao_web`, chamada pela `_tabela_web7`): o `max` da `edicao` do PC (sem ele, `relatorios_nucleo.MAX_TEXTO_PADRAO`) diferente de `relatorios_nucleo.max_texto_edicao(módulo, campo)` levanta `ValueError`. A tabela vai ao pacote **sem a chave `edicao`** (fica só de leitura) e o log ganha um aviso com o farol e a tabela, sem dado pessoal. Nada chega ao site para recusar.
+  2. **Na hora de aplicar a edição** (`bap_automation.validar_edicao_web`, chamada pela `aplicar_edicao_web`): o texto que passa de `max_texto_edicao(módulo, campo)` é recusado com o motivo de `bap_automation.motivo_texto_web(maximo)`, com o teto do campo.
+- A frase é "texto inválido (até {maximo} caracteres, sem CPF, CNPJ, telefone ou e-mail)"; sem `maximo` (`None`), o teto é o padrão do núcleo (`relatorios_nucleo.MAX_TEXTO_PADRAO`).
 - A web corta o valor bruto em `max` + 100 caracteres (hoje, 200 fixos).
 
 **Regras do texto livre**, na web e no robô:
@@ -1283,6 +1284,32 @@ O aviso do PC "Parâmetros alterados em ... por ..." sai dos `avisos` do farol (
 
 Cada merge no `main` reinicia as 2 h do limite 1 da ADR 0002. Um merge entre 04h30 e 06h30 só adia a instalação para o dia seguinte; ele não troca nada pela metade.
 
+#### 10.9.7 Quem edita, por lugar (T-0054)
+
+Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.** Fontes: R-20261127-100158-alexandre, P1 A e P2 A do R-20261127-103925-alexandre, RN-POS-010 e RN-POS-011. Desenho: `docs/desenho/T-0054.md`.
+
+- **Padrão:** o da RN-GER-012. Só o perfil `admin` edita (`edicoes.EDITA`).
+- **Exceção por lugar:** a mesma tabela na web (`edicoes.EDITA_LUGAR`) e no robô (`bap_automation.EDITA_LUGAR_WEB`). Um teste do `testes` confere que as duas são iguais a esta.
+
+| `(rid, tabela)` | Perfis que editam |
+|---|---|
+| `("pl_entregas", "Entregas")` | `admin`, `pos_venda` |
+| `("pl_entregas", "Pendências dos meses anteriores")` | `admin`, `pos_venda` |
+| `("pl_fretes", "Notas com frete")` | `admin`, `pos_venda` (RN-POS-010; vale quando o lugar entrar em `LUGARES` e `EDICOES_WEB`) |
+
+- **Na web:** `edicoes.pode_editar(perfil, lugar)`, com `lugar = (rid, tabela)`, = `perfil in EDITA_LUGAR.get(lugar, EDITA)`. É a única pergunta, e vale para:
+  - o botão da linha e a coluna de ação;
+  - o `GET` e o `POST /farol/<rid>/editar`. É 403 para os outros perfis. O `POST` confere antes de ler o formulário se o perfil edita algum lugar do `rid`; depois, confere o lugar do `tab`;
+  - o motivo do "O PC recusou" na dica, que quem edita vê.
+- **O perfil é o do usuário**, não o do acesso por usuário (RN-GER-018). Num farol liberado a outro perfil, o usuário vê só o Resumo, sem editar. O `pos_venda` sem o `pl_entregas` na lista leva 403, como hoje.
+- **Sem mudança:** a linha nova (§10.9.2) continua só do admin. O pacote, os campos, os tetos e a gravação também não mudam (§10.9.1 e §10.9.3).
+- **Fila:** o registro `edicao` ganha a chave opcional `perfil` (`str`, um dos `usuarios.PERFIS`). A web a grava no envio, e o `GET /api/edicoes` a passa como veio.
+- **Robô** (`validar_edicao_web`):
+  - registro com `perfil` fora de `EDITA_LUGAR_WEB.get(lugar, ("admin",))`: vai a `erro`, com `MOTIVO_PERFIL_WEB` = "perfil sem edição neste farol", e nada é gravado;
+  - registro sem `perfil` (de antes da T-0054): aceito, como hoje;
+  - o `APLICADAS_WEB_<máquina>.jsonl` ganha a chave `perfil_web`.
+- **Ordem:** a web e o robô entram em qualquer ordem. O robô velho ignora o `perfil`, e a web velha não o manda.
+
 ### 10.10 Os faróis novos no site: Garantias, Devoluções, NCC, DDR, Campanhas e Expositores (T-0023 v2, T-0025 v2)
 
 Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.**
@@ -1388,7 +1415,12 @@ Acrescentada em 27/11/2026. **Acréscimo compatível: o contrato continua na v1.
   - `cliente_sem_documento`: `CLIENTE` das Devoluções e do "Por cliente (12 meses)";
   - `nome_sem_contato`: `CLIENTE` das Garantias, que é digitado.
 - **Texto livre** (`texto_sem_contato`, D6 A do §10.7.9): `MOTIVO`, `PENDÊNCIAS`, `RETORNO DO CLIENTE`, `RECLAMAÇÃO`, `OBSERVAÇÃO` e `OBSERVAÇÕES`. O texto que voltou com "[removido]" não pode ser gravado por cima do original (§10.9.1, regra 4).
-- **Nunca vão** (fora da lista branca do §10.1): `garantia`, `campanha_export` e `detalhe_pedido`. O `_champions` e o `editar` já saem pelo §10.1. O `testes` procura essas chaves e os padrões do bloco `padroes-pessoais` (§10.9.1) no JSON de cada farol.
+- **Nunca vão** (fora da lista branca do §10.1): `garantia`, `campanha_export` e `detalhe_pedido`. O `_champions` e o `editar` já saem pelo §10.1.
+- **Onde o `testes` procura** (no JSON de cada farol):
+  - **as chaves acima:** em qualquer nível;
+  - **`EMAIL`, `DOC_MEIO` e `DOC_SOLTO`** (bloco `padroes-pessoais`, §10.9.1): em **toda string** do farol (célula, total, cartão, aviso, rótulo e chave). A exceção é o código de produto só com dígitos nas colunas de código, `CÓD. PRODUTO` e `PRODUTO`: ali é código do ERP, não documento;
+  - **número:** só reprova o inteiro de 11 ou 14 dígitos fora das colunas de código. Um número com casas decimais não passa pelos padrões de texto (o `97.35000000000001` de uma moeda não é documento);
+  - **`FONE`:** só nas colunas de texto livre e nas colunas "limpa" desta seção. Em data ISO e em valor, ele casaria por engano.
 - **Nome da equipe:** `VENDEDOR`, `SUPERVISOR`, `AUX. TÉCNICO`, `JOGADOR`, o nome da assistente no título do DDR e os nomes da config das Campanhas vão ("2 A").
 
 #### 10.10.4 Tamanho e cortes
