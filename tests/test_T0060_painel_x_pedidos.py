@@ -814,3 +814,54 @@ def test_RN_GER_007_rv_ate_ontem_com_hoje_zero_igual_a_rv_do_acompanhamento(
                     nivel, linha.get("chave"), k)
             n += 1
     assert n > 0
+
+
+# --------------------------- 17 meta_nucleo.fechar_atingimentos (puro)
+def test_RN_GER_007_fechar_atingimentos_casos_e_retorno():
+    """fechar_atingimentos(linha, dias_rh): devolve a mesma linha com os
+    atingimentos de RH, positivação e visita; meta_rh vazia cai na meta;
+    nec_fat_rh só com dias_rh (0 vira None; sem dias_rh fica como estava)."""
+    base_l = {"realizado": 600.0, "meta": 1200.0, "meta_rh": 1000.0,
+              "positivados": 9, "meta_positivacao": 12,
+              "visitas_realizadas": 45, "meta_visita": 60}
+    l = dict(base_l)
+    assert mn.fechar_atingimentos(l, 2) is l
+    assert l["atingimento_rh"] == pytest.approx(60.0)
+    assert l["falta_rh"] == pytest.approx(400.0)
+    assert l["nec_fat_rh"] == pytest.approx(200.0)          # 400 ÷ 2 DU (B)
+    assert l["atingimento_positivacao"] == pytest.approx(75.0)
+    assert l["atingimento_visita"] == pytest.approx(75.0)
+    # meta_rh vazia: cai para a meta (comercial)
+    l = mn.fechar_atingimentos(dict(base_l, meta_rh=None), 2)
+    assert l["meta_rh"] == 1200.0
+    assert l["atingimento_rh"] == pytest.approx(50.0)
+    # dias_rh = 0: nec_fat_rh None; sem dias_rh: não cria nem mexe
+    assert mn.fechar_atingimentos(dict(base_l), 0)["nec_fat_rh"] is None
+    assert "nec_fat_rh" not in mn.fechar_atingimentos(dict(base_l))
+    assert mn.fechar_atingimentos(dict(base_l, nec_fat_rh=7.0))[
+        "nec_fat_rh"] == 7.0
+    # visita sem meta ou sem real: None
+    assert mn.fechar_atingimentos(dict(base_l, meta_visita=None))[
+        "atingimento_visita"] is None
+    assert mn.fechar_atingimentos(dict(base_l, visitas_realizadas=None))[
+        "atingimento_visita"] is None
+
+
+def test_RN_GER_007_fechar_atingimentos_igual_ao_que_o_acompanhar_grava():
+    """Base congelada: refazer os atingimentos de cada linha (vendedor e
+    supervisor) com fechar_atingimentos(dias_restantes_b) dá o mesmo que o
+    meta_nucleo.acompanhar gravou. Só códigos e valores, sem nome."""
+    ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
+    ac = rn.meta_do_periodo(ctx)["acomp"]
+    dias_b = ac["dias_restantes_b"]
+    chaves = ("atingimento_rh", "falta_rh", "meta_rh", "nec_fat_rh",
+              "atingimento_positivacao", "atingimento_visita")
+    n = 0
+    for nivel in ("vendedor", "supervisor"):
+        for linha in ac["recortes"][nivel]:
+            novo = mn.fechar_atingimentos(dict(linha), dias_b)
+            for k in chaves:
+                assert novo.get(k) == pytest.approx(linha.get(k)), (
+                    nivel, linha.get("chave"), k)
+            n += 1
+    assert n > 0
