@@ -3280,6 +3280,12 @@ def _meta_do_gap(linha: dict, chave: str):
     return valor
 
 
+def _fechar_positivacao(linha: dict) -> None:
+    meta = linha.get("meta_positivacao")
+    linha["atingimento_positivacao"] = (
+        (linha.get("positivados") or 0) / meta * 100.0 if meta else 0.0)
+
+
 def _fechar_rh(linha: dict, dias: int) -> None:
     """(`dias` e a contagem com hoje fora.) A META RH de faturamento contra o mesmo realizado: atingimento,
     falta e NEC./DIA. E por ela que a RV de faturamento paga."""
@@ -3290,6 +3296,27 @@ def _fechar_rh(linha: dict, dias: int) -> None:
     linha["atingimento_rh"] = (real / meta * 100.0) if meta else 0.0
     linha["falta_rh"] = meta - real
     linha["nec_fat_rh"] = (max(0.0, meta - real) / dias) if dias else None
+
+
+def fechar_atingimentos(linha: dict, dias_rh: int = None) -> dict:
+    """Pura (so mexe na propria `linha`). Recalcula os atingimentos a partir dos reais.
+    Le: realizado, meta, meta_rh, positivados, meta_positivacao, visitas_realizadas, meta_visita.
+    Escreve: atingimento_rh, falta_rh, meta_rh (se vazia), atingimento_positivacao,
+    atingimento_visita (None sem meta ou sem real) e, so com `dias_rh`
+    informado (hoje fora; 0 vira None), nec_fat_rh."""
+    _fechar_positivacao(linha)
+    _fechar_visita(linha)
+    if dias_rh is None:
+        tinha = "nec_fat_rh" in linha
+        nec = linha.get("nec_fat_rh")
+        _fechar_rh(linha, 1)
+        if tinha:
+            linha["nec_fat_rh"] = nec
+        else:
+            del linha["nec_fat_rh"]
+    else:
+        _fechar_rh(linha, dias_rh)
+    return linha
 
 
 def _fechar_gaps(linha: dict, dias: int, dias_visita: int = None) -> None:
@@ -3996,9 +4023,7 @@ def acompanhar(resultado: dict, realizado: dict, visitas=None,
                     linha["cadastros_com_compra"] / linha["cadastros_no_mes"]
                     * 100.0 if linha.get("cadastros_no_mes") else 0.0)
                 _refechar_acompanhamento(linha)
-            linha["atingimento_positivacao"] = (
-                linha["positivados"] / linha["meta_positivacao"] * 100.0
-                if linha["meta_positivacao"] else 0.0)
+            _fechar_positivacao(linha)
             _fechar_visita(linha)
             _fechar_cadastro(linha)
             _refechar_acompanhamento(linha)
@@ -4081,9 +4106,7 @@ def _fechar_acompanhamento(rotulo: str, grupo: list) -> dict:
     linha["falta"] = linha["meta"] - linha["realizado"]
     linha["atingimento"] = (linha["realizado"] / linha["meta"] * 100.0
                             if linha["meta"] else 0.0)
-    linha["atingimento_positivacao"] = (
-        linha["positivados"] / linha["meta_positivacao"] * 100.0
-        if linha["meta_positivacao"] else 0.0)
+    _fechar_positivacao(linha)
     _fechar_cadastro(linha)
     for k, _, _ in CATEGORIAS:
         linha[f"real_{k}"] = sum(c[f"real_{k}"] for c in grupo)
@@ -4233,9 +4256,7 @@ def _total_acompanhamento(linhas: list) -> dict:
     for k, _, _ in CATEGORIAS:
         soma[f"real_{k}"] = sum(l.get(f"real_{k}") or 0 for l in linhas)
     soma["fora_do_planner"] = False
-    soma["atingimento_positivacao"] = (
-        soma["positivados"] / soma["meta_positivacao"] * 100.0
-        if soma["meta_positivacao"] else 0.0)
+    _fechar_positivacao(soma)
     _refechar_acompanhamento(soma)
     return soma
 
