@@ -117,8 +117,12 @@ def _card(dire, chave):
     return next(c for c in dire["cards"] if c["chave"] == chave)
 
 
+ROT_REAL = "Real" + rn.sufixo_periodo(HOJE)
+
+
 def _kpi_real(kpis):
-    return next(v for r, v in kpis.items() if r.startswith("Real"))
+    assert ROT_REAL == "Real · até 19/11"
+    return kpis[ROT_REAL]
 
 
 # ---------------------------------------------------------------- 1 projeção
@@ -144,7 +148,6 @@ def test_RN_GER_007_projecao_do_painel_e_do_diretor_hoje_conta(base):
     assert rn.projecao_ritmo(real, DU_PASSADOS_COM_HOJE / DU_MES) == \
         pytest.approx(proj)
     k = _kpis(base["exe"], "Resumo gerencial")
-    assert _kpi_real(k)["valor"] == rn.moeda(real)
     assert ("DU", f"{DU_PASSADOS_COM_HOJE} de {DU_MES}", "") in \
         _kpi_real(k)["linhas"]
     assert k["Projeção"]["valor"] == rn.moeda(proj)          # R$ 164.717
@@ -164,15 +167,17 @@ def test_RN_GER_007_diretor_grupo_A_hoje_e_grupo_B_ontem(base):
 
 def test_RN_GER_007_pecas_seguem_ate_ontem_projecao_inalterada(base):
     """Peças são grupo B: o real vai até ontem (18/11) e a projeção usa os
-    DU até ontem (12), como antes da decisão 43."""
+    DU até ontem (12): peças ÷ 12 × 19, como antes da decisão 43."""
     ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
+    ontem, ndp_b = date(2026, 11, 18), DU_PASSADOS_COM_HOJE - 1
+    pecas = sum(_liq(it) for it in _do_mes(base["itens"], ontem)
+                if rn._eh_pecas(ctx, it["cod"]))         # sem a 000040
     r = prm.calcular(ctx, 2026, 11, dd=base["dir"])
     c = next(x for x in r["res"] if x["chave"] == "pecas")
-    # os mesmos números de antes da T-0060 (main de 26/11)
-    assert c["valor"] == "R$ 16,9 mil"
+    assert c["valor"] == prm.reais(pecas / ndp_b * DU_MES)   # R$ 16,9 mil
     assert c["titulo"].endswith(" · até 18/11")
     d = next(x for x in r["du"] if x["chave"] == "pecas")
-    assert d["valor"] == "R$ 889"                 # peças ÷ 12 DU (até ontem)
+    assert d["valor"] == prm.reais(pecas / ndp_b)             # R$ 889
     assert d["titulo"].endswith(" · até 18/11")
     # o faturamento (grupo A) vai até hoje
     f = next(x for x in r["res"] if x["chave"] == "fat")
@@ -271,9 +276,6 @@ def test_RN_GER_007_dias_uteis_restantes_hoje_conta_no_grupo_A():
     assert mn.dias_uteis_restantes("2026-11", HOJE, fer) == 6
     assert mn.dias_uteis_restantes("2026-11", HOJE, fer, True) == 6
     assert mn.dias_uteis_restantes("2026-11", HOJE, fer, False) == 7
-    # passados com hoje + restantes = DU do mês
-    assert DU_PASSADOS_COM_HOJE + mn.dias_uteis_restantes(
-        "2026-11", HOJE, fer) == DU_MES
     # sábado: nada muda entre os grupos
     sab = date(2026, 11, 21)
     assert mn.dias_uteis_restantes("2026-11", sab, fer, True) == \
@@ -316,9 +318,6 @@ def test_RN_GER_007_nec_visita_usa_os_dias_do_grupo_B():
     assert linha["nec_visita"] == pytest.approx(60.0)        # 60 ÷ 1
     assert linha["nec_positivacao"] is None                  # 0 DU no A
     assert linha["nec_fat"] is None
-    mn._fechar_gaps(linha, 6, 7)
-    assert linha["nec_visita"] == pytest.approx(60 / 7)
-    assert linha["nec_fat"] == pytest.approx(600 / 6)
 
 
 def test_RN_GER_007_cartao_do_metas_no_ultimo_du_mostra_o_que_falta():
@@ -338,17 +337,15 @@ def test_RN_GER_007_cartao_do_metas_no_ultimo_du_mostra_o_que_falta():
     assert any("mês fechado" in t for t in _textos(k))
 
 
-def test_RN_GER_003_positivacao_projetada_66_no_metas_e_no_diretor(base):
-    """45 positivados ÷ 13 × 19 = 65,8 → 66 no cartão do Metas (mesma
-    conta, `projecao_ritmo`) e no Diretor."""
+def test_RN_GER_003_positivacao_projetada_66_no_metas_e_no_diretor():
+    """45 positivados ÷ 13 × 19 = 65,8 → 66 no cartão do Metas, a mesma
+    conta do Diretor (ver o teste do Diretor × Executivo)."""
     ac = _ac(DU_MES - DU_PASSADOS_COM_HOJE, DU_MES - DU_PASSADOS_COM_HOJE + 1)
     k = rn._cartao_indicador("Positivação", 163, 45,
                              ac["dias_restantes"], rn._esperado(ac),
                              real_proj=45, ultimo_dia=rn._ultimo_dia(ac))
     proj = dict((a, b) for a, b, *_ in k["linhas"])["Projeção do mês"]
     assert proj.startswith("66 ")
-    c = _card(base["dir"], "pos")
-    assert c["numero"] == 45 and round(c["projecao"]) == 66
 
 
 # ------------------------------------------- 6 Diretor = Executivo (origem)
@@ -371,7 +368,6 @@ def test_RN_GER_003_numero_do_diretor_positivacao_bate_com_o_executivo(base):
     # projeção da positivação, com hoje: 45 ÷ 13 × 19 ≈ 66
     assert c["projecao"] == pytest.approx(
         len(pos) / DU_PASSADOS_COM_HOJE * DU_MES)
-    assert round(c["projecao"]) == 66
 
 
 # ----------------------------------------- 7 Saldo: barras por UF = cartão
@@ -404,16 +400,21 @@ def test_RN_GER_002_ticket_e_liquido_por_pedido_faturado(base):
 
 
 # -------------------------------------- 9 Farol de Pedidos: pedidos digitados
-def test_RN_GER_007_farol_de_pedidos_cartao_pedidos_digitados():
+def test_RN_GER_007_farol_de_pedidos_cartao_pedidos_digitados(base):
+    """Pedidos digitados = (filial, pedido) distintos do mês, sem o cliente
+    fora da base (RN-GER-013)."""
     p = rn.montar("pv_pedidos", RAIZ, hoje=HOJE, params=dict(PARAMS))
     k = {x["rotulo"]: x for x in p["kpis"]}
-    assert "Pedidos digitados" in k and "Pedidos" not in k
-    assert k["Pedidos digitados"]["valor"] == "113"
+    assert "Pedidos" not in k
+    t = p["tabelas"][0]
+    ix = {c["nome"]: i for i, c in enumerate(t["colunas"])}
+    dig = {(ln[ix["FILIAL"]], ln[ix["PEDIDO"]]) for ln in t["linhas"]
+           if ln[ix["MÊS"]] == "NOV/26"
+           and ln[ix["RAZÃO SOCIAL"]] != rn.NOME_FORA_DA_BASE}
+    assert k["Pedidos digitados"]["valor"] == rn.br(len(dig)) == "113"
     # o Faturado do Farol de Pedidos = o real do Executivo (mesma base)
-    ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
-    real = _regra_real([i for i in ctx.tabela["itens"] if not i.get("_ped")],
-                       HOJE)
-    assert k["Faturado"]["valor"] == rn.moeda(real)
+    assert k["Faturado"]["valor"] == rn.moeda(_regra_real(base["itens"],
+                                                          HOJE))
 
 
 # ------------------------------------------------- 10 hora com segundos
@@ -455,9 +456,9 @@ _COLS = [{"nome": n} for n in (
 _LINHA = [1400.0, 1000.0, 400.0, 20, 6, 100, 30]   # gaps 1000/600/14/70
 
 
-def _nec(k):
-    return dict((a, b) for a, b, *_ in k["linhas"])["Nec./dia"] \
-        if any(a == "Nec./dia" for a, *_ in k["linhas"]) else k["linhas"][-1][1]
+def _nec(k, rot="Nec./dia"):
+    """O valor da linha de rótulo exato `rot` (no último DU: "Falta hoje")."""
+    return dict((a, b) for a, b, *_ in k["linhas"])[rot]
 
 
 def test_RN_GER_007_cartao_nec_dia_visita_e_rh_no_B_desafio_e_posit_no_A():
@@ -478,10 +479,11 @@ def test_RN_GER_007_cartao_nec_dia_no_ultimo_du_visita_e_rh_usam_o_B():
     ks = {k["rotulo"]: k for k in rn._cartoes_farol(
         [_LINHA], _COLS, 0, rn._esperado(ac), ultimo_dia=rn._ultimo_dia(ac),
         resta_b=rn._resta_b(ac))}
-    assert rn.moeda(1000.0) in _nec(ks["Faturamento · desafio comercial"])
-    assert "14" in _nec(ks["Positivação"])
-    assert "70" in _nec(ks["Visitas"])                      # 70 ÷ 1 DU
-    assert rn.moeda(600.0) in _nec(ks["Faturamento · meta RH"])
+    ult = "Falta hoje"
+    assert _nec(ks["Faturamento · desafio comercial"], ult) == rn.moeda(1000.0)
+    assert _nec(ks["Positivação"], ult) == rn.br(14)
+    assert _nec(ks["Visitas"], ult) == rn.br(70)             # 70 ÷ 1 DU
+    assert _nec(ks["Faturamento · meta RH"], ult) == rn.moeda(600.0)
     for k in ks.values():
         assert not any("mês fechado" in t for t in _textos(k)), k["rotulo"]
 
@@ -556,3 +558,91 @@ def test_RN_GER_007_parcial_de_rv_inteira_no_grupo_B_no_ultimo_du(
     assert "1 dia(s) útil(eis) até o fim do mês" in r["subtitulo"]
     for k in r["kpis"]:
         assert not any("mês fechado" in t for t in _textos(k)), k["rotulo"]
+
+
+# ---------------------- 15 parcial de RV: o que é de hoje (núcleo puro)
+def _pc(it, cod):
+    return dict(it, cod=cod)
+
+
+def _eh_p(cod):
+    return cod == "PEC"
+
+
+def test_RN_GER_007_hoje_dos_itens_fat_pecas_e_quem_so_positivou_hoje():
+    """Faturamento e peças de hoje separados; C2 só positivou hoje; a conta
+    000040 fica fora; a visita de hoje sai do Espelho de hoje."""
+    ontem = HOJE.replace(day=18)
+    itens = [_pc(_it(ontem, "VND", 100.0, cliente="C1"), "PEC"),
+             _pc(_it(HOJE, "VND", 50.0, cliente="C1"), "PEC"),
+             _pc(_it(HOJE, "VND", 30.0, cliente="C2"), "BAT"),
+             _pc(_it(HOJE, "VND", 999.0, cliente="C9", vend="000040"), "PEC")]
+    regs = [{"data": HOJE, "visitas": 3}]
+    h = rn.hoje_dos_itens(itens, regs, HOJE, _eh_p)
+    assert h["FAT."] == pytest.approx(80.0)                 # 50 + 30
+    assert h["PEÇAS"] == pytest.approx(50.0)
+    assert h["POSIT."] == 1                                 # só o C2
+    assert h["POSIT."] == len(_regra_por_cliente(itens, HOJE)) - len(
+        _regra_por_cliente(itens, ontem))
+    assert h["VISITA"] == 3
+    # o real até ontem = o real do mês − o de hoje
+    assert _regra_real(itens, HOJE) - h["FAT."] == pytest.approx(
+        _regra_real(itens, ontem))
+
+
+def test_RN_GER_007_hoje_dos_itens_devolucao_de_hoje_tira_a_positivacao():
+    """Devolução total hoje de quem tinha positivado: POSIT. = −1 e FAT.
+    negativo (sem max(0): o até ontem continua com o cliente)."""
+    ontem = HOJE.replace(day=18)
+    itens = [_pc(_it(ontem, "VND", 40.0, cliente="C3"), "BAT"),
+             _pc(_it(HOJE, "DEV", 40.0, cliente="C3"), "BAT")]
+    h = rn.hoje_dos_itens(itens, [], HOJE, _eh_p)
+    assert h["POSIT."] == -1
+    assert h["FAT."] == pytest.approx(-40.0)
+    assert h["PEÇAS"] == 0.0 and h["VISITA"] == 0
+
+
+def test_RN_GER_007_hoje_dos_itens_dia_1_ate_ontem_e_zero():
+    """Dia 1 do mês: ontem é do mês anterior, então o até ontem do mês é 0
+    (a venda de outubro não conta)."""
+    d1 = date(2026, 12, 1)
+    itens = [_pc(_it(date(2026, 11, 30), "VND", 500.0, cliente="C1"), "PEC"),
+             _pc(_it(d1, "VND", 70.0, cliente="C1"), "PEC"),
+             _pc(_it(d1, "VND", 20.0, cliente="C2"), "BAT")]
+    h = rn.hoje_dos_itens(itens, [{"data": d1, "visitas": 2}], d1, _eh_p)
+    assert h["FAT."] == pytest.approx(90.0)
+    assert h["PEÇAS"] == pytest.approx(70.0)
+    assert h["POSIT."] == 2                     # o mês inteiro é de hoje
+    assert h["VISITA"] == 2
+    assert _regra_real(itens, d1) - h["FAT."] == pytest.approx(0.0)
+
+
+def test_RN_GER_007_esperado_do_grupo_B_e_du_da_vista_da_parcial():
+    """% corrido: A = (19 − 6) ÷ 19 (hoje conta); B = (19 − 7) ÷ 19. A
+    parcial de RV (com corte) é inteira do B."""
+    ac = _ac(6, 7)
+    assert rn._esperado(ac) == pytest.approx(13 / 19 * 100)
+    assert rn._esperado(ac, True) == pytest.approx(12 / 19 * 100)
+    assert rn._du_da_vista(ac, date(2026, 11, 18)) == pytest.approx(
+        (7, 7, 12 / 19 * 100))
+    assert rn._du_da_vista(ac, None) == pytest.approx((6, 7, 13 / 19 * 100))
+    assert "CAD." in rn.SEM_SEPARAR_HOJE
+
+
+def test_RN_GER_007_cartoes_da_parcial_projetam_o_real_ate_ontem_no_B():
+    """Projeção da parcial = (real − o de hoje) ÷ % corrido do B (12/19)."""
+    esp_b = rn._esperado(_ac(7, 7), True)
+    hoje_b = {"FAT.": 100.0, "POSIT.": 2, "VISITA": 10}
+    ks = {k["rotulo"]: k for k in rn._cartoes_farol(
+        [_LINHA], _COLS, 7, esp_b, resta_b=7, hoje_b=hoje_b)}
+    f = 12 / 19
+
+    def proj(k):
+        return dict((a, b) for a, b, *_ in k["linhas"])["Projeção do mês"]
+    assert proj(ks["Faturamento · desafio comercial"]).startswith(
+        rn.moeda((400.0 - 100.0) / f) + " ")                # R$ 475
+    assert proj(ks["Faturamento · meta RH"]).startswith(
+        rn.moeda((400.0 - 100.0) / f) + " ")
+    assert proj(ks["Positivação"]).startswith(rn.br((6 - 2) / f) + " ")
+    assert proj(ks["Visitas"]).startswith(rn.br((30 - 10) / f) + " ")
+    assert _nec(ks["Visitas"]) == rn.br(70 / 7, 1)

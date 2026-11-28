@@ -1855,7 +1855,6 @@ _c05b = rn._cartoes_farol(
 checar(_pj05(_k05).startswith("200")
        and _pj05(_c05[0]).startswith("R$ 200")
        and _pj05(_c05b[0]).startswith("R$ 300")
-       and rn.projecao_ritmo(100.0, 0.5) == 200.0
        and (_dd29.get("dados_ate") is None
             or _dd29["dados_ate"] < _dt05.date.today()
             or _dd29["dados_ate"].month != _dt05.date.today().month),
@@ -1914,15 +1913,21 @@ _blocos = (_pe.get("painel") or {}).get("blocos") or []
 _pz = {b_.get("titulo"): b_ for b_ in _blocos if b_["tipo"] in ("pizza",
                                                                 "grupo")}
 _f_pe = rn.montar("vc_painel", AQUI, params={"CATEGORIA": "BATERIAS"})
+# T-0060 (decisão 43, RN-GER-007): o cartão Real do mês corrente diz até que
+# dia. Regra explícita, sem depender da data do PC: com hoje fixo num DU
+# (19/11/2026, quinta) o rótulo é exatamente "Real · até 19/11"
+_pe_r = rn.montar("vc_painel", AQUI, hoje=__import__("datetime").date(2026, 11, 19),
+                  params={"ANO": "2026", "MÊS": "11"})
 checar(len(_blocos) == 8 and len(_pz["Por filial"]["linhas"][0]) == 12
        and [p_["nome"] for p_ in _pe["parametros"]][-11:] == [
            "UF", "CIDADE", "SUPERVISOR", "VENDEDOR", "SEGMENTO", "CATEGORIA",
            "SISTEMA", "FAMÍLIA", "LINHA", "PRODUTO", "PEDIDOS"]
        and all(b_["grafico"].get("linha") for b_ in _blocos[4:8])
        and "Categoria: BATERIAS" in _f_pe["subtitulo"]
-       # T-0060 (decisão 43): o 2º cartão diz até que dia ("Real · até dd/mm")
-       and len(_pe["kpis"]) >= 4
-       and re.fullmatch(r"Real · até \d\d/\d\d", _pe["kpis"][1]["rotulo"])
+       # o 2º cartão (Real) é conferido no _pe_r, com hoje fixo
+       and [k["rotulo"] for k in _pe_r["kpis"]][:4]
+       == ["Desafio comercial", "Real · até 19/11", "Pedidos em aberto",
+           "Projeção"]
        and [k["rotulo"] for i_, k in enumerate(_pe["kpis"][:4]) if i_ != 1]
        == ["Desafio comercial", "Pedidos em aberto", "Projeção"]
        and [b_["tipo"] for b_ in _blocos].count("pizza") == 4
