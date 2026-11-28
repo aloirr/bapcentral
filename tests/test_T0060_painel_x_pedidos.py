@@ -630,12 +630,22 @@ def test_RN_GER_007_esperado_do_grupo_B_e_du_da_vista_da_parcial():
 
 
 def test_RN_GER_007_cartoes_da_parcial_projetam_o_real_ate_ontem_no_B():
-    """Projeção da parcial = (real − o de hoje) ÷ % corrido do B (12/19)."""
+    """Parcial de RV (grupo B): o real exibido e o projetado são o real até
+    ontem (real − o de hoje); projeção = esse real ÷ % corrido do B (12/19);
+    Nec./dia = (meta − real até ontem) ÷ DU do B. Cad. não separa hoje e
+    leva o período no rótulo."""
     esp_b = rn._esperado(_ac(7, 7), True)
     hoje_b = {"FAT.": 100.0, "POSIT.": 2, "VISITA": 10}
+    cols = _COLS + [{"nome": "CAD. META"}, {"nome": "CAD. REAL"}]
     ks = {k["rotulo"]: k for k in rn._cartoes_farol(
-        [_LINHA], _COLS, 7, esp_b, resta_b=7, hoje_b=hoje_b)}
+        [_LINHA + [10, 4]], cols, 7, esp_b, resta_b=7, hoje_b=hoje_b,
+        rot_cad=rn.sufixo_periodo(HOJE))}
     f = 12 / 19
+    assert ks["Faturamento · desafio comercial"]["valor"] == rn.moeda(300.0)
+    assert ks["Positivação"]["valor"] == rn.br(4)
+    assert ks["Visitas"]["valor"] == rn.br(20)
+    cad = ks["Cad. com compra · até 19/11"]
+    assert cad["valor"] == rn.br(4)                         # não separa hoje
 
     def proj(k):
         return dict((a, b) for a, b, *_ in k["linhas"])["Projeção do mês"]
@@ -645,7 +655,32 @@ def test_RN_GER_007_cartoes_da_parcial_projetam_o_real_ate_ontem_no_B():
         rn.moeda((400.0 - 100.0) / f) + " ")
     assert proj(ks["Positivação"]).startswith(rn.br((6 - 2) / f) + " ")
     assert proj(ks["Visitas"]).startswith(rn.br((30 - 10) / f) + " ")
-    assert _nec(ks["Visitas"]) == rn.br(70 / 7, 1)
+    assert _nec(ks["Visitas"]) == rn.br((100 - 20) / 7, 1)      # 11,4
+
+
+def test_RN_GER_007_parcial_de_rv_mostra_o_real_ate_ontem(base):
+    """Base congelada, hoje = 19/11, parcial do gerente (a BAP): os cartões
+    mostram o real até 18/11 pela regra - faturamento R$ 109.575,
+    positivação 43, visitas 989 (= Diretor), peças R$ 10.674; o Cad. leva
+    " · até 19/11" (não separa hoje)."""
+    ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
+    ger = rn.meta_do_periodo(ctx)["acomp"]["recortes"]["gerente"][0]
+    r = rn._exportar_rh(ctx, {"cargo": "GERENTE", "cod": ger.get("chave"),
+                              "nome": ger.get("rotulo") or ger.get("nome")})
+    k = {x["rotulo"]: x["valor"] for x in r["kpis"]}
+    ontem = date(2026, 11, 18)
+    itens = base["itens"]
+    pecas = sum(_liq(it) for it in _do_mes(itens, ontem)
+                if rn._eh_pecas(ctx, it["cod"]))
+    assert k["Faturamento · desafio comercial"] == rn.moeda(
+        _regra_real(itens, ontem)) == "R$ 109.575"
+    assert k["Positivação"] == rn.br(len(_regra_por_cliente(itens, ontem))) \
+        == "43"
+    assert k["Visitas"] == rn.br(_card(base["dir"], "visitas")["numero"]) \
+        == "989"
+    assert k["Peças"] == rn.moeda(pecas) == "R$ 10.674"
+    assert "Cad. com compra" + rn.sufixo_periodo(HOJE) in k
+    assert "Cad. com compra" not in k
 
 
 # ------------------------------------- 16 visitas de hoje (núcleo puro)
@@ -691,6 +726,8 @@ def test_RN_GER_007_visitas_ate_ontem_do_diretor_igual_ao_farol_de_visita(
         [r for r in rn.com_cadastro_como_visita(
             ctx, vn.registros(RAIZ, de=HOJE)) if r.get("ativo")], HOJE)
     assert (farol, hoje_v) == (1074, 85)
+    # o lugar único das linhas de hoje (lê o mês, filtra hoje e os ativos)
+    assert rn.visitas_de_hoje(rn.linhas_visita_de_hoje(ctx), HOJE) == hoje_v
     c = _card(base["dir"], "visitas")
     assert c["numero"] == farol - hoje_v == 989
     assert c["projecao"] == pytest.approx(989 / (DU_PASSADOS_COM_HOJE - 1)
