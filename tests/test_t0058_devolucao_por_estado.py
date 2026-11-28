@@ -73,11 +73,15 @@ def test_RN_GER_002_estado_pa_ago26_desconta_devolucao_de_quem_nao_vendeu(farol)
 def test_RN_GER_002_soma_dos_estados_igual_ao_total_e_ao_painel(farol):
     t, ix, ctx = farol
     pf = rn.por_filial_da_nota(ctx, "2026-08")["fat"]
-    assert set(pf) == {"AM", "AP", "MA", "MT", "PA", "RR"}
+    # transição T-0060: aceita AP ausente/R$ 0 (conta 000040 fora, #229); volta ao estrito no #233
+    assert set(pf) in ({"AM", "AP", "MA", "MT", "PA", "RR"},
+                       {"AM", "MA", "MT", "PA", "RR"})
     est = _estados(t, "AGO/26")
     for uf, valor in pf.items():        # estado sem linha no mes = R$ 0
         assert est.get(uf, rn.moeda(0.0)) == rn.moeda(valor), uf
-    assert set(est) <= set(pf)
+    # transição T-0060: aceita AP ausente/R$ 0 (conta 000040 fora, #229); volta ao estrito no #233
+    assert set(est) - set(pf) <= {"AP"}
+    assert all(est[uf] == rn.moeda(0.0) for uf in set(est) - set(pf))
     # o total do farol (mês inteiro) = a soma dos estados do Painel
     total = _faturado(t, _do_mes(t, ix, "AGO/26"), {ix["MÊS"]: "AGO/26"})
     assert total == rn.moeda(sum(pf.values()))
@@ -150,5 +154,7 @@ def test_RN_GER_002_recorte_por_estado_na_web_ago26_pa_igual_painel(rid):
     fat = _fat_por_uf(rec)
     pf = rn.por_filial_da_nota(rn.Contexto(RAIZ), "2026-08")["fat"]
     assert fat["PA"] == "R$ 33.834"
+    # transição T-0060: aceita AP ausente/R$ 0 (conta 000040 fora, #229); volta ao estrito no #233
+    assert set(fat) - set(pf) <= {"AP"}
     for uf, valor in fat.items():
-        assert valor == rn.moeda(pf[uf]), uf
+        assert valor == rn.moeda(pf.get(uf, 0.0)), uf
