@@ -33,8 +33,6 @@ HOJE = date(2026, 11, 24)
 PARAMS = {"ANO": "2026", "MÊS": "11"}
 MES_ROT = "NOV/26"
 RIDS = ("pv_pedidos", "pl_entregas", "vc_visitas")
-# transição T-0037: até o #169 (testes/T-0037-fretes), que põe o pl_fretes no RIDS_1073 e volta a comparar tudo
-from escopo_farois_web import sem_fretes as _sem_fretes  # noqa: E402
 ABAS = {"pv_pedidos": ["Pedidos", "Solicitação BAP"],
         "pl_entregas": ["Entregas"],
         "vc_visitas": ["Por supervisor", "Por vendedor", "Dia a dia",
@@ -703,6 +701,14 @@ def test_T0017_corte_em_3_passos_na_ordem(real):
 
 
 # ==================================================== lista de colunas
+# Quem a lista do §10.7.3 compara (título único, a forma do tabelas.COLUNAS
+# da web e do contrato): os 3 faróis (RIDS) e o pl_fretes da T-0037
+# (§10.13), comparados inteiros nos três lados. Os faróis com lista
+# por (rid, título) de outro capítulo (T-0023 §10.10, T-0036 §10.11) ficam
+# fora daqui (test_T0023_colunas_por_rid_e_titulo_sem_colisao e os da T-0036).
+RIDS_1073 = RIDS + ("pl_fretes",)
+
+
 def _contrato_1073():
     """{titulo: [(nome, tipo, oculta, selo)]} do §10.7.3 do contrato (None
     se a seção não existe: o teste falha)."""
@@ -763,11 +769,11 @@ def _robo_rid():
 
 
 def _robo():
-    """{título: colunas} só dos 3 faróis do §10.7.3 (RIDS), onde o título é
+    """{título: colunas} dos faróis do §10.7.3 (RIDS_1073), onde o título é
     único: é a forma do `tabelas.COLUNAS` da web e do contrato."""
     saida = {}
     for (rid, titulo), cols in _robo_rid().items():
-        if rid in RIDS:
+        if rid in RIDS_1073:
             assert titulo not in saida, titulo        # título único no 10.7.3
             saida[titulo] = cols
     return saida
@@ -788,9 +794,17 @@ def test_T0023_colunas_por_rid_e_titulo_sem_colisao():
 
 
 def test_T0017_colunas_robo_igual_web(web_app):
-    robo = _sem_fretes(_robo())
-    web = _sem_fretes(web_app.tabelas.COLUNAS)
-    assert sorted(robo) == sorted(web)
+    # (T-0037) título genérico ("Por UF") vem na web por (rid, título), em
+    # COLUNAS_RID
+    web = {**web_app.tabelas.COLUNAS,
+           **{k: c for k, c in web_app.tabelas.COLUNAS_RID.items()
+              if k[0] in RIDS_1073}}
+    robo = {((rid, t) if (rid, t) in web else t): cols
+            for (rid, t), cols in _robo_rid().items() if rid in RIDS_1073}
+    assert sorted(robo, key=str) == sorted(web, key=str), (
+        f"só no robô: {sorted(set(robo) - set(web), key=str)}; só na web: "
+        f"{sorted(set(web) - set(robo), key=str)} (farol novo: o robô entra "
+        "depois da web e do contrato)")
     for titulo, cols in robo.items():
         assert [c[:3] for c in cols] == [tuple(c) for c in web[titulo]], \
             titulo
@@ -804,9 +818,11 @@ def test_T0017_colunas_robo_igual_web(web_app):
 def test_T0017_colunas_robo_igual_contrato_1073():
     contrato = _contrato_1073()
     assert contrato is not None, "§10.7.3 ausente no contrato"
-    contrato = _sem_fretes(contrato)
-    robo = _sem_fretes(_robo())
-    assert sorted(contrato) == sorted(robo)
+    robo = _robo()
+    assert sorted(contrato) == sorted(robo), (
+        f"só no robô: {sorted(set(robo) - set(contrato))}; só no contrato: "
+        f"{sorted(set(contrato) - set(robo))} (farol novo: o robô entra "
+        "depois do contrato §10.7.3 e da web)")
     for titulo in robo:
         assert contrato[titulo] == robo[titulo], titulo
     txt = (RAIZ / ".coord" / "contratos" / "relatorio.md").read_text(

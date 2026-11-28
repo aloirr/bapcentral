@@ -22,7 +22,8 @@ Complementa `web/tests/test_T0054_entregas_edicao.py` (do modulo-web), sem repet
 
 Tudo em pasta temporária (tmp_path), nunca nas bases reais. Dados fictícios: "CLIENTE TESTE 01",
 "MOTORISTA TESTE", NF 9001xx, filial "FILIAL TESTE". Sem pulo condicional próprio: a ordem do merge é
-web → robô → testes. O teste HTTP usa o fixture web_mod da T-0035: só roda onde há FastAPI (local); é pulado
+web → robô → testes (com a T-0037: contrato → faróis → robô → web → testes). O teste HTTP usa o fixture
+web_mod da T-0035: só roda onde há FastAPI (local); é pulado
 nos dois CIs (o da raiz não instala FastAPI e o da web só roda web/tests).
 """
 import ast
@@ -40,8 +41,6 @@ import bap_automation as ba
 import pos_venda as pv
 import relatorios_nucleo as rn
 import transportadoras as tr
-# transição T-0037: até o #169 (testes/T-0037-fretes)
-from escopo_farois_web import fretes_no_robo
 
 RAIZ = Path(__file__).resolve().parent.parent
 WEB = RAIZ / "web"
@@ -118,9 +117,8 @@ def test_RN_POS_011_tabela_web_igual_robo_igual_contrato(ed):
     assert ed.EDITA_LUGAR == ba.EDITA_LUGAR_WEB == contrato
     assert ba.MOTIVO_PERFIL_WEB == "perfil sem edição neste farol"   # a frase do §10.9.7
     assert set(p for ps in contrato.values() for p in ps) <= set(PERFIS)
-    # só lugares que o robô já grava, mais o Fretes (entra com a T-0037; até lá, recusado pelo lugar)
-    # transição T-0037: até o #169 (testes/T-0037-fretes): antes do robô da T-0037 sobra o Fretes; depois, nada
-    assert set(ba.EDITA_LUGAR_WEB) - set(ba.EDICOES_WEB) == (set() if fretes_no_robo(ba) else {FRETES})
+    # todo lugar da tabela o robô grava (o Fretes entrou com a T-0037, RN-POS-010)
+    assert set(ba.EDITA_LUGAR_WEB) <= set(ba.EDICOES_WEB)
 
 
 _SEM = object()
@@ -194,21 +192,14 @@ def test_RN_POS_011_linha_nova_robo_recusa_nas_entregas_e_perfil_fora(perfil):
         assert ba.validar_edicao_web(gar, OPCOES) == ba.MOTIVO_PERFIL_WEB
 
 
-def test_RN_POS_010_notas_com_frete_robo_recusa_pelo_lugar():
-    """"Notas com frete" (T-0037): enquanto o lugar não entra em `EDICOES_WEB`, o robô recusa pelo lugar
-    (nada é gravado) para qualquer perfil. A tabela de quem edita fica no teste do contrato.
-    transição T-0037: até o #169 (testes/T-0037-fretes): com o robô da T-0037, a mesma tabela das
-    Entregas (RN-POS-010 + RN-POS-011): edita ⇔ perfil ∈ {admin, pos_venda}; o frete_real cai pelo lugar
-    (quem edita) ou pelo perfil (o resto)."""
-    if not fretes_no_robo(ba):
-        for p in PERFIS:
-            assert ba.validar_edicao_web(_reg(FRETES, p), OPCOES) == ba.MOTIVO_LUGAR_WEB, p
-        return
-    for p in PERFIS:
-        edita = p in ("admin", "pos_venda")
-        assert ba.validar_edicao_web(_reg(FRETES, p), OPCOES) == ("" if edita else ba.MOTIVO_PERFIL_WEB), p
-        m = ba.validar_edicao_web(_reg(FRETES, p, {"frete_real": "50,00"}), OPCOES)
-        assert m == (ba.MOTIVO_LUGAR_WEB if edita else ba.MOTIVO_PERFIL_WEB), p
+@pytest.mark.parametrize("perfil", PERFIS)
+def test_RN_POS_010_notas_com_frete_mesma_tabela_das_entregas_sem_frete_real(perfil):
+    """"Notas com frete" (T-0037, RN-POS-010 + RN-POS-011): edita ⇔ perfil ∈ {admin, pos_venda} no robô;
+    o frete_real cai pelo lugar (quem edita) ou pelo perfil (o resto)."""
+    esperado = perfil in ("admin", "pos_venda")
+    assert ba.validar_edicao_web(_reg(FRETES, perfil), OPCOES) == ("" if esperado else ba.MOTIVO_PERFIL_WEB)
+    m = ba.validar_edicao_web(_reg(FRETES, perfil, {"frete_real": "50,00"}), OPCOES)
+    assert m == (ba.MOTIVO_LUGAR_WEB if esperado else ba.MOTIVO_PERFIL_WEB)
 
 
 # ------------------------------------------------------------------ 2. os 6 campos (o pacote do robô, conferido pela web)

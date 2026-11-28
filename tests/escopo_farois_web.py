@@ -1,5 +1,5 @@
 """Trava do escopo de bap_automation.FAROIS_WEB (T-0013, T-0017, T-0022,
-T-0024, T-0023, T-0036): a lista PERMITIDA dos faróis que o robô leva ao site,
+T-0024, T-0023, T-0036, T-0037): a lista PERMITIDA dos faróis que o robô leva ao site,
 num lugar só.
 
 Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
@@ -13,8 +13,9 @@ Depois do lote 2 da T-0024 no main (PR #91, 0bb251b):
   (FAROIS_T0036) também são OBRIGATÓRIOS, com a regra de UF dos cartões e a
   das linhas de cada aba (UF_LINHAS_T0036), escritas aqui à mão a partir do
   contrato §10.11.1/§10.11.3;
-- a lista PERMITIDA é a dos obrigatórios (e, na transição T-0037 até o
-  #169, o pl_fretes): um farol fora dela reprova.
+- depois do robô da T-0037, o Fretes (contrato §10.13, FAROIS_T0037) também é
+  OBRIGATÓRIO, com as mesmas exigências (fretes = UF do cliente);
+- a lista PERMITIDA é a dos obrigatórios: um farol fora dela reprova.
 
 Regra citada: RN-GER-006 (estado do faturamento e do estoque = filial da
 nota; fretes e carteira = UF do cliente; sem a UF, o farol vai sem recortes e
@@ -63,8 +64,13 @@ FAROIS_T0036 = {
     "vc_preco": ("sem_estado",),
     "an_divergencias": ("sem_estado",),
 }
+# T-0037 (Fretes, contrato §10.13): fretes = UF do cliente (RN-GER-006).
+# Obrigatório desde o robô da T-0037.
+FAROIS_T0037 = {
+    "pl_fretes": ("tabela", "Notas com frete", "UF", "uf"),
+}
 # os faróis do main: T-0017, o vc_meta da T-0022, o lote 2 da T-0024, os 3
-# da T-0023 e os 4 da T-0036
+# da T-0023, os 4 da T-0036 e o Fretes da T-0037
 REGRA_UF_OBRIGATORIOS = {
     "pl_inadimplencia": ("tabela", "Títulos", "FILIAL", "filial"),
     "pv_pedidos": ("tabela", "Pedidos", "FILIAL", "filial"),
@@ -74,6 +80,7 @@ REGRA_UF_OBRIGATORIOS = {
     **FAROIS_LOTE2,
     **FAROIS_T0023,
     **FAROIS_T0036,
+    **FAROIS_T0037,
 }
 # T-0036 (§10.11.3, RN-GER-006): o estado das linhas de cada aba. Faturamento
 # e preço praticado pela filial da nota; Pesquisa e Divergências pela UF do
@@ -87,44 +94,14 @@ UF_LINHAS_T0036 = {
     ("an_divergencias", "Clientes divergentes"): ("UF", "uf"),
     ("an_divergencias", "Sem coordenada / endereço"): ("UF", "uf"),
 }
-# ------------------------------------------------------------------------
-# transição T-0037: até o #169 (testes/T-0037-fretes)
-# Ordem dos PRs: #209 (este) → #170 contrato → #203 faróis → #204 robô →
-# #205 web → #169. Entre o #204 e o #169 o robô já leva o Fretes ao site; até
-# o #169, o pl_fretes é PERMITIDO e opcional, com a fonte, a tabela "Notas com
-# frete" e a UF do cliente (RN-GER-006: fretes = UF do cliente). O #169 o faz
-# obrigatório (FAROIS_T0037) e apaga este bloco inteiro de uma vez.
-FAROIS_FRETES_TRANSICAO = {
-    "pl_fretes": ("tabela", "Notas com frete", "UF", "uf"),
-}
-# as 4 abas do Fretes no §10.7.3 (o #169 põe o pl_fretes no RIDS_1073)
-ABAS_FRETES_TRANSICAO = {"Notas com frete", "Por UF", "Por cidade",
-                         "Por transportadora"}
-# o lugar de edição do Fretes (RN-POS-010): fora do EDICOES_WEB antes do robô
-# da T-0037 (recusado pelo lugar), dentro depois (a tabela das Entregas)
-LUGAR_FRETES_TRANSICAO = ("pl_fretes", "Notas com frete")
-
-
-def sem_fretes(d):
-    """transição T-0037: até o #169; o dict sem as 4 abas do Fretes."""
-    return {t: c for t, c in d.items() if t not in ABAS_FRETES_TRANSICAO}
-
-
-def fretes_no_robo(ba) -> bool:
-    """transição T-0037: até o #169; o robô da T-0037 (#204) já grava o
-    "Notas com frete" (o lugar está em EDICOES_WEB)."""
-    return LUGAR_FRETES_TRANSICAO in set(getattr(ba, "EDICOES_WEB", ()))
-# ------------------------------------------------------------------------
 
 
 FAROIS_OBRIGATORIOS = frozenset(REGRA_UF_OBRIGATORIOS)
-REGRA_UF_PERMITIDOS = {**REGRA_UF_OBRIGATORIOS,
-                       **FAROIS_FRETES_TRANSICAO}   # transição T-0037: até o #169 (testes/T-0037-fretes)
+REGRA_UF_PERMITIDOS = dict(REGRA_UF_OBRIGATORIOS)
 FAROIS_PERMITIDOS = frozenset(REGRA_UF_PERMITIDOS)
 assert len(REGRA_UF_OBRIGATORIOS) == (5 + len(FAROIS_LOTE2) + len(FAROIS_T0023)
-                                      + len(FAROIS_T0036))   # sem repetição
-assert len(REGRA_UF_PERMITIDOS) == (len(REGRA_UF_OBRIGATORIOS)
-                                    + len(FAROIS_FRETES_TRANSICAO))   # transição T-0037: até o #169
+                                      + len(FAROIS_T0036)
+                                      + len(FAROIS_T0037))   # sem repetição
 
 _KPI_FICTICIO = [{"rotulo": "Itens", "valor": "1", "cor": "ok"}]
 

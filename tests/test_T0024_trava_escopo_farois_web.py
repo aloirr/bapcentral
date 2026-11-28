@@ -17,8 +17,7 @@ ba = pytest.importorskip("bap_automation")
 
 from escopo_farois_web import (FAROIS_LOTE2, FAROIS_OBRIGATORIOS,  # noqa: E402
                                FAROIS_PERMITIDOS, FAROIS_T0023, FAROIS_T0036,
-                               problemas_escopo)
-from escopo_farois_web import FAROIS_FRETES_TRANSICAO  # noqa: E402  transição T-0037: até o #169 (testes/T-0037-fretes)
+                               FAROIS_T0037, problemas_escopo)
 
 # rid inventado, que nunca entra na lista (o pl_garantias entrou na T-0023 v2
 # e o vc_markup na T-0036; um rid real pode entrar amanhã)
@@ -38,16 +37,17 @@ def _robo(**troca):
     return SimpleNamespace(**d)
 
 
-def test_RN_GER_006_trava_lista_permitida_os_cinco_do_lote2_e_os_da_T0023_e_T0036():
+def test_RN_GER_006_trava_lista_permitida_lote2_T0023_T0036_e_fretes_T0037():
     """Depois do #91, os 5 do lote 2 são obrigatórios; depois do robô da
-    T-0023 v2 (#171), os 3 do pós-venda (FAROIS_T0023), e depois do robô da
-    T-0036 (#159), os 4 do Analista. A lista permitida é a dos obrigatórios."""
+    T-0023 v2 (#171), os 3 do pós-venda (FAROIS_T0023); depois do robô da
+    T-0036 (#159), os 4 do Analista; depois do robô da T-0037, o pl_fretes
+    (UF do cliente). A lista permitida é a dos obrigatórios."""
     assert set(FAROIS_LOTE2) == {"pv_indicadores", "vc_base", "vc_planner",
                                  "pl_giro", "pl_frw"}
     assert FAROIS_OBRIGATORIOS == ({"pl_inadimplencia", "pv_pedidos",
                                     "pl_entregas", "vc_visitas", "vc_meta"}
                                    | set(FAROIS_LOTE2) | set(FAROIS_T0023)
-                                   | set(FAROIS_T0036))
+                                   | set(FAROIS_T0036) | set(FAROIS_T0037))
     assert FAROIS_T0023 == {
         "pl_garantias": ("sem_estado",),
         "pl_devolucoes": ("tabela", "Devoluções", "FILIAL", "filial"),
@@ -55,17 +55,17 @@ def test_RN_GER_006_trava_lista_permitida_os_cinco_do_lote2_e_os_da_T0023_e_T003
     # T-0036: + os 4 do Analista Comercial (contrato §10.11.1)
     assert set(FAROIS_T0036) == {"vc_saldo", "vc_markup", "vc_preco",
                                  "an_divergencias"}
-    # transição T-0037: até o #169 (testes/T-0037-fretes): + o pl_fretes, opcional
-    assert FAROIS_FRETES_TRANSICAO == {
+    # T-0037: + o pl_fretes, obrigatório, pela UF do cliente (RN-GER-006)
+    assert FAROIS_T0037 == {
         "pl_fretes": ("tabela", "Notas com frete", "UF", "uf")}
-    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS | set(FAROIS_FRETES_TRANSICAO)
+    assert FAROIS_PERMITIDOS == FAROIS_OBRIGATORIOS
     assert FORA not in FAROIS_PERMITIDOS
 
 
 @pytest.mark.parametrize("rid", sorted(FAROIS_OBRIGATORIOS))
 def test_RN_GER_006_trava_reprova_obrigatorio_faltando(rid):
     """Qualquer farol obrigatório (T-0017, T-0022, lote 2 da T-0024, T-0023 v2,
-    T-0036) que sai de FAROIS_WEB reprova."""
+    T-0036, T-0037) que sai de FAROIS_WEB reprova."""
     sem = tuple(r for r in ba.FAROIS_WEB if r != rid)
     assert f"{rid}: obrigatório e fora de FAROIS_WEB" in \
         problemas_escopo(_robo(FAROIS_WEB=sem))
@@ -115,10 +115,9 @@ def test_RN_GER_006_trava_reprova_regra_de_uf_trocada():
                  "('FILIAL', 'filial')"]
 
 
-# transição T-0037: até o #169 (testes/T-0037-fretes): opcional, mas com a regra
 def test_RN_GER_006_trava_reprova_fretes_pela_filial():
     """Fretes é da UF do cliente (RN-GER-006), não da filial: com o pl_fretes
-    em FAROIS_WEB, a regra trocada reprova (com ou sem o robô da T-0037)."""
+    em FAROIS_WEB, a regra trocada reprova."""
     farois = tuple(r for r in ba.FAROIS_WEB if r != "pl_fretes") + ("pl_fretes",)
     fontes = dict(ba._FONTE_BAIXADO_WEB,
                   pl_fretes=ba._FONTE_BAIXADO_WEB["pv_pedidos"])
@@ -133,6 +132,7 @@ def test_RN_GER_006_trava_reprova_fretes_pela_filial():
     assert problemas_escopo(_robo(FAROIS_WEB=farois, _FONTE_BAIXADO_WEB=fontes,
                                   _TABELA_RECORTE_WEB=tab,
                                   _UF_LINHAS_WEB=uf)) == []
+
 
 def test_RN_GER_006_trava_reprova_tabela_de_recorte_sem_regra():
     tab = dict(ba._TABELA_RECORTE_WEB, **{FORA: "Tabela inventada"})
