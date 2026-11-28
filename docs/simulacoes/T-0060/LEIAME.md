@@ -89,3 +89,8 @@ Parcial do gerente (BAP inteira), base congelada, hoje = 19/11. Antes = main 7b4
 | Cad. com compra: projeção | 6 | 6 | cadastros não separam hoje (SEM_SEPARAR_HOJE); lote 2 |
 | Cad. com compra: Nec./dia | 29,3 | 25,1 | ÷ 7 DU |
 | Subtítulo | "6 dia(s) útil(eis) até o fim do mês" | "7 dia(s) útil(eis)" | hoje ainda é dia a vencer no B |
+
+## Mudou depois da aprovação (visita única)
+- Visitas (Diretor): 990 → 989; projeção 1.568 → 1.566; média/DU 82,5 → 82,4. O Diretor passa a usar a mesma conta do Farol de Visita (`visitas_de_hoje`, cadastro conta como visita, só vendedores ativos): real do Farol até 19/11 = 1.074, menos as 85 visitas de hoje = 989, igual ao Diretor. Projeção = 989 ÷ 12 DU × 19.
+- Parcial de RV, gerente: projeção de visita 1.566 (igual ao Diretor), Nec./dia 78,0 (546 ÷ 7 DU do B); projeções de faturamento R$ 173.494, positivação 68 e peças R$ 16.900 como na seção "Parcial de RV (grupo B)".
+- Parcial de RV, supervisor (1º supervisor da base): projeção de visita 689 (105%) → 635 (97%). Regra: o filtro de supervisor e vendedor comparava o código Máxima com códigos Protheus e as visitas de hoje davam 0; agora `cod_protheus`, e a projeção parte das visitas até ontem (RN-GER-007).
