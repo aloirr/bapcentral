@@ -70,3 +70,22 @@ Na base congelada (19/11): 112.701 ÷ 13 × 19 = R$ 164.717 (Painel, Diretor e M
 
 Não mudaram: Real 112.701, projeção 164.717, positivação 66, ticket, volume e barras por UF.
 Regenerados só `diretor_*` e `metas_*` (meta_nucleo do 7c76164). No caso do último DU, o Metas diz "Falta hoje · R$ 1.387.299" (era "último dia: faltam ...").
+
+## Parcial de RV (grupo B)
+Parcial do gerente (BAP inteira), base congelada, hoje = 19/11. Antes = main 7b4f488 (com o meta 7c76164); depois = head. PNGs: `parcial_rv_1366.png` e `parcial_rv_390.png`. Parcial de RV é inteira do grupo B (RN-GER-007): DU e % corrido do B, projeção sobre o real até ontem.
+
+| Número | Antes (main) | Depois | Valor × regra |
+|---|---|---|---|
+| Projeção da visita (tabela e e-mail) | 1.570 | 1.566 | visitas até ontem ÷ 12 DU fechados × 19: o real de 19/11 (visitas de hoje, do Espelho) sai da projeção; bate com o Diretor (1.568) a 1 visita [SUP: arredondamento do cartão de cadastro] |
+| Projeção da visita (cartão) | 1.447 | 1.566 | no main o cartão e a tabela divergiam; agora é uma conta só |
+| Projeção do faturamento (tabela) | R$ 164.717 | R$ 173.494 | 109.575 (real até ontem) ÷ 12 × 19 |
+| Projeção do faturamento (cartão desafio e meta RH) | R$ 160.148 | R$ 173.494 | idem; cartão = tabela |
+| Nec./dia do faturamento | R$ 231.216 | R$ 198.186 | falta R$ 1.387.299 ÷ 7 DU (B: hoje ainda a vencer) |
+| Projeção da positivação | 66 (tabela) · 63 (cartão) | 68 | 43 positivados até ontem ÷ 12 × 19 |
+| Nec./dia da positivação | 19,7 | 16,9 | 118 ÷ 7 DU |
+| Nec./dia da visita | 52,5 | 78,0 | 546 ÷ 7 DU (a meta de visita do "antes" vem de uma árvore sem os .json de runtime: 1.389 contra 1.620; compare só as projeções) |
+| Projeção das peças | R$ 15.793 | R$ 16.900 | peças até ontem ÷ 12 × 19 (Peças é B na RN-GER-007; o corte do Metas fica no lote 2) |
+| Nec./dia das peças | R$ 98.164 | R$ 84.141 | ÷ 7 DU |
+| Cad. com compra: projeção | 6 | 6 | cadastros não separam hoje (SEM_SEPARAR_HOJE); lote 2 |
+| Cad. com compra: Nec./dia | 29,3 | 25,1 | ÷ 7 DU |
+| Subtítulo | "6 dia(s) útil(eis) até o fim do mês" | "7 dia(s) útil(eis)" | hoje ainda é dia a vencer no B |
