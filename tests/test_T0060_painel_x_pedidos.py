@@ -24,6 +24,7 @@ funções puras usam itens fictícios, sem dado pessoal.
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -421,3 +422,135 @@ def test_RN_GER_007_painel_rrm_hora_le_os_segundos():
     assert round(prm._hora("00:15:53"), 4) == 0.2647
     assert prm._hora("08:53") == pytest.approx(8 + 53 / 60)
     assert prm._hora(None) is None and prm._hora("") is None
+
+
+# ------------------------------------- 11 DU por grupo (funções puras)
+def test_RN_GER_007_du_corridos_grupo_B_ate_ontem_grupo_A_com_hoje():
+    """du_corridos(chave, ndp, ndp_a): cartão do grupo B usa ndp (até
+    ontem); o resto, ndp_a (hoje conta)."""
+    assert rn.GRUPO_B_CARTOES
+    for k in rn.GRUPO_B_CARTOES:
+        assert rn.du_corridos(k, 12, 13) == 12, k
+    for k in ("fat", "pos", "ped", "ticket"):
+        assert k not in rn.GRUPO_B_CARTOES
+        assert rn.du_corridos(k, 12, 13) == 13, k
+
+
+def test_RN_GER_007_du_restantes_grupo_B_do_farol_com_hoje_a_vencer():
+    """du_restantes(chave, resta_a, resta_b): coluna do grupo B do Farol
+    de Metas (visita, meta RH) usa resta_b; desafio e positivação, resta_a."""
+    assert rn.GRUPO_B_FAROL
+    assert any("VISITA" in str(k).upper() for k in rn.GRUPO_B_FAROL)
+    for k in rn.GRUPO_B_FAROL:
+        assert rn.du_restantes(k, 0, 1) == 1, k
+    for k in ("FAT. META", "POSIT."):
+        assert k not in rn.GRUPO_B_FAROL
+        assert rn.du_restantes(k, 0, 1) == 0, k
+
+
+# ------------------- 12 Nec./dia: visita e meta RH no B; desafio e posit no A
+_COLS = [{"nome": n} for n in (
+    "FAT. META", "FAT. META RH", "FAT. REAL", "POSIT. META", "POSIT. REAL",
+    "VISITA META", "VISITA REAL")]
+_LINHA = [1400.0, 1000.0, 400.0, 20, 6, 100, 30]   # gaps 1000/600/14/70
+
+
+def _nec(k):
+    return dict((a, b) for a, b, *_ in k["linhas"])["Nec./dia"] \
+        if any(a == "Nec./dia" for a, *_ in k["linhas"]) else k["linhas"][-1][1]
+
+
+def test_RN_GER_007_cartao_nec_dia_visita_e_rh_no_B_desafio_e_posit_no_A():
+    """Dia comum (6 DU no A, 7 no B): o Nec./dia divide pelos DU do grupo."""
+    ks = {k["rotulo"]: k for k in rn._cartoes_farol(
+        [_LINHA], _COLS, 6, 13 / 19 * 100, resta_b=7)}
+    assert _nec(ks["Faturamento · desafio comercial"]) == rn.moeda(1000 / 6)
+    assert _nec(ks["Positivação"]) == rn.br(14 / 6, 1)
+    assert _nec(ks["Visitas"]) == rn.br(70 / 7, 1)
+    assert _nec(ks["Faturamento · meta RH"]) == rn.moeda(600 / 7)
+
+
+def test_RN_GER_007_cartao_nec_dia_no_ultimo_du_visita_e_rh_usam_o_B():
+    """Último DU (dias_restantes = 0, dias_restantes_b = 1): visita e meta
+    RH dividem por 1 DU (B); desafio e positivação mostram o que falta;
+    nenhum cartão diz "mês fechado"."""
+    ac = _ac(0, 1)
+    ks = {k["rotulo"]: k for k in rn._cartoes_farol(
+        [_LINHA], _COLS, 0, rn._esperado(ac), ultimo_dia=rn._ultimo_dia(ac),
+        resta_b=rn._resta_b(ac))}
+    assert rn.moeda(1000.0) in _nec(ks["Faturamento · desafio comercial"])
+    assert "14" in _nec(ks["Positivação"])
+    assert "70" in _nec(ks["Visitas"])                      # 70 ÷ 1 DU
+    assert rn.moeda(600.0) in _nec(ks["Faturamento · meta RH"])
+    for k in ks.values():
+        assert not any("mês fechado" in t for t in _textos(k)), k["rotulo"]
+
+
+def test_RN_GER_007_tabela_do_metas_nec_visita_e_rh_no_B():
+    """meta_nucleo (a tabela): nec_visita e nec_fat_rh pelos DU do B;
+    nec_fat e nec_positivacao pelos do A."""
+    linha = {"meta_visita_int": 100, "visitas_realizadas": 30,
+             "meta_positivacao_int": 20, "positivados": 6,
+             "meta": 1400.0, "meta_rh": 1000.0, "realizado": 400.0}
+    mn._fechar_gaps(linha, 6, 7)
+    mn._fechar_rh(linha, 7)
+    assert linha["nec_visita"] == pytest.approx(70 / 7)
+    assert linha["nec_fat_rh"] == pytest.approx(600 / 7)
+    assert linha["nec_fat"] == pytest.approx(1000 / 6)
+    assert linha["nec_positivacao"] == pytest.approx(14 / 6)
+
+
+# ----------------------- 13 RRM por UF: a conta 000040 fora (caso fictício)
+def test_RN_GER_005_rrm_por_uf_sem_a_conta_000040():
+    """painel_rrm._da_tabela_uf: fat, peças e ticket por UF sem a 000040."""
+    d = date(2026, 11, 10)
+    itens = [dict(_it(d, "VND", 100.0, cliente="C1", filial=AM), cod="X1"),
+             dict(_it(d, "VND", 50.0, cliente="C2", filial=PA), cod="X1"),
+             dict(_it(d, "VND", 999.0, cliente="C3", filial=PA, vend="40"),
+                  cod="X1"),
+             dict(_it(d, "VND", 777.0, cliente="C1", filial=AM,
+                      vend="000040"), cod="X1")]
+    ctx = SimpleNamespace(
+        tabela={"itens": itens, "clientes": {}, "categorias": {"X1": "pecas"}},
+        cliente=lambda c: {}, produto=lambda c: "")
+    r = prm._da_tabela_uf(ctx, 2026, 11, date(2026, 11, 19), [])
+    assert r["fat"]["AM"] == pytest.approx(100.0)
+    assert r["fat"]["PA"] == pytest.approx(50.0)
+    assert r["pecas"]["AM"] == pytest.approx(100.0)
+    assert r["pecas"]["PA"] == pytest.approx(50.0)
+    assert r["ticket"]["AM"] == pytest.approx(100.0)
+    assert r["ticket"]["PA"] == pytest.approx(50.0)
+    assert r["fat"] == pytest.approx(_regra_por_uf(itens, date(2026, 11, 19)))
+
+
+# ------------------------------ 14 parcial de RV: inteira no grupo B
+def test_RN_GER_007_parcial_de_rv_inteira_no_grupo_B_no_ultimo_du(
+        monkeypatch):
+    """A parcial de RV é toda do grupo B (#223): no último DU
+    (dias_restantes = 0, dias_restantes_b = 1) todos os cartões, inclusive
+    desafio e positivação, dividem pelo 1 DU do B; nenhum diz "mês
+    fechado". Base congelada; o acompanhamento é o real com os dias
+    trocados (o bloco meta@ usa o dia de Manaus da máquina)."""
+    ctx = rn.Contexto(RAIZ, date(2026, 11, 30), None, dict(PARAMS))
+    original = rn.meta_do_periodo
+
+    def meta_do_periodo(c):
+        d = dict(original(c))
+        d["acomp"] = dict(d["acomp"], dias_restantes=0, dias_restantes_b=1)
+        return d
+    monkeypatch.setattr(rn, "meta_do_periodo", meta_do_periodo)
+    chamadas = []
+    cartoes = rn._cartoes_farol
+
+    def espiao(ls, cols, resta, esperado, *a, **kw):
+        chamadas.append((resta, kw.get("resta_b", resta)))
+        return cartoes(ls, cols, resta, esperado, *a, **kw)
+    monkeypatch.setattr(rn, "_cartoes_farol", espiao)
+    ac = meta_do_periodo(ctx)["acomp"]
+    v = next(x for x in ac["recortes"]["vendedor"] if x.get("chave"))
+    r = rn._exportar_rh(ctx, {"cargo": "VENDEDOR", "cod": v["chave"],
+                              "nome": "VENDEDOR"})
+    assert chamadas and all(c == (1, 1) for c in chamadas), chamadas
+    assert "1 dia(s) útil(eis) até o fim do mês" in r["subtitulo"]
+    for k in r["kpis"]:
+        assert not any("mês fechado" in t for t in _textos(k)), k["rotulo"]
