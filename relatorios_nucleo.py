@@ -3851,23 +3851,21 @@ def linhas_visita_de_hoje(ctx, regs=None) -> list:
             if l.get("ativo") and l["data"] >= hoje]
 
 
-def rv_ate_ontem(rv_da_linha, par, nivel, linha, hoje_b) -> dict:
+def rv_ate_ontem(rv_da_linha, par, nivel, linha, hoje_b,
+                 fechar_atingimentos) -> dict:
     """RN-GER-007 (puro, grupo B): a RV da pessoa com o real ATE ONTEM, o
-    mesmo da linha da parcial. `rv_da_linha` = meta_nucleo.rv_da_linha;
-    hoje_b = hoje_dos_itens do escopo. Atingimentos: faturamento pela meta
-    RH, positivacao e visita, como no acompanhamento."""
+    mesmo da linha da parcial. Injeta meta_nucleo.rv_da_linha e
+    meta_nucleo.fechar_atingimentos: copia a linha, poe o real ate ontem
+    (faturamento, positivados, visitas), recalcula os atingimentos e so entao
+    calcula a RV. hoje_b = hoje_dos_itens do escopo."""
     l = dict(linha)
-    real = (linha.get("realizado") or 0.0) - hoje_b.get("FAT.", 0.0)
-    mrh = linha.get("meta_rh")
-    l["atingimento_rh"] = real / mrh * 100.0 if mrh else 0.0
-    pos = (linha.get("positivados") or 0) - hoje_b.get("POSIT.", 0)
-    mp = linha.get("meta_positivacao")
-    l["atingimento_positivacao"] = pos / mp * 100.0 if mp else 0.0
-    mv, vis = linha.get("meta_visita"), linha.get("visitas_realizadas")
-    l["atingimento_visita"] = (None if mv is None or vis is None else
-                               (vis - hoje_b.get("VISITA", 0)) / mv * 100.0
-                               if mv else 0.0)
-    return rv_da_linha(par, nivel, l)
+    l["realizado"] = _ate_ontem(linha.get("realizado") or 0.0, hoje_b, "FAT.")
+    l["positivados"] = _ate_ontem(linha.get("positivados") or 0, hoje_b,
+                                  "POSIT.")
+    if linha.get("visitas_realizadas") is not None:
+        l["visitas_realizadas"] = _ate_ontem(linha["visitas_realizadas"],
+                                             hoje_b, "VISITA")
+    return rv_da_linha(par, nivel, fechar_atingimentos(l))
 
 
 def hoje_do_escopo(ctx, cods=None) -> dict:
@@ -11435,10 +11433,13 @@ def _exportar_rh(ctx, parcial=None):
             try:
                 import meta_nucleo as mn_               # noqa: PLC0415
                 rv_o = rv_ate_ontem(
-                    mn_.rv_da_linha, mn_.carregar_parametros(
-                        ctx.raiz / "meta_config.json"), chave_p, lp_, hj_)
-            except Exception:                           # noqa: BLE001
+                    mn_.rv_da_linha, _par_meta(ctx), chave_p, lp_, hj_,
+                    mn_.fechar_atingimentos)
+            except Exception as erro:                   # noqa: BLE001
                 rv_o = None
+                r["avisos"].append(
+                    f"RV da parcial com o real de hoje (ate ontem fora do "
+                    f"ar): {erro}")
         if own:
             l, k = own[0], (2 if chave_p == "vendedor" else 1)
             r["kpis"] = []
@@ -11589,6 +11590,24 @@ def _detalhe_da_parcial(ctx, ac, comp, parcial) -> list:
              "Top 30 cidades", "Top 30 bairros", "Top 30 clientes")
     tabs.sort(key=lambda t: ordem.index(t["titulo"]) if t["titulo"] in ordem
               else len(ordem))
+    # (lote 2, 28/11) as colunas de RV saem das tabelas do detalhe: o PDF
+    # ainda tem o real ate hoje por linha e o e-mail mostra a RV ate ontem
+    # (duas RVs no mesmo envio); a RV fica so no e-mail
+    for t in tabs:
+        i_rv = [i for i, c_ in enumerate(t["colunas"])
+                if str(c_.get("nome", "")).startswith("RV ")]
+        if not i_rv:
+            continue
+        fora = set(i_rv)
+        t["colunas"] = [c_ for i, c_ in enumerate(t["colunas"])
+                        if i not in fora]
+        t["linhas"] = [[v for i, v in enumerate(l) if i not in fora]
+                       for l in t["linhas"]]
+        if isinstance(t.get("total"), list):
+            t["total"] = [v for i, v in enumerate(t["total"])
+                          if i not in fora]
+        t["grupos"] = [(g, n) for g, n in (t.get("grupos") or [])
+                       if g != "RV R$"]
     # as colunas REAL do detalhe somam ATE HOJE (o real linha a linha ate
     # ontem fica para o lote 2): o periodo vai UMA vez no titulo da tabela
     # (o PDF le `sufixo_titulo`; o `titulo` segue a chave das listas)
