@@ -779,17 +779,19 @@ def test_RN_GER_007_rv_ate_ontem_paga_pela_faixa_do_real_ate_ontem():
     com_hoje = mn.rv_da_linha(par, "vendedor", linha)
     assert com_hoje["rv_total"] == 3000.0
     hoje_b = {"FAT.": 100.0, "POSIT.": 1, "VISITA": 10}
-    rv = rn.rv_ate_ontem(mn.rv_da_linha, par, "vendedor", linha, hoje_b)
+    rv = rn.rv_ate_ontem(mn.rv_da_linha, par, "vendedor", linha, hoje_b,
+                         mn.fechar_atingimentos)
     assert (rv["rv_fat"], rv["rv_positivacao"], rv["rv_visita"]) == (
         500.0, 500.0, 500.0)
     assert rv["rv_total"] == 1500.0
     assert linha["atingimento_rh"] == 100.0          # a linha não muda
     # sem nada de hoje: a mesma RV; visita sem meta: sem atingimento
     assert rn.rv_ate_ontem(mn.rv_da_linha, par, "vendedor", linha,
-                           {}) == com_hoje
+                           {}, mn.fechar_atingimentos) == com_hoje
     vis = []
     rn.rv_ate_ontem(lambda p_, n_, l_: vis.append(l_) or {}, par,
-                    "vendedor", dict(linha, meta_visita=None), hoje_b)
+                    "vendedor", dict(linha, meta_visita=None), hoje_b,
+                    mn.fechar_atingimentos)
     assert vis[0]["atingimento_visita"] is None
 
 
@@ -808,7 +810,8 @@ def test_RN_GER_007_rv_ate_ontem_com_hoje_zero_igual_a_rv_do_acompanhamento(
         for linha in ac["recortes"][nivel]:
             if linha.get("rv_total") is None:
                 continue
-            rv = rn.rv_ate_ontem(mn.rv_da_linha, par, nivel, linha, hoje_b)
+            rv = rn.rv_ate_ontem(mn.rv_da_linha, par, nivel, linha, hoje_b,
+                                 mn.fechar_atingimentos)
             for k in ("rv_fat", "rv_positivacao", "rv_visita", "rv_total"):
                 assert rv[k] == pytest.approx(linha[k]), (
                     nivel, linha.get("chave"), k)
