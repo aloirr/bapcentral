@@ -681,6 +681,21 @@ def test_RN_GER_007_parcial_de_rv_mostra_o_real_ate_ontem(base):
     assert k["Peças"] == rn.moeda(pecas) == "R$ 10.674"
     assert "Cad. com compra" + rn.sufixo_periodo(HOJE) in k
     assert "Cad. com compra" not in k
+    # o e-mail da parcial (resumo_desafio e resumo_pessoa): o mesmo real
+    # até ontem (a projeção e o Nec./dia dependem do dia do bloco meta@)
+    assert r["resumo_desafio"][2] == "R$ 109.575"
+    reais = {x[0]: x[2] for x in r["resumo_pessoa"]}
+    assert reais == {"Meta Fat.": "R$ 109.575", "Positivação": "43",
+                     "Visita": "989"}
+    # PDF de detalhe: a coluna fica "REAL" e o período vai no título
+    com_real = [t for t in r["tabelas"]
+                if any(c.get("curto") == "REAL" for c in t["colunas"])]
+    assert com_real
+    for t in com_real:
+        assert t["sufixo_titulo"] == rn.sufixo_periodo(HOJE) == " · até 19/11"
+        assert " · até" not in t["titulo"]
+        assert not any(" · até" in str(c.get("curto") or c["nome"])
+                       for c in t["colunas"])
 
 
 # ------------------------------------- 16 visitas de hoje (núcleo puro)
@@ -745,3 +760,57 @@ def test_RN_GER_007_ate_ontem_devolve_o_real_e_nunca_none():
     assert rn._ate_ontem(400.0, {"FAT.": 100.0}, "FAT.") == 300.0
     assert rn._ate_ontem(6, {"POSIT.": -1}, "POSIT.") == 7
     assert rn._ate_ontem(None, {"FAT.": 100.0}, "FAT.") is None
+
+
+def test_RN_GER_007_rv_ate_ontem_paga_pela_faixa_do_real_ate_ontem():
+    """rv_ate_ontem: a RV com o real ATE ONTEM (fat pela meta RH, positivação
+    e visita). Faixa sintética: < 90% = 0; 90–99,999% = R$ 500; ≥ 100% =
+    R$ 1.000. Com hoje bate 100% em tudo; sem hoje cai para 90%, 90% e
+    92,6% (125 de 135 visitas)."""
+    faixa = [{"de": 0.0, "ate": 89.999, "valor": 0.0},
+             {"de": 90.0, "ate": 99.999, "valor": 500.0},
+             {"de": 100.0, "ate": 999999.0, "valor": 1000.0}]
+    par = {"rv": {"vendedor": {k: faixa for k in ("fat", "positivacao",
+                                                  "visita")}}}
+    linha = {"realizado": 1000.0, "meta_rh": 1000.0, "atingimento_rh": 100.0,
+             "positivados": 10, "meta_positivacao": 10,
+             "atingimento_positivacao": 100.0, "visitas_realizadas": 135,
+             "meta_visita": 135, "atingimento_visita": 100.0}
+    com_hoje = mn.rv_da_linha(par, "vendedor", linha)
+    assert com_hoje["rv_total"] == 3000.0
+    hoje_b = {"FAT.": 100.0, "POSIT.": 1, "VISITA": 10}
+    rv = rn.rv_ate_ontem(mn.rv_da_linha, par, "vendedor", linha, hoje_b)
+    assert (rv["rv_fat"], rv["rv_positivacao"], rv["rv_visita"]) == (
+        500.0, 500.0, 500.0)
+    assert rv["rv_total"] == 1500.0
+    assert linha["atingimento_rh"] == 100.0          # a linha não muda
+    # sem nada de hoje: a mesma RV; visita sem meta: sem atingimento
+    assert rn.rv_ate_ontem(mn.rv_da_linha, par, "vendedor", linha,
+                           {}) == com_hoje
+    vis = []
+    rn.rv_ate_ontem(lambda p_, n_, l_: vis.append(l_) or {}, par,
+                    "vendedor", dict(linha, meta_visita=None), hoje_b)
+    assert vis[0]["atingimento_visita"] is None
+
+
+@pytest.mark.parametrize("hoje_b", [{}, {"FAT.": 0.0, "POSIT.": 0,
+                                         "VISITA": 0}])
+def test_RN_GER_007_rv_ate_ontem_com_hoje_zero_igual_a_rv_do_acompanhamento(
+        hoje_b):
+    """Trava (RD-c): sem nada de hoje, rn.rv_ate_ontem = a RV que o
+    meta_nucleo.acompanhar gravou em cada linha (vendedor e supervisor) e
+    na RV total. Base congelada; só códigos e valores, sem nome."""
+    ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
+    ac = rn.meta_do_periodo(ctx)["acomp"]
+    par = mn.carregar_parametros(RAIZ / "meta_config.json")
+    n = 0
+    for nivel in ("vendedor", "supervisor"):
+        for linha in ac["recortes"][nivel]:
+            if linha.get("rv_total") is None:
+                continue
+            rv = rn.rv_ate_ontem(mn.rv_da_linha, par, nivel, linha, hoje_b)
+            for k in ("rv_fat", "rv_positivacao", "rv_visita", "rv_total"):
+                assert rv[k] == pytest.approx(linha[k]), (
+                    nivel, linha.get("chave"), k)
+            n += 1
+    assert n > 0
