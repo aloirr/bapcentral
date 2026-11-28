@@ -94,3 +94,20 @@ Parcial do gerente (BAP inteira), base congelada, hoje = 19/11. Antes = main 7b4
 - Visitas (Diretor): 990 → 989; projeção 1.568 → 1.566; média/DU 82,5 → 82,4. O Diretor passa a usar a mesma conta do Farol de Visita (`visitas_de_hoje`, cadastro conta como visita, só vendedores ativos): real do Farol até 19/11 = 1.074, menos as 85 visitas de hoje = 989, igual ao Diretor. Projeção = 989 ÷ 12 DU × 19.
 - Parcial de RV, gerente: projeção de visita 1.566 (igual ao Diretor), Nec./dia 78,0 (546 ÷ 7 DU do B); projeções de faturamento R$ 173.494, positivação 68 e peças R$ 16.900 como na seção "Parcial de RV (grupo B)".
 - Parcial de RV, supervisor (1º supervisor da base): projeção de visita 689 (105%) → 635 (97%). Regra: o filtro de supervisor e vendedor comparava o código Máxima com códigos Protheus e as visitas de hoje davam 0; agora `cod_protheus`, e a projeção parte das visitas até ontem (RN-GER-007).
+
+## Parcial de RV: o real exibido é o real até ontem (RN-GER-007, grupo B)
+Todo número da parcial é do mesmo período da projeção: até 18/11 (ontem). Parcial do gerente, hoje = 19/11. Antes = main 7b4f488; depois = head. `parcial_rv_1366.png` e `parcial_rv_390.png` regenerados.
+
+| Real exibido | Antes (main) | Depois | Período | Valor × regra |
+|---|---|---|---|---|
+| Faturamento (desafio e meta RH; cartão e tabela) | R$ 112.701 | R$ 109.575 | até 18/11 | real − faturado de hoje (R$ 3.126); é a base da projeção R$ 173.494 (÷ 12 × 19) |
+| Positivação | 45 | 43 | até 18/11 | positivados até ontem; projeção 68 |
+| Visitas | 1.074 | 989 | até 18/11 | 1.074 − 85 de hoje (`visitas_de_hoje`); igual ao Diretor; projeção 1.566 |
+| Peças | R$ 11.015 | R$ 10.674 | até 18/11 | peças até ontem; projeção R$ 16.900 |
+| Cad. com compra | 4 | 4 | até 19/11 (rótulo no cartão) | cadastros não separam hoje (`SEM_SEPARAR_HOJE`, lote 2); o cartão diz "· até 19/11" |
+| Gap / Nec./dia do faturamento | R$ 1.387.299 / R$ 231.216 | R$ 1.390.425 / R$ 198.632 | até 18/11 | gap = desafio − real até ontem; ÷ 7 DU (B) |
+| Gap / Nec./dia da positivação | 118 / 19,7 | 120 / 17,2 | até 18/11 | ÷ 7 DU |
+| Gap / Nec./dia da visita | 546 / 52,5 | 631 / 90,1 | até 18/11 | 1.620 − 989; ÷ 7 DU |
+| Nec./dia das peças | R$ 98.164 | R$ 84.189 | até 18/11 | ÷ 7 DU |
+
+Fora desta rodada: as tabelas do PDF de detalhe da parcial (coluna REAL por vendedor, supervisor, UF...) ainda somam o dia de hoje; precisam do real por linha até ontem (lote 2).
