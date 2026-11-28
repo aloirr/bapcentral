@@ -520,7 +520,9 @@ def test_RN_GER_005_rrm_por_uf_sem_a_conta_000040():
     assert r["pecas"]["PA"] == pytest.approx(50.0)
     assert r["ticket"]["AM"] == pytest.approx(100.0)
     assert r["ticket"]["PA"] == pytest.approx(50.0)
-    assert r["fat"] == pytest.approx(_regra_por_uf(itens, date(2026, 11, 19)))
+    # estado da BAP sem nota no mês = 0 (regra de 10/11); o resto = a regra
+    assert {u: v for u, v in r["fat"].items() if v} == pytest.approx(
+        _regra_por_uf(itens, date(2026, 11, 19)))
 
 
 # ------------------------------ 14 parcial de RV: inteira no grupo B
