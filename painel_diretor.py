@@ -244,7 +244,8 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
         soma = defaultdict(float)
         for it in itens:
             d = it.get("dt_nf")
-            if d and d.year == a and d.month == m and d <= ate:
+            if d and d.year == a and d.month == m and d <= ate \
+                    and rn._conta_valida(it):           # RN-GER-005
                 v = rn._liquido(it)
                 if v is not None:
                     soma[it["cliente"]] += v
@@ -252,7 +253,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
 
     def fat_e_pos(a, m, ate):
         s = por_cliente_ate(a, m, ate)
-        return sum(s.values()), {c for c, v in s.items() if v > 0.005}
+        return sum(s.values()), rn.clientes_positivados_ate(itens, ate)
 
     # os farois de origem (o mesmo numero que o farol mostra)
     params_mes = {"MÊS": mes, "ANO": ano}
@@ -336,6 +337,11 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
         """Um cartao no padrao. real/proj/meta em numero; fmt formata.
         du: o texto da linha da media por dia util (05/11)."""
         gap_fmt = gap_fmt or fmt
+        # decisao 48: o grupo B segue ate ONTEM e diz o periodo no titulo;
+        # markup e desconto vao ate o dia do cabecalho: sem rotulo
+        if (ano, mes) == (hoje.year, hoje.month):
+            if chave in rn.GRUPO_B_CARTOES and corte < corte_a:
+                titulo += rn.sufixo_periodo(corte)
         if linhas is None:
             linhas = [("Projeção", fmt(proj)), (rot_du, du or "—")]
             if meta and real is None:
@@ -408,22 +414,28 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     cols, _ls, tot = tab("vc_meta", "Por gerente")
     ix = {c: i for i, c in enumerate(cols)}
     desafio = tot[ix["FAT. META"]] if tot and "FAT. META" in ix else None
-    fat, pos = fat_e_pos(ano, mes, corte)
-    proj = fat / ndp * ndm if ndp else None
+    # T-0060 / decisao 43: faturamento, positivacao e pedidos CONTAM hoje
+    # (hoje = DU passado); o resto (visitas, TMA...) segue ate ontem
+    corte_a, ndp_a = corte, ndp
+    if (ano, mes) == (hoje.year, hoje.month):
+        corte_a = min(hoje, fim_mes, ult)       # o rotulo vem da ultima NF
+        ndp_a = du_ate(hoje)                    # o DU conta hoje (decisao 43)
+    fat, pos = fat_e_pos(ano, mes, corte_a)
+    proj = rn.projecao_ritmo(fat, ndp_a / ndm) if ndp_a else None
     card(1, "fat", "Faturamento líquido", fat, proj, f_moeda, "vc_meta",
          "Farol de Metas (Por gerente, FAT. META = desafio comercial)",
          "VND − DEV pela data da NF, sem internos; projeção = real ÷ DU "
          "passados × DU do mês; GAP = desafio − real; % ating. = projeção "
-         "÷ desafio", meta=desafio, du=por_du(fat, ndp, f_moeda))
+         "÷ desafio", meta=desafio, du=por_du(fat, ndp_a, f_moeda))
 
     k_pos = kpi_de("vc_meta", "Positivação")
     meta_pos = _num(re.sub(r".*meta do mês", "", k_pos.get("detalhe", "")))
     card(1, "pos", "Positivação", len(pos),
-         len(pos) / ndp * ndm if ndp else None, f_int,
+         rn.projecao_ritmo(len(pos), ndp_a / ndm) if ndp_a else None, f_int,
          "vc_meta", "Farol de Metas (POSIT.)",
          "cliente com líquido (VND − DEV) > 0 no mês; média/DU = "
          "positivados ÷ DU até a última NF", meta=meta_pos,
-         du=por_du(len(pos), ndp, f_1))
+         du=por_du(len(pos), ndp_a, f_1))
 
     def fim_de(a, m):
         return date(a + (m == 12), m % 12 + 1, 1) - timedelta(days=1)
@@ -433,14 +445,14 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
         return f_ / len(p_) if p_ else None
     tk = fat / len(pos) if pos else None
     tk3 = [t for t in (ticket_de(a, m) for a, m in meses3) if t]
-    card(1, "ticket", "Ticket médio", tk, tk, f_moeda, "vc_painel",
+    card(1, "ticket", "Ticket por cliente", tk, tk, f_moeda, "vc_painel",
          "Painel Executivo",
          "faturamento líquido ÷ positivados (razão: a projeção é o próprio "
          "realizado); média/DU = faturamento/DU ÷ positivados/DU; MoM x mês anterior fechado, M3M x média dos 3 meses "
          "anteriores", ant=ticket_de(*a_ant),
          media3=sum(tk3) / len(tk3) if len(tk3) == 3 else None,
-         du=(f"{f_moeda(fat / ndp)} ÷ {f_1(len(pos) / ndp)}"
-             if pos and ndp else "—"))
+         du=(f"{f_moeda(fat / ndp_a)} ÷ {f_1(len(pos) / ndp_a)}"
+             if pos and ndp_a else "—"))
 
     k_mk = kpi_de("vc_markup", "Markup")
     mk = _num(k_mk.get("valor"))
@@ -448,7 +460,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     # (05/11) os farois de markup e saldo trazem o mes inteiro (com hoje):
     # a parte ate ontem = o valor x faturamento ate ontem / do mes
     fat_mes = fat_e_pos(ano, mes, fim_mes)[0]
-    f_ont = (fat / fat_mes) if fat_mes else None
+    f_ont = (fat_e_pos(ano, mes, corte)[0] / fat_mes) if fat_mes else None
     mg = mg * f_ont if mg is not None and f_ont is not None else None
     card(1, "markup", "Markup", mk, mk, f_pct1, "vc_markup",
          "Farol de Markup", "venda ÷ custo (P. PEDIDO + sucata) − 1; meta = "
@@ -474,10 +486,13 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     # (05/11) os DU das visitas: ate ontem (o dia fechado), ou ate o ultimo
     # dia do Espelho quando falta arquivo
     de = date(ano, mes, 1)
-    regs_m = []
+    regs_m, vis_hoje = [], 0.0
     try:
         regs_m = [r for r in vn.registros(raiz)
                   if de <= r["data"] <= min(hoje, fim_mes) and r.get("ativo")]
+        # a mesma conta do Farol de Visita e da parcial (visitas_de_hoje)
+        vis_hoje = rn.visitas_de_hoje(
+            rn.linhas_visita_de_hoje(ctx, regs_m), hoje)
     except Exception as erro:                           # noqa: BLE001
         avisos.append(f"Visitas (Espelho): {erro}")
     ult_v = max((r["data"] for r in regs_m), default=None)
@@ -485,9 +500,8 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     ndp_r = ndp_v
     # (05/11) o Farol de Visita soma o mes inteiro baixado: as visitas do
     # Espelho de hoje (dia aberto) saem do realizado do painel
-    if vis is not None:
-        vis = max(0.0, vis - sum(r.get("visitas") or 0 for r in regs_m
-                                 if r["data"] > corte))
+    if vis is not None and (ano, mes) == (hoje.year, hoje.month):
+        vis = max(0.0, vis - vis_hoje)
     proj_v = (vis / ndp_v * ndm) if vis is not None and ndp_v else None
     card(2, "visitas", "Visitas", vis, proj_v, f_int, "vc_visitas",
          "Farol de Visita (até ontem, sem o dia de hoje)",
@@ -655,13 +669,13 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
                 and (c.get("atraso") or 0) <= 0:
             if not rn.positivou(ctx, c["cod"], comp):
                 compr.append(c)
-            elif c["cod"] in pos:       # (05/11) comprou ate ontem
+            elif c["cod"] in pos:       # comprou ate hoje (grupo A, decisao 43)
                 ja += 1
     a_, m3_ = ant_e_m3("compraveis")
     # (05/11) quantos dos compraveis compraram por DU (ate a ultima NF) e a
     # projecao de quantos ainda ficam sem pedido no fim do mes
-    proj_c = (max(0.0, len(compr) - ja / ndp * max(0, ndm - ndp))
-              if ndp else None)
+    proj_c = (max(0.0, len(compr) - ja / ndp_a * max(0, ndm - ndp_a))
+              if ndp_a else None)
     card(3, "compraveis", "Compram, têm limite e estão em dia, sem pedido "
          "no mês", len(compr), proj_c, f_int, "vc_base",
          "Farol de Clientes",
@@ -669,7 +683,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
          "líquida no mês (foto do dia); média/DU = desses, quantos já "
          "compraram ÷ DU; projeção = os de hoje − média/DU × DU que faltam",
          ant=a_, media3=m3_, sobe_ruim=True,
-         du=f"{f_1(ja / ndp)} compraram" if ndp else "—")
+         du=f"{f_1(ja / ndp_a)} compraram" if ndp_a else "—")
 
     meses4 = [_mes_ant(ano, mes, n) for n in (4, 3, 2, 1)]
     soma4 = defaultdict(float)
@@ -684,14 +698,14 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     rot4 = f"{MESES_C[meses4[0][1]]}–{MESES_C[meses4[-1][1]]}"
     card(3, "contas_chave", f"Contas-chave que compraram (≥ R$ 10 mil "
          f"{rot4})", len(comp_ch),
-         min(len(chave), len(comp_ch) / ndp * ndm) if chave and ndp
+         min(len(chave), len(comp_ch) / ndp_a * ndm) if chave and ndp_a
          else None,
          f_int, "vc_base", "Farol de Clientes",
          f"clientes com ≥ R$ 10 mil líquidos nos 4 meses anteriores "
          f"({len(chave)}, somaram "
          f"{moeda(sum(soma4[c] for c in chave), True)}); meta = todas "
          "comprarem no mês", meta=len(chave) or None,
-         du=por_du(len(comp_ch), ndp, f_1))
+         du=por_du(len(comp_ch), ndp_a, f_1))
 
     # ================= 4 · PRECO E ESTOQUE
     est, ixe = [], {}
@@ -808,8 +822,8 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
                 f"{a} {b}" for a, b in c["linhas"]
                 if a in ("Projeção", "GAP meta", "% ating. proj.", "MoM"))))
     return {"comp": comp, "ano": ano, "mes": mes, "mes_nome": MESES_L[mes],
-            "prox_mes": MESES_C[mes % 12 + 1], "dados_ate": corte,
-            "ndp": ndp, "ndm": ndm, "cards": cards, "leitura": leitura,
+            "prox_mes": MESES_C[mes % 12 + 1], "dados_ate": corte, "dados_ate_a": corte_a,
+            "ndp": ndp, "ndp_a": ndp_a, "ndm": ndm, "cards": cards, "leitura": leitura,
             "acoes": [(a.get("t", ""), a.get("d", ""))
                       for a in cfg.get("acoes") or [] if isinstance(a, dict)],
             "compromisso": cfg.get("compromisso") or {},
@@ -890,8 +904,8 @@ def imagem(dados, destino_png=None, destino_pdf=None, rodape=""):
     t1 = f"PAINEL DO DIRETOR · {dados['mes_nome']} {dados['ano']}"
     d.text((W - P(40) - d.textlength(t1, font=F(26, "bold")), P(14)), t1,
            font=F(26, "bold"), fill=BRANCO_I)
-    da = dados["dados_ate"]
-    t2 = (f"BAP AUTOPARTS · dados até {da:%d/%m} · {dados['ndp']} de "
+    da = dados["dados_ate_a"]
+    t2 = (f"BAP AUTOPARTS · dados até {da:%d/%m} · {dados['ndp_a']} de "
           f"{dados['ndm']} dias úteis")
     d.text((W - P(40) - d.textlength(t2, font=F(14)), P(52)), t2,
            font=F(14), fill=(189, 189, 189))
@@ -1168,8 +1182,8 @@ def tela(pai, dados, abrir=None, ao_editar=None, exportar=None):
                      ("PNG (WhatsApp)", exportar and (lambda: exportar("png")))):
         if cmd:
             ttk.Button(bts, text=txt, command=cmd).pack(fill="x", pady=2)
-    tk.Label(dir_, text=f"dados até {dados['dados_ate']:%d/%m} · "
-             f"{dados['ndp']} de {dados['ndm']} dias úteis",
+    tk.Label(dir_, text=f"dados até {dados['dados_ate_a']:%d/%m}"
+             f" · {dados['ndp_a']} de {dados['ndm']} dias úteis",
              background=bv.CARTAO, foreground=bv.SUAVE,
              font=bv.fonte(7)).pack(fill="x", **pad)
     return raiz_f

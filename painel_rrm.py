@@ -87,10 +87,17 @@ def compacto(v, dinheiro=False):
     return br(v, 0) if a >= 10 or a == int(a) else br(v, 1)
 
 
+def _rn():
+    import relatorios_nucleo as rn                      # noqa: PLC0415
+    return rn
+
+
 def _hora(s):
-    """'08:53' -> 8,883 (horas); None/'' -> None."""
-    m_ = re.match(r"\s*(\d{1,2}):(\d{2})", str(s or ""))
-    return int(m_.group(1)) + int(m_.group(2)) / 60 if m_ else None
+    """'08:53' -> 8,883 (horas); '00:15:53' -> 0,2647 (com os segundos,
+    T-0060: arredonda so no fim); None/'' -> None."""
+    m_ = re.match(r"\s*(\d{1,2}):(\d{2})(?::(\d{2}))?", str(s or ""))
+    return (int(m_.group(1)) + int(m_.group(2)) / 60
+            + int(m_.group(3) or 0) / 3600) if m_ else None
 
 
 def _num(v):
@@ -206,34 +213,38 @@ def _da_tabela_uf(ctx, ano, mes, ate, top):
     do cliente no mes [SUPOSICAO]) e o TOP 30 (UF do cliente)."""
     import relatorios_nucleo as rn                      # noqa: PLC0415
     fat, pecas = defaultdict(float), defaultdict(float)
-    cli = defaultdict(lambda: defaultdict(float))
-    ped, prim = defaultdict(set), {}
+    por_uf, prim = defaultdict(list), {}
     tot_cli = defaultdict(float)
     for it in ctx.tabela["itens"]:
         d = it.get("dt_nf")
         if not d or d.year != ano or d.month != mes or d > ate:
             continue
         v = rn._liquido(it)
-        if v is None:
+        if v is None or not rn._conta_valida(it):       # RN-GER-005
             continue
         uf = rn.uf_da_filial(it.get("filial")) or "?"
         fat[uf] += v
-        cli[uf][it["cliente"]] += v
         tot_cli[it["cliente"]] += v
+        por_uf[uf].append(it)
         if rn._eh_pecas(ctx, it["cod"]):
             pecas[uf] += v
         if it["tipo"] == "VND":
-            ped[uf].add((it["filial"], it["pedido"]))
             if it["cliente"] not in prim or d < prim[it["cliente"]][0]:
                 prim[it["cliente"]] = (d, uf)
     cad = defaultdict(int)
+    # T-0060 (item 4): cadastro com COMPRA = positivado (liquido > 0 ate a
+    # data), a mesma regra do Metas
+    posit = rn.clientes_positivados_ate(ctx.tabela["itens"], ate)
     for cod, c in (ctx.tabela.get("clientes") or {}).items():
         dc = rn._dia(c.get("dtcad"))
         if dc and dc.year == ano and dc.month == mes and dc <= ate \
-                and cod in prim:
+                and cod in prim and cod in posit:
             cad[prim[cod][1]] += 1
-    pos = {u: sum(1 for v in cs.values() if v > 0.005)
-           for u, cs in cli.items()}
+    # RN-GER-002, 003 e 005: positivados e pedidos por UF pelas funcoes puras
+    pos = {u: len(rn.clientes_positivados_ate(its, ate))
+           for u, its in por_uf.items()}
+    ped = {u: len(rn.pedidos_faturados_ate(its, ate))
+           for u, its in por_uf.items()}
     t30, n30 = defaultdict(int), defaultdict(int)
     for c in top or []:
         u = str((ctx.cliente(c) or {}).get("uf") or "").upper()
@@ -242,7 +253,7 @@ def _da_tabela_uf(ctx, ano, mes, ate, top):
             t30[u] += 1
     tk = {u: fat[u] / pos[u] for u in fat if pos.get(u)}
     out = {"fat": dict(fat), "pos": pos,
-           "ped": {u: len(s) for u, s in ped.items()},
+           "ped": ped,
            "pecas": dict(pecas), "cad": dict(cad), "ticket": tk,
            "top30": {u: t30.get(u, 0) for u in n30}, "top30_n": dict(n30)}
     # (10/11) estado da BAP (filial) sem nota no mes = 0, nao em branco
@@ -315,8 +326,10 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
            for j, (_a, m_) in enumerate(comp_m)]
     ndp, ndm = dd["ndp"], dd["ndm"]
     rest = max(0, ndm - ndp)
-    ate = dd["dados_ate"]
-    corre = ndp < ndm
+    ate = dd["dados_ate"]                    # grupo B (ate ontem)
+    ndp_a = dd.get("ndp_a", ndp)             # grupo A: hoje conta
+    ate_a = dd.get("dados_ate_a") or ate
+    corre = at == (ctx.hoje.year, ctx.hoje.month)
     cards_at = {c["chave"]: c for c in dd["cards"]}
     tabs = dd.get("_tabs") or {}
     ant = comp_m[0]
@@ -327,7 +340,10 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
         return date(a + (m == 12), m % 12 + 1, 1) - timedelta(days=1)
 
     top = dc.get("top30") or []
-    uf_at = _da_tabela_uf(ctx, *at, ate, top)
+    uf_at = _da_tabela_uf(ctx, *at, ate_a, top)
+    if ate != ate_a:                # decisao 48: pecas e cadastros ate ontem
+        uf_b = _da_tabela_uf(ctx, *at, ate, top)
+        uf_at["pecas"], uf_at["cad"] = uf_b["pecas"], uf_b["cad"]
     uf_ant = _da_tabela_uf(ctx, *ant, fim(*ant), top)
 
     # metas do mes e por estado (Farol de Metas Equipe, Por supervisor)
@@ -362,7 +378,8 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
         m_ = metas.get(k)
         if not m_ or real is None:
             return []
-        ma = meta_ate if meta_ate else m_ * ndp / ndm if ndm else None
+        n_ = _rn().du_corridos(k, ndp, ndp_a)
+        ma = meta_ate if meta_ate else m_ * n_ / ndm if ndm else None
         out = []
         if ma:
             out.append(("MTD", real / ma * 100, compacto(ma, dinheiro)))
@@ -382,6 +399,8 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
 
     def card(lista, chave, titulo, valor, legenda="", aneis=(), fx=(),
              estados=None, ajuda=""):
+        if corre and ate != ate_a and chave in _rn().GRUPO_B_CARTOES:
+            titulo += _rn().sufixo_periodo(ate)
         lista.append({"chave": chave, "titulo": titulo, "valor": valor,
                       "legenda": legenda, "aneis": list(aneis),
                       "faixa": list(fx), "estados": estados,
@@ -415,7 +434,7 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
                    ant=uf_ant["ped"], extras=True),
          "filial + pedido com nota de venda no mês; sem meta: a barra "
          "mostra a variação da projeção do estado × mês anterior")
-    card(res, "ticket", "Ticket médio", reais(V["ticket"][at]), "", (),
+    card(res, "ticket", "Ticket por cliente", reais(V["ticket"][at]), "", (),
          faixa("ticket", v_pct, reais),
          barras_uf(uf_at["ticket"], reais, ant=uf_ant["ticket"]),
          "faturamento líquido ÷ positivados; sem meta")
@@ -575,7 +594,8 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
 
     # ============================== POR DIA UTIL
     def du_card(k, titulo, fmt, vals_uf, com_meta=True, n_=None):
-        n_ = n_ or ndp
+        n_ = n_ or _rn().du_corridos(k, ndp, ndp_a)
+        rest = max(0, ndm - n_)         # DU que faltam do cartao
         v = V[k][at]
         r_ = v / n_ if (v is not None and n_) else None
         fx = []
@@ -609,17 +629,18 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
              f"{titulo}: o mês ÷ os seus dias úteis; RITMO = ritmo ÷ meta "
              f"do mês por DU; {rest} DU = ritmo ÷ o que falta da meta por "
              "DU restante")
-    du_card("fat", "Faturamento por DU", reais, uf_at["fat"])
-    du_card("pos", "Positivação por DU", lambda v: br(v, 1), uf_at["pos"])
+    du_card("fat", "Faturamento por DU", reais, uf_at["fat"], n_=ndp_a)
+    du_card("pos", "Positivação por DU", lambda v: br(v, 1), uf_at["pos"],
+            n_=ndp_a)
     du_card("ped", "Pedidos faturados por DU", lambda v: br(v, 1),
-            uf_at["ped"], com_meta=False)
+            uf_at["ped"], com_meta=False, n_=ndp_a)
     du_card("vis", "Visitas por DU", lambda v: br(v, 1),
             _por_sup(vs, "VISIT."), n_=dd.get("_ndp_vis") or ndp)
     du_card("pecas", "Faturamento de peças por DU", reais, uf_at["pecas"])
     du_card("cad", "Cadastros com compra por DU", lambda v: br(v, 2),
             uf_at["cad"])
 
-    base = (f"{MESES_L[mes]} até {ate:%d/%m} ({ndp} de {ndm} dias úteis)"
+    base = (f"{MESES_L[mes]} até {ate_a:%d/%m} ({ndp_a} de {ndm} dias úteis)"
             if corre else f"{MESES_L[mes]} fechado ({ndm} dias úteis)")
     du_txt = ", ".join(f"{r.split()[0]} {du_m.get(am) or '—'}"
                        for am, r in zip(comp_m, rot))
@@ -638,7 +659,7 @@ def calcular(ctx, ano, mes, dd=None, dc=None) -> dict:
             "meta. Cores: verde ≥ 100%, amarelo 90–99%, vermelho < 90%.")
     return {"comp": f"{ano}-{mes:02d}", "ano": ano, "mes": mes,
             "res": res, "prod": prod, "du": du, "sub": sub,
-            "como_ler": como, "dados_ate": ate,
+            "como_ler": como, "dados_ate": ate_a,
             "avisos": list(dc.get("avisos") or [])}
 
 
