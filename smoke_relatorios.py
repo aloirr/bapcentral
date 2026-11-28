@@ -1774,8 +1774,12 @@ _ok06 = (not re.search(r"\d+ DU", _tx06)
          and _pd29._du_titulo(_dd29) == f"· {_dd29['ndp']} de "
                                          f"{_dd29['ndm']} DU"
          and (_pj06 is None or abs(_pe06 - _pj06) <= max(1.0, 0.001 * _pj06))
-         and rn._de_hoje(_ct06, {"dt_nf": _dt05_hoje, "tipo": "VND",
-                                 "valor": 10.0, "qtd": 1}) in (0.0, 10.0))
+         # transição T-0060 (decisão 43): volta ao estrito no PR seguinte
+         # (sem _de_hoje no #229: hoje conta na projeção e nada sai dela;
+         # não há função equivalente, então só esta parte é pulada)
+         and (not hasattr(rn, "_de_hoje")
+              or rn._de_hoje(_ct06, {"dt_nf": _dt05_hoje, "tipo": "VND",
+                                     "valor": 10.0, "qtd": 1}) in (0.0, 10.0)))
 checar(_ok06, "Painel do Diretor: DU do mês no título do bloco 1 e fora dos "
        "cartões; projeção do Painel Executivo (e do Resumo gerencial) = a do "
        "Painel do Diretor (DU fechados, sem a venda de hoje) (06/11)")
@@ -1843,20 +1847,35 @@ checar(_ok06i and not (_oc06 & {rn.norm_nome(l_[0]) for l_ in
 # Painel do Diretor vai ate ontem; Farol de Metas e de Visita tiram a venda
 # / visita de hoje da projecao (o realizado do cartao continua com hoje)
 import datetime as _dt05  # noqa: E402
-_k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0, real_proj=60)
-_c05 = rn._cartoes_farol(
-    [["A", 500.0, 100.0]], [{"nome": "NOME"}, {"nome": "FAT. META"},
-                            {"nome": "FAT. REAL"}], 10, 50.0,
-    hoje_total={"FAT.": 40.0})
-_c05b = rn._cartoes_farol(
-    [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]],
-    [{"nome": "NOME"}, {"nome": "FAT. META"}, {"nome": "FAT. REAL"}], 10,
-    50.0, hoje_de={"ANA": {"FAT.": 40.0}})
-checar({x_[0]: x_[1] for x_ in _k05["linhas"]}.get("Projeção do mês", "").startswith("120")
-       and {x_[0]: x_[1] for x_ in _c05[0]["linhas"]}.get("Projeção do mês", "").startswith(
-           "R$ 120")
-       and {x_[0]: x_[1] for x_ in _c05b[0]["linhas"]}.get("Projeção do mês", "").startswith(
-           "R$ 220")
+# transição T-0060 (decisão 43): volta ao estrito no PR seguinte
+import inspect as _in05  # noqa: E402
+_cols05 = [{"nome": "NOME"}, {"nome": "FAT. META"}, {"nome": "FAT. REAL"}]
+
+
+def _pj05(c_):
+    return {x_[0]: x_[1] for x_ in c_["linhas"]}.get("Projeção do mês", "")
+
+
+if "hoje_total" in _in05.signature(rn._cartoes_farol).parameters:
+    _k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0, real_proj=60)
+    _c05 = rn._cartoes_farol([["A", 500.0, 100.0]], _cols05, 10, 50.0,
+                             hoje_total={"FAT.": 40.0})
+    _c05b = rn._cartoes_farol(
+        [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]], _cols05, 10, 50.0,
+        hoje_de={"ANA": {"FAT.": 40.0}})
+    _ok05 = (_pj05(_k05).startswith("120")
+             and _pj05(_c05[0]).startswith("R$ 120")
+             and _pj05(_c05b[0]).startswith("R$ 220"))
+else:
+    # decisão 43: projeção = real ÷ (DU corridos com hoje ÷ DU do mês)
+    _k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0)
+    _c05 = rn._cartoes_farol([["A", 500.0, 100.0]], _cols05, 10, 50.0)
+    _c05b = rn._cartoes_farol(
+        [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]], _cols05, 10, 50.0)
+    _ok05 = (_pj05(_k05).startswith("200")
+             and _pj05(_c05[0]).startswith("R$ 200")
+             and _pj05(_c05b[0]).startswith("R$ 300"))
+checar(_ok05
        and (_dd29.get("dados_ate") is None
             or _dd29["dados_ate"] < _dt05.date.today()
             or _dd29["dados_ate"].month != _dt05.date.today().month),
@@ -1920,7 +1939,11 @@ checar(len(_blocos) == 8 and len(_pz["Por filial"]["linhas"][0]) == 12
            "UF", "CIDADE", "SUPERVISOR", "VENDEDOR", "SEGMENTO", "CATEGORIA",
            "SISTEMA", "FAMÍLIA", "LINHA", "PRODUTO", "PEDIDOS"]
        and all(b_["grafico"].get("linha") for b_ in _blocos[4:8])
-       and "Categoria: BATERIAS" in _f_pe["subtitulo"] and [k["rotulo"] for k in _pe["kpis"]][:4]
+       and "Categoria: BATERIAS" in _f_pe["subtitulo"]
+       # transição T-0060 (decisão 43): volta ao estrito no PR seguinte
+       # (aceita "Real" ou "Real · até dd/mm" no 2º cartão)
+       and [re.sub(r"^Real · até \d\d/\d\d$", "Real", k["rotulo"])
+            for k in _pe["kpis"]][:4]
        == ["Desafio comercial", "Real", "Pedidos em aberto", "Projeção"]
        and [b_["tipo"] for b_ in _blocos].count("pizza") == 4
        and all([l[1] or 0 for l in b_["linhas"]
