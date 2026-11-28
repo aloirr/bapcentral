@@ -733,3 +733,15 @@ def test_RN_GER_007_visitas_ate_ontem_do_diretor_igual_ao_farol_de_visita(
     assert c["projecao"] == pytest.approx(989 / (DU_PASSADOS_COM_HOJE - 1)
                                           * DU_MES)
     assert round(c["projecao"]) == 1566
+
+
+def test_RN_GER_007_ate_ontem_devolve_o_real_e_nunca_none():
+    """_ate_ontem(real, hoje_b, ind): sem o de hoje = o próprio real (não
+    None); indicador fora de hoje_b (o Cad.) = o real; com hoje = real − o
+    de hoje, inclusive negativo (devolução)."""
+    assert rn._ate_ontem(400.0, None, "FAT.") == 400.0
+    assert rn._ate_ontem(400.0, {}, "FAT.") == 400.0
+    assert rn._ate_ontem(4, {"FAT.": 100.0}, "CAD.") == 4
+    assert rn._ate_ontem(400.0, {"FAT.": 100.0}, "FAT.") == 300.0
+    assert rn._ate_ontem(6, {"POSIT.": -1}, "POSIT.") == 7
+    assert rn._ate_ontem(None, {"FAT.": 100.0}, "FAT.") is None
