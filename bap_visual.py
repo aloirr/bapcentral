@@ -29,6 +29,12 @@ from datetime import date, datetime
 from pathlib import Path
 
 
+def _titulo_tabela(t) -> str:
+    """O titulo da tabela no PDF: o `titulo` (a chave das listas) mais o
+    periodo (`sufixo_titulo`), quando a tabela traz um."""
+    return t["titulo"] + t.get("sufixo_titulo", "")
+
+
 def _tela_nitida():
     """WINDOWS COM ESCALA (125%, 150%): sem avisar que o programa entende a
     escala, o Windows desenha a janela pequena e ESTICA como imagem - as
@@ -3182,7 +3188,7 @@ def exportar_pdf(rel: dict, caminho, max_linhas: int = 1500) -> Path:
                     ParagraphStyle("kick", parent=est_sub, fontSize=7,
                                    leading=9)))
                 hist.append(Spacer(1, 1))
-            hist.append(Paragraph(t["titulo"], ParagraphStyle(
+            hist.append(Paragraph(_titulo_tabela(t), ParagraphStyle(
                 "hc", parent=est_sec, fontSize=15, leading=18)))
             cont = opc.get("contagem")
             meta_t = " · ".join(x for x in (
@@ -3191,7 +3197,7 @@ def exportar_pdf(rel: dict, caminho, max_linhas: int = 1500) -> Path:
                 rel.get("subtitulo", "") if unica else "",
                 f"{br(len(todas))} {cont}" if cont else "", sobra) if x)
         else:
-            hist.append(Paragraph(t["titulo"], est_sec))
+            hist.append(Paragraph(_titulo_tabela(t), est_sec))
             meta_t = " · ".join(x for x in (
                 "" if seguidas else rel.get("titulo", ""),
                 *fixos, filtro_t, sobra) if x)
@@ -4017,7 +4023,7 @@ def _exportar_pdf_bap(rel: dict, caminho, max_linhas: int = 1500) -> Path:
     tem_ating = False
     for t in rel.get("tabelas", []):
         linhas = t.get("linhas_visiveis", t["linhas"])[:max_linhas]
-        titulo = Table([["", Paragraph(t["titulo"].upper(), est["sec"])]],
+        titulo = Table([["", Paragraph(_titulo_tabela(t).upper(), est["sec"])]],
                        colWidths=[3, largura - 3], hAlign="LEFT")
         titulo.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (0, 0), cor(VERDE_BAP)),

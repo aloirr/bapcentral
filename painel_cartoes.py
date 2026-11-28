@@ -78,6 +78,11 @@ def hm(h):
     return f"{t // 60}h{t % 60:02d}"
 
 
+def _rn():
+    import relatorios_nucleo as rn                      # noqa: PLC0415
+    return rn
+
+
 def _mes_ant(ano, mes, n=1):
     i = ano * 12 + (mes - 1) - n
     return i // 12, i % 12 + 1
@@ -143,7 +148,7 @@ def _da_tabela(ctx, ano, mes, ate):
     """Pedidos faturados, itens (SKU por nota), pecas e cadastros com compra
     do mes ate a data (o mesmo do analitico do Painel Executivo)."""
     import relatorios_nucleo as rn                      # noqa: PLC0415
-    ped, nfs, compr = set(), defaultdict(set), set()
+    nfs, no_mes = defaultdict(set), []
     pecas = 0.0
     for it in ctx.tabela["itens"]:
         d = it.get("dt_nf")
@@ -155,14 +160,15 @@ def _da_tabela(ctx, ano, mes, ate):
         if rn._eh_pecas(ctx, it["cod"]):
             pecas += v
         if it["tipo"] == "VND":
-            ped.add((it["filial"], it["pedido"]))
             nfs[(it["filial"], it["nf"])].add(it["cod"])
-            compr.add(it["cliente"])
+        no_mes.append(it)
+    ped = rn.pedidos_faturados_ate(no_mes, ate)     # RN-GER-002, 005
+    positivou = rn.clientes_positivados_ate(no_mes, ate)    # RN-GER-003, 005
     cad = 0
     for cod, c in (ctx.tabela.get("clientes") or {}).items():
         dc = rn._dia(c.get("dtcad"))
         if dc and dc.year == ano and dc.month == mes and dc <= ate \
-                and cod in compr:
+                and cod in positivou:
             cad += 1
     return {"ped": len(ped), "itens": sum(len(x) for x in nfs.values()),
             "pecas": pecas, "cad": cad}
@@ -227,13 +233,21 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
             cards_m[am], du_m[am] = {}, None
             avisos.append(f"{MESES_C[am[1]]}: {erro}")
     ndp, ndm = dd["ndp"], dd["ndm"]
+    ndp_a = dd.get("ndp_a", ndp)            # grupo A: hoje conta
     rest = max(0, ndm - ndp)
     ate = dd["dados_ate"]
+    ate_a = dd.get("dados_ate_a") or ate
 
     def fim(a, m):
         return date(a + (m == 12), m % 12 + 1, 1) - timedelta(days=1)
-    tab = {am: _da_tabela(ctx, *am, ate if am == (ano, mes) else fim(*am))
-           for am in meses}
+    tab = {}
+    for am in meses:
+        if am != (ano, mes):
+            tab[am] = _da_tabela(ctx, *am, fim(*am))
+            continue
+        t_a, t_b = _da_tabela(ctx, *am, ate_a), _da_tabela(ctx, *am, ate)
+        # pedidos e itens: grupo A (hoje conta); pecas e cadastros: ate ontem
+        tab[am] = dict(t_a, pecas=t_b["pecas"], cad=t_b["cad"])
 
     def num(am, chave, escala=1.0):
         c = cards_m.get(am, {}).get(chave)
@@ -279,9 +293,9 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
     V["top30"] = {}
     for am in meses:
         s = _liquido_por_cliente(ctx, {am},
-                                 ate if am == (ano, mes) else None)
+                                 ate_a if am == (ano, mes) else None)
         V["top30"][am] = sum(1 for c in top if s.get(c, 0) > 0.005)
-    s_at = _liquido_por_cliente(ctx, {(ano, mes)}, ate)
+    s_at = _liquido_por_cliente(ctx, {(ano, mes)}, ate_a)
     hoje = ctx.hoje if hasattr(ctx.hoje, "year") else date.today()
     abertos = [it for it in ctx.tabela["itens"] if it["tipo"] == "VEA"
                and it.get("dt_pedido") and it["dt_pedido"].year == ano
@@ -306,9 +320,10 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
         pj = (cards_m[at].get(c) or {}).get("projecao") if c else None
         if pj is not None:
             return pj
-        return v / ndp * ndm if ndp else None
+        n_ = _rn().du_corridos(k, ndp, ndp_a)
+        return v / n_ * ndm if n_ else None
 
-    proj_mes = ndp < ndm             # mes fechado: real = projecao
+    proj_mes = corre                 # mes em curso: ha projecao
     r_at = rot[0]
 
     def barras(k, fmt, projetar=False, por_du=False):
@@ -323,7 +338,8 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
                 out.append((r, None, vazio, am == at))
                 continue
             if por_du:
-                n = ndp if am == at else du_m.get(am)
+                n = _rn().du_corridos(k, ndp, ndp_a) if am == at \
+                    else du_m.get(am)
                 v = v / n if n else None
                 if v is None:
                     out.append((r, None, "—", am == at))
@@ -392,7 +408,7 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
          regra="filial + pedido com nota de venda no mês; itens por pedido "
                "= SKUs por nota ÷ pedidos; em aberto = itens sem nota (VEA) "
                "digitados no mês")
-    card("ticket", "Ticket médio", reais(V["ticket"][at]), vh_dir,
+    card("ticket", "Ticket por cliente", reais(V["ticket"][at]), vh_dir,
          vars_abs("ticket", _var_pct), "sem meta no Painel",
          bars=barras("ticket", reais),
          regra="faturamento líquido ÷ positivados")
@@ -499,7 +515,9 @@ def calcular(ctx, ano, mes, dd=None, dist=DIST) -> dict:
 
     def du_card(k, titulo, fmt, com_meta, extra=None, regra=""):
         v = V[k][at]
-        r_ = v / ndp if (v is not None and ndp) else None
+        n_ = _rn().du_corridos(k, ndp, ndp_a)
+        rest = max(0, ndm - n_)         # DU que faltam do cartao
+        r_ = v / n_ if (v is not None and n_) else None
         vars_ = []
         for am, r in zip(meses[1:], rot[1:]):
             b = V[k][am]

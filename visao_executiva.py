@@ -409,9 +409,7 @@ def _expositores(ctx, c2, rn):
     corre = rn.mes_de(ctx.hoje)
     vend = defaultdict(lambda: defaultdict(float))
     for it in ctx.tabela["itens"]:
-        # (06/11) a nota de hoje fica fora (o mes corrente e projetado)
-        if it["tipo"] == "VND" and it["dt_nf"] and \
-                not rn._de_hoje(ctx, it):               # noqa: SLF001
+        if it["tipo"] == "VND" and it["dt_nf"]:
             vend[it["cliente"]][(rn.mes_de(it["dt_nf"]),
                                  ctx.categoria_bap(it["cod"]))] += it["valor"]
     delta, casados, sem = 0.0, 0, 0
@@ -569,8 +567,7 @@ def _frase_entrega_uf(por_uf, b, rn, ctx):
     real_uf = defaultdict(float)
     for it in b.get("no_periodo") or []:
         uf = rn.territorio_do_cliente(ctx, it["cliente"], "uf")
-        real_uf[uf] += ((rn._liquido(it) or 0.0)       # noqa: SLF001
-                        - rn._de_hoje(ctx, it))         # noqa: SLF001
+        real_uf[uf] += rn._liquido(it) or 0.0           # noqa: SLF001
     _ = ac
     linhas = []
     for uf, x in por_uf.items():

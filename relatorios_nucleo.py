@@ -127,18 +127,26 @@ def uf_do_nome_da_filial(nome) -> str:
 
 def por_filial_da_nota(ctx, comp) -> dict:
     """{"fat"|"pecas"|"posit"|"pedidos": {UF: real}} do mes (AAAA-MM), pela
-    FILIAL DA NOTA - a mesma conta das linhas do Farol de Metas
-    (_juntar_itens: liquido VND - DEV pela data da NF, pecas pela regra da
-    meta, positivado = cliente positivo no mes com venda na filial, notas
-    de venda distintas). E a mesma fonte da tabela Por UF (10/11)."""
+    FILIAL DA NOTA: fat = venda_liquida_por_uf; pecas e posit pela conta
+    das linhas do Farol de Metas (_juntar_itens); pedidos = (filial,
+    pedido) faturados, liquido > 0 (pedidos_faturados_ate)."""
     mix = _juntar_itens(ctx, comp, lambda it: [
         ("uf", uf_da_filial(it.get("filial")) or "?")], {})
-    saida = {"fat": {}, "pecas": {}, "posit": {}, "pedidos": {}}
+    ano, mes = int(comp[:4]), int(comp[5:7])
+    fim = date(ano + (mes == 12), mes % 12 + 1, 1) - timedelta(days=1)
+    saida = {"fat": venda_liquida_por_uf(ctx.tabela["itens"], fim),
+             "pecas": {}, "posit": {}, "pedidos": {}}
     for (_r, uf), x in mix.items():
-        saida["fat"][uf] = x["real"]
         saida["pecas"][uf] = x["pecas"]
         saida["posit"][uf] = len(x["cli"])
-        saida["pedidos"][uf] = len(x["nf"])
+    # T-0060 (D2a): PEDIDOS = (filial, pedido) faturados, liquido > 0, sem
+    # a conta 000040 (nao as notas distintas)
+    por_uf = defaultdict(list)
+    for it in ctx.tabela["itens"]:
+        if it.get("dt_nf") and mes_de(it["dt_nf"]) == comp:
+            por_uf[uf_da_filial(it.get("filial")) or "?"].append(it)
+    for uf, its in por_uf.items():
+        saida["pedidos"][uf] = len(pedidos_faturados_ate(its))
     return saida
 
 
@@ -264,6 +272,9 @@ def estados_do_cartao(rel, k) -> dict:
     pf_ = ((rel or {}).get("_por_filial") or {}).get(chave_f) \
         if chave_f else None
     real_uf = pf_ if pf_ is not None else real_t
+    liq_uf = (rel or {}).get("_liquido_por_uf")
+    if liq_uf and "faturado" in r_:             # T-0060 (D2d)
+        real_uf, pf_, chave_f = liq_uf, liq_uf, "fat"
     if chave_f in ("fat", "pecas"):
         eh_dinheiro = True
     if not real_uf:
@@ -2180,7 +2191,7 @@ def farol_pedidos(ctx):
                    if l[I_SIT] != "EM ABERTO"
                    or rotulo_no_periodo(ctx, l[I_MES])})
         return [
-            kpi("Pedidos", br(dig), "neutro",
+            kpi("Pedidos digitados", br(dig), "neutro",
                 moeda(sum(l[I_VEN] for l in ls))),
             # (22/10, Alexandre) FATURADO = o real, ja sem as devolucoes
             kpi("Faturado", moeda(sum(l[I_VEN] for l in fat) - dev_f),
@@ -2802,12 +2813,115 @@ def _ev_positivados(ctx, itens=None):
 
 
 def clientes_positivados(ctx, comp) -> set:
-    """Os clientes que positivaram no mes (comprou e nao devolveu tudo).
-    Sem os CNPJs internos (ja fora de ctx.tabela)."""
-    return {it["cliente"] for it in ctx.tabela["itens"]
-            if it["tipo"] == "VND" and it["dt_nf"]
-            and mes_de(it["dt_nf"]) == comp
-            and positivou(ctx, it["cliente"], comp)}
+    """Os clientes que positivaram no mes (liquido > 0): a mesma conta de
+    clientes_positivados_ate (sem a conta 000040 e sem os internos)."""
+    ano, mes = int(comp[:4]), int(comp[5:7])
+    fim = date(ano + (mes == 12), mes % 12 + 1, 1) - timedelta(days=1)
+    return clientes_positivados_ate(ctx.tabela["itens"], fim)
+
+
+# ---- T-0060 (decisoes 43 e 48) ------------------------------------------
+# HOJE CONTA no real, na projecao, na positivacao, nos pedidos e no volume
+# (hoje = DU passado). O grupo B (visitas, TMA...) segue ate ontem e o
+# periodo vem no rotulo (sufixo_periodo).
+CONTA_TESTE = "000040"
+SUFIXO_PERIODO = " · até {:%d/%m}"
+# os cartoes do Diretor e da RRM que seguem ate ONTEM (grupo B, decisao 48)
+GRUPO_B_CARTOES = frozenset({
+    "visitas", "conv_visitados", "primeira_visita", "aderencia", "jornada",
+    "pecas", "cad", "vis", "convv", "prim", "fora", "jorn", "ini", "ult",
+    "alm", "tma", "tmd", "ader"})
+
+
+def sufixo_periodo(d) -> str:
+    """O sufixo de periodo dos cartoes que diferem do cabecalho."""
+    return SUFIXO_PERIODO.format(d)
+
+
+# DU do B (hoje a vencer). PEÇAS e CAD. ficam fora ate o lote 2 (decisao do
+# gerente, 27/11 18:44), embora a RN-GER-007 os ponha no B: seguem com A.
+GRUPO_B_FAROL = frozenset({"VISITA", "FAT. RH"})
+
+
+def du_restantes(chave, resta_a, resta_b):
+    """Os DU restantes do indicador `chave` do Farol de Metas: o grupo B
+    (visita e meta RH) usa `resta_b`; o resto, `resta_a`."""
+    return resta_b if chave in GRUPO_B_FAROL and resta_b is not None \
+        else resta_a
+
+
+def du_corridos(chave, ndp, ndp_a):
+    """Os DU corridos do cartao `chave`: o grupo B (ate ontem) usa `ndp`; o
+    resto (hoje conta, decisao 43) usa `ndp_a`."""
+    return ndp if chave in GRUPO_B_CARTOES else ndp_a
+
+
+def _conta_valida(it) -> bool:
+    """Fora a conta 000040 (teste); os CNPJs internos ja saem da tabela."""
+    return _cod6(it.get("vend")) != CONTA_TESTE
+
+
+def projecao_ritmo(real, corrido):
+    """Projecao do mes ao ritmo: real ÷ fracao do mes ja corrida (DU passados
+    ÷ DU do mes, com hoje, decisao 43). UMA conta para o Painel, o Metas e o
+    Diretor (faturamento e positivacao). None sem fracao."""
+    return real / corrido if corrido and corrido > 0 else None
+
+
+def pedidos_faturados_ate(itens, ate=None) -> set:
+    """RN-GER-002 e 005 (puro): os PEDIDOS faturados = chave (filial, pedido) das
+    vendas (VND) com data da NF <= ate, so os de liquido > 0 (pedido
+    devolvido por inteiro sai), sem a conta 000040."""
+    liq = defaultdict(float)
+    for it in itens:
+        d = it.get("dt_nf")
+        if not d or (ate is not None and d > ate) or not _conta_valida(it):
+            continue
+        v = _liquido(it)
+        if v is not None and it.get("pedido"):
+            liq[(it["filial"], it["pedido"])] += v
+    return {k for k, v in liq.items() if v > 0.005}
+
+
+def pedidos_por_mes(itens, meses=None) -> dict:
+    """RN-GER-002 e 005 (puro): {AAAA-MM: pedidos faturados do mes}."""
+    por_m = defaultdict(list)
+    for it in itens:
+        if it.get("dt_nf") and (meses is None or mes_de(it["dt_nf"]) in meses):
+            por_m[mes_de(it["dt_nf"])].append(it)
+    return {m: pedidos_faturados_ate(its) for m, its in por_m.items()}
+
+
+def clientes_positivados_ate(itens, ate, universo=None) -> set:
+    """RN-GER-003 e 005 (puro): clientes com LIQUIDO > 0 no mes de `ate`, so com
+    as notas ate `ate`; universo (conjunto de codigos) limita aos da base
+    cadastral. Sem a conta 000040."""
+    liq = defaultdict(float)
+    for it in itens:
+        d = it.get("dt_nf")
+        if not d or d > ate or (d.year, d.month) != (ate.year, ate.month) \
+                or not _conta_valida(it):
+            continue
+        v = _liquido(it)
+        if v is not None:
+            liq[it["cliente"]] += v
+    return {c for c, v in liq.items() if v > 0.005
+            and (universo is None or c in universo)}
+
+
+def venda_liquida_por_uf(itens, ate) -> dict:
+    """RN-GER-002 e 006 (puro): {UF: venda - devolucao} do mes de `ate`, ate a
+    data, UF = filial da nota (por_filial_da_nota); sem a conta 000040."""
+    saida = defaultdict(float)
+    for it in itens:
+        d = it.get("dt_nf")
+        if not d or d > ate or (d.year, d.month) != (ate.year, ate.month) \
+                or not _conta_valida(it):
+            continue
+        v = _liquido(it)
+        if v is not None:
+            saida[uf_da_filial(it.get("filial")) or "?"] += v
+    return dict(saida)
 
 
 def _m3m_por(ctx, comp, chave):
@@ -3092,12 +3206,13 @@ def _somar_d(ds, com_rv=True):
     return tot
 
 
-def _valores_farol(d, mix, total_real, resta, tipo="pessoa"):
+def _valores_farol(d, mix, total_real, resta, tipo="pessoa", resta_b=None):
     """Os valores na MESMA ordem de _cols_farol(tipo)."""
-    def nec(meta, real):
-        if meta is None or not resta:
+    def nec(meta, real, dias=None):
+        dias = resta if dias is None else dias
+        if meta is None or not dias:
             return None
-        return max(0.0, (meta or 0) - (real or 0)) / resta
+        return max(0.0, (meta or 0) - (real or 0)) / dias
     meta, rh, real = d["meta"], d.get("meta_rh"), d["real"]
     mv, rv_ = d.get("mv"), d.get("rv")
     v = [] if tipo == "familia" else [d.get("ativos")]
@@ -3112,7 +3227,8 @@ def _valores_farol(d, mix, total_real, resta, tipo="pessoa"):
         v += [d.get("mp"), d.get("rp"), pct_de(d.get("rp") or 0, d.get("mp")),
               nec(d.get("mp"), d.get("rp"))]
         if tipo == "pessoa":
-            v += [mv, rv_, pct_de(rv_ or 0, mv) if mv else None, nec(mv, rv_)]
+            v += [mv, rv_, pct_de(rv_ or 0, mv) if mv else None,
+                  nec(mv, rv_, du_restantes("VISITA", resta, resta_b))]
             mc, rc = d.get("mc"), d.get("rc")
             v += [mc, rc, pct_de(rc or 0, mc) if mc else None]
             mci, rci = d.get("mcid"), d.get("rcid")
@@ -3155,7 +3271,7 @@ def _tom_ating(v):
 
 def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
                       rot_meta="meta", ate=None, meta_ate=None,
-                      real_proj=None):
+                      real_proj=None, ultimo_dia=False):
     """O cartao de um indicador: o REAL grande (o realizado ATE A DATA), a
     META DO MES embaixo e as linhas - ATING. DO MES (real / meta do mes),
     META ATE A DATA (a meta do mes na proporcao dos dias uteis ja
@@ -3170,10 +3286,10 @@ def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
     meta, real = meta or 0.0, real or 0.0
     at = pct_de(real, meta)
     corrido = (esperado or 0.0) / 100.0
-    # (05/11) real_proj: o realizado SEM O DIA DE HOJE (hoje nao conta nos
-    # DU corridos, entao a venda/visita de hoje tambem sai da projecao)
+    # real_proj: o realizado da projecao (a visita usa o seu); sem ele, o real
+    # (decisao 43: hoje conta no real e nos DU corridos)
     rp_ = real if real_proj is None else max(0.0, real_proj)
-    proj = rp_ / corrido if corrido > 0 else None
+    proj = projecao_ritmo(rp_, corrido)
     pp = pct_de(proj, meta) if proj is not None else None
     nec = max(0.0, meta - real) / resta if resta else None
     nec_txt = "—" if nec is None else (moeda(nec) if dinheiro
@@ -3185,7 +3301,7 @@ def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
         meta_ate = meta * corrido if corrido > 0 else None
     at_ate = pct_de(real, meta_ate) if meta_ate else None
     rot_ate = f"até {ate:%d/%m}" if ate else "até a data"
-    fechado = corrido >= 0.999
+    fechado = corrido >= 0.999 and not ultimo_dia
     linhas = [("Ating. do mês", p(at), _tom_ating(at))]
     if not fechado:
         linhas += [(f"{rot_meta.capitalize()} {rot_ate}", fmt(meta_ate), ""),
@@ -3193,129 +3309,63 @@ def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
     linhas += [("Projeção do mês", fmt(proj) + (f" ({p(pp)})" if pp
                                                  is not None else ""),
                 _tom_ating(pp)),
-               ("Nec./dia", nec_txt if resta else "mês fechado", "")]
+               ("Falta hoje", fmt(max(0.0, meta - real)), "") if ultimo_dia
+               else ("Nec./dia", nec_txt if resta else "mês fechado", "")]
     return kpi(nome, fmt(real), {"ok": "ok", "atencao": "atencao",
                                  "alerta": "alerta"}.get(tom, "neutro"),
                f"real {rot_ate if not fechado else 'do mês'} · {rot_meta} "
                f"do mês {fmt(meta)}", linhas)
 
 
-def _hoje_do_farol(ctx, ac, comp) -> dict:
-    """(05/11, Alexandre: "tirar a venda de hoje da conta do DU") O QUE E DE
-    HOJE (o dia aberto) no Farol de Metas, para sair da PROJECAO (os DU
-    corridos ja nao contam hoje): {nivel: {chave/nome: {"FAT.", "POSIT.",
-    "VISITA", "PEÇAS"}}, "_bap": {...}}. Faturamento e pecas = liquido das
-    notas de hoje por quem vendeu (C5_VEND1, a regra da RV); positivacao =
-    cliente que so ficou positivo com a nota de hoje; visita = Espelho de
-    hoje. Mes que nao e o corrente: {} (nada muda)."""
-    hoje = getattr(ctx, "hoje", None)
-    if not comp or not hoje or mes_de(hoje) != comp:
-        return {}
-    memo = getattr(ctx, "_hoje_farol", None)
-    if memo is None:
-        memo = ctx._hoje_farol = {}
-    if comp in memo:
-        return memo[comp]
-    por_v = defaultdict(lambda: defaultdict(float))
-    bap = defaultdict(float)
-    liq_t, liq_o = defaultdict(float), defaultdict(float)
-    cli_t, cli_o = defaultdict(float), defaultdict(float)
-    for it in ctx.tabela["itens"]:
-        d = it.get("dt_nf")
-        if not d or mes_de(d) != comp:
-            continue
-        v = _liquido(it)
-        if v is None:
-            continue
-        cv = _cod6(it.get("vend"))
-        liq_t[(cv, it["cliente"])] += v
-        cli_t[it["cliente"]] += v
-        if d >= hoje:
-            por_v[cv]["FAT."] += v
-            bap["FAT."] += v
-            if ctx.categoria_bap(it.get("cod")) in LINHAS_PECAS:
-                por_v[cv]["PEÇAS"] += v
-                bap["PEÇAS"] += v
-        else:
-            liq_o[(cv, it["cliente"])] += v
-            cli_o[it["cliente"]] += v
-    for (cv, c), v in liq_t.items():
-        if v > 0.005 and liq_o.get((cv, c), 0.0) <= 0.005:
-            por_v[cv]["POSIT."] += 1
-    bap["POSIT."] = sum(1 for c, v in cli_t.items()
-                        if v > 0.005 and cli_o.get(c, 0.0) <= 0.005)
-    try:
-        import visitas_nucleo as vn                     # noqa: PLC0415
-        for r_ in vn.registros(ctx.raiz):
-            if r_["data"] >= hoje and mes_de(r_["data"]) == comp \
-                    and r_.get("ativo") and r_.get("cod_protheus"):
-                n_ = r_.get("visitas") or 0
-                por_v[_cod6(r_["cod_protheus"])]["VISITA"] += n_
-                bap["VISITA"] += n_
-    except Exception:                                   # noqa: BLE001
-        pass
-    equipe = ac.get("equipe_vend") or {}
-    nome_v = {_cod6(l.get("chave")): l.get("nome") or l.get("rotulo")
-              for l in (ac.get("recortes") or {}).get("vendedor") or []
-              if l.get("chave")}
-    out = {"vendedor": {}, "supervisor": {}, "gerente": {}, "_bap": dict(bap)}
-
-    def somar(nivel, chave, vals):
-        if not texto(chave):
-            return
-        alvo = out[nivel].setdefault(norm_nome(chave), defaultdict(float))
-        for a, b in vals.items():
-            alvo[a] += b
-    for cv, vals in por_v.items():
-        somar("vendedor", cv, vals)
-        if nome_v.get(cv):
-            somar("vendedor", nome_v[cv], vals)
-        f_ = equipe.get(cv) or {}
-        somar("supervisor", f_.get("supervisor"), vals)
-        somar("gerente", f_.get("gerente"), vals)
-    memo[comp] = out
-    return out
+def _ate_ontem(real, hoje_b, ind):
+    """O real do grupo B ATE ONTEM (parcial de RV): sem o que e de hoje. O
+    mesmo numero e exibido e projetado. `ind` fora de hoje_b (cadastros,
+    SEM_SEPARAR_HOJE): o real como esta."""
+    if not hoje_b or real is None:
+        return real
+    return real - hoje_b.get(ind, 0)
 
 
-def _cartoes_farol(ls, cols, resta, esperado, hoje_de=None, hoje_total=None):
+def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
+                   resta_b=None, hoje_b=None, esperado_v=None,
+                   rot_cad=""):
     """Os cartoes de cima de uma vista (pelos nomes das colunas dela): um
     por indicador - faturamento (meta comercial e meta RH), positivacao,
-    visita, pecas e cadastro com compra. (05/11) hoje_de {nome da linha:
-    o que e de hoje} ou hoje_total (a BAP inteira): sai da PROJECAO."""
+    visita, pecas e cadastro com compra (hoje conta na projecao, decisao
+    43). hoje_b: o que e de hoje por indicador (parcial de RV, grupo B): o
+    real exibido e projetado vai ate ONTEM. rot_cad: o periodo no cartao de
+    cadastros, que conta hoje (SEM_SEPARAR_HOJE)."""
     idx = {c["nome"]: i for i, c in enumerate(cols)}
 
     def soma(nome):
         return sum(l[idx[nome]] or 0 for l in ls) if nome in idx else None
 
-    def de_hoje(ind):
-        if hoje_total is not None:
-            return hoje_total.get(ind) or 0.0
-        if not hoje_de:
-            return 0.0
-        return sum((hoje_de.get(norm_nome(l[0])) or {}).get(ind) or 0.0
-                   for l in ls if l)
-
-    def proj_de(real_, ind):
-        return None if real_ is None else real_ - de_hoje(ind)
-    real = soma("FAT. REAL")
+    real = _ate_ontem(soma("FAT. REAL"), hoje_b, "FAT.")
     saida = [_cartao_indicador("Faturamento · desafio comercial",
                                soma("FAT. META"), real, resta, esperado,
                                True, rot_meta="desafio",
-                               real_proj=proj_de(real, "FAT."))]
+                               ultimo_dia=ultimo_dia)]
     if "FAT. META RH" in idx:       # so no RH / parcial de RV (_COM_RH)
         saida.append(_cartao_indicador("Faturamento · meta RH",
-                                       soma("FAT. META RH"), real, resta,
+                                       soma("FAT. META RH"), real,
+                                       du_restantes("FAT. RH", resta, resta_b),
                                        esperado, True,
-                                       real_proj=proj_de(real, "FAT.")))
+                                       ultimo_dia=ultimo_dia))
     for nome, rot, din in (("POSIT.", "Positivação", False),
                            ("VISITA", "Visitas", False),
                            ("PEÇAS", "Peças", True),
                            ("CAD.", "Cad. com compra", False)):
         if f"{nome} META" in idx:
-            r_ = soma(f"{nome} REAL")
-            saida.append(_cartao_indicador(rot, soma(f"{nome} META"),
-                                           r_, resta, esperado, din,
-                                           real_proj=proj_de(r_, nome)))
+            r_ = _ate_ontem(soma(f"{nome} REAL"), hoje_b, nome)
+            if nome in SEM_SEPARAR_HOJE and hoje_b is not None and rot_cad:
+                rot += rot_cad          # o periodo real: ate hoje
+            # a visita e do grupo B: o Nec./dia usa os DU do B
+            saida.append(_cartao_indicador(
+                rot, soma(f"{nome} META"), r_,
+                du_restantes(nome, resta, resta_b),
+                esperado_v if (esperado_v is not None
+                               and nome in SEM_SEPARAR_HOJE) else esperado,
+                din, ultimo_dia=ultimo_dia))
     if "CID. META" in idx and soma("CID. META"):
         # (15/10) e estoque, nao ritmo: sem projecao nem nec./dia
         m_, r_ = soma("CID. META"), soma("CID. REAL")
@@ -3340,16 +3390,15 @@ def _tom_farol(at, esperado):
 
 
 def _tabela_farol(titulo, cab, itens, total, resta, esperado, tipo="pessoa",
-                  hoje_de=None,
-                  **kw):
+                  resta_b=None, **kw):
     """itens: [(valores do cabecalho, d, mix)]; total: o mesmo, ou None."""
     cols_i, grupos_i = _cols_farol(tipo)
     k = len(cab)
     tot_real = sum(d["real"] for _c, d, _m in itens)
-    linhas = [list(c) + _valores_farol(d, m, tot_real, resta, tipo)
+    linhas = [list(c) + _valores_farol(d, m, tot_real, resta, tipo, resta_b)
               for c, d, m in itens]
     tl = (list(total[0]) + _valores_farol(total[1], total[2], tot_real,
-                                          resta, tipo)) if total else None
+                                          resta, tipo, resta_b)) if total else None
     cab = _cab_no_pdf(cab, tipo)
     fator = _larguras_pdf(tipo)[1]
     if fator != 1.0:
@@ -3360,7 +3409,7 @@ def _tabela_farol(titulo, cab, itens, total, resta, esperado, tipo="pessoa",
     t_ = tabela(titulo, cols, linhas,
                 [_tom_farol(l[i_at], esperado) for l in linhas], total=tl,
                 kpis_de=lambda xs: _cartoes_farol(xs, cols, resta, esperado,
-                                                  hoje_de),
+                                                  resta_b=resta_b),
                 **kw)
     t_["grupos"] = [("", k)] + grupos_i
     t_["compacta"] = True
@@ -3564,10 +3613,10 @@ def acompanhamento_meta(ctx):
         r["tabelas"] = vistas_do_farol(ctx, ac, comp)
     ger = next((t for t in r["tabelas"] if t["titulo"] == "Por gerente"), None)
     if ger:
-        hj_b = _hoje_do_farol(ctx, ac, comp).get("_bap")
         cart_ger = _cartoes_farol(ger["linhas"], ger["colunas"],
-                                  ac.get("dias_restantes") or 0, _esperado(ac),
-                                  hoje_total=hj_b)
+                                  _resta_a(ac), _esperado(ac),
+                                  ultimo_dia=_ultimo_dia(ac),
+                                  resta_b=_resta_b(ac))
         # (14/10) AUDITORIA: o cartao de POSITIVACAO e o numero de clientes
         # DISTINTOS que compraram no mes (= Painel, Farol de Clientes e
         # Indicadores Executivos). A soma das linhas contava duas vezes o
@@ -3580,9 +3629,9 @@ def acompanhamento_meta(ctx):
             meta_p = sum(l[idx["POSIT. META"]] or 0 for l in ger["linhas"]) \
                 if "POSIT. META" in idx else 0.0
             cart_ger = [_cartao_indicador(
-                "Positivação", meta_p, n_pos, ac.get("dias_restantes") or 0,
-                _esperado(ac), real_proj=n_pos - (hj_b or {}).get(
-                    "POSIT.", 0)) if k.get("rotulo") == "Positivação" else k
+                "Positivação", meta_p, n_pos, _resta_a(ac),
+                _esperado(ac), ultimo_dia=_ultimo_dia(ac))
+                if k.get("rotulo") == "Positivação" else k
                 for k in cart_ger]
         r["kpis"] = cart_ger
         # (10/11) o estado do faturamento = a filial da nota
@@ -3728,7 +3777,7 @@ def _juntar_equipe(r, ctx, ac, comp, txt, V, T, sup):
         rh_tabs = []
     finally:
         _COM_RH[0] = antes
-    resta = ac.get("dias_restantes") or 0
+    resta = _resta_b(ac)
     tabs_rh = {nv: _so_meta_rh(t, resta) for t in rh_tabs
                for tit, nv in TITULOS_PESSOA if t["titulo"] == tit}
     rh = _empilhar("Acomp. RH", tabs_rh) if tabs_rh else None
@@ -3736,8 +3785,7 @@ def _juntar_equipe(r, ctx, ac, comp, txt, V, T, sup):
         ger_rh = next((t for t in rh_tabs if t["titulo"] == "Por gerente"),
                       None)
         cart_rh = (_cartoes_farol(ger_rh["linhas"], ger_rh["colunas"], resta,
-                                  _esperado(ac), hoje_total=_hoje_do_farol(
-                                      ctx, ac, comp).get("_bap"))
+                                  _esperado(ac))
                    if ger_rh else None)
         if cart_rh:      # o cartao do desafio fica na aba Equipe
             cart_rh = [k for k in cart_rh
@@ -3747,8 +3795,109 @@ def _juntar_equipe(r, ctx, ac, comp, txt, V, T, sup):
     r["tabelas"] = novas
 
 
-def _esperado(ac):
-    du, resta = ac.get("dias_uteis_do_mes"), ac.get("dias_restantes")
+def _resta_a(ac) -> int:
+    """DU restantes do grupo A (hoje conta: so os dias depois de hoje)."""
+    return ac.get("dias_restantes") or 0
+
+
+# Indicadores cujo "hoje" nao se separa do real (ficam com hoje contado ate
+# o lote 2): cadastros com compra. A visita ja separa (Espelho).
+SEM_SEPARAR_HOJE = frozenset({"CAD."})
+
+
+def visitas_de_hoje(regs, hoje, cods=None) -> float:
+    """RN-GER-007 (puro, grupo B): as visitas de HOJE nas linhas do Espelho
+    (com o cadastro como visita). `cods`: so os vendedores (codigo PROTHEUS);
+    None = todos. UMA conta para o Farol de Visita, o Diretor e a parcial."""
+    return sum(l.get("visitas") or 0 for l in regs
+               if l["data"] >= hoje
+               and (cods is None or _cod6(l.get("cod_protheus")) in cods))
+
+
+def hoje_dos_itens(itens, regs_visita, hoje, eh_pecas, cods=None) -> dict:
+    """RN-GER-007 (puro, grupo B): o que e de HOJE nos itens (ja no escopo) e
+    nas linhas do Espelho, para a projecao da parcial de RV usar so o real
+    ATE ONTEM: {"FAT.": liquido de hoje, "PEÇAS": so pecas, "POSIT.": a
+    diferenca de positivados do mes (pode ser negativa se houve devolucao),
+    "VISITA": visitas de hoje}. No 1o dia do mes, "ontem" e do mes anterior:
+    o ate-ontem do mes e zero."""
+    fat = pecas = 0.0
+    for it in itens:
+        if it.get("dt_nf") == hoje and _conta_valida(it):
+            v = _liquido(it)
+            if v is not None:
+                fat += v
+                if eh_pecas(it["cod"]):
+                    pecas += v
+    ontem = hoje - timedelta(days=1)
+    pos_ontem = (len(clientes_positivados_ate(itens, ontem))
+                 if ontem.month == hoje.month else 0)
+    pos = len(clientes_positivados_ate(itens, hoje)) - pos_ontem
+    vis = visitas_de_hoje(regs_visita, hoje, cods)
+    return {"FAT.": fat, "PEÇAS": pecas, "POSIT.": pos, "VISITA": vis}
+
+
+def linhas_visita_de_hoje(ctx, regs=None) -> list:
+    """As linhas do Espelho de HOJE, so de vendedores ativos, com o cadastro
+    e a prospeccao como visita. A linha so de prospeccao precisa de uma
+    linha do vendedor no mes (o modelo), entao le desde o dia 1 e filtra
+    hoje depois. `regs`: o Espelho do mes ja lido (o Diretor reaproveita);
+    None = le aqui. UM lugar para o Farol de Visita, o Diretor e a parcial."""
+    import visitas_nucleo as vn                         # noqa: PLC0415
+    hoje = ctx.hoje
+    if regs is None:
+        regs = vn.registros(ctx.raiz, de=hoje.replace(day=1), ate=hoje)
+    return [l for l in com_cadastro_como_visita(ctx, regs, hoje, hoje)
+            if l.get("ativo") and l["data"] >= hoje]
+
+
+def rv_ate_ontem(rv_da_linha, par, nivel, linha, hoje_b,
+                 fechar_atingimentos) -> dict:
+    """RN-GER-007 (puro, grupo B): a RV da pessoa com o real ATE ONTEM, o
+    mesmo da linha da parcial. Injeta meta_nucleo.rv_da_linha e
+    meta_nucleo.fechar_atingimentos: copia a linha, poe o real ate ontem
+    (faturamento, positivados, visitas), recalcula os atingimentos e so entao
+    calcula a RV. hoje_b = hoje_dos_itens do escopo."""
+    l = dict(linha)
+    l["realizado"] = _ate_ontem(linha.get("realizado") or 0.0, hoje_b, "FAT.")
+    l["positivados"] = _ate_ontem(linha.get("positivados") or 0, hoje_b,
+                                  "POSIT.")
+    if linha.get("visitas_realizadas") is not None:
+        l["visitas_realizadas"] = _ate_ontem(linha["visitas_realizadas"],
+                                             hoje_b, "VISITA")
+    return rv_da_linha(par, nivel, fechar_atingimentos(l))
+
+
+def hoje_do_escopo(ctx, cods=None) -> dict:
+    """hoje_dos_itens do escopo (cods = vendedores, ou None = a BAP)."""
+    itens = [it for it in ctx.tabela["itens"]
+             if cods is None or _cod6(it.get("vend")) in cods]
+    regs = linhas_visita_de_hoje(ctx)
+    return hoje_dos_itens(itens, regs, ctx.hoje,
+                          lambda cod: _eh_pecas(ctx, cod), cods)
+
+
+def _resta_b(ac) -> int:
+    """DU restantes do grupo B (meta RH, RV): hoje ainda e dia a vencer.
+    Usa `dias_restantes_b` do acompanhamento (meta_nucleo, modulo-metas); se
+    ele nao vier, cai no `dias_restantes` [SUPOSICAO: sem o campo, o B fica
+    como o A]."""
+    b = ac.get("dias_restantes_b")
+    return b if b is not None else _resta_a(ac)
+
+
+def _ultimo_dia(ac) -> bool:
+    """Hoje e o ULTIMO DU do mes (hoje conta: dias_restantes = 0 mas hoje
+    ainda e dia a vencer: dias_restantes_b > 0, do modulo-metas). So depois
+    do ultimo DU o cartao diz "mes fechado"."""
+    return (ac.get("dias_restantes") == 0
+            and (ac.get("dias_restantes_b") or 0) > 0)
+
+
+def _esperado(ac, grupo_b=False):
+    """% do mes corrido: grupo A (hoje conta) ou grupo B (ate ontem)."""
+    du = ac.get("dias_uteis_do_mes")
+    resta = _resta_b(ac) if grupo_b else ac.get("dias_restantes")
     return (du - resta) / du * 100.0 if du and resta is not None else None
 
 
@@ -3818,12 +3967,20 @@ def _tem_meta_ou_mov(l) -> bool:
         abs(l.get(k) or 0) > 0.005 for k in _MOV_LINHA)
 
 
+def _du_da_vista(ac, corte):
+    """(resta, resta_b, esperado) das vistas do Farol: a parcial de RV (com
+    `corte`) e inteira do grupo B (RN-GER-007)."""
+    resta, resta_b = _resta_a(ac), _resta_b(ac)
+    if corte:
+        return resta_b, resta_b, _esperado(ac, True)
+    return resta, resta_b, _esperado(ac)
+
+
 def vistas_do_farol(ctx, ac, comp, corte=None, sem=()):
     """As vistas do Farol de Metas, a equipe inteira (sem recorte):
     gerente, supervisor, vendedor, UF, cidade, bairro, segmento, zona e
     familia. corte: no maximo tantas linhas nos territorios (o PDF)."""
-    resta = ac.get("dias_restantes") or 0
-    esperado = _esperado(ac)
+    resta, resta_b, esperado = _du_da_vista(ac, corte)
     mix = _mix_das_linhas(ctx, comp, ac)
     rh_por = ac.get("rh_por") or {}
     slim = ac.get("clientes_slim") or []
@@ -3923,9 +4080,7 @@ def vistas_do_farol(ctx, ac, comp, corte=None, sem=()):
             titulo, cab_cols, itens, (["TOTAL"] + [""] * (len(cab_cols) - 1),
                                       tot_d, tot_m),
             resta, esperado, tipo="pessoa" if pessoa else "territorio",
-            hoje_de=(_hoje_do_farol(ctx, ac, comp).get(chave)
-                     if pessoa else None),
-            filtros=("SUPERVISOR",) if chave == "vendedor" else ()))
+            resta_b=resta_b, filtros=("SUPERVISOR",) if chave == "vendedor" else ()))
         if chave == "vendedor":          # o TOP 30 clientes vem logo depois
             tabelas.append(_top_clientes_tabela(
                 ctx, comp, [c for c in slim if not c.get("fora_do_planner")],
@@ -4000,8 +4155,7 @@ def vistas_escopo(ctx, ac, comp, V=None, T=None, sup=None, corte=None,
     (pela nota, e a carteira deles); T = o territorio do cliente. Sem
     territorio, as linhas de pessoa sao as do acompanhamento (com visita e
     RV); com territorio, saem da soma dos clientes e das notas."""
-    resta = ac.get("dias_restantes") or 0
-    esperado = _esperado(ac)
+    resta, resta_b, esperado = _du_da_vista(ac, corte)
     equipe = ac.get("equipe_vend") or {}
     nomes = _nomes_vendedor(ac)
     slim = [c for c in ac.get("clientes_slim") or []
@@ -4095,8 +4249,7 @@ def vistas_escopo(ctx, ac, comp, V=None, T=None, sup=None, corte=None,
             if len(itens) > 1 else None
         tabs.append(_tabela_farol(f"Por {nivel}", [col("NOME", "texto", 190)],
                                   itens, tot, resta, esperado,
-                                  hoje_de=_hoje_do_farol(ctx, ac, comp).get(
-                                      nivel)))
+                                  resta_b=resta_b))
     com_cod = bool(corte)               # parcial: o codigo de venda
     itens_v = sorted([(([c_] if com_cod else [])
                        + [nomes.get(c_, c_), _nome_curto(sup_de[c_])], d,
@@ -4110,8 +4263,7 @@ def vistas_escopo(ctx, ac, comp, V=None, T=None, sup=None, corte=None,
     tabs.append(_tabela_farol("Por vendedor", _cab_vendedor(com_cod), itens_v,
                               tot_v,
                               resta, esperado, filtros=("SUPERVISOR",),
-                              hoje_de=_hoje_do_farol(ctx, ac, comp).get(
-                                  "vendedor")))
+                              resta_b=resta_b))
     tabs.append(_top_clientes_tabela(ctx, comp, cli, mix, resta, esperado))
     # ---- os territorios
     for recorte, titulo in (("uf", "Por UF"), ("cidade", "Por cidade"),
@@ -4144,7 +4296,8 @@ def vistas_escopo(ctx, ac, comp, V=None, T=None, sup=None, corte=None,
                _somar_d([d for _c, d, _m in itens], com_rv=False),
                _mix_total([m for _c, _d, m in itens]))
         tabs.append(_tabela_farol(titulo, _cab_territorio(recorte), itens,
-                                  tot, resta, esperado, tipo="territorio"))
+                                  tot, resta, esperado, tipo="territorio",
+                                  resta_b=resta_b))
     mix_c = {k: x for (r_, k), x in mix.items() if r_ == "categoria"}
     tabs.append(_familia_tabela(ac, cli, mix_c, resta, esperado,
                                 categoria=True))
@@ -8833,66 +8986,10 @@ def _fator_do_mes(ctx, ano, mes):
     du_tot = bd.dias_uteis_entre(ini - timedelta(days=1), fim, ctx.fer)
     if ini <= hoje <= fim:
         du_pass = bd.dias_uteis_entre(ini - timedelta(days=1), hoje, ctx.fer)
-        # (06/11, Alexandre: "ajuste a projecao... que esta divergente"; regra
-        # de 05/11 "tirar a venda de hoje da conta do DU") os DU passados vao
-        # ate ONTEM, como no Painel do Diretor; a venda de hoje sai da
-        # projecao (_de_hoje). No 1o dia util (nada fechado), como era.
-        if _hoje_fora_do_du(ctx, ano, mes):
-            du_pass = _du_fechados(ctx, ano, mes)
+        # decisoes 43 e 48: hoje e DU passado (a venda de hoje conta)
         du_rest = max(0, (du_tot or 0) - (du_pass or 0))
         return ((du_tot / du_pass) if du_pass else 1.0), du_pass, du_rest
     return 1.0, du_tot, 0
-
-
-def _du_fechados(ctx, ano, mes) -> int:
-    """(06/11) os DU FECHADOS do mes que esta correndo, como no Painel do
-    Diretor: ate ONTEM, e nunca depois da ultima NF que entrou no mes (o
-    robo parado nao derruba a media)."""
-    hoje = getattr(ctx, "hoje", None)
-    if not hoje or not mes or (ano, mes) != (hoje.year, hoje.month):
-        return 0
-    memo = getattr(ctx, "_du_fechados_memo", None)
-    if memo is None:
-        memo = ctx._du_fechados_memo = {}
-    if (ano, mes) not in memo:
-        ini = date(ano, mes, 1)
-        ate = hoje - timedelta(days=1)
-        ult = None
-        try:
-            for it in ctx.tabela["itens"]:
-                d = it.get("dt_nf")
-                if d and d.year == ano and d.month == mes and \
-                        (ult is None or d > ult):
-                    ult = d
-        except Exception:                               # noqa: BLE001
-            ult = None
-        if ult and ult < ate:
-            ate = ult
-        memo[(ano, mes)] = (bd.dias_uteis_entre(ini - timedelta(days=1), ate,
-                                                ctx.fer) or 0) \
-            if ate >= ini else 0
-    return memo[(ano, mes)]
-
-
-def _hoje_fora_do_du(ctx, ano, mes) -> bool:
-    """(06/11) o mes que esta correndo ja tem dia util FECHADO: entao hoje
-    (o dia aberto) fica fora dos DU e da projecao."""
-    return _du_fechados(ctx, ano, mes) > 0
-
-
-def _de_hoje(ctx, it, qtd=False):
-    """(06/11) a parte do item que SAI da projecao: a nota de hoje (o dia
-    aberto) quando hoje esta fora dos DU; o pedido em aberto (_ped) nao
-    (entra inteiro). qtd=True: a quantidade (com sinal da devolucao)."""
-    d = it.get("dt_nf")
-    hoje = getattr(ctx, "hoje", None)
-    if not d or not hoje or d != hoje or it.get("_ped") or \
-            not _hoje_fora_do_du(ctx, hoje.year, hoje.month):
-        return 0.0
-    if qtd:
-        return ((it["qtd"] or 0) if it["tipo"] == "VND"
-                else -abs(it["qtd"] or 0))
-    return _liquido(it) or 0.0
 
 
 def _mom(vals):
@@ -8968,8 +9065,7 @@ def painel_executivo(ctx):
     ped_v = sum(it["valor"] for it in no_periodo if it.get("_ped"))
     fator, du_pass, du_rest = (_fator_do_mes(ctx, ano, mes) if mes
                                else (1.0, None, None))
-    hoje_v = sum(_de_hoje(ctx, it) for it in no_periodo)    # (06/11)
-    tend = (real - ped_v - hoje_v) * fator + ped_v
+    tend = (real - ped_v) * fator + ped_v
     slim = [c for c in ac.get("clientes_slim") or []
             if not c.get("fora_do_planner") and cli_ok(c)]
     meta = None
@@ -8992,12 +9088,8 @@ def painel_executivo(ctx):
         kpi("Desafio comercial", moeda(meta) if meta else "—", "neutro",
             (f"falta {moeda(max(0, meta - real))}" if meta
              else "sem desafio no mês")),
-        kpi("Real + pedidos" if ped_v else "Real", moeda(real), "ok",
-            (f"faturado {moeda(real - ped_v)} + pedidos {moeda(ped_v)}"
-             if ped_v else
-             f"ating. {p(at)} · {moeda((real - hoje_v) / du_pass)}/dia"
-             if meta and du_pass else
-             f"{moeda((real - hoje_v) / du_pass)}/dia" if du_pass else "")),
+        _kpi_real(ctx, real, ped_v, meta, at, du_pass, du_rest,
+                  bool(mes) and corre_mes),
         _kpi_pedidos(ctx, abertos, flag_ped and corre_mes),
         kpi("Projeção", moeda(tend), "info",
             ("no ritmo de hoje" + (" + pedidos" if ped_v else ""))
@@ -9013,11 +9105,10 @@ def painel_executivo(ctx):
     ]
     # ---- vendedores e clientes (as abas)
     pv = defaultdict(lambda: {"real": 0.0, "vol": 0.0, "cli": set(),
-                              "vc": 0.0, "cu": 0.0, "ped": 0.0, "hoje": 0.0})
+                              "vc": 0.0, "cu": 0.0, "ped": 0.0})
     for it in no_periodo:
         x = pv[it["vend"]]
         x["real"] += liq(it)
-        x["hoje"] += _de_hoje(ctx, it)
         if it.get("_ped"):
             x["ped"] += it["valor"]
         if it["tipo"] == "VND":
@@ -9028,7 +9119,7 @@ def painel_executivo(ctx):
                 x["vc"] += it["valor"]
                 x["cu"] += custo(it)
     lv = sorted(([ctx.vendedor(v), ctx.supervisor_de(v), x["real"],
-                  (x["real"] - x["ped"] - x["hoje"]) * fator + x["ped"],
+                  (x["real"] - x["ped"]) * fator + x["ped"],
                   x["vol"],
                   len(x["cli"]),
                   _mkp(x["vc"], x["cu"])] for v, x in pv.items()),
@@ -9128,11 +9219,10 @@ def painel_executivo(ctx):
     # medio, M3M e a variacao projetada, markup e estoque
     prod = defaultdict(lambda: {"real": 0.0, "qtd": 0.0, "cli": set(),
                                 "nf": set(), "vc": 0.0, "cu": 0.0,
-                                "ped": 0.0, "hoje": 0.0})
+                                "ped": 0.0})
     for it in no_periodo:
         x = prod[it["cod"]]
         x["real"] += liq(it)
-        x["hoje"] += _de_hoje(ctx, it)
         if it.get("_ped"):
             x["ped"] += it["valor"]
         if it["tipo"] == "VND":
@@ -9151,10 +9241,9 @@ def painel_executivo(ctx):
     vc_cu = {}              # (14/10) o MKP % do TOTAL (venda e custo)
     for c in set(prod) | {k for k, v in m3m_prod.items() if abs(v) > 0.5}:
         x = prod.get(c) or {"real": 0.0, "qtd": 0.0, "cli": set(),
-                            "nf": set(), "vc": 0.0, "cu": 0.0, "ped": 0.0,
-                            "hoje": 0.0}
+                            "nf": set(), "vc": 0.0, "cu": 0.0, "ped": 0.0}
         vc_cu[c] = (x["vc"], x["cu"])
-        proj = (x["real"] - x["ped"] - x["hoje"]) * fator + x["ped"]
+        proj = (x["real"] - x["ped"]) * fator + x["ped"]
         m3 = m3m_prod.get(c, 0.0)
         lp.append([c, ctx.produto(c), ctx.categoria_bap(c), ctx.familia(c),
                    curva_p.get(c, "-"), x["real"], x["qtd"], len(x["cli"]),
@@ -9178,10 +9267,9 @@ def painel_executivo(ctx):
     def tot_prod(ls):
         r_ = sum(l[5] or 0 for l in ls)
         m_ = sum(l[10] or 0 for l in ls)
-        h_ = sum(prod[l[0]]["hoje"] for l in ls if l[0] in prod)  # (06/11)
         return ["TOTAL", "", "", "", "", r_, sum(l[6] or 0 for l in ls),
                 None, None, None, m_,
-                (((r_ - h_) * fator / m_ - 1) * 100.0) if m_ > 0.5
+                ((r_ * fator / m_ - 1) * 100.0) if m_ > 0.5
                 else None,
                 _mkp(sum(vc_cu.get(l[0], (0, 0))[0] for l in ls),
                      sum(vc_cu.get(l[0], (0, 0))[1] for l in ls)),
@@ -9206,7 +9294,7 @@ def painel_executivo(ctx):
     meses = [f"{ano}-{m:02d}" for m in range(1, ate + 1)]
     por_mes = {m: {"real": 0.0, "cli": set(), "nf": defaultdict(set),
                    "ped": set(), "vnd": 0.0, "vc": 0.0, "cu": 0.0,
-                   "aberto": 0.0, "hoje": 0.0} for m in meses}
+                   "aberto": 0.0} for m in meses}
     for it in itens:
         d = it["dt_nf"]
         if not d or it["tipo"] not in ("VND", "DEV"):
@@ -9216,14 +9304,12 @@ def painel_executivo(ctx):
             continue
         x = por_mes[m]
         x["real"] += liq(it)
-        x["hoje"] += _de_hoje(ctx, it)
         if it.get("_ped"):
             x["aberto"] += it["valor"]
         if it["tipo"] == "VND":
             if it.get("_ped") or positivou(ctx, it["cliente"], it["dt_nf"]):
                 x["cli"].add(it["cliente"])
             x["nf"][(it["filial"], it["nf"])].add(it["cod"])
-            x["ped"].add((it["filial"], it["pedido"]))
             x["vnd"] += it["valor"]
             if custo(it):
                 x["vc"] += it["valor"]
@@ -9231,6 +9317,8 @@ def painel_executivo(ctx):
     corre = f"{hoje.year}-{hoje.month:02d}"
     f_corre = _fator_do_mes(ctx, hoje.year, hoje.month)[0]
     ja, lm = set(), []
+    for m, ps_ in pedidos_por_mes(itens, set(meses)).items():
+        por_mes[m]["ped"] = ps_         # T-0060 (D2a): pedidos faturados
     for m in meses:
         x = por_mes[m]
         ja |= x["cli"]
@@ -9238,11 +9326,10 @@ def painel_executivo(ctx):
         sku_nf = (sum(len(v) for v in nfs.values()) / len(nfs)) if nfs else 0
         lm.append([rotulo_mes(m), x["real"], len(x["cli"]),
                    len(ja) - len(x["cli"]), len(nfs), sku_nf,
-                   x["vnd"] / len(x["ped"]) if x["ped"] else 0.0,
+                   x["real"] / len(x["ped"]) if x["ped"] else 0.0,
                    _mkp(x["vc"], x["cu"]), x["vc"] - x["cu"],
-                   (x["real"] - x["aberto"] - x["hoje"])
-                   * (f_corre if m == corre else 1.0) + x["aberto"]
-                   + (0.0 if m == corre else x["hoje"])])
+                   (x["real"] - x["aberto"])
+                   * (f_corre if m == corre else 1.0) + x["aberto"]])
     cols_m = [col("MÊS", "texto", 80), col("FATURAMENTO", "moeda", 110),
               col("POSITIVADOS", "int", 90), col("GAP", "int", 70),
               col("NOTAS", "int", 70), col("IPP (SKU/NF)", "num2", 90),
@@ -9553,7 +9640,7 @@ def _abas_do_painel(ctx, r, d):
 
     # ---- o mes a mes (do ano e dos 3 meses antes): volume, notas, pedidos
     def acc_mes():
-        return {"real": 0.0, "vol": 0.0, "vol_ped": 0.0, "vol_hoje": 0.0,
+        return {"real": 0.0, "vol": 0.0, "vol_ped": 0.0,
                 "nf": defaultdict(set), "ped": set(), "vnd": 0.0,
                 "cli": defaultdict(float)}
     pm = defaultdict(acc_mes)
@@ -9568,17 +9655,19 @@ def _abas_do_painel(ctx, r, d):
         x = pm[m]
         v = _liquido(it)
         x["real"] += v
-        x["vol_hoje"] += _de_hoje(ctx, it, qtd=True)     # (06/11)
         x["cli"][it["cliente"]] += v
         if it["tipo"] == "VND":
             x["vol"] += it["qtd"] or 0
             if it.get("_ped"):
                 x["vol_ped"] += it["qtd"] or 0
             x["nf"][(it["filial"], it["nf"])].add(it["cod"])
-            x["ped"].add((it["filial"], it["pedido"]))
             x["vnd"] += it["valor"]
         else:
             x["vol"] -= abs(it["qtd"] or 0)
+    # T-0060 (D2a): PEDIDOS = (filial, pedido) faturados com liquido > 0,
+    # sem a conta 000040 (pedidos_faturados_ate); ticket = LIQUIDO / pedidos
+    for m, ps_ in pedidos_por_mes(itens, alvo).items():
+        pm[m]["ped"] = ps_
 
     def ipp_de(nfs):
         return (sum(len(v) for v in nfs.values()) / len(nfs)) if nfs \
@@ -9600,7 +9689,7 @@ def _abas_do_painel(ctx, r, d):
             for k, v in x["nf"].items():
                 atual["nf"][k] |= v
     vol = atual["vol"]
-    vol_proj = (vol - atual["vol_ped"] - atual["vol_hoje"]) * fator \
+    vol_proj = (vol - atual["vol_ped"]) * fator \
         + atual["vol_ped"]
     m3_vol = media3(lambda x: x["vol"])
     m3_real = media3(lambda x: x["real"])
@@ -9610,9 +9699,9 @@ def _abas_do_painel(ctx, r, d):
     ipp3 = (sum(sum(len(v) for v in pm[m]["nf"].values()) for m in m3_p)
             / n_nf3) if n_nf3 else None
     n_ped = len(atual["ped"])
-    tk = atual["vnd"] / n_ped if n_ped else None
+    tk = atual["real"] / n_ped if n_ped else None
     n_ped3 = sum(len(pm[m]["ped"]) for m in m3_p)
-    tk3 = (sum(pm[m]["vnd"] for m in m3_p) / n_ped3) if n_ped3 else None
+    tk3 = (sum(pm[m]["real"] for m in m3_p) / n_ped3) if n_ped3 else None
 
     def var_de(a, b):
         return ((a / b - 1) * 100.0) if a is not None and b else None
@@ -9633,7 +9722,7 @@ def _abas_do_painel(ctx, r, d):
     def comparativo(chave_de):
         """{chave: {"vol", "vped" (mes), "m1", "v1" (mes anterior),
         "m3", "v3" (soma dos 3 meses)}} pelos itens do filtro."""
-        acc = defaultdict(lambda: {"vol": 0.0, "vped": 0.0, "vhoje": 0.0,
+        acc = defaultdict(lambda: {"vol": 0.0, "vped": 0.0,
                                    "m1": 0.0, "v1": 0.0, "m3": 0.0,
                                    "v3": 0.0})
         if not comp:
@@ -9652,7 +9741,6 @@ def _abas_do_painel(ctx, r, d):
                 x["vol"] += q
                 if it.get("_ped") and it["tipo"] == "VND":
                     x["vped"] += q
-                x["vhoje"] += _de_hoje(ctx, it, qtd=True)   # (06/11)
                 continue
             v = _liquido(it) or 0.0
             x["m3"] += v
@@ -9670,7 +9758,7 @@ def _abas_do_painel(ctx, r, d):
         return [proj - b1, var_de(proj, b1), proj - b3, var_de(proj, b3)]
 
     def vol_proj_de(x):
-        return (x["vol"] - x["vped"] - x.get("vhoje", 0.0)) * fator \
+        return (x["vol"] - x["vped"]) * fator \
             + x["vped"]
 
     def cols_mm(sufixo, tipo):
@@ -9726,7 +9814,7 @@ def _abas_do_painel(ctx, r, d):
         k = _cod6(v)
         rv = reais_v.setdefault(k, [0.0, 0.0])
         rv[0] += x["real"]
-        rv[1] += (x["real"] - x["ped"] - x.get("hoje", 0.0)) * fator \
+        rv[1] += (x["real"] - x["ped"]) * fator \
             + x["ped"]
     lv_f, sup_f = [], defaultdict(lambda: [0.0, 0.0, 0.0])
     # o supervisor de hoje de cada vendedor, em todos os meses (quem saiu
@@ -9788,7 +9876,7 @@ def _abas_do_painel(ctx, r, d):
 
     # ======================= 3) VOLUME =======================
     vol_m = [pm[m]["vol"] for m in meses]
-    vol_m_proj = [((pm[m]["vol"] - pm[m]["vol_ped"] - pm[m]["vol_hoje"])
+    vol_m_proj = [((pm[m]["vol"] - pm[m]["vol_ped"])
                    * f_corre
                    + pm[m]["vol_ped"]) if m == corre else pm[m]["vol"]
                   for m in meses]
@@ -9979,9 +10067,7 @@ def _abas_do_painel(ctx, r, d):
     novos = next((c_ for c_ in (d.get("vis_cartoes") or [])
                   if c_["farol"] == "Novos e reativados"), None)
     kpis_pos = [
-        kpi("Positivados", br(n_pos), "ok",
-            f"{br(pct_de(n_pos, cart) or 0, 1)}% da carteira ({br(cart)})"
-            if cart else "clientes com compra no mês"),
+        _kpi_positivados(ctx, itens, n_pos, cart),
         kpi("Meta de positivação", br(tot_pv[1]) if tot_pv[1] else "—",
             _tom_ating(tot_pv[3]) or "neutro",
             f"ating. {p(tot_pv[3])} · falta {br(tot_pv[4] or 0)}"
@@ -10050,7 +10136,8 @@ def _abas_do_painel(ctx, r, d):
         kpi("Ticket por pedido", moeda(tk) if tk else "—", tom_var(var_tk),
             f"M3M {moeda(tk3)} ({sinal(var_tk)})" if tk3 else ""),
         kpi("Notas", br(len(nfs_at)), "neutro", "notas de venda no mês"),
-        kpi("Pedidos", br(n_ped), "neutro", "pedidos faturados no mês")]
+        kpi("Pedidos faturados", br(n_ped), "neutro",
+            "líquidos no mês")]
     paineis.append({"titulo": "Itens por pedido", "kpis": kpis_ipp,
                     "painel": _grade_painel([
                         (_barras(g_ipp), False, 1),
@@ -10193,6 +10280,34 @@ def _abas_do_painel(ctx, r, d):
     r["avisos"] += avisos_abas
 
 
+def _kpi_positivados(ctx, itens, n_pos, cart):
+    """T-0060 (D2b): Positivados; so diz "na base cadastral" quando a
+    contagem na base difere (55 positivados, 54 na base)."""
+    det = (f"{br(pct_de(n_pos, cart) or 0, 1)}% da carteira ({br(cart)})"
+           if cart else "clientes com compra no mês")
+    reais = [it for it in itens if not it.get("_ped")]
+    na_base = len(clientes_positivados_ate(
+        reais, ctx.hoje, set(ctx.tabela.get("clientes") or ())))
+    com_h = len(clientes_positivados_ate(reais, ctx.hoje))
+    if na_base != com_h:
+        det += f" · {br(na_base)} na base cadastral"
+    return kpi("Positivados", br(n_pos), "ok", det)
+
+
+def _kpi_real(ctx, real, ped_v, meta, at, du_pass, du_rest, corre_mes):
+    """T-0060 (decisao 43): o Real conta hoje; no mes corrente o cartao
+    diz ate que dia e quantos DU (hoje incluido)."""
+    dia = f"{moeda(real / du_pass)}/dia" if du_pass else ""
+    base = (f"faturado {moeda(real - ped_v)} + pedidos {moeda(ped_v)}"
+            if ped_v else
+            f"ating. {p(at)} · {dia}" if meta and du_pass else dia)
+    rot = "Real + pedidos" if ped_v else "Real"
+    if corre_mes and du_pass:
+        return kpi(rot + sufixo_periodo(ctx.hoje), moeda(real), "ok", base,
+                   [("DU", f"{du_pass} de {du_pass + (du_rest or 0)}", "")])
+    return kpi(rot, moeda(real), "ok", base)
+
+
 def _kpi_pedidos(ctx, abertos, somando):
     """(06/10) O cartao PEDIDOS EM ABERTO do Painel Executivo: valor,
     quantos pedidos, clientes, itens, ticket e atrasados (no filtro)."""
@@ -10286,11 +10401,11 @@ def _painel_grupos(ctx, no_periodo, custo, fator, ano, mes, ac, slim,
     def novo_acc():
         return {"real": 0.0, "vc": 0.0, "cu": 0.0, "cli": set(),
                 "nf": defaultdict(set), "vol": 0.0, "tab": 0.0, "venda": 0.0,
-                "ped": 0.0, "saldo": 0.0, "hoje": 0.0}
+                "ped": 0.0, "saldo": 0.0}
 
     def linha(nome, x, m_, cart=()):
-        # pedido: inteiro; (06/11) a nota de hoje: fora da projecao
-        pr = (x["real"] - x["ped"] - x["hoje"]) * fator + x["ped"]
+        # pedido: inteiro; a nota de hoje conta (decisao 43)
+        pr = (x["real"] - x["ped"]) * fator + x["ped"]
         nfs = x["nf"]
         return [nome, m_, x["real"], pr,
                 pct_de(pr, m_) if m_ else None,
@@ -10306,7 +10421,7 @@ def _painel_grupos(ctx, no_periodo, custo, fator, ano, mes, ac, slim,
         t = novo_acc()
         for x in xs:
             for k in ("real", "vc", "cu", "vol", "tab", "venda", "ped",
-                      "saldo", "hoje"):
+                      "saldo"):
                 t[k] += x[k]
             t["cli"] |= x["cli"]
             for k, v in x["nf"].items():
@@ -10318,7 +10433,6 @@ def _painel_grupos(ctx, no_periodo, custo, fator, ano, mes, ac, slim,
         for it in no_periodo:
             x = acc[f_(it)]
             x["real"] += _liquido(it) or 0.0
-            x["hoje"] += _de_hoje(ctx, it)
             if it.get("_ped"):
                 x["ped"] += it["valor"]
             if it["tipo"] == "VND":
@@ -11097,6 +11211,10 @@ def _exportar_rh(ctx, parcial=None):
     """
     dados = meta_do_periodo(ctx)
     ac, comp = dados["acomp"], dados["competencia"]
+    resta_b_ = _resta_b(ac)         # a parcial de RV e inteira do grupo B
+    esp_b_, esp_a_ = _esperado(ac, True), _esperado(ac)
+    lp_, cods_ = _escopo_da_parcial(ac, parcial) if parcial else (None, None)
+    hj_ = hoje_do_escopo(ctx, cods_) if parcial else None
     if parcial:
         cod_p = (f" · Cód. {_cod6(parcial.get('cod'))}"
                  if parcial.get("cargo") == "VENDEDOR" and parcial.get("cod")
@@ -11310,6 +11428,18 @@ def _exportar_rh(ctx, parcial=None):
                    "GERENTE": "gerente"}.get(parcial["cargo"], "vendedor")
         own = dict(blocos).get(chave_p) or []
         r["resumo_pessoa"] = []
+        rv_o = None                 # RV da pessoa com o real ate ontem
+        if lp_ is not None and hj_ is not None:
+            try:
+                import meta_nucleo as mn_               # noqa: PLC0415
+                rv_o = rv_ate_ontem(
+                    mn_.rv_da_linha, _par_meta(ctx), chave_p, lp_, hj_,
+                    mn_.fechar_atingimentos)
+            except Exception as erro:                   # noqa: BLE001
+                rv_o = None
+                r["avisos"].append(
+                    f"RV da parcial com o real de hoje (ate ontem fora do "
+                    f"ar): {erro}")
         if own:
             l, k = own[0], (2 if chave_p == "vendedor" else 1)
             r["kpis"] = []
@@ -11317,12 +11447,17 @@ def _exportar_rh(ctx, parcial=None):
             # paga a RV), positivacao e visita
             # cada linha: (indicador, meta, real, % ating., RV, projecao,
             # % ating. projetado, GAP do mes, nec./dia) - ja formatados
-            resta_ = ac.get("dias_restantes") or 0
-            corrido_ = (_esperado(ac) or 0.0) / 100.0
+            resta_ = resta_b_               # parcial de RV: grupo B (ate ontem)
+            corrido_ = (esp_b_ or 0.0) / 100.0
+            corrido_a_ = (esp_a_ or 0.0) / 100.0
 
-            def resumo_(rot, meta, real, fmt, rv_txt, inteiro=False):
-                meta, real = meta or 0.0, real or 0.0
-                proj = real / corrido_ if corrido_ > 0 else None
+            def resumo_(rot, meta, real, fmt, rv_txt, inteiro=False,
+                        ind=None):
+                # real ATE ONTEM (o mesmo numero que se projeta)
+                meta, real = meta or 0.0, _ate_ontem(real or 0.0, hj_, ind)
+                proj = projecao_ritmo(real, corrido_a_
+                                      if ind in SEM_SEPARAR_HOJE
+                                      else corrido_)
                 gap = max(0.0, meta - real)
                 nec = gap / resta_ if resta_ else None
                 return (rot, fmt(meta), fmt(real), p(pct_de(real, meta)),
@@ -11332,26 +11467,34 @@ def _exportar_rh(ctx, parcial=None):
                             br(nec, 1) if inteiro else fmt(nec)))
             # o DESAFIO FAT. COMERCIAL (sem RV: so a meta RH paga) fica
             # separado dos indicadores da RV
-            lp_, _cods = _escopo_da_parcial(ac, parcial)
             if lp_ is not None:
                 r["resumo_desafio"] = resumo_(
                     "Desafio Fat. Comercial", lp_.get("meta"),
-                    lp_.get("realizado"), moeda, "")
+                    lp_.get("realizado"), moeda, "", ind="FAT.")
             rotulos_ = ("Meta Fat.", "Positivação", "Visita")
+            inds_ = ("FAT.", "POSIT.", "VISITA")
             for i, (g, _c, _km, _kr, _krv, tp) in enumerate(INDICADORES_RH):
                 meta, real, pct, rv_ = l[k + i * 4: k + i * 4 + 4]
                 fmt = moeda if tp == "moeda" else br
+                if rv_o is not None:
+                    rv_ = rv_o.get(INDICADORES_RH[i][4])
                 r["resumo_pessoa"].append(resumo_(
                     rotulos_[i], meta, real, fmt,
-                    moeda(rv_ or 0.0, 2), tp != "moeda"))
-                r["kpis"].append(kpi(g.split(" (")[0].title(), fmt(real),
-                                     "ok" if (pct or 0) >= 100 else
-                                     "atencao" if (pct or 0) >= 80 else
+                    moeda(rv_ or 0.0, 2), tp != "moeda", ind=inds_[i]))
+                # (se a tabela da pessoa faltar, estes cartoes ficam: o real
+                # tambem ate ontem, como os do _cartoes_farol)
+                real_o = _ate_ontem(real or 0.0, hj_, inds_[i])
+                pct_o = pct_de(real_o, meta) if meta else pct
+                r["kpis"].append(kpi(g.split(" (")[0].title(), fmt(real_o),
+                                     "ok" if (pct_o or 0) >= 100 else
+                                     "atencao" if (pct_o or 0) >= 80 else
                                      "alerta",
-                                     f"{p(pct)} de {fmt(meta)}"))
-            r["kpis"].append(kpi("RV total", "—" if l[-1] is None
-                                 else moeda(l[-1]), "neutro", "parcial"))
-            r["rv_pessoa"] = l[-1]
+                                     f"{p(pct_o)} de {fmt(meta)}"))
+            # a RV com o MESMO real ate ontem das linhas (rv_ate_ontem)
+            rv_t = rv_o.get("rv_total") if rv_o is not None else l[-1]
+            r["kpis"].append(kpi("RV total", "—" if rv_t is None
+                                 else moeda(rv_t), "neutro", "parcial"))
+            r["rv_pessoa"] = rv_t
         # O PDF NA CARA DO CATALOGO BAP: cartoes com a meta comercial E a
         # meta RH, positivacao, visita, cadastro com compra e a RV
         tab_p = next((t for t in r["tabelas"] if t["titulo"] == {
@@ -11363,12 +11506,12 @@ def _exportar_rh(ctx, parcial=None):
             if chave_p != "gerente":
                 ls_p = ls_p[:1] if chave_p == "supervisor" else ls_p
             r["kpis"] = _cartoes_farol(ls_p, tab_p["colunas"],
-                                       ac.get("dias_restantes") or 0,
-                                       _esperado(ac), _hoje_do_farol(
-                                           ctx, ac, comp).get(chave_p))
+                                       resta_b_, esp_b_, esperado_v=esp_a_,
+                                       hoje_b=hj_,
+                                       rot_cad=sufixo_periodo(ctx.hoje))
         # (10/10) o resumo dos PEDIDOS EM ABERTO na 1a pagina
         r["kpis"].append(_kpi_abertos_da_parcial(
-            ctx, _escopo_da_parcial(ac, parcial)[1]))
+            ctx, cods_))
         nome_b = " ".join(w.capitalize() if len(w) > 2 else w.lower()
                           for w in texto(parcial["nome"]).split())
         sup_p = ""
@@ -11376,7 +11519,7 @@ def _exportar_rh(ctx, parcial=None):
             lv = next((x for x in ac["recortes"].get("vendedor", [])
                        if _cod6(x.get("chave")) == _cod6(parcial["cod"])), {})
             sup_p = _nome_curto(lv.get("supervisor"))
-        resta_p = ac.get("dias_restantes") or 0
+        resta_p = resta_b_
         r.update({
             "estilo": "bap",
             "faixa": f"PARCIAL DE RESULTADO · {rotulo_mes(comp)}",
@@ -11447,6 +11590,30 @@ def _detalhe_da_parcial(ctx, ac, comp, parcial) -> list:
              "Top 30 cidades", "Top 30 bairros", "Top 30 clientes")
     tabs.sort(key=lambda t: ordem.index(t["titulo"]) if t["titulo"] in ordem
               else len(ordem))
+    # (lote 2, 28/11) as colunas de RV saem das tabelas do detalhe: o PDF
+    # ainda tem o real ate hoje por linha e o e-mail mostra a RV ate ontem
+    # (duas RVs no mesmo envio); a RV fica so no e-mail
+    for t in tabs:
+        i_rv = [i for i, c_ in enumerate(t["colunas"])
+                if str(c_.get("nome", "")).startswith("RV ")]
+        if not i_rv:
+            continue
+        fora = set(i_rv)
+        t["colunas"] = [c_ for i, c_ in enumerate(t["colunas"])
+                        if i not in fora]
+        t["linhas"] = [[v for i, v in enumerate(l) if i not in fora]
+                       for l in t["linhas"]]
+        if isinstance(t.get("total"), list):
+            t["total"] = [v for i, v in enumerate(t["total"])
+                          if i not in fora]
+        t["grupos"] = [(g, n) for g, n in (t.get("grupos") or [])
+                       if g != "RV R$"]
+    # as colunas REAL do detalhe somam ATE HOJE (o real linha a linha ate
+    # ontem fica para o lote 2): o periodo vai UMA vez no titulo da tabela
+    # (o PDF le `sufixo_titulo`; o `titulo` segue a chave das listas)
+    for t in tabs:
+        if any(c_.get("curto") == "REAL" for c_ in t["colunas"]):
+            t["sufixo_titulo"] = sufixo_periodo(ctx.hoje)
     notas = _notas_da_parcial(ctx, comp, cods)
     notas["pdf_quebra_antes"] = True
     # (10/10) e embaixo das notas, os PEDIDOS EM ABERTO dele, para
@@ -11981,6 +12148,13 @@ def saldo_desconto(ctx):
         return cs
     mes_atual = mes_escolhido(ctx)
     r["kpis"] = cartoes([l for l in linhas if rotulo_no_periodo(ctx, l[I_MES])])
+    # T-0060 (D2d): as barras por UF do cartao Faturado = LIQUIDO (a mesma
+    # conta do cartao), nao o VLR VENDA bruto da tabela
+    a_, m_ = periodo(ctx)
+    if m_:
+        r["_liquido_por_uf"] = venda_liquida_por_uf(
+            ctx.tabela["itens"], min(ctx.hoje, date(
+                a_ + (m_ == 12), m_ % 12 + 1, 1) - timedelta(days=1)))
     por_mes = defaultdict(list)
     for l in linhas:
         por_mes[l[I_MES]].append(l)
@@ -14065,9 +14239,7 @@ def farol_visitas(ctx):
             # PROJECAO = visitas ATE ONTEM / DU ate ontem x DU do mes - o
             # mesmo do Painel do Diretor. Antes hoje ficava fora dos DU,
             # mas as visitas de hoje entravam (202 / 2 x 19 = 1.919).
-            hj_ = [l for l in raws if l["data"] >= hoje]
-            vis_p = s["visitas"] - (vn.resumir(hj_)["visitas"] or 0
-                                    if hj_ else 0)
+            vis_p = s["visitas"] - visitas_de_hoje(raws, hoje)
             c_vis = _cartao_indicador("Visitas", mt, s["visitas"], resta,
                                       esperado, ate=data_ate, meta_ate=ma_,
                                       real_proj=vis_p)

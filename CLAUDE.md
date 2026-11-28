@@ -50,8 +50,8 @@ Python 3.12; as telas atuais são Tkinter (Windows). Tudo em **português do Bra
 4. **Datas:**
    - fuso America/Manaus;
    - dia útil = seg a sex, menos os feriados do Planner do mês;
-   - **hoje fica fora do DU e da projeção**;
-   - projeção = real ÷ DU fechados × DU do mês.
+   - **hoje conta** no faturamento, no volume, na positivação, nos pedidos e no ticket e no que sai deles (UF, Farol de Metas, Painel do Diretor e a parcial de faturamento): projeção = real até agora ÷ DU passados (com hoje) × DU do mês;
+   - nos outros indicadores (inclusive RV, meta RH e parcial de RV) **hoje fica fora do DU e da projeção**, com o período no rótulo: projeção = real ÷ DU fechados × DU do mês. A lista completa e o que não tem projeção estão na RN-GER-007 (`docs/produto/03-regras.md`; decisões 43 e 48, R-20261127-182025-alexandre e R-20261127-182711-alexandre).
 5. **Segredos só em variável de ambiente ou no cofre do Windows.** Nunca no código, em log, em recado ou em commit. **Proibido** ler `tomtom_config*.json`, `google_maps_config*.json`, `visitas_config.json`, `**/auth/**` e `.env`.
 6. **Dados pessoais:** sem CNPJ, nome, telefone ou e-mail de cliente ou vendedor em log, fixture ou print de recado.
 7. **Dado digitado é intocável:**
