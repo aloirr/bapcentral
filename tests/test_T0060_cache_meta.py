@@ -6,7 +6,8 @@ Regras:
 - CLAUDE.md, regras 3 e 4: regra nova de cache = marca nova na assinatura
   do bloco (VERSAO fica em 27); o dia é o de America/Manaus.
 
-Código: bap_dados._fontes / _hoje_manaus / _bloco_meta (engenheiro-dados).
+Código: bap_dados._fontes / _bloco_meta (engenheiro-dados, #231), com o
+dia de relatorios_nucleo.hoje_manaus (já no main).
 Sem dado pessoal: o acompanhar é trocado por um espião; nada é gravado.
 """
 from datetime import date, datetime, timezone
@@ -16,18 +17,20 @@ from types import SimpleNamespace
 import pytest
 
 import bap_dados as bd
+import relatorios_nucleo as rn
 
 RAIZ = Path(__file__).resolve().parent.parent
 
 
 def _relogio(monkeypatch, instante_utc):
-    """Congela o datetime.now do bap_dados num instante UTC (host em UTC)."""
+    """Congela o datetime.now do relatorios_nucleo (o do hoje_manaus) num
+    instante UTC (host em UTC)."""
     class _DT(datetime):
         @classmethod
         def now(cls, tz=None):
             return instante_utc.astimezone(tz) if tz else \
                 instante_utc.replace(tzinfo=None)
-    monkeypatch.setattr(bd, "datetime", _DT)
+    monkeypatch.setattr(rn, "datetime", _DT)
 
 
 def test_RN_GER_007_versao_do_cache_continua_27():
@@ -45,7 +48,7 @@ def test_RN_GER_007_versao_do_cache_continua_27():
 def test_RN_GER_007_fontes_meta_marca_t0060_e_dia_de_manaus(
         monkeypatch, instante, dia):
     _relogio(monkeypatch, instante)
-    assert bd._hoje_manaus() == dia
+    assert rn.hoje_manaus() == dia
     _arqs, assinatura = bd._fontes(RAIZ, "meta@2026-11")
     marcas = assinatura.split("|")
     assert marcas[0] == dia.isoformat()
