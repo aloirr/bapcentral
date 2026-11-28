@@ -115,3 +115,15 @@ Fora desta rodada: as tabelas do PDF de detalhe da parcial (coluna REAL por vend
 ## Lote 2 (acrescentado)
 - PDF de detalhe da parcial: coluna REAL passa a até ontem linha a linha (hoje: rótulo "REAL · até dd/mm", calculado do dia, só nas tabelas do detalhe da parcial de RV).
 - O PDF de detalhe não aparece em nenhum PNG desta simulação (os PNGs mostram os cartões e a tabela de resumo do e-mail); nada a regenerar.
+
+## RV antes × depois (parcial de RV, grupo B)
+A RV é dinheiro do vendedor e é grupo B: agora é calculada com o MESMO real até ontem da linha (`rv_ate_ontem`, pura, sobre `meta_nucleo.rv_da_linha`: atingimento do faturamento pela meta RH, da positivação e da visita sem o que é de hoje), na RV de cada linha do e-mail e no cartão "RV total". Os PNGs `parcial_rv_*` (parcial do gerente) não mudam: o gerente não tem tabela de RV (R$ 0,00 / vazio) e o supervisor da base também fica em R$ 0,00.
+
+| RV (um vendedor da base, hoje = 19/11) | Antes | Depois | Valor × regra |
+|---|---|---|---|
+| Real de visitas | 135 | 125 | 10 visitas de hoje saem (`visitas_de_hoje`) |
+| RV de visita | R$ 1.286,00 | R$ 1.053,00 | atingimento = 125 ÷ meta de visita: cai de faixa |
+| RV de faturamento e de positivação | R$ 0,00 | R$ 0,00 | faixas não atingidas |
+| RV total | R$ 1.286,00 | R$ 1.053,00 | soma das três |
+
+O PDF de detalhe: o período vai uma vez no título da tabela ("Por vendedor · até 19/11"), com a coluna REAL como "REAL"; o real linha a linha até ontem segue no lote 2.
