@@ -46,7 +46,8 @@ O parecer olha o **print real** da tela (janela do PC, navegador, PDF, e-mail), 
 - Indicador repetido em duas abas sem acrescentar ação.
 
 **C. Layout**
-- Cartão com área vazia grande, ou que caberia numa linha.
+- Cartão com área vazia grande ou que caberia numa linha; coluna vazia ou bloco solto (regra 12 do CLAUDE.md: preencher a horizontal antes de descer).
+- Mais de uma barra de botões no mesmo bloco (regra 12).
 - Acima da dobra (janela do PC sem rolar; celular, na web) fica o que o usuário usa primeiro.
 - Aviso de dado desatualizado repetido em vários cartões → um aviso global só.
 - Mesmo componente reimplementado em telas diferentes.

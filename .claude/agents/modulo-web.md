@@ -36,6 +36,7 @@ Você é o dono da **versão web** do BAP Tools (a BAP Central no Render). A web
 - **Nenhuma regra de negócio na tela.** A web chama os núcleos (`relatorios_nucleo`, `meta_nucleo`...) pelo contrato.
 - Perfil de acesso conferido no servidor em toda rota: quem não deve ver, não vê.
 - A referência visual são as telas atuais e os slides do RRM do Diretor. Peça os PNGs por recado ao po.
+- **Regra 12 do CLAUDE.md ("MENOS É MAIS" e botões embaixo e juntos):** requisito de construção; tela da web, simulação em 1366 e 390 px.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `web/**`, `docs/web/**`.

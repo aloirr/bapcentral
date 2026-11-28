@@ -6664,6 +6664,8 @@ _TABELA_RECORTE_WEB = {"pl_inadimplencia": "Títulos", "pv_pedidos": "Pedidos",
 # (T-0036) farois cujo recorte por estado so vai se o kpis_de de todas as
 # linhas da tabela de origem der os cartoes da BAP inteira (10.11.1)
 RIDS_RECORTE_CONFERIDO_WEB = ("vc_saldo", "vc_markup")
+# (T-0058) farois cujo cartao desconta a devolucao da filial (filtro com FILIAL)
+RIDS_DEVOLUCAO_POR_FILIAL_WEB = ("pv_pedidos", "vc_saldo")
 # bloco do painel a mais por farol: so o "Frete por estado" do Farol de Entregas
 _TIPOS_BLOCO_EXTRA_WEB = {"pl_entregas": ("tabela",),
                           # (T-0037) o Resumo do Fretes: 3 tabelas de numero
@@ -9327,6 +9329,11 @@ def _recortes_do_farol_web(rid: str, r: dict) -> dict:
     if modo == "uf":
         return recortes_farol_por_uf(r, titulo, coluna_filial=col,
                                      uf_de=_uf_valida_web, filtro_uf=True)
+    if rid in RIDS_DEVOLUCAO_POR_FILIAL_WEB:
+        # T-0058 (RN-GER-002): o filtro {FILIAL: UF} faz o kpis_de descontar
+        # toda a devolucao da filial (inclusive vendedor sem venda no mes)
+        return recortes_farol_por_uf(r, titulo, coluna_filial=col,
+                                     filtro_uf=True)
     return recortes_farol_por_uf(r, titulo, coluna_filial=col)
 
 

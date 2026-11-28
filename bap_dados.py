@@ -234,7 +234,8 @@ def _fontes(raiz, bloco) -> tuple[list, str]:
     tabela = rel / "TABELA_BAP.xlsx"
     base = rel / "BASE_CLIENTE.xlsx"
     csv = raiz / "CATEGORIAS_PRODUTO.csv"
-    hoje = date.today().isoformat()
+    from relatorios_nucleo import hoje_manaus           # noqa: PLC0415
+    hoje = hoje_manaus().isoformat()
     bloco, _, comp_pedida = bloco.partition("@")    # "meta@2026-10"
     try:
         import pastas_bap as pb                         # noqa: PLC0415
@@ -307,6 +308,10 @@ def _fontes(raiz, bloco) -> tuple[list, str]:
         # (Planner "JUGLAISON RODRIGUES" x Maxima "... DOS PRAZES")
         # "|in2" (06/11): os clientes do vendedor INATIVO sem meta de visita
         # e de positivacao (o Amapa do 000040 somava 30 na BAP)
+        # "|t0060-hoje-conta" (27/11, T-0060): hoje passa a contar no
+        # faturamento, na positivacao, nos pedidos e no Farol de Metas
+        # (decisoes 43 e 48) - meta_nucleo com dias_restantes_b (meta RH e
+        # parcial de RV) e o acompanhar com o hoje de Manaus
         try:
             prosp = rel / "Visitas" / "PROSPECCAO" / (
                 "PROSPECCAO_" + str(comp).replace("-", "")[:6] + ".xlsx")
@@ -315,7 +320,7 @@ def _fontes(raiz, bloco) -> tuple[list, str]:
         return [planner, base, tabela, raiz / "meta_config.json", csv,
                 raiz / "planner_config.json", cfg_mes, vis, prosp,
                 rel / "BAP_AJUDA_RESPOSTAS" / "RESPOSTAS_BAP_AJUDA.xlsx"], \
-            hoje + "|cv1|cat1|arr1|adm10|du12|pf2|v90|pl3|in1|rv3|in2|vi1" + (
+            hoje + "|cv1|cat1|arr1|adm10|du12|pf2|v90|pl3|in1|rv3|in2|vi1|t0060-hoje-conta" + (
                 f"|{comp_pedida}" if comp_pedida else "")
     if bloco == "executivo":
         # "e2" (14/10): positivacao = comprou e nao devolveu tudo e a PMZ
@@ -1042,6 +1047,7 @@ def _bloco_oportunidade(raiz) -> dict:
 
 def _bloco_meta(raiz, comp=None) -> dict:
     import pastas_bap as pb                             # noqa: PLC0415
+    from relatorios_nucleo import hoje_manaus           # noqa: PLC0415
     mn, par, planner, resultado = _contexto_meta(raiz, comp)
     raiz = Path(raiz)
     tabela = pasta_relatorios(raiz) / "TABELA_BAP.xlsx"
@@ -1061,7 +1067,8 @@ def _bloco_meta(raiz, comp=None) -> dict:
             .get("feriados") or []
     except (OSError, ValueError):
         fer = []
-    ac = mn.acompanhar(resultado, real, feitas, datas, feriados=fer, par=par,
+    ac = mn.acompanhar(resultado, real, feitas, datas, hoje=hoje_manaus(),
+                       feriados=fer, par=par,
                        zonas_supervisor=mn.zonas_dos_supervisores(
                            pb.config_do_planner(raiz, comp)),
                        cad_visita=cad_vis)
@@ -1146,12 +1153,13 @@ def _resumo_dos_clientes(mn, ac, resultado) -> None:
 
 def _bloco_executivo(raiz) -> dict:
     import meta_nucleo as mn                            # noqa: PLC0415
+    from relatorios_nucleo import hoje_manaus           # noqa: PLC0415
     raiz = Path(raiz)
     par = mn.carregar_parametros(raiz / "meta_config.json")
     exe = par.setdefault("executivo", {})
     if not exe.get("indicadores"):
         exe["indicadores"] = mn.indicadores_padrao()
-    ano = int(mn._numero(exe.get("ano")) or date.today().year)  # noqa: SLF001
+    ano = int(mn._numero(exe.get("ano")) or hoje_manaus().year)  # noqa: SLF001
     exe["ano"] = ano
     exe["meses"] = mn.meses_do_ano(ano)
     csv = mn.achar_csv_de_categorias(raiz)
