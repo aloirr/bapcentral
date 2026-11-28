@@ -228,25 +228,14 @@ def _carimbo_da_fotografia(tabela) -> str:
         return "-"
 
 
-def _hoje_manaus() -> date:
-    """Hoje no fuso America/Manaus (regra 4); sem tzdata, UTC-4 fixo. O
-    mesmo dia na assinatura do cache e no acompanhar do Farol de Metas."""
-    from datetime import timedelta, timezone             # noqa: PLC0415
-    try:
-        from zoneinfo import ZoneInfo                   # noqa: PLC0415
-        fuso = ZoneInfo("America/Manaus")
-    except Exception:                                   # noqa: BLE001
-        fuso = timezone(timedelta(hours=-4))
-    return datetime.now(fuso).date()
-
-
 def _fontes(raiz, bloco) -> tuple[list, str]:
     raiz = Path(raiz)
     rel = pasta_relatorios(raiz)
     tabela = rel / "TABELA_BAP.xlsx"
     base = rel / "BASE_CLIENTE.xlsx"
     csv = raiz / "CATEGORIAS_PRODUTO.csv"
-    hoje = _hoje_manaus().isoformat()
+    from relatorios_nucleo import hoje_manaus           # noqa: PLC0415
+    hoje = hoje_manaus().isoformat()
     bloco, _, comp_pedida = bloco.partition("@")    # "meta@2026-10"
     try:
         import pastas_bap as pb                         # noqa: PLC0415
@@ -1058,6 +1047,7 @@ def _bloco_oportunidade(raiz) -> dict:
 
 def _bloco_meta(raiz, comp=None) -> dict:
     import pastas_bap as pb                             # noqa: PLC0415
+    from relatorios_nucleo import hoje_manaus           # noqa: PLC0415
     mn, par, planner, resultado = _contexto_meta(raiz, comp)
     raiz = Path(raiz)
     tabela = pasta_relatorios(raiz) / "TABELA_BAP.xlsx"
@@ -1077,7 +1067,7 @@ def _bloco_meta(raiz, comp=None) -> dict:
             .get("feriados") or []
     except (OSError, ValueError):
         fer = []
-    ac = mn.acompanhar(resultado, real, feitas, datas, hoje=_hoje_manaus(),
+    ac = mn.acompanhar(resultado, real, feitas, datas, hoje=hoje_manaus(),
                        feriados=fer, par=par,
                        zonas_supervisor=mn.zonas_dos_supervisores(
                            pb.config_do_planner(raiz, comp)),
@@ -1163,12 +1153,13 @@ def _resumo_dos_clientes(mn, ac, resultado) -> None:
 
 def _bloco_executivo(raiz) -> dict:
     import meta_nucleo as mn                            # noqa: PLC0415
+    from relatorios_nucleo import hoje_manaus           # noqa: PLC0415
     raiz = Path(raiz)
     par = mn.carregar_parametros(raiz / "meta_config.json")
     exe = par.setdefault("executivo", {})
     if not exe.get("indicadores"):
         exe["indicadores"] = mn.indicadores_padrao()
-    ano = int(mn._numero(exe.get("ano")) or date.today().year)  # noqa: SLF001
+    ano = int(mn._numero(exe.get("ano")) or hoje_manaus().year)  # noqa: SLF001
     exe["ano"] = ano
     exe["meses"] = mn.meses_do_ano(ano)
     csv = mn.achar_csv_de_categorias(raiz)
