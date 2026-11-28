@@ -11551,6 +11551,12 @@ def _detalhe_da_parcial(ctx, ac, comp, parcial) -> list:
              "Top 30 cidades", "Top 30 bairros", "Top 30 clientes")
     tabs.sort(key=lambda t: ordem.index(t["titulo"]) if t["titulo"] in ordem
               else len(ordem))
+    # as colunas REAL do detalhe somam ATE HOJE (o real linha a linha ate
+    # ontem fica para o lote 2): o rotulo diz o periodo, calculado do dia
+    for t in tabs:
+        t["colunas"] = [dict(c_, curto=c_["curto"] + sufixo_periodo(ctx.hoje))
+                        if c_.get("curto") == "REAL" else c_
+                        for c_ in t["colunas"]]
     notas = _notas_da_parcial(ctx, comp, cods)
     notas["pdf_quebra_antes"] = True
     # (10/10) e embaixo das notas, os PEDIDOS EM ABERTO dele, para
