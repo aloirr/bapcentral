@@ -255,6 +255,9 @@ def test_UX_A8_cores_do_pc_viram_o_token_do_mesmo_papel():
                                "cores": ["#59BA61", "#C98A00", "#B42318", "#A7B0AA"]})
     assert [x["cor"] for x in h["linhas"]] == [t["--verde-marca"], t["--grafico-2"], t["--alerta"], t["--grafico-3"]]
     assert len({x["cor"] for x in h["linhas"]}) == 4                  # os estados continuam distintos
+    # RN-GER-009: o verde e o vermelho antigos do PC não são mais traduzidos na web (o robô manda o token) e caem no padrão
+    ant = render._bloco_hbarras({"rotulos": ["a", "b"], "valores": [1, 2], "cores": ["#62BB47", "#B3261E"]})
+    assert [x["cor"] for x in ant["linhas"]] == [t["--grafico-3"]] * 2
 
 
 def test_RD_0198_mes_oculto_nas_3_abas_de_resumo():
