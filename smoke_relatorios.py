@@ -1774,8 +1774,12 @@ _ok06 = (not re.search(r"\d+ DU", _tx06)
          and _pd29._du_titulo(_dd29) == f"· {_dd29['ndp']} de "
                                          f"{_dd29['ndm']} DU"
          and (_pj06 is None or abs(_pe06 - _pj06) <= max(1.0, 0.001 * _pj06))
-         and rn._de_hoje(_ct06, {"dt_nf": _dt05_hoje, "tipo": "VND",
-                                 "valor": 10.0, "qtd": 1}) in (0.0, 10.0))
+         # transição T-0060 (decisão 43): volta ao estrito no PR seguinte
+         # (sem _de_hoje no #229: hoje conta na projeção e nada sai dela;
+         # não há função equivalente, então só esta parte é pulada)
+         and (not hasattr(rn, "_de_hoje")
+              or rn._de_hoje(_ct06, {"dt_nf": _dt05_hoje, "tipo": "VND",
+                                     "valor": 10.0, "qtd": 1}) in (0.0, 10.0)))
 checar(_ok06, "Painel do Diretor: DU do mês no título do bloco 1 e fora dos "
        "cartões; projeção do Painel Executivo (e do Resumo gerencial) = a do "
        "Painel do Diretor (DU fechados, sem a venda de hoje) (06/11)")
@@ -1935,7 +1939,11 @@ checar(len(_blocos) == 8 and len(_pz["Por filial"]["linhas"][0]) == 12
            "UF", "CIDADE", "SUPERVISOR", "VENDEDOR", "SEGMENTO", "CATEGORIA",
            "SISTEMA", "FAMÍLIA", "LINHA", "PRODUTO", "PEDIDOS"]
        and all(b_["grafico"].get("linha") for b_ in _blocos[4:8])
-       and "Categoria: BATERIAS" in _f_pe["subtitulo"] and [k["rotulo"] for k in _pe["kpis"]][:4]
+       and "Categoria: BATERIAS" in _f_pe["subtitulo"]
+       # transição T-0060 (decisão 43): volta ao estrito no PR seguinte
+       # (aceita "Real" ou "Real · até dd/mm" no 2º cartão)
+       and [re.sub(r"^Real · até \d\d/\d\d$", "Real", k["rotulo"])
+            for k in _pe["kpis"]][:4]
        == ["Desafio comercial", "Real", "Pedidos em aberto", "Projeção"]
        and [b_["tipo"] for b_ in _blocos].count("pizza") == 4
        and all([l[1] or 0 for l in b_["linhas"]
