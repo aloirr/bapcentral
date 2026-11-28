@@ -3332,7 +3332,9 @@ def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
     """Os cartoes de cima de uma vista (pelos nomes das colunas dela): um
     por indicador - faturamento (meta comercial e meta RH), positivacao,
     visita, pecas e cadastro com compra (hoje conta na projecao, decisao
-    43)."""
+    43). hoje_b: o que e de hoje por indicador (parcial de RV, grupo B): o
+    real exibido e projetado vai ate ONTEM. rot_cad: o periodo no cartao de
+    cadastros, que conta hoje (SEM_SEPARAR_HOJE)."""
     idx = {c["nome"]: i for i, c in enumerate(cols)}
 
     def soma(nome):
@@ -3847,6 +3849,25 @@ def linhas_visita_de_hoje(ctx, regs=None) -> list:
         regs = vn.registros(ctx.raiz, de=hoje.replace(day=1), ate=hoje)
     return [l for l in com_cadastro_como_visita(ctx, regs, hoje, hoje)
             if l.get("ativo") and l["data"] >= hoje]
+
+
+def rv_ate_ontem(rv_da_linha, par, nivel, linha, hoje_b) -> dict:
+    """RN-GER-007 (puro, grupo B): a RV da pessoa com o real ATE ONTEM, o
+    mesmo da linha da parcial. `rv_da_linha` = meta_nucleo.rv_da_linha;
+    hoje_b = hoje_dos_itens do escopo. Atingimentos: faturamento pela meta
+    RH, positivacao e visita, como no acompanhamento."""
+    l = dict(linha)
+    real = (linha.get("realizado") or 0.0) - hoje_b.get("FAT.", 0.0)
+    mrh = linha.get("meta_rh")
+    l["atingimento_rh"] = real / mrh * 100.0 if mrh else 0.0
+    pos = (linha.get("positivados") or 0) - hoje_b.get("POSIT.", 0)
+    mp = linha.get("meta_positivacao")
+    l["atingimento_positivacao"] = pos / mp * 100.0 if mp else 0.0
+    mv, vis = linha.get("meta_visita"), linha.get("visitas_realizadas")
+    l["atingimento_visita"] = (None if mv is None or vis is None else
+                               (vis - hoje_b.get("VISITA", 0)) / mv * 100.0
+                               if mv else 0.0)
+    return rv_da_linha(par, nivel, l)
 
 
 def hoje_do_escopo(ctx, cods=None) -> dict:
@@ -11409,6 +11430,15 @@ def _exportar_rh(ctx, parcial=None):
                    "GERENTE": "gerente"}.get(parcial["cargo"], "vendedor")
         own = dict(blocos).get(chave_p) or []
         r["resumo_pessoa"] = []
+        rv_o = None                 # RV da pessoa com o real ate ontem
+        if lp_ is not None and hj_ is not None:
+            try:
+                import meta_nucleo as mn_               # noqa: PLC0415
+                rv_o = rv_ate_ontem(
+                    mn_.rv_da_linha, mn_.carregar_parametros(
+                        ctx.raiz / "meta_config.json"), chave_p, lp_, hj_)
+            except Exception:                           # noqa: BLE001
+                rv_o = None
         if own:
             l, k = own[0], (2 if chave_p == "vendedor" else 1)
             r["kpis"] = []
@@ -11445,17 +11475,25 @@ def _exportar_rh(ctx, parcial=None):
             for i, (g, _c, _km, _kr, _krv, tp) in enumerate(INDICADORES_RH):
                 meta, real, pct, rv_ = l[k + i * 4: k + i * 4 + 4]
                 fmt = moeda if tp == "moeda" else br
+                if rv_o is not None:
+                    rv_ = rv_o.get(INDICADORES_RH[i][4])
                 r["resumo_pessoa"].append(resumo_(
                     rotulos_[i], meta, real, fmt,
                     moeda(rv_ or 0.0, 2), tp != "moeda", ind=inds_[i]))
-                r["kpis"].append(kpi(g.split(" (")[0].title(), fmt(real),
-                                     "ok" if (pct or 0) >= 100 else
-                                     "atencao" if (pct or 0) >= 80 else
+                # (se a tabela da pessoa faltar, estes cartoes ficam: o real
+                # tambem ate ontem, como os do _cartoes_farol)
+                real_o = _ate_ontem(real or 0.0, hj_, inds_[i])
+                pct_o = pct_de(real_o, meta) if meta else pct
+                r["kpis"].append(kpi(g.split(" (")[0].title(), fmt(real_o),
+                                     "ok" if (pct_o or 0) >= 100 else
+                                     "atencao" if (pct_o or 0) >= 80 else
                                      "alerta",
-                                     f"{p(pct)} de {fmt(meta)}"))
-            r["kpis"].append(kpi("RV total", "—" if l[-1] is None
-                                 else moeda(l[-1]), "neutro", "parcial"))
-            r["rv_pessoa"] = l[-1]
+                                     f"{p(pct_o)} de {fmt(meta)}"))
+            # a RV com o MESMO real ate ontem das linhas (rv_ate_ontem)
+            rv_t = rv_o.get("rv_total") if rv_o is not None else l[-1]
+            r["kpis"].append(kpi("RV total", "—" if rv_t is None
+                                 else moeda(rv_t), "neutro", "parcial"))
+            r["rv_pessoa"] = rv_t
         # O PDF NA CARA DO CATALOGO BAP: cartoes com a meta comercial E a
         # meta RH, positivacao, visita, cadastro com compra e a RV
         tab_p = next((t for t in r["tabelas"] if t["titulo"] == {
@@ -11552,11 +11590,11 @@ def _detalhe_da_parcial(ctx, ac, comp, parcial) -> list:
     tabs.sort(key=lambda t: ordem.index(t["titulo"]) if t["titulo"] in ordem
               else len(ordem))
     # as colunas REAL do detalhe somam ATE HOJE (o real linha a linha ate
-    # ontem fica para o lote 2): o rotulo diz o periodo, calculado do dia
+    # ontem fica para o lote 2): o periodo vai UMA vez no titulo da tabela
+    # (o PDF le `sufixo_titulo`; o `titulo` segue a chave das listas)
     for t in tabs:
-        t["colunas"] = [dict(c_, curto=c_["curto"] + sufixo_periodo(ctx.hoje))
-                        if c_.get("curto") == "REAL" else c_
-                        for c_ in t["colunas"]]
+        if any(c_.get("curto") == "REAL" for c_ in t["colunas"]):
+            t["sufixo_titulo"] = sufixo_periodo(ctx.hoje)
     notas = _notas_da_parcial(ctx, comp, cods)
     notas["pdf_quebra_antes"] = True
     # (10/10) e embaixo das notas, os PEDIDOS EM ABERTO dele, para

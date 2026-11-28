@@ -500,7 +500,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     ndp_r = ndp_v
     # (05/11) o Farol de Visita soma o mes inteiro baixado: as visitas do
     # Espelho de hoje (dia aberto) saem do realizado do painel
-    if vis is not None:
+    if vis is not None and (ano, mes) == (hoje.year, hoje.month):
         vis = max(0.0, vis - vis_hoje)
     proj_v = (vis / ndp_v * ndm) if vis is not None and ndp_v else None
     card(2, "visitas", "Visitas", vis, proj_v, f_int, "vc_visitas",

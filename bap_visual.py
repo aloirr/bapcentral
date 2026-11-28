@@ -3182,7 +3182,8 @@ def exportar_pdf(rel: dict, caminho, max_linhas: int = 1500) -> Path:
                     ParagraphStyle("kick", parent=est_sub, fontSize=7,
                                    leading=9)))
                 hist.append(Spacer(1, 1))
-            hist.append(Paragraph(t["titulo"], ParagraphStyle(
+            hist.append(Paragraph(t["titulo"] + t.get("sufixo_titulo", ""),
+                                  ParagraphStyle(
                 "hc", parent=est_sec, fontSize=15, leading=18)))
             cont = opc.get("contagem")
             meta_t = " · ".join(x for x in (
@@ -3191,7 +3192,8 @@ def exportar_pdf(rel: dict, caminho, max_linhas: int = 1500) -> Path:
                 rel.get("subtitulo", "") if unica else "",
                 f"{br(len(todas))} {cont}" if cont else "", sobra) if x)
         else:
-            hist.append(Paragraph(t["titulo"], est_sec))
+            hist.append(Paragraph(t["titulo"] + t.get("sufixo_titulo", ""),
+                                  est_sec))
             meta_t = " · ".join(x for x in (
                 "" if seguidas else rel.get("titulo", ""),
                 *fixos, filtro_t, sobra) if x)
@@ -4017,7 +4019,8 @@ def _exportar_pdf_bap(rel: dict, caminho, max_linhas: int = 1500) -> Path:
     tem_ating = False
     for t in rel.get("tabelas", []):
         linhas = t.get("linhas_visiveis", t["linhas"])[:max_linhas]
-        titulo = Table([["", Paragraph(t["titulo"].upper(), est["sec"])]],
+        titulo = Table([["", Paragraph((t["titulo"] + t.get("sufixo_titulo", "")).upper(),
+                                     est["sec"])]],
                        colWidths=[3, largura - 3], hAlign="LEFT")
         titulo.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (0, 0), cor(VERDE_BAP)),
