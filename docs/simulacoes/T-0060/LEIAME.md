@@ -111,3 +111,7 @@ Todo número da parcial é do mesmo período da projeção: até 18/11 (ontem). 
 | Nec./dia das peças | R$ 98.164 | R$ 84.189 | até 18/11 | ÷ 7 DU |
 
 Fora desta rodada: as tabelas do PDF de detalhe da parcial (coluna REAL por vendedor, supervisor, UF...) ainda somam o dia de hoje; precisam do real por linha até ontem (lote 2).
+
+## Lote 2 (acrescentado)
+- PDF de detalhe da parcial: coluna REAL passa a até ontem linha a linha (hoje: rótulo "REAL · até dd/mm", calculado do dia, só nas tabelas do detalhe da parcial de RV).
+- O PDF de detalhe não aparece em nenhum PNG desta simulação (os PNGs mostram os cartões e a tabela de resumo do e-mail); nada a regenerar.
