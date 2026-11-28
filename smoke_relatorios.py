@@ -1857,8 +1857,7 @@ checar(_pj05(_k05).startswith("200")
        and _pj05(_c05[0]).startswith("R$ 200")
        and _pj05(_c05b[0]).startswith("R$ 300"),
        "Projeção do Farol pela decisão 43 (real ÷ DU corridos com hoje × DU "
-       "do mês); o Diretor até ontem no grupo B fica no pytest (T-0060, "
-       "hoje fixo)")
+       "do mês)")
 
 # ---- (31/10, Maestro Sistemas) PAINEL DO DIRETOR NUM MES SEM DADO: no 1o dia
 # util (antes do Espelho e das notas) o cartao com meta e sem realizado

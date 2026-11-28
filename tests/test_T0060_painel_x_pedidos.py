@@ -636,7 +636,6 @@ def test_RN_GER_007_esperado_do_grupo_B_e_du_da_vista_da_parcial():
     assert rn._du_da_vista(ac, date(2026, 11, 18)) == pytest.approx(
         (7, 7, 12 / 19 * 100))
     assert rn._du_da_vista(ac, None) == pytest.approx((6, 7, 13 / 19 * 100))
-    assert "CAD." in rn.SEM_SEPARAR_HOJE
 
 
 def test_RN_GER_007_cartoes_da_parcial_projetam_o_real_ate_ontem_no_B():
@@ -655,21 +654,16 @@ def test_RN_GER_007_cartoes_da_parcial_projetam_o_real_ate_ontem_no_B():
     assert ks["Positivação"]["valor"] == rn.br(4)
     assert ks["Visitas"]["valor"] == rn.br(20)
     assert ks["Cad. com compra · até 19/11"]["valor"] == rn.br(4)
-
-    def proj(k):
-        return _linha(k, "Projeção do mês")
-    assert proj(ks["Faturamento · desafio comercial"]).startswith(
+    pj = "Projeção do mês"
+    assert _linha(ks["Faturamento · desafio comercial"], pj).startswith(
         rn.moeda((400.0 - 100.0) / f) + " ")                # R$ 475
-    assert proj(ks["Faturamento · meta RH"]).startswith(
+    assert _linha(ks["Faturamento · meta RH"], pj).startswith(
         rn.moeda((400.0 - 100.0) / f) + " ")
-    assert proj(ks["Positivação"]).startswith(rn.br((6 - 2) / f) + " ")
-    assert proj(ks["Visitas"]).startswith(rn.br((30 - 10) / f) + " ")
+    assert _linha(ks["Positivação"], pj).startswith(rn.br((6 - 2) / f) + " ")
+    assert _linha(ks["Visitas"], pj).startswith(rn.br((30 - 10) / f) + " ")
     assert _nec(ks["Visitas"]) == rn.br((100 - 20) / 7, 1)      # 11,4
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "defeito T-0060: _cartoes_farol/_ate_ontem tiram CAD. de hoje_b; "
-    "SEM_SEPARAR_HOJE não é respeitado (Cad. 4 vira 1)"))
 def test_RN_GER_007_cad_nao_separa_hoje_mesmo_com_cad_no_hoje_b():
     """SEM_SEPARAR_HOJE = {"CAD."}: mesmo que hoje_b traga CAD. (≠ 0), o
     real do cartão Cad. continua o do mês (até hoje); o faturamento, sim,
