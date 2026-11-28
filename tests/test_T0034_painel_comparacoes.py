@@ -3,7 +3,8 @@
 
 Regra citada: "o número do Diretor bate com o farol de origem" (definição de pronto, CLAUDE.md),
 mais RN-GER-002 (faturado líquido pela data da NF), RN-GER-003 (positivação = clientes com
-líquido > 0) e RN-GER-007 (hoje fora do DU; projeção = real ÷ DU fechados × DU do mês).
+líquido > 0) e RN-GER-007 (decisões 43 e 48: no grupo A hoje conta como DU passado; projeção = real até agora ÷
+DU passados (com hoje) × DU do mês).
 
 Dado real: as bases congeladas do repositório, com hoje = 24/11/2026, pelo caminho do robô
 (`relatorios_nucleo.montar` → `bap_automation.montar_pacote_web`). O histórico do Diretor

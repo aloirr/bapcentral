@@ -426,8 +426,9 @@ def test_RN_GER_019_cartoes_e_filtro_por_estado_nao_mudam(rn, tmp_path):
     # valor x regra dos cartoes: 10 em aberto + 2 notas; R$ = soma das linhas
     k = {x["rotulo"]: x for x in rel["kpis"]}
     total = sum(v for _f, _c, v in PEDIDOS.values()) + 1200.0 + 3400.0
-    # transição T-0060: aceita 'Pedidos' ou 'Pedidos digitados'; volta ao estrito no PR seguinte
-    kp = k.get("Pedidos digitados") or k["Pedidos"]
+    # T-0060: o cartão chama "Pedidos digitados" (sem o rótulo antigo)
+    assert "Pedidos" not in k
+    kp = k["Pedidos digitados"]
     assert (kp["valor"], kp["detalhe"]) == (
         "12", rn.moeda(total))
     assert k["Faturado"]["valor"] == rn.moeda(4600.0)

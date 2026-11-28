@@ -1761,7 +1761,8 @@ checar(not any(re.fullmatch(r"\d+ de \d+", str(v_)) for d_ in _l05.values()
 # cards" e "ajuste a projecao do resumo gerencial do painel do diretor que
 # esta divergente") os DU no titulo do bloco 1, nenhum "N DU" nos cartoes;
 # o Painel Executivo (cartao Projecao e o "Meta x Real" do Resumo
-# gerencial) com os DU fechados e sem a venda de hoje, = Painel do Diretor
+# gerencial) = Painel do Diretor; pela decisao 43 (T-0060, RN-GER-007) os
+# dois contam hoje como DU passado (projecao_ritmo)
 _tx06 = " ".join(str(v_) for c_ in _c29.values() for _r, v_ in c_["linhas"])
 _kp06 = {k_["rotulo"]: k_["valor"] for k_ in _pe26["kpis"]}
 _pj06 = _c29["fat"].get("projecao")
@@ -1769,20 +1770,13 @@ _pe06 = rn._num(_kp06.get("Projeção")) if hasattr(rn, "_num") else None
 if _pe06 is None:
     _pe06 = float(re.sub(r"[^\d,]", "", _kp06.get("Projeção", "0"))
                   .replace(",", ".") or 0)
-_ct06 = rn.Contexto(AQUI, _dt05_hoje := __import__("datetime").date(2026, 11, 6))
 _ok06 = (not re.search(r"\d+ DU", _tx06)
          and _pd29._du_titulo(_dd29) == f"· {_dd29['ndp']} de "
                                          f"{_dd29['ndm']} DU"
-         and (_pj06 is None or abs(_pe06 - _pj06) <= max(1.0, 0.001 * _pj06))
-         # transição T-0060 (decisão 43): volta ao estrito no PR seguinte
-         # (sem _de_hoje no #229: hoje conta na projeção e nada sai dela;
-         # não há função equivalente, então só esta parte é pulada)
-         and (not hasattr(rn, "_de_hoje")
-              or rn._de_hoje(_ct06, {"dt_nf": _dt05_hoje, "tipo": "VND",
-                                     "valor": 10.0, "qtd": 1}) in (0.0, 10.0)))
+         and (_pj06 is None or abs(_pe06 - _pj06) <= max(1.0, 0.001 * _pj06)))
 checar(_ok06, "Painel do Diretor: DU do mês no título do bloco 1 e fora dos "
        "cartões; projeção do Painel Executivo (e do Resumo gerencial) = a do "
-       "Painel do Diretor (DU fechados, sem a venda de hoje) (06/11)")
+       "Painel do Diretor (decisão 43: hoje conta como DU passado) (06/11)")
 # (06/11, Alexandre) REGRA: vendedor INATIVO no Planner do mes fica fora
 # das tabelas e parciais de meta, a nao ser que tenha movimento no codigo
 # dele no mes (venda, devolucao, pedido, positivacao, visita, cadastro)
@@ -1842,13 +1836,12 @@ checar(_ok06i and not (_oc06 & {rn.norm_nome(l_[0]) for l_ in
        "Vendedor inativo no Planner sem movimento no mês fica fora das "
        "tabelas e parciais de meta; com venda, pedido ou visita, aparece "
        "(06/11)")
-# (05/11, Alexandre: "tirar a venda de hoje da conta do DU") hoje (dia
-# aberto) nao conta nos DU corridos e o que e de hoje sai da projecao: o
-# Painel do Diretor vai ate ontem; Farol de Metas e de Visita tiram a venda
-# / visita de hoje da projecao (o realizado do cartao continua com hoje)
-import datetime as _dt05  # noqa: E402
-# transição T-0060 (decisão 43): volta ao estrito no PR seguinte
-import inspect as _in05  # noqa: E402
+# (05/11, revisto pela decisao 43 da T-0060, RN-GER-007) o Painel do
+# Diretor segue ate ontem no grupo B (dados_ate); no grupo A (faturamento,
+# positivacao, pedidos e o Farol de Metas) hoje conta como DU passado:
+# projecao = real ÷ (DU corridos com hoje ÷ DU do mes), pela projecao_ritmo.
+# O "Diretor ate ontem" (dados_ate do grupo B) depende do dia: fica no
+# tests/test_T0060_painel_x_pedidos.py, com hoje fixo
 _cols05 = [{"nome": "NOME"}, {"nome": "FAT. META"}, {"nome": "FAT. REAL"}]
 
 
@@ -1856,31 +1849,15 @@ def _pj05(c_):
     return {x_[0]: x_[1] for x_ in c_["linhas"]}.get("Projeção do mês", "")
 
 
-if "hoje_total" in _in05.signature(rn._cartoes_farol).parameters:
-    _k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0, real_proj=60)
-    _c05 = rn._cartoes_farol([["A", 500.0, 100.0]], _cols05, 10, 50.0,
-                             hoje_total={"FAT.": 40.0})
-    _c05b = rn._cartoes_farol(
-        [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]], _cols05, 10, 50.0,
-        hoje_de={"ANA": {"FAT.": 40.0}})
-    _ok05 = (_pj05(_k05).startswith("120")
-             and _pj05(_c05[0]).startswith("R$ 120")
-             and _pj05(_c05b[0]).startswith("R$ 220"))
-else:
-    # decisão 43: projeção = real ÷ (DU corridos com hoje ÷ DU do mês)
-    _k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0)
-    _c05 = rn._cartoes_farol([["A", 500.0, 100.0]], _cols05, 10, 50.0)
-    _c05b = rn._cartoes_farol(
-        [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]], _cols05, 10, 50.0)
-    _ok05 = (_pj05(_k05).startswith("200")
-             and _pj05(_c05[0]).startswith("R$ 200")
-             and _pj05(_c05b[0]).startswith("R$ 300"))
-checar(_ok05
-       and (_dd29.get("dados_ate") is None
-            or _dd29["dados_ate"] < _dt05.date.today()
-            or _dd29["dados_ate"].month != _dt05.date.today().month),
-       "Hoje fora da conta do DU: o Painel do Diretor vai até ontem e o "
-       "Farol de Metas tira a venda de hoje da projeção")
+_k05 = rn._cartao_indicador("X", 1000, 100, 10, 50.0)
+_c05 = rn._cartoes_farol([["A", 500.0, 100.0]], _cols05, 10, 50.0)
+_c05b = rn._cartoes_farol(
+    [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]], _cols05, 10, 50.0)
+checar(_pj05(_k05).startswith("200")
+       and _pj05(_c05[0]).startswith("R$ 200")
+       and _pj05(_c05b[0]).startswith("R$ 300"),
+       "Projeção do Farol pela decisão 43 (real ÷ DU corridos com hoje × DU "
+       "do mês)")
 
 # ---- (31/10, Maestro Sistemas) PAINEL DO DIRETOR NUM MES SEM DADO: no 1o dia
 # util (antes do Espelho e das notas) o cartao com meta e sem realizado
@@ -1934,17 +1911,23 @@ _blocos = (_pe.get("painel") or {}).get("blocos") or []
 _pz = {b_.get("titulo"): b_ for b_ in _blocos if b_["tipo"] in ("pizza",
                                                                 "grupo")}
 _f_pe = rn.montar("vc_painel", AQUI, params={"CATEGORIA": "BATERIAS"})
+# T-0060 (decisão 43, RN-GER-007): o cartão Real do mês corrente diz até que
+# dia. Regra explícita, sem depender da data do PC: com hoje fixo num DU
+# (19/11/2026, quinta) o rótulo é exatamente "Real · até 19/11"
+_pe_r = rn.montar("vc_painel", AQUI, hoje=__import__("datetime").date(2026, 11, 19),
+                  params={"ANO": "2026", "MÊS": "11"})
 checar(len(_blocos) == 8 and len(_pz["Por filial"]["linhas"][0]) == 12
        and [p_["nome"] for p_ in _pe["parametros"]][-11:] == [
            "UF", "CIDADE", "SUPERVISOR", "VENDEDOR", "SEGMENTO", "CATEGORIA",
            "SISTEMA", "FAMÍLIA", "LINHA", "PRODUTO", "PEDIDOS"]
        and all(b_["grafico"].get("linha") for b_ in _blocos[4:8])
        and "Categoria: BATERIAS" in _f_pe["subtitulo"]
-       # transição T-0060 (decisão 43): volta ao estrito no PR seguinte
-       # (aceita "Real" ou "Real · até dd/mm" no 2º cartão)
-       and [re.sub(r"^Real · até \d\d/\d\d$", "Real", k["rotulo"])
-            for k in _pe["kpis"]][:4]
-       == ["Desafio comercial", "Real", "Pedidos em aberto", "Projeção"]
+       # o 2º cartão (Real) é conferido no _pe_r, com hoje fixo
+       and [k["rotulo"] for k in _pe_r["kpis"]][:4]
+       == ["Desafio comercial", "Real · até 19/11", "Pedidos em aberto",
+           "Projeção"]
+       and [k["rotulo"] for i_, k in enumerate(_pe["kpis"][:4]) if i_ != 1]
+       == ["Desafio comercial", "Pedidos em aberto", "Projeção"]
        and [b_["tipo"] for b_ in _blocos].count("pizza") == 4
        and all([l[1] or 0 for l in b_["linhas"]
                 if not str(l[0]).startswith("DEMAIS")] == sorted(
