@@ -122,8 +122,29 @@ A RV é dinheiro do vendedor e é grupo B: agora é calculada com o MESMO real a
 | RV (um vendedor da base, hoje = 19/11) | Antes | Depois | Valor × regra |
 |---|---|---|---|
 | Real de visitas | 135 | 125 | 10 visitas de hoje saem (`visitas_de_hoje`) |
-| RV de visita | R$ 1.286,00 | R$ 1.053,00 | atingimento = 125 ÷ meta de visita: cai de faixa |
+| RV de visita | R$ 1.170,00 | R$ 1.053,00 | atingimento = 125 ÷ meta de visita 135 = 93%: cai de faixa (ver a seção do vendedor) |
 | RV de faturamento e de positivação | R$ 0,00 | R$ 0,00 | faixas não atingidas |
-| RV total | R$ 1.286,00 | R$ 1.053,00 | soma das três |
+| RV total | R$ 1.170,00 | R$ 1.053,00 | soma das três |
 
 O PDF de detalhe: o período vai uma vez no título da tabela ("Por vendedor · até 19/11"), com a coluna REAL como "REAL"; o real linha a linha até ontem segue no lote 2.
+
+## Parcial de um vendedor (RV)
+PNGs:  e  (Vendedor A, Supervisor A; sem nome, código ou CNPJ). Base congelada, hoje = 19/11. Antes = main e6c090d; depois = 6347e65; mesmos arquivos de configuração nas duas pontas.
+
+| Número | Antes | Depois | Valor × regra |
+|---|---|---|---|
+| Visitas | 135 (até 19/11) | 125 (até 18/11) | 10 visitas de hoje saem () |
+| Atingimento de visita | 135 ÷ 135 = 100% | 125 ÷ 135 = 93% | : atingimento_visita = visitas ÷ meta × 100 |
+| RV de visita | R$ 1.170,00 | R$ 1.053,00 | faixas de visita do vendedor: 90 a 94,999% paga R$ 1.053; 95 a 99,999% R$ 1.112; 100 a 109,999% R$ 1.170; 110 a 119,999% R$ 1.286; 120% ou mais R$ 1.404. 100% → R$ 1.170; 93% → R$ 1.053 |
+| RV de faturamento e de positivação | R$ 0,00 | R$ 0,00 | faixas não atingidas (faturamento 6% da meta RH; positivação 17%) |
+| RV total | R$ 1.170,00 | R$ 1.053,00 | soma das três |
+| Nec./dia de visita | 0,0 | 1,4 | gap 10 ÷ 7 DU (B) |
+| Projeção de visita | 197 | 198 | 125 ÷ 12 DU × 19 |
+| Projeção do faturamento (meta RH) | R$ 10.809 | R$ 11.710 | real até ontem ÷ 12 DU × 19 (antes: ÷ 13 com hoje) |
+| Cad. com compra | 0 | 0, rótulo "até 19/11" | cadastros contam hoje (lote 2) |
+
+Correção: nas seções anteriores o "antes" da RV de visita aparecia como R$ 1.286,00. Era um artefato de uma árvore de comparação sem os arquivos de configuração (meta de visita 116 em vez de 135). Com a mesma configuração nas duas pontas, o antes é R$ 1.170,00.
+
+## Lote 2 (acrescentado 2)
+- RV da parcial:  repete as fórmulas de atingimento do ; passa a  do modulo-metas (PR de 28/11, 11h).
+- PDF da parcial: colunas RV removidas até o lote 2 (28/11). Motivo: o PDF ainda tem o real até hoje por linha e o e-mail mostra a RV até ontem; para não ter duas RVs no mesmo envio. A RV fica só no e-mail, calculada até ontem (`rv_ate_ontem` com `meta_nucleo.fechar_atingimentos`). Fora da parcial nada muda.
