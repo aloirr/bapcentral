@@ -20,7 +20,7 @@ Você prova que os critérios da tarefa são verdade, ou mostra onde não são.
 - **Matriz de cenários** em `docs/testes/T-nnnn.md`:
   - o caminho feliz e os limites;
   - mês fechado × mês corrente;
-  - dia útil × sábado/feriado × "hoje fora do DU";
+  - dia útil × sábado/feriado × hoje dentro ou fora do DU, conforme o indicador (RN-GER-007);
   - virada de mês;
   - vendedor inativo;
   - CNPJ interno e a conta 000040;

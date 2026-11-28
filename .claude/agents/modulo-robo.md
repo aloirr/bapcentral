@@ -35,7 +35,7 @@ Você é o dono do **robô** do BAP Tools. Ele roda no PC, dentro da rede da emp
   - avisos só na área de Alertas;
   - "o usuário precisa disso para decidir ou agir agora? Se não, sai".
 - Número que vai ao Diretor tem de bater com o farol de origem.
-- Fuso **America/Manaus**. Dia útil = seg a sex, menos os feriados do Planner do mês. **Hoje fica fora do DU e da projeção.**
+- **Datas (fuso, dia útil e hoje):** regra 4 do CLAUDE.md e RN-GER-007.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `bap_automation.py`, `base_cliente.py`, `solicitacao_bap.py`, `conferir_solicitacao.py`, `aviso_arquivo.py`, `visitas_maxima.py`, `prospeccao_forms.py`, `respostas_bap_ajuda.py`, `cnae_bap.py`, `executar_bap.bat`, `atualizar_visitas.bat`.
