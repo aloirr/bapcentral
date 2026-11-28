@@ -3321,7 +3321,7 @@ def _ate_ontem(real, hoje_b, ind):
     """O real do grupo B ATE ONTEM (parcial de RV): sem o que e de hoje. O
     mesmo numero e exibido e projetado. `ind` fora de hoje_b (cadastros,
     SEM_SEPARAR_HOJE): o real como esta."""
-    if not hoje_b or real is None:
+    if not hoje_b or real is None or ind in SEM_SEPARAR_HOJE:
         return real
     return real - hoje_b.get(ind, 0)
 
