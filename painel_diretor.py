@@ -486,10 +486,13 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     # (05/11) os DU das visitas: ate ontem (o dia fechado), ou ate o ultimo
     # dia do Espelho quando falta arquivo
     de = date(ano, mes, 1)
-    regs_m = []
+    regs_m, vis_hoje = [], 0.0
     try:
         regs_m = [r for r in vn.registros(raiz)
                   if de <= r["data"] <= min(hoje, fim_mes) and r.get("ativo")]
+        # a mesma conta do Farol de Visita e da parcial (visitas_de_hoje)
+        vis_hoje = rn.visitas_de_hoje(
+            rn.linhas_visita_de_hoje(ctx, regs_m), hoje)
     except Exception as erro:                           # noqa: BLE001
         avisos.append(f"Visitas (Espelho): {erro}")
     ult_v = max((r["data"] for r in regs_m), default=None)
@@ -498,10 +501,7 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     # (05/11) o Farol de Visita soma o mes inteiro baixado: as visitas do
     # Espelho de hoje (dia aberto) saem do realizado do painel
     if vis is not None:
-        # a mesma conta do Farol de Visita e da parcial (visitas_de_hoje)
-        vis = max(0.0, vis - rn.visitas_de_hoje(
-            [r for r in rn.com_cadastro_como_visita(
-                ctx, vn.registros(raiz, de=hoje)) if r.get("ativo")], hoje))
+        vis = max(0.0, vis - vis_hoje)
     proj_v = (vis / ndp_v * ndm) if vis is not None and ndp_v else None
     card(2, "visitas", "Visitas", vis, proj_v, f_int, "vc_visitas",
          "Farol de Visita (até ontem, sem o dia de hoje)",

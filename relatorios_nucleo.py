@@ -3318,14 +3318,17 @@ def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
 
 
 def _ate_ontem(real, hoje_b, ind):
-    """O real da PROJECAO do grupo B: sem o que e de hoje (None = o real)."""
-    if not hoje_b or real is None or not hoje_b.get(ind):
-        return None
-    return real - hoje_b[ind]
+    """O real do grupo B ATE ONTEM (parcial de RV): sem o que e de hoje. O
+    mesmo numero e exibido e projetado. `ind` fora de hoje_b (cadastros,
+    SEM_SEPARAR_HOJE): o real como esta."""
+    if not hoje_b or real is None:
+        return real
+    return real - hoje_b.get(ind, 0)
 
 
 def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
-                   resta_b=None, hoje_b=None, esperado_v=None):
+                   resta_b=None, hoje_b=None, esperado_v=None,
+                   rot_cad=""):
     """Os cartoes de cima de uma vista (pelos nomes das colunas dela): um
     por indicador - faturamento (meta comercial e meta RH), positivacao,
     visita, pecas e cadastro com compra (hoje conta na projecao, decisao
@@ -3335,34 +3338,32 @@ def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
     def soma(nome):
         return sum(l[idx[nome]] or 0 for l in ls) if nome in idx else None
 
-    real = soma("FAT. REAL")
+    real = _ate_ontem(soma("FAT. REAL"), hoje_b, "FAT.")
     saida = [_cartao_indicador("Faturamento · desafio comercial",
                                soma("FAT. META"), real, resta, esperado,
                                True, rot_meta="desafio",
-                               real_proj=_ate_ontem(real, hoje_b, "FAT."),
                                ultimo_dia=ultimo_dia)]
     if "FAT. META RH" in idx:       # so no RH / parcial de RV (_COM_RH)
         saida.append(_cartao_indicador("Faturamento · meta RH",
                                        soma("FAT. META RH"), real,
                                        du_restantes("FAT. RH", resta, resta_b),
                                        esperado, True,
-                                       real_proj=_ate_ontem(real, hoje_b,
-                                                            "FAT."),
                                        ultimo_dia=ultimo_dia))
     for nome, rot, din in (("POSIT.", "Positivação", False),
                            ("VISITA", "Visitas", False),
                            ("PEÇAS", "Peças", True),
                            ("CAD.", "Cad. com compra", False)):
         if f"{nome} META" in idx:
-            r_ = soma(f"{nome} REAL")
+            r_ = _ate_ontem(soma(f"{nome} REAL"), hoje_b, nome)
+            if nome in SEM_SEPARAR_HOJE and hoje_b is not None and rot_cad:
+                rot += rot_cad          # o periodo real: ate hoje
             # a visita e do grupo B: o Nec./dia usa os DU do B
             saida.append(_cartao_indicador(
                 rot, soma(f"{nome} META"), r_,
                 du_restantes(nome, resta, resta_b),
                 esperado_v if (esperado_v is not None
                                and nome in SEM_SEPARAR_HOJE) else esperado,
-                din, ultimo_dia=ultimo_dia,
-                real_proj=_ate_ontem(r_, hoje_b, nome)))
+                din, ultimo_dia=ultimo_dia))
     if "CID. META" in idx and soma("CID. META"):
         # (15/10) e estoque, nao ritmo: sem projecao nem nec./dia
         m_, r_ = soma("CID. META"), soma("CID. REAL")
@@ -3834,13 +3835,25 @@ def hoje_dos_itens(itens, regs_visita, hoje, eh_pecas, cods=None) -> dict:
     return {"FAT.": fat, "PEÇAS": pecas, "POSIT.": pos, "VISITA": vis}
 
 
+def linhas_visita_de_hoje(ctx, regs=None) -> list:
+    """As linhas do Espelho de HOJE, so de vendedores ativos, com o cadastro
+    e a prospeccao como visita. A linha so de prospeccao precisa de uma
+    linha do vendedor no mes (o modelo), entao le desde o dia 1 e filtra
+    hoje depois. `regs`: o Espelho do mes ja lido (o Diretor reaproveita);
+    None = le aqui. UM lugar para o Farol de Visita, o Diretor e a parcial."""
+    import visitas_nucleo as vn                         # noqa: PLC0415
+    hoje = ctx.hoje
+    if regs is None:
+        regs = vn.registros(ctx.raiz, de=hoje.replace(day=1), ate=hoje)
+    return [l for l in com_cadastro_como_visita(ctx, regs, hoje, hoje)
+            if l.get("ativo") and l["data"] >= hoje]
+
+
 def hoje_do_escopo(ctx, cods=None) -> dict:
     """hoje_dos_itens do escopo (cods = vendedores, ou None = a BAP)."""
-    import visitas_nucleo as vn                         # noqa: PLC0415
     itens = [it for it in ctx.tabela["itens"]
              if cods is None or _cod6(it.get("vend")) in cods]
-    regs = [l for l in com_cadastro_como_visita(
-        ctx, vn.registros(ctx.raiz, de=ctx.hoje)) if l.get("ativo")]
+    regs = linhas_visita_de_hoje(ctx)
     return hoje_dos_itens(itens, regs, ctx.hoje,
                           lambda cod: _eh_pecas(ctx, cod), cods)
 
@@ -11409,11 +11422,10 @@ def _exportar_rh(ctx, parcial=None):
 
             def resumo_(rot, meta, real, fmt, rv_txt, inteiro=False,
                         ind=None):
-                meta, real = meta or 0.0, real or 0.0
-                rp_ = _ate_ontem(real, hj_, ind)
-                # cadastros (SEM_SEPARAR_HOJE): hoje contado ate o lote 2
-                proj = projecao_ritmo(real if rp_ is None else rp_,
-                                      corrido_a_ if ind in SEM_SEPARAR_HOJE
+                # real ATE ONTEM (o mesmo numero que se projeta)
+                meta, real = meta or 0.0, _ate_ontem(real or 0.0, hj_, ind)
+                proj = projecao_ritmo(real, corrido_a_
+                                      if ind in SEM_SEPARAR_HOJE
                                       else corrido_)
                 gap = max(0.0, meta - real)
                 nec = gap / resta_ if resta_ else None
@@ -11456,7 +11468,8 @@ def _exportar_rh(ctx, parcial=None):
                 ls_p = ls_p[:1] if chave_p == "supervisor" else ls_p
             r["kpis"] = _cartoes_farol(ls_p, tab_p["colunas"],
                                        resta_b_, esp_b_, esperado_v=esp_a_,
-                                       hoje_b=hj_)
+                                       hoje_b=hj_,
+                                       rot_cad=sufixo_periodo(ctx.hoje))
         # (10/10) o resumo dos PEDIDOS EM ABERTO na 1a pagina
         r["kpis"].append(_kpi_abertos_da_parcial(
             ctx, cods_))
