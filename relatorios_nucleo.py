@@ -3802,7 +3802,16 @@ def _resta_a(ac) -> int:
 SEM_SEPARAR_HOJE = frozenset({"CAD."})
 
 
-def hoje_dos_itens(itens, regs_visita, hoje, eh_pecas) -> dict:
+def visitas_de_hoje(regs, hoje, cods=None) -> float:
+    """RN-GER-007 (puro, grupo B): as visitas de HOJE nas linhas do Espelho
+    (com o cadastro como visita). `cods`: so os vendedores (codigo PROTHEUS);
+    None = todos. UMA conta para o Farol de Visita, o Diretor e a parcial."""
+    return sum(l.get("visitas") or 0 for l in regs
+               if l["data"] >= hoje
+               and (cods is None or _cod6(l.get("cod_protheus")) in cods))
+
+
+def hoje_dos_itens(itens, regs_visita, hoje, eh_pecas, cods=None) -> dict:
     """RN-GER-007 (puro, grupo B): o que e de HOJE nos itens (ja no escopo) e
     nas linhas do Espelho, para a projecao da parcial de RV usar so o real
     ATE ONTEM: {"FAT.": liquido de hoje, "PEÇAS": so pecas, "POSIT.": a
@@ -3821,8 +3830,7 @@ def hoje_dos_itens(itens, regs_visita, hoje, eh_pecas) -> dict:
     pos_ontem = (len(clientes_positivados_ate(itens, ontem))
                  if ontem.month == hoje.month else 0)
     pos = len(clientes_positivados_ate(itens, hoje)) - pos_ontem
-    vis = sum(l.get("visitas") or 0 for l in regs_visita
-              if l["data"] >= hoje)
+    vis = visitas_de_hoje(regs_visita, hoje, cods)
     return {"FAT.": fat, "PEÇAS": pecas, "POSIT.": pos, "VISITA": vis}
 
 
@@ -3832,10 +3840,9 @@ def hoje_do_escopo(ctx, cods=None) -> dict:
     itens = [it for it in ctx.tabela["itens"]
              if cods is None or _cod6(it.get("vend")) in cods]
     regs = [l for l in com_cadastro_como_visita(
-        ctx, vn.registros(ctx.raiz)) if l["data"] >= ctx.hoje
-        and (cods is None or _cod6(l.get("cod")) in cods)]
+        ctx, vn.registros(ctx.raiz, de=ctx.hoje)) if l.get("ativo")]
     return hoje_dos_itens(itens, regs, ctx.hoje,
-                          lambda cod: _eh_pecas(ctx, cod))
+                          lambda cod: _eh_pecas(ctx, cod), cods)
 
 
 def _resta_b(ac) -> int:
@@ -14156,9 +14163,7 @@ def farol_visitas(ctx):
             # PROJECAO = visitas ATE ONTEM / DU ate ontem x DU do mes - o
             # mesmo do Painel do Diretor. Antes hoje ficava fora dos DU,
             # mas as visitas de hoje entravam (202 / 2 x 19 = 1.919).
-            hj_ = [l for l in raws if l["data"] >= hoje]
-            vis_p = s["visitas"] - (vn.resumir(hj_)["visitas"] or 0
-                                    if hj_ else 0)
+            vis_p = s["visitas"] - visitas_de_hoje(raws, hoje)
             c_vis = _cartao_indicador("Visitas", mt, s["visitas"], resta,
                                       esperado, ate=data_ate, meta_ate=ma_,
                                       real_proj=vis_p)

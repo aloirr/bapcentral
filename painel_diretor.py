@@ -498,8 +498,10 @@ def calcular(ctx, ano=None, mes=None, gravar_hist=True) -> dict:
     # (05/11) o Farol de Visita soma o mes inteiro baixado: as visitas do
     # Espelho de hoje (dia aberto) saem do realizado do painel
     if vis is not None:
-        vis = max(0.0, vis - sum(r.get("visitas") or 0 for r in regs_m
-                                 if r["data"] > corte))
+        # a mesma conta do Farol de Visita e da parcial (visitas_de_hoje)
+        vis = max(0.0, vis - rn.visitas_de_hoje(
+            [r for r in rn.com_cadastro_como_visita(
+                ctx, vn.registros(raiz, de=hoje)) if r.get("ativo")], hoje))
     proj_v = (vis / ndp_v * ndm) if vis is not None and ndp_v else None
     card(2, "visitas", "Visitas", vis, proj_v, f_int, "vc_visitas",
          "Farol de Visita (até ontem, sem o dia de hoje)",
