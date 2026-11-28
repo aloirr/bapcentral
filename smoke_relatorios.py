@@ -1839,8 +1839,9 @@ checar(_ok06i and not (_oc06 & {rn.norm_nome(l_[0]) for l_ in
 # (05/11, revisto pela decisao 43 da T-0060, RN-GER-007) o Painel do
 # Diretor segue ate ontem no grupo B (dados_ate); no grupo A (faturamento,
 # positivacao, pedidos e o Farol de Metas) hoje conta como DU passado:
-# projecao = real ÷ (DU corridos com hoje ÷ DU do mes), pela projecao_ritmo
-import datetime as _dt05  # noqa: E402
+# projecao = real ÷ (DU corridos com hoje ÷ DU do mes), pela projecao_ritmo.
+# O "Diretor ate ontem" (dados_ate do grupo B) depende do dia: fica no
+# tests/test_T0060_painel_x_pedidos.py, com hoje fixo
 _cols05 = [{"nome": "NOME"}, {"nome": "FAT. META"}, {"nome": "FAT. REAL"}]
 
 
@@ -1854,12 +1855,10 @@ _c05b = rn._cartoes_farol(
     [["ANA", 500.0, 100.0], ["BIA", 500.0, 50.0]], _cols05, 10, 50.0)
 checar(_pj05(_k05).startswith("200")
        and _pj05(_c05[0]).startswith("R$ 200")
-       and _pj05(_c05b[0]).startswith("R$ 300")
-       and (_dd29.get("dados_ate") is None
-            or _dd29["dados_ate"] < _dt05.date.today()
-            or _dd29["dados_ate"].month != _dt05.date.today().month),
-       "Painel do Diretor vai até ontem; projeção do Farol pela decisão 43 "
-       "(real ÷ DU corridos com hoje × DU do mês)")
+       and _pj05(_c05b[0]).startswith("R$ 300"),
+       "Projeção do Farol pela decisão 43 (real ÷ DU corridos com hoje × DU "
+       "do mês); o Diretor até ontem no grupo B fica no pytest (T-0060, "
+       "hoje fixo)")
 
 # ---- (31/10, Maestro Sistemas) PAINEL DO DIRETOR NUM MES SEM DADO: no 1o dia
 # util (antes do Espelho e das notas) o cartao com meta e sem realizado

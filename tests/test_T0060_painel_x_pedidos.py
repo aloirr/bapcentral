@@ -103,7 +103,8 @@ def base():
     exe = rn.montar("vc_painel", RAIZ, hoje=HOJE, params=dict(PARAMS))
     dire = pdr.calcular(rn.Contexto(RAIZ, HOJE, None, dict(PARAMS)),
                         2026, 11, gravar_hist=False)
-    return {"itens": itens, "exe": exe, "dir": dire}
+    ac = rn.meta_do_periodo(ctx)["acomp"]
+    return {"itens": itens, "exe": exe, "dir": dire, "ac": ac}
 
 
 def _kpis(rel, painel=None):
@@ -111,6 +112,17 @@ def _kpis(rel, painel=None):
         return {k["rotulo"]: k for k in rel["kpis"]}
     p = next(x for x in rel["paineis"] if x.get("titulo") == painel)
     return {k["rotulo"]: k for k in p["kpis"]}
+
+
+def _linha(k, rot):
+    """O valor da linha de rótulo exato `rot` de um cartão."""
+    return dict((a, b) for a, b, *_ in k["linhas"])[rot]
+
+
+def _regra_pecas(ctx, itens, ate):
+    """Peças (rn._eh_pecas) líquidas do mês até `ate`, sem a 000040."""
+    return sum(_liq(it) for it in _do_mes(itens, ate)
+               if rn._eh_pecas(ctx, it["cod"]))
 
 
 def _card(dire, chave):
@@ -170,8 +182,7 @@ def test_RN_GER_007_pecas_seguem_ate_ontem_projecao_inalterada(base):
     DU até ontem (12): peças ÷ 12 × 19, como antes da decisão 43."""
     ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
     ontem, ndp_b = date(2026, 11, 18), DU_PASSADOS_COM_HOJE - 1
-    pecas = sum(_liq(it) for it in _do_mes(base["itens"], ontem)
-                if rn._eh_pecas(ctx, it["cod"]))         # sem a 000040
+    pecas = _regra_pecas(ctx, base["itens"], ontem)
     r = prm.calcular(ctx, 2026, 11, dd=base["dir"])
     c = next(x for x in r["res"] if x["chave"] == "pecas")
     assert c["valor"] == prm.reais(pecas / ndp_b * DU_MES)   # R$ 16,9 mil
@@ -344,8 +355,7 @@ def test_RN_GER_003_positivacao_projetada_66_no_metas_e_no_diretor():
     k = rn._cartao_indicador("Positivação", 163, 45,
                              ac["dias_restantes"], rn._esperado(ac),
                              real_proj=45, ultimo_dia=rn._ultimo_dia(ac))
-    proj = dict((a, b) for a, b, *_ in k["linhas"])["Projeção do mês"]
-    assert proj.startswith("66 ")
+    assert _linha(k, "Projeção do mês").startswith("66 ")
 
 
 # ------------------------------------------- 6 Diretor = Executivo (origem)
@@ -457,8 +467,8 @@ _LINHA = [1400.0, 1000.0, 400.0, 20, 6, 100, 30]   # gaps 1000/600/14/70
 
 
 def _nec(k, rot="Nec./dia"):
-    """O valor da linha de rótulo exato `rot` (no último DU: "Falta hoje")."""
-    return dict((a, b) for a, b, *_ in k["linhas"])[rot]
+    """A linha do Nec./dia (no último DU: "Falta hoje")."""
+    return _linha(k, rot)
 
 
 def test_RN_GER_007_cartao_nec_dia_visita_e_rh_no_B_desafio_e_posit_no_A():
@@ -644,11 +654,10 @@ def test_RN_GER_007_cartoes_da_parcial_projetam_o_real_ate_ontem_no_B():
     assert ks["Faturamento · desafio comercial"]["valor"] == rn.moeda(300.0)
     assert ks["Positivação"]["valor"] == rn.br(4)
     assert ks["Visitas"]["valor"] == rn.br(20)
-    cad = ks["Cad. com compra · até 19/11"]
-    assert cad["valor"] == rn.br(4)                         # não separa hoje
+    assert ks["Cad. com compra · até 19/11"]["valor"] == rn.br(4)
 
     def proj(k):
-        return dict((a, b) for a, b, *_ in k["linhas"])["Projeção do mês"]
+        return _linha(k, "Projeção do mês")
     assert proj(ks["Faturamento · desafio comercial"]).startswith(
         rn.moeda((400.0 - 100.0) / f) + " ")                # R$ 475
     assert proj(ks["Faturamento · meta RH"]).startswith(
@@ -658,20 +667,36 @@ def test_RN_GER_007_cartoes_da_parcial_projetam_o_real_ate_ontem_no_B():
     assert _nec(ks["Visitas"]) == rn.br((100 - 20) / 7, 1)      # 11,4
 
 
+@pytest.mark.xfail(strict=True, reason=(
+    "defeito T-0060: _cartoes_farol/_ate_ontem tiram CAD. de hoje_b; "
+    "SEM_SEPARAR_HOJE não é respeitado (Cad. 4 vira 1)"))
+def test_RN_GER_007_cad_nao_separa_hoje_mesmo_com_cad_no_hoje_b():
+    """SEM_SEPARAR_HOJE = {"CAD."}: mesmo que hoje_b traga CAD. (≠ 0), o
+    real do cartão Cad. continua o do mês (até hoje); o faturamento, sim,
+    sai até ontem."""
+    assert "CAD." in rn.SEM_SEPARAR_HOJE
+    cols = [{"nome": n} for n in ("FAT. META", "FAT. REAL", "CAD. META",
+                                  "CAD. REAL")]
+    ks = {k["rotulo"]: k for k in rn._cartoes_farol(
+        [[1000.0, 400.0, 10, 4]], cols, 7, 60.0, resta_b=7,
+        hoje_b={"FAT.": 100.0, "CAD.": 3}, rot_cad=rn.sufixo_periodo(HOJE))}
+    assert ks["Faturamento · desafio comercial"]["valor"] == rn.moeda(300.0)
+    assert ks["Cad. com compra · até 19/11"]["valor"] == rn.br(4)
+
+
 def test_RN_GER_007_parcial_de_rv_mostra_o_real_ate_ontem(base):
     """Base congelada, hoje = 19/11, parcial do gerente (a BAP): os cartões
     mostram o real até 18/11 pela regra - faturamento R$ 109.575,
     positivação 43, visitas 989 (= Diretor), peças R$ 10.674; o Cad. leva
     " · até 19/11" (não separa hoje)."""
     ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
-    ger = rn.meta_do_periodo(ctx)["acomp"]["recortes"]["gerente"][0]
+    ger = base["ac"]["recortes"]["gerente"][0]
     r = rn._exportar_rh(ctx, {"cargo": "GERENTE", "cod": ger.get("chave"),
                               "nome": ger.get("rotulo") or ger.get("nome")})
     k = {x["rotulo"]: x["valor"] for x in r["kpis"]}
     ontem = date(2026, 11, 18)
     itens = base["itens"]
-    pecas = sum(_liq(it) for it in _do_mes(itens, ontem)
-                if rn._eh_pecas(ctx, it["cod"]))
+    pecas = _regra_pecas(ctx, itens, ontem)
     assert k["Faturamento · desafio comercial"] == rn.moeda(
         _regra_real(itens, ontem)) == "R$ 109.575"
     assert k["Positivação"] == rn.br(len(_regra_por_cliente(itens, ontem))) \
@@ -752,7 +777,8 @@ def test_RN_GER_007_visitas_ate_ontem_do_diretor_igual_ao_farol_de_visita(
 
 def test_RN_GER_007_ate_ontem_devolve_o_real_e_nunca_none():
     """_ate_ontem(real, hoje_b, ind): sem o de hoje = o próprio real (não
-    None); indicador fora de hoje_b (o Cad.) = o real; com hoje = real − o
+    None); indicador fora de hoje_b = o real (o Cad. tem teste próprio);
+    com hoje = real − o
     de hoje, inclusive negativo (devolução)."""
     assert rn._ate_ontem(400.0, None, "FAT.") == 400.0
     assert rn._ate_ontem(400.0, {}, "FAT.") == 400.0
@@ -785,9 +811,7 @@ def test_RN_GER_007_rv_ate_ontem_paga_pela_faixa_do_real_ate_ontem():
         500.0, 500.0, 500.0)
     assert rv["rv_total"] == 1500.0
     assert linha["atingimento_rh"] == 100.0          # a linha não muda
-    # sem nada de hoje: a mesma RV; visita sem meta: sem atingimento
-    assert rn.rv_ate_ontem(mn.rv_da_linha, par, "vendedor", linha,
-                           {}, mn.fechar_atingimentos) == com_hoje
+    # visita sem meta: sem atingimento (o caso {} fica na trava abaixo)
     vis = []
     rn.rv_ate_ontem(lambda p_, n_, l_: vis.append(l_) or {}, par,
                     "vendedor", dict(linha, meta_visita=None), hoje_b,
@@ -798,12 +822,11 @@ def test_RN_GER_007_rv_ate_ontem_paga_pela_faixa_do_real_ate_ontem():
 @pytest.mark.parametrize("hoje_b", [{}, {"FAT.": 0.0, "POSIT.": 0,
                                          "VISITA": 0}])
 def test_RN_GER_007_rv_ate_ontem_com_hoje_zero_igual_a_rv_do_acompanhamento(
-        hoje_b):
+        base, hoje_b):
     """Trava (RD-c): sem nada de hoje, rn.rv_ate_ontem = a RV que o
     meta_nucleo.acompanhar gravou em cada linha (vendedor e supervisor) e
     na RV total. Base congelada; só códigos e valores, sem nome."""
-    ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
-    ac = rn.meta_do_periodo(ctx)["acomp"]
+    ac = base["ac"]
     par = mn.carregar_parametros(RAIZ / "meta_config.json")
     n = 0
     for nivel in ("vendedor", "supervisor"):
@@ -850,12 +873,12 @@ def test_RN_GER_007_fechar_atingimentos_casos_e_retorno():
         "atingimento_visita"] is None
 
 
-def test_RN_GER_007_fechar_atingimentos_igual_ao_que_o_acompanhar_grava():
+def test_RN_GER_007_fechar_atingimentos_igual_ao_que_o_acompanhar_grava(
+        base):
     """Base congelada: refazer os atingimentos de cada linha (vendedor e
     supervisor) com fechar_atingimentos(dias_restantes_b) dá o mesmo que o
     meta_nucleo.acompanhar gravou. Só códigos e valores, sem nome."""
-    ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
-    ac = rn.meta_do_periodo(ctx)["acomp"]
+    ac = base["ac"]
     dias_b = ac["dias_restantes_b"]
     chaves = ("atingimento_rh", "falta_rh", "meta_rh", "nec_fat_rh",
               "atingimento_positivacao", "atingimento_visita")
