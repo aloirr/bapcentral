@@ -646,3 +646,53 @@ def test_RN_GER_007_cartoes_da_parcial_projetam_o_real_ate_ontem_no_B():
     assert proj(ks["Positivação"]).startswith(rn.br((6 - 2) / f) + " ")
     assert proj(ks["Visitas"]).startswith(rn.br((30 - 10) / f) + " ")
     assert _nec(ks["Visitas"]) == rn.br(70 / 7, 1)
+
+
+# ------------------------------------- 16 visitas de hoje (núcleo puro)
+def test_RN_GER_007_visitas_de_hoje_data_cod_protheus_e_ativo():
+    """visitas_de_hoje(regs, hoje, cods): só as linhas de hoje; o filtro de
+    vendedor é pelo código PROTHEUS (não o da Máxima). O `ativo` é filtro
+    de quem chama (Diretor e Farol de Visita), não da função."""
+    regs = [
+        {"data": HOJE, "visitas": 5, "cod_protheus": "101", "cod": "9001",
+         "ativo": True},
+        {"data": HOJE, "visitas": 3, "cod_protheus": "000102", "cod": "101",
+         "ativo": True},
+        {"data": HOJE, "visitas": 7, "cod_protheus": "000103", "cod": "9003",
+         "ativo": False},
+        {"data": HOJE.replace(day=18), "visitas": 11, "cod_protheus": "101",
+         "cod": "9001", "ativo": True},
+        # só prospecção hoje (sem linha da Máxima): a linha própria que o
+        # com_cadastro_como_visita cria também sai
+        {"data": HOJE, "visitas": 2, "prosp_visita": 2,
+         "cod_protheus": "000104", "ativo": True},
+    ]
+    assert rn.visitas_de_hoje(regs, HOJE) == 17             # cods=None
+    assert rn.visitas_de_hoje(regs, HOJE, None) == 17
+    assert rn.visitas_de_hoje(regs, HOJE, {"000101"}) == 5   # Protheus
+    assert rn.visitas_de_hoje(regs, HOJE, {"009001"}) == 0   # Máxima: não
+    assert rn.visitas_de_hoje(regs, HOJE, {"000104"}) == 2   # prospecção
+    ativos = [r for r in regs if r.get("ativo")]
+    assert rn.visitas_de_hoje(ativos, HOJE) == 10
+    assert rn.visitas_de_hoje(regs, HOJE.replace(day=20)) == 0
+
+
+def test_RN_GER_007_visitas_ate_ontem_do_diretor_igual_ao_farol_de_visita(
+        base):
+    """Base congelada, hoje = 19/11: Diretor = Farol de Visita − as visitas
+    de hoje (ativos, com cadastro como visita) = 1.074 − 85 = 989;
+    projeção = 989 ÷ 12 DU até ontem × 19 = 1.566."""
+    import visitas_nucleo as vn
+    ctx = rn.Contexto(RAIZ, HOJE, None, dict(PARAMS))
+    fv = rn.montar("vc_visitas", RAIZ, hoje=HOJE, params=dict(PARAMS))
+    k = next(x for x in fv["kpis"] if x["rotulo"] == "Visitas")
+    farol = pdr._num(k["valor"])
+    hoje_v = rn.visitas_de_hoje(
+        [r for r in rn.com_cadastro_como_visita(
+            ctx, vn.registros(RAIZ, de=HOJE)) if r.get("ativo")], HOJE)
+    assert (farol, hoje_v) == (1074, 85)
+    c = _card(base["dir"], "visitas")
+    assert c["numero"] == farol - hoje_v == 989
+    assert c["projecao"] == pytest.approx(989 / (DU_PASSADOS_COM_HOJE - 1)
+                                          * DU_MES)
+    assert round(c["projecao"]) == 1566
