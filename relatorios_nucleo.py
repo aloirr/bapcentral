@@ -2838,7 +2838,9 @@ def sufixo_periodo(d) -> str:
     return SUFIXO_PERIODO.format(d)
 
 
-GRUPO_B_FAROL = frozenset({"VISITA", "FAT. RH"})    # DU do B (hoje a vencer)
+# DU do B (hoje a vencer). PEÇAS e CAD. ficam fora ate o lote 2 (decisao do
+# gerente, 27/11 18:44), embora a RN-GER-007 os ponha no B: seguem com A.
+GRUPO_B_FAROL = frozenset({"VISITA", "FAT. RH"})
 
 
 def du_restantes(chave, resta_a, resta_b):
@@ -3315,8 +3317,15 @@ def _cartao_indicador(nome, meta, real, resta, esperado, dinheiro=False,
                f"do mês {fmt(meta)}", linhas)
 
 
+def _ate_ontem(real, hoje_b, ind):
+    """O real da PROJECAO do grupo B: sem o que e de hoje (None = o real)."""
+    if not hoje_b or real is None or not hoje_b.get(ind):
+        return None
+    return real - hoje_b[ind]
+
+
 def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
-                   resta_b=None):
+                   resta_b=None, hoje_b=None, esperado_v=None):
     """Os cartoes de cima de uma vista (pelos nomes das colunas dela): um
     por indicador - faturamento (meta comercial e meta RH), positivacao,
     visita, pecas e cadastro com compra (hoje conta na projecao, decisao
@@ -3330,12 +3339,15 @@ def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
     saida = [_cartao_indicador("Faturamento · desafio comercial",
                                soma("FAT. META"), real, resta, esperado,
                                True, rot_meta="desafio",
+                               real_proj=_ate_ontem(real, hoje_b, "FAT."),
                                ultimo_dia=ultimo_dia)]
     if "FAT. META RH" in idx:       # so no RH / parcial de RV (_COM_RH)
         saida.append(_cartao_indicador("Faturamento · meta RH",
                                        soma("FAT. META RH"), real,
                                        du_restantes("FAT. RH", resta, resta_b),
                                        esperado, True,
+                                       real_proj=_ate_ontem(real, hoje_b,
+                                                            "FAT."),
                                        ultimo_dia=ultimo_dia))
     for nome, rot, din in (("POSIT.", "Positivação", False),
                            ("VISITA", "Visitas", False),
@@ -3347,7 +3359,10 @@ def _cartoes_farol(ls, cols, resta, esperado, ultimo_dia=False,
             saida.append(_cartao_indicador(
                 rot, soma(f"{nome} META"), r_,
                 du_restantes(nome, resta, resta_b),
-                esperado, din, ultimo_dia=ultimo_dia))
+                esperado_v if (esperado_v is not None and nome in
+                               ("VISITA", "CAD.")) else esperado,
+                din, ultimo_dia=ultimo_dia,
+                real_proj=_ate_ontem(r_, hoje_b, nome)))
     if "CID. META" in idx and soma("CID. META"):
         # (15/10) e estoque, nao ritmo: sem projecao nem nec./dia
         m_, r_ = soma("CID. META"), soma("CID. REAL")
@@ -3782,6 +3797,27 @@ def _resta_a(ac) -> int:
     return ac.get("dias_restantes") or 0
 
 
+def hoje_do_escopo(ctx, cods=None) -> dict:
+    """RN-GER-007 (grupo B): o que e de HOJE no escopo (cods = vendedores, ou
+    None = a BAP), para a parcial de RV projetar so o real ATE ONTEM:
+    {"FAT.": liquido de hoje, "PEÇAS": idem so pecas, "POSIT.": positivados
+    que so existem por causa de hoje}. Visitas e cadastros: nao se separa."""
+    itens = [it for it in ctx.tabela["itens"]
+             if cods is None or _cod6(it.get("vend")) in cods]
+    hoje = ctx.hoje
+    fat = pecas = 0.0
+    for it in itens:
+        if it.get("dt_nf") == hoje and _conta_valida(it):
+            v = _liquido(it)
+            if v is not None:
+                fat += v
+                if _eh_pecas(ctx, it["cod"]):
+                    pecas += v
+    pos = len(clientes_positivados_ate(itens, hoje)) - len(
+        clientes_positivados_ate(itens, hoje - timedelta(days=1)))
+    return {"FAT.": fat, "PEÇAS": pecas, "POSIT.": max(0, pos)}
+
+
 def _resta_b(ac) -> int:
     """DU restantes do grupo B (meta RH, RV): hoje ainda e dia a vencer.
     Usa `dias_restantes_b` do acompanhamento (meta_nucleo, modulo-metas); se
@@ -3799,8 +3835,10 @@ def _ultimo_dia(ac) -> bool:
             and (ac.get("dias_restantes_b") or 0) > 0)
 
 
-def _esperado(ac):
-    du, resta = ac.get("dias_uteis_do_mes"), ac.get("dias_restantes")
+def _esperado(ac, grupo_b=False):
+    """% do mes corrido: grupo A (hoje conta) ou grupo B (ate ontem)."""
+    du = ac.get("dias_uteis_do_mes")
+    resta = _resta_b(ac) if grupo_b else ac.get("dias_restantes")
     return (du - resta) / du * 100.0 if du and resta is not None else None
 
 
@@ -3876,6 +3914,8 @@ def vistas_do_farol(ctx, ac, comp, corte=None, sem=()):
     familia. corte: no maximo tantas linhas nos territorios (o PDF)."""
     resta, resta_b = _resta_a(ac), _resta_b(ac)
     esperado = _esperado(ac)
+    if corte:           # a parcial de RV e inteira do grupo B (RN-GER-007)
+        resta, esperado = resta_b, _esperado(ac, True)
     mix = _mix_das_linhas(ctx, comp, ac)
     rh_por = ac.get("rh_por") or {}
     slim = ac.get("clientes_slim") or []
@@ -4052,6 +4092,8 @@ def vistas_escopo(ctx, ac, comp, V=None, T=None, sup=None, corte=None,
     RV); com territorio, saem da soma dos clientes e das notas."""
     resta, resta_b = _resta_a(ac), _resta_b(ac)
     esperado = _esperado(ac)
+    if corte:           # a parcial de RV e inteira do grupo B (RN-GER-007)
+        resta, esperado = resta_b, _esperado(ac, True)
     equipe = ac.get("equipe_vend") or {}
     nomes = _nomes_vendedor(ac)
     slim = [c for c in ac.get("clientes_slim") or []
@@ -11107,6 +11149,7 @@ def _exportar_rh(ctx, parcial=None):
     """
     dados = meta_do_periodo(ctx)
     ac, comp = dados["acomp"], dados["competencia"]
+    resta_b_ = _resta_b(ac)         # a parcial de RV e inteira do grupo B
     if parcial:
         cod_p = (f" · Cód. {_cod6(parcial.get('cod'))}"
                  if parcial.get("cargo") == "VENDEDOR" and parcial.get("cod")
@@ -11327,12 +11370,20 @@ def _exportar_rh(ctx, parcial=None):
             # paga a RV), positivacao e visita
             # cada linha: (indicador, meta, real, % ating., RV, projecao,
             # % ating. projetado, GAP do mes, nec./dia) - ja formatados
-            resta_ = _resta_b(ac)           # parcial de RV: grupo B (ate ontem)
-            corrido_ = (_esperado(ac) or 0.0) / 100.0
+            resta_ = resta_b_               # parcial de RV: grupo B (ate ontem)
+            corrido_ = (_esperado(ac, True) or 0.0) / 100.0
+            corrido_a_ = (_esperado(ac) or 0.0) / 100.0
 
-            def resumo_(rot, meta, real, fmt, rv_txt, inteiro=False):
+            hj_ = hoje_do_escopo(ctx, _escopo_da_parcial(ac, parcial)[1])
+
+            def resumo_(rot, meta, real, fmt, rv_txt, inteiro=False,
+                        ind=None):
                 meta, real = meta or 0.0, real or 0.0
-                proj = real / corrido_ if corrido_ > 0 else None
+                rp_ = _ate_ontem(real, hj_, ind)
+                # visita e cadastros: o real inclui hoje e nao se separa;
+                # projeta com hoje contado (par coerente) ate o lote 2
+                proj = projecao_ritmo(real if rp_ is None else rp_,
+                                      corrido_ if ind else corrido_a_)
                 gap = max(0.0, meta - real)
                 nec = gap / resta_ if resta_ else None
                 return (rot, fmt(meta), fmt(real), p(pct_de(real, meta)),
@@ -11346,14 +11397,15 @@ def _exportar_rh(ctx, parcial=None):
             if lp_ is not None:
                 r["resumo_desafio"] = resumo_(
                     "Desafio Fat. Comercial", lp_.get("meta"),
-                    lp_.get("realizado"), moeda, "")
+                    lp_.get("realizado"), moeda, "", ind="FAT.")
             rotulos_ = ("Meta Fat.", "Positivação", "Visita")
+            inds_ = ("FAT.", "POSIT.", None)
             for i, (g, _c, _km, _kr, _krv, tp) in enumerate(INDICADORES_RH):
                 meta, real, pct, rv_ = l[k + i * 4: k + i * 4 + 4]
                 fmt = moeda if tp == "moeda" else br
                 r["resumo_pessoa"].append(resumo_(
                     rotulos_[i], meta, real, fmt,
-                    moeda(rv_ or 0.0, 2), tp != "moeda"))
+                    moeda(rv_ or 0.0, 2), tp != "moeda", ind=inds_[i]))
                 r["kpis"].append(kpi(g.split(" (")[0].title(), fmt(real),
                                      "ok" if (pct or 0) >= 100 else
                                      "atencao" if (pct or 0) >= 80 else
@@ -11373,8 +11425,11 @@ def _exportar_rh(ctx, parcial=None):
             if chave_p != "gerente":
                 ls_p = ls_p[:1] if chave_p == "supervisor" else ls_p
             r["kpis"] = _cartoes_farol(ls_p, tab_p["colunas"],
-                                       _resta_b(ac), _esperado(ac),
-                                       resta_b=_resta_b(ac))   # parcial de RV: tudo B
+                                       resta_b_, _esperado(ac, True),
+                                       esperado_v=_esperado(ac),
+                                       hoje_b=hoje_do_escopo(
+                                           ctx, _escopo_da_parcial(
+                                               ac, parcial)[1]))
         # (10/10) o resumo dos PEDIDOS EM ABERTO na 1a pagina
         r["kpis"].append(_kpi_abertos_da_parcial(
             ctx, _escopo_da_parcial(ac, parcial)[1]))
@@ -11385,7 +11440,7 @@ def _exportar_rh(ctx, parcial=None):
             lv = next((x for x in ac["recortes"].get("vendedor", [])
                        if _cod6(x.get("chave")) == _cod6(parcial["cod"])), {})
             sup_p = _nome_curto(lv.get("supervisor"))
-        resta_p = _resta_b(ac)
+        resta_p = resta_b_
         r.update({
             "estilo": "bap",
             "faixa": f"PARCIAL DE RESULTADO · {rotulo_mes(comp)}",
